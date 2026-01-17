@@ -1,9 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/presentation/viewmodels/class_viewmodel.dart';
+import 'package:ai_mls/presentation/viewmodels/auth_viewmodel.dart';
 import 'qr_scan_screen.dart';
 
-class JoinClassScreen extends StatelessWidget {
+class JoinClassScreen extends StatefulWidget {
   const JoinClassScreen({super.key});
+
+  @override
+  State<JoinClassScreen> createState() => _JoinClassScreenState();
+}
+
+class _JoinClassScreenState extends State<JoinClassScreen> {
+  final _classCodeController = TextEditingController();
+
+  @override
+  void dispose() {
+    _classCodeController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,10 +65,7 @@ class JoinClassScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: DesignColors.moonLight.withOpacity(0.8),
         border: Border(
-          bottom: BorderSide(
-            color: DesignColors.dividerLight,
-            width: 1,
-          ),
+          bottom: BorderSide(color: DesignColors.dividerLight, width: 1),
         ),
       ),
       child: Row(
@@ -100,6 +113,7 @@ class JoinClassScreen extends StatelessWidget {
         ),
         SizedBox(height: DesignSpacing.sm),
         TextFormField(
+          controller: _classCodeController,
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 24,
@@ -132,10 +146,7 @@ class JoinClassScreen extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(DesignRadius.lg),
-              borderSide: BorderSide(
-                color: DesignColors.primary,
-                width: 2,
-              ),
+              borderSide: BorderSide(color: DesignColors.primary, width: 2),
             ),
             contentPadding: EdgeInsets.symmetric(
               vertical: DesignSpacing.xl,
@@ -153,10 +164,7 @@ class JoinClassScreen extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Divider(
-            color: DesignColors.dividerLight,
-            thickness: 1,
-          ),
+          child: Divider(color: DesignColors.dividerLight, thickness: 1),
         ),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: DesignSpacing.md),
@@ -171,10 +179,7 @@ class JoinClassScreen extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: Divider(
-            color: DesignColors.dividerLight,
-            thickness: 1,
-          ),
+          child: Divider(color: DesignColors.dividerLight, thickness: 1),
         ),
       ],
     );
@@ -184,11 +189,9 @@ class JoinClassScreen extends StatelessWidget {
     return ElevatedButton(
       onPressed: () {
         // Navigate to QR scan screen
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const QRScanScreen(),
-          ),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (context) => const QRScanScreen()));
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: DesignColors.white,
@@ -250,39 +253,106 @@ class JoinClassScreen extends StatelessWidget {
   }
 
   Widget _buildJoinButton() {
-    return Container(
-      padding: EdgeInsets.all(DesignSpacing.md),
-      decoration: BoxDecoration(
-        color: DesignColors.white,
-        border: Border(
-          top: BorderSide(
-            color: DesignColors.dividerLight,
-            width: 1,
+    return Consumer<ClassViewModel>(
+      builder: (context, viewModel, _) {
+        return Container(
+          padding: EdgeInsets.all(DesignSpacing.md),
+          decoration: BoxDecoration(
+            color: DesignColors.white,
+            border: Border(
+              top: BorderSide(color: DesignColors.dividerLight, width: 1),
+            ),
           ),
-        ),
-      ),
-      child: ElevatedButton(
-        onPressed: () {
-          // TODO: Implement join class functionality
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: DesignColors.primary,
-          foregroundColor: DesignColors.white,
-          elevation: 3,
-          shadowColor: DesignColors.primary.withOpacity(0.3),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(DesignRadius.lg),
+          child: ElevatedButton(
+            onPressed: viewModel.isLoading
+                ? null
+                : () {
+                    _joinClass(context);
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: DesignColors.primary,
+              foregroundColor: DesignColors.white,
+              elevation: 3,
+              shadowColor: DesignColors.primary.withOpacity(0.3),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(DesignRadius.lg),
+              ),
+              padding: EdgeInsets.symmetric(vertical: DesignSpacing.md),
+              minimumSize: Size(double.infinity, 30),
+            ),
+            child: viewModel.isLoading
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        DesignColors.white,
+                      ),
+                    ),
+                  )
+                : Text(
+                    'Tham gia',
+                    style: DesignTypography.titleMedium.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
           ),
-          padding: EdgeInsets.symmetric(vertical: DesignSpacing.md),
-          minimumSize: Size(double.infinity, 30),
-        ),
-        child: Text(
-          'Tham gia',
-          style: DesignTypography.titleMedium.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+        );
+      },
     );
+  }
+
+  Future<void> _joinClass(BuildContext context) async {
+    final classCode = _classCodeController.text.trim().toUpperCase();
+
+    if (classCode.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Vui lòng nhập mã lớp học'),
+          backgroundColor: Colors.red[600],
+        ),
+      );
+      return;
+    }
+
+    final classViewModel = context.read<ClassViewModel>();
+    final authViewModel = context.read<AuthViewModel>();
+
+    final studentId = authViewModel.userProfile?.id;
+    if (studentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Không tìm thấy thông tin học sinh'),
+          backgroundColor: Colors.red[600],
+        ),
+      );
+      return;
+    }
+
+    // TODO: Tìm classId từ classCode (cần thêm method trong repository)
+    // Tạm thời sử dụng classCode như classId
+    final success = await classViewModel.requestJoinClass(classCode, studentId);
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Đã gửi yêu cầu tham gia lớp học'),
+            backgroundColor: Colors.green[600],
+          ),
+        );
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              classViewModel.errorMessage ?? 'Không thể tham gia lớp học',
+            ),
+            backgroundColor: Colors.red[600],
+          ),
+        );
+      }
+    }
   }
 }

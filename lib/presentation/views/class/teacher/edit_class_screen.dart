@@ -3,30 +3,40 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/presentation/viewmodels/class_viewmodel.dart';
-import 'package:ai_mls/presentation/viewmodels/auth_viewmodel.dart';
-import 'package:ai_mls/domain/entities/create_class_params.dart';
+import 'package:ai_mls/domain/entities/update_class_params.dart';
+import 'package:ai_mls/domain/entities/class.dart';
 
-/// Màn hình tạo lớp học mới
-/// Thiết kế dựa trên HTML cung cấp với giao diện hiện đại
-class CreateClassScreen extends StatefulWidget {
-  const CreateClassScreen({super.key});
+/// Màn hình chỉnh sửa thông tin lớp học
+/// Tái sử dụng form từ CreateClassScreen nhưng pre-fill dữ liệu hiện tại
+class EditClassScreen extends StatefulWidget {
+  final Class classItem;
+
+  const EditClassScreen({
+    super.key,
+    required this.classItem,
+  });
 
   @override
-  State<CreateClassScreen> createState() => _CreateClassScreenState();
+  State<EditClassScreen> createState() => _EditClassScreenState();
 }
 
-class _CreateClassScreenState extends State<CreateClassScreen> {
+class _EditClassScreenState extends State<EditClassScreen> {
   // Biến trạng thái cho form
   final _formKey = GlobalKey<FormState>();
-  final _classNameController = TextEditingController();
-  final _subjectController = TextEditingController();
-  final _schoolYearController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _maxStudentsController = TextEditingController();
+  late final TextEditingController _classNameController;
+  late final TextEditingController _subjectController;
+  late final TextEditingController _descriptionController;
 
-  // Biến trạng thái cho các toggle
-  bool _qrCodeEnabled = true;
-  bool _approvalRequired = false;
+  // Biến trạng thái cho năm học
+  late final TextEditingController _startYearController;
+  late final TextEditingController _endYearController;
+  final _startYearFocusNode = FocusNode();
+  final _endYearFocusNode = FocusNode();
+
+  // Biến trạng thái cho gợi ý môn học
+  List<Map<String, String>> _filteredSubjects = [];
+  bool _showSubjectSuggestions = false;
+  final _subjectFocusNode = FocusNode();
 
   // Danh sách môn học
   final List<Map<String, String>> _subjects = [
@@ -40,24 +50,40 @@ class _CreateClassScreenState extends State<CreateClassScreen> {
     {'value': 'geo', 'label': 'Địa lý'},
   ];
 
-  // Biến trạng thái cho ô năm học
-  final _startYearController = TextEditingController();
-  final _endYearController = TextEditingController();
-  final _startYearFocusNode = FocusNode();
-  final _endYearFocusNode = FocusNode();
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill dữ liệu từ classItem
+    _classNameController = TextEditingController(text: widget.classItem.name);
+    _subjectController = TextEditingController(text: widget.classItem.subject ?? '');
+    _descriptionController = TextEditingController(text: widget.classItem.description ?? '');
 
-  // Biến trạng thái cho gợi ý môn học
-  List<Map<String, String>> _filteredSubjects = [];
-  bool _showSubjectSuggestions = false;
-  final _subjectFocusNode = FocusNode();
+    // Parse academic year (format: "2023 - 2024")
+    if (widget.classItem.academicYear != null) {
+      final parts = widget.classItem.academicYear!.split(' - ');
+      if (parts.length == 2) {
+        _startYearController = TextEditingController(text: parts[0].trim());
+        _endYearController = TextEditingController(text: parts[1].trim());
+      } else {
+        _startYearController = TextEditingController();
+        _endYearController = TextEditingController();
+      }
+    } else {
+      _startYearController = TextEditingController();
+      _endYearController = TextEditingController();
+    }
+  }
 
   @override
   void dispose() {
     _classNameController.dispose();
     _subjectController.dispose();
-    _schoolYearController.dispose();
     _descriptionController.dispose();
-    _maxStudentsController.dispose();
+    _startYearController.dispose();
+    _endYearController.dispose();
+    _startYearFocusNode.dispose();
+    _endYearFocusNode.dispose();
+    _subjectFocusNode.dispose();
     super.dispose();
   }
 
@@ -71,25 +97,13 @@ class _CreateClassScreenState extends State<CreateClassScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Thêm Lớp học mới',
+          'Chỉnh sửa lớp học',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        actions: [
-          Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.more_vert),
-              onPressed: () {
-                Scaffold.of(context).openEndDrawer();
-              },
-            ),
-          ),
-        ],
         backgroundColor: DesignColors.moonLight,
         elevation: 0,
         centerTitle: true,
       ),
-      // Note: Advanced settings drawer removed from create screen
-      // Settings can be configured after class creation in detail screen
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         child: Form(
@@ -99,16 +113,12 @@ class _CreateClassScreenState extends State<CreateClassScreen> {
             children: [
               // Phần thông tin chung
               _buildGeneralInfoSection(),
-              const SizedBox(height: 24),
-
-              // Phần quản lý tham gia
-              _buildParticipationManagementSection(),
             ],
           ),
         ),
       ),
-      // Nút tạo lớp học cố định ở đáy màn hình
-      bottomNavigationBar: _buildCreateButton(),
+      // Nút lưu cố định ở đáy màn hình
+      bottomNavigationBar: _buildSaveButton(),
     );
   }
 
@@ -178,68 +188,6 @@ class _CreateClassScreenState extends State<CreateClassScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  /// Phần quản lý tham gia
-  Widget _buildParticipationManagementSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 4),
-          child: Text(
-            'Quản lý tham gia',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
-              letterSpacing: 0.5,
-              height: 1.2,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Lưới các tùy chọn
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 0.8,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          children: [
-            // Tùy chọn mã QR
-            _buildToggleCard(
-              icon: Icons.qr_code_2,
-              title: 'Kích hoạt\nmã QR',
-              value: _qrCodeEnabled,
-              onChanged: (value) {
-                setState(() {
-                  _qrCodeEnabled = value;
-                });
-              },
-            ),
-
-            // Tùy chọn yêu cầu xét duyệt
-            _buildToggleCard(
-              icon: Icons.verified_user,
-              title: 'Yêu cầu\nxét duyệt',
-              value: _approvalRequired,
-              onChanged: (value) {
-                setState(() {
-                  _approvalRequired = value;
-                });
-              },
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        // Tùy chọn giới hạn học sinh
-        _buildStudentLimitCard(),
-      ],
     );
   }
 
@@ -421,357 +369,6 @@ class _CreateClassScreenState extends State<CreateClassScreen> {
         ),
       ],
     );
-  }
-
-  /// Card toggle với icon
-  Widget _buildToggleCard({
-    required IconData icon,
-    required String title,
-    required bool value,
-    required Function(bool) onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 20, color: Colors.blue[800]),
-              ),
-              // Toggle switch
-              SizedBox(
-                width: 40,
-                height: 32,
-                child: FittedBox(
-                  fit: BoxFit.fill,
-                  child: Switch(
-                    value: value,
-                    onChanged: onChanged,
-                    activeThumbColor: Colors.blue[800],
-                    activeTrackColor: Colors.blue[200],
-                    inactiveThumbColor: Colors.grey[400],
-                    inactiveTrackColor: Colors.grey[300],
-                    thumbIcon: WidgetStateProperty.resolveWith<Icon?>((
-                      Set<WidgetState> states,
-                    ) {
-                      return states.contains(WidgetState.selected)
-                          ? const Icon(
-                              Icons.check,
-                              size: 16,
-                              color: Colors.white,
-                            )
-                          : const Icon(
-                              Icons.close,
-                              size: 16,
-                              color: Colors.white,
-                            );
-                    }),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
-            textAlign: TextAlign.left,
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Card giới hạn học sinh
-  Widget _buildStudentLimitCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue[50],
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.groups, size: 20, color: Colors.blue),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Giới hạn học sinh',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[300]!, width: 1),
-            ),
-            child: Row(
-              children: [
-                const Text(
-                  'Tối đa',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 40,
-                  child: TextFormField(
-                    controller: _maxStudentsController,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    decoration: const InputDecoration(
-                      hintText: '∞',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      isDense: true,
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Nút tạo lớp học ở đáy màn hình
-  Widget _buildCreateButton() {
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Colors.grey[200]!, width: 1)),
-        ),
-        child: Consumer<ClassViewModel>(
-          builder: (context, viewModel, _) {
-            return ElevatedButton(
-              onPressed: viewModel.isCreating
-                  ? null
-                  : () {
-                      if (_formKey.currentState!.validate()) {
-                        // Xử lý tạo lớp học
-                        _createClass();
-                      }
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[800],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 2,
-                shadowColor: Colors.blue.withOpacity(0.3),
-              ),
-              child: viewModel.isCreating
-                  ? const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Text(
-                          'Đang tạo...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Tạo Lớp học',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Icon(Icons.arrow_forward, size: 20),
-                      ],
-                    ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  /// Xử lý tạo lớp học
-  Future<void> _createClass() async {
-    final classViewModel = context.read<ClassViewModel>();
-    final authViewModel = context.read<AuthViewModel>();
-
-    final teacherId = authViewModel.userProfile?.id;
-    if (teacherId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Không tìm thấy thông tin giáo viên'),
-          backgroundColor: Colors.red[600],
-        ),
-      );
-      return;
-    }
-
-    // Tạo class settings từ form data
-    final classSettings = {
-      'defaults': {'lock_class': false},
-      'enrollment': {
-        'qr_code': {
-          'is_active': _qrCodeEnabled,
-          'join_code': null,
-          'expires_at': null,
-          'require_approval': _approvalRequired,
-        },
-        'manual_join_limit': _maxStudentsController.text.isEmpty
-            ? null
-            : int.tryParse(_maxStudentsController.text),
-      },
-      'group_management': {
-        'lock_groups': false,
-        'allow_student_switch': false,
-        'is_visible_to_students': true,
-      },
-      'student_permissions': {
-        'auto_lock_on_submission': false,
-        'can_edit_profile_in_class': true,
-      },
-    };
-
-    // Tạo params
-    final params = CreateClassParams(
-      teacherId: teacherId,
-      name: _classNameController.text,
-      subject: _subjectController.text.isEmpty ? null : _subjectController.text,
-      academicYear:
-          _startYearController.text.isNotEmpty &&
-              _endYearController.text.isNotEmpty
-          ? '${_startYearController.text} - ${_endYearController.text}'
-          : null,
-      description: _descriptionController.text.isEmpty
-          ? null
-          : _descriptionController.text,
-      classSettings: classSettings,
-    );
-
-    // Hiển thị loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
-    // Gọi ViewModel để tạo lớp học
-    final newClass = await classViewModel.createClass(params);
-
-    // Đóng loading dialog
-    if (mounted) {
-      Navigator.pop(context);
-    }
-
-    if (newClass != null) {
-      // Hiển thị thông báo thành công
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lớp học "${newClass.name}" đã được tạo thành công!'),
-            backgroundColor: Colors.green[600],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-
-        // Quay lại màn hình danh sách lớp học
-        Navigator.pop(context, newClass);
-      }
-    } else {
-      // Hiển thị lỗi nếu có
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              classViewModel.errorMessage ?? 'Không thể tạo lớp học',
-            ),
-            backgroundColor: Colors.red[600],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-      }
-    }
   }
 
   /// Trường môn học với gợi ý tự động hoàn thành
@@ -1006,10 +603,7 @@ class _CreateClassScreenState extends State<CreateClassScreen> {
                   LengthLimitingTextInputFormatter(4),
                 ],
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Vui lòng nhập năm';
-                  }
-                  if (value.length != 4) {
+                  if (value != null && value.isNotEmpty && value.length != 4) {
                     return 'Năm phải có 4 chữ số';
                   }
                   return null;
@@ -1068,19 +662,18 @@ class _CreateClassScreenState extends State<CreateClassScreen> {
                   LengthLimitingTextInputFormatter(4),
                 ],
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Vui lòng nhập năm';
-                  }
-                  if (value.length != 4) {
-                    return 'Năm phải có 4 chữ số';
-                  }
-                  if (_startYearController.text.isNotEmpty) {
-                    final startYear = int.tryParse(_startYearController.text);
-                    final endYear = int.tryParse(value ?? '');
-                    if (startYear != null &&
-                        endYear != null &&
-                        endYear <= startYear) {
-                      return 'Năm kết thúc phải lớn hơn năm bắt đầu';
+                  if (value != null && value.isNotEmpty) {
+                    if (value.length != 4) {
+                      return 'Năm phải có 4 chữ số';
+                    }
+                    if (_startYearController.text.isNotEmpty) {
+                      final startYear = int.tryParse(_startYearController.text);
+                      final endYear = int.tryParse(value);
+                      if (startYear != null &&
+                          endYear != null &&
+                          endYear <= startYear) {
+                        return 'Năm kết thúc phải lớn hơn năm bắt đầu';
+                      }
                     }
                   }
                   return null;
@@ -1091,5 +684,155 @@ class _CreateClassScreenState extends State<CreateClassScreen> {
         ),
       ],
     );
+  }
+
+  /// Nút lưu ở đáy màn hình
+  Widget _buildSaveButton() {
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Colors.grey[200]!, width: 1)),
+        ),
+        child: Consumer<ClassViewModel>(
+          builder: (context, viewModel, _) {
+            return ElevatedButton(
+              onPressed: viewModel.isUpdating
+                  ? null
+                  : () {
+                      if (_formKey.currentState!.validate()) {
+                        // Xử lý cập nhật lớp học
+                        _updateClass();
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[800],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+                shadowColor: Colors.blue.withOpacity(0.3),
+              ),
+              child: viewModel.isUpdating
+                  ? const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Đang lưu...',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Lưu thay đổi',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Icon(Icons.check, size: 20),
+                      ],
+                    ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Xử lý cập nhật lớp học
+  Future<void> _updateClass() async {
+    final classViewModel = context.read<ClassViewModel>();
+
+    // Tạo params từ form data
+    final academicYear = _startYearController.text.isNotEmpty &&
+            _endYearController.text.isNotEmpty
+        ? '${_startYearController.text} - ${_endYearController.text}'
+        : null;
+
+    final params = UpdateClassParams(
+      name: _classNameController.text,
+      subject: _subjectController.text.isEmpty ? null : _subjectController.text,
+      academicYear: academicYear,
+      description: _descriptionController.text.isEmpty
+          ? null
+          : _descriptionController.text,
+    );
+
+    // Hiển thị loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // Gọi ViewModel để cập nhật lớp học
+    final success = await classViewModel.updateClass(
+      widget.classItem.id,
+      params,
+    );
+
+    // Đóng loading dialog
+    if (mounted) {
+      Navigator.pop(context);
+    }
+
+    if (success) {
+      // Hiển thị thông báo thành công
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã cập nhật lớp học "${_classNameController.text}" thành công!'),
+            backgroundColor: Colors.green[600],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+
+        // Quay lại màn hình trước
+        Navigator.pop(context);
+      }
+    } else {
+      // Hiển thị lỗi nếu có
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              classViewModel.errorMessage ?? 'Không thể cập nhật lớp học',
+            ),
+            backgroundColor: Colors.red[600],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
   }
 }

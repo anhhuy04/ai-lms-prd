@@ -1,7 +1,7 @@
+import 'package:ai_mls/core/utils/validation_utils.dart';
 import 'package:ai_mls/data/datasources/supabase_datasource.dart';
 import 'package:ai_mls/domain/entities/profile.dart';
 import 'package:ai_mls/domain/repositories/auth_repository.dart';
-import 'package:ai_mls/core/utils/validation_utils.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Lớp triển khai của AuthRepository, chịu trách nhiệm thực hiện logic xác thực.
@@ -100,7 +100,9 @@ class AuthRepositoryImpl implements AuthRepository {
             'avatar_url': null,
             'updated_at': DateTime.now().toIso8601String(),
           });
-          print('✅ [REPO] SignUp: Profile updated in database with capitalized name and full data');
+          print(
+            '✅ [REPO] SignUp: Profile updated in database with capitalized name and full data',
+          );
         } catch (e) {
           print('⚠️ [REPO WARN] SignUp: Failed to update profile: $e');
           // Không ném lỗi, vì auth đã thành công
@@ -159,13 +161,65 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Profile?> checkCurrentUser() async {
     try {
       final session = _supabaseClient.auth.currentSession;
-      if (session?.user != null) {
-        final profileData = await _profileDataSource.getById(session!.user.id);
-        if (profileData == null) {
-          print('⚠️ [REPO WARN] CheckCurrentUser: Profile not found');
+      if (session?.user == null) {
+        print('⚠️ [REPO WARN] CheckCurrentUser: No active session');
+        return null;
+      }
+
+      final userId = session!.user.id;
+
+      // Thử lấy profile bằng cách sử dụng Supabase client trực tiếp
+      // với RLS-aware query (đảm bảo user chỉ đọc được profile của chính họ)
+      try {
+        final response = await _supabaseClient
+            .from('profiles')
+            .select()
+            .eq('id', userId)
+            .maybeSingle();
+
+        if (response == null) {
+          print(
+            '⚠️ [REPO WARN] CheckCurrentUser: Profile not found for user $userId',
+          );
           return null;
         }
-        return Profile.fromJson(profileData);
+
+        return Profile.fromJson(response);
+      } on PostgrestException catch (e) {
+        // Xử lý lỗi 401 (Unauthorized) - thường do RLS policy
+        if (e.code == '401' ||
+            e.code == 'PGRST301' ||
+            e.message.contains('permission')) {
+          print(
+            '⚠️ [REPO WARN] CheckCurrentUser: Permission denied (401). '
+            'This may be due to RLS policies. User ID: $userId',
+          );
+
+          // Thử fallback: sử dụng profileDataSource với error handling tốt hơn
+          try {
+            final profileData = await _profileDataSource.getById(userId);
+            if (profileData != null) {
+              return Profile.fromJson(profileData);
+            }
+          } catch (fallbackError) {
+            print('🔴 [REPO ERROR] CheckCurrentUser Fallback: $fallbackError');
+          }
+
+          return null;
+        }
+        rethrow;
+      }
+    } on PostgrestException catch (e) {
+      // Xử lý lỗi Postgrest cụ thể
+      if (e.code == '401' || e.code == 'PGRST301') {
+        print(
+          '⚠️ [REPO WARN] CheckCurrentUser: Unauthorized (401). '
+          'Please check RLS policies for profiles table.',
+        );
+      } else {
+        print(
+          '🔴 [REPO ERROR] CheckCurrentUser Postgrest: ${e.code} - ${e.message}',
+        );
       }
       return null;
     } catch (e) {

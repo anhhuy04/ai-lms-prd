@@ -111,7 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: authViewModel.isLoading ?? false
                         ? const Center(child: CircularProgressIndicator())
                         : ElevatedButton(
-                            onPressed: () => authViewModel != null ? _login(authViewModel) : null,
+                            onPressed: () => _login(authViewModel),
                             child: const Text('Đăng nhập'),
                           ),
                   ),

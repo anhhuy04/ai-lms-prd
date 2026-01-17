@@ -7,10 +7,10 @@
 
 import 'package:ai_mls/domain/entities/profile.dart';
 import 'package:ai_mls/domain/repositories/auth_repository.dart';
+import 'package:ai_mls/domain/repositories/school_class_repository.dart';
+import 'package:ai_mls/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:ai_mls/main.dart';
 
 // Mock implementation của AuthRepository cho testing
 class MockAuthRepository implements AuthRepository {
@@ -49,11 +49,75 @@ class MockAuthRepository implements AuthRepository {
   }
 }
 
+// Mock implementation của SchoolClassRepository cho testing
+class MockSchoolClassRepository implements SchoolClassRepository {
+  @override
+  Future<List<dynamic>> getClasses(String teacherId) async {
+    return [];
+  }
+
+  @override
+  Future<Map<String, dynamic>> createClass(
+    Map<String, dynamic> classData,
+  ) async {
+    return {'id': '1', 'name': 'Test Class'};
+  }
+
+  @override
+  Future<Map<String, dynamic>> updateClass(
+    String classId,
+    Map<String, dynamic> updates,
+  ) async {
+    return {'id': classId, 'name': 'Updated Class'};
+  }
+
+  @override
+  Future<void> deleteClass(String classId) async {}
+
+  @override
+  Future<List<dynamic>> getClassMembers(String classId) async {
+    return [];
+  }
+
+  @override
+  Future<void> addStudentToClass(String classId, String studentId) async {}
+
+  @override
+  Future<void> removeStudentFromClass(String classId, String studentId) async {}
+
+  @override
+  Future<Map<String, dynamic>> getClassDetails(String classId) async {
+    return {'id': classId, 'name': 'Test Class'};
+  }
+
+  @override
+  Future<void> requestJoinClass(String classId, String studentId) async {}
+
+  @override
+  Future<void> approveJoinRequest(String classId, String studentId) async {}
+
+  @override
+  Future<void> rejectJoinRequest(String classId, String studentId) async {}
+
+  @override
+  Future<void> updateClassSetting(
+    String classId,
+    String key,
+    dynamic value,
+  ) async {}
+}
+
 void main() {
   testWidgets('MyApp renders without error', (WidgetTester tester) async {
     // Build our app and trigger a frame.
     final mockAuthRepository = MockAuthRepository();
-    await tester.pumpWidget(MyApp(authRepository: mockAuthRepository));
+    final mockSchoolClassRepository = MockSchoolClassRepository();
+    await tester.pumpWidget(
+      MyApp(
+        authRepository: mockAuthRepository,
+        schoolClassRepository: mockSchoolClassRepository,
+      ),
+    );
 
     // Verify that app has been built successfully
     expect(find.byType(MaterialApp), findsOneWidget);

@@ -3,7 +3,10 @@ import 'package:ai_mls/widgets/assignment_list.dart';
 import 'package:ai_mls/widgets/drawers/action_end_drawer.dart';
 import 'package:ai_mls/widgets/drawers/class_settings_drawer.dart';
 import 'package:ai_mls/widgets/search/smart_search_dialog_v2.dart';
+import 'package:ai_mls/presentation/views/assignment/assignment_list_screen.dart';
+import 'package:ai_mls/presentation/viewmodels/class_viewmodel.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 /// Màn hình chi tiết lớp học dành cho giáo viên
 /// Thiết kế theo chuẩn Design System với đầy đủ thông tin lớp học
@@ -27,54 +30,123 @@ class TeacherClassDetailScreen extends StatefulWidget {
 class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
   // State cho tìm kiếm
   final String _searchQuery = '';
-  final List<Map<String, dynamic>> _recentSearches = [
-    {'title': 'Bài tập Toán', 'icon': Icons.assignment},
-    {'title': 'Lớp 12A', 'icon': Icons.class_},
-    {'title': 'Họp phụ huynh', 'icon': Icons.people},
-    {'title': 'Nguyễn Văn A', 'icon': Icons.person},
-    {'title': 'Phòng Lab A201', 'icon': Icons.meeting_room},
-  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Load class details khi màn hình khởi tạo
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ClassViewModel>().loadClassDetails(widget.classId);
+    });
+  }
+
+  Future<void> _onRefresh() async {
+    await context.read<ClassViewModel>().loadClassDetails(widget.classId);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
-      endDrawer: ActionEndDrawer(
-        title: 'Tùy chọn Lớp học',
-        subtitle: widget.className,
-        child: ClassSettingsDrawer(
-          className: widget.className,
-          semesterInfo: widget.semesterInfo,
-          pendingStudentRequests: 3,
-        ),
+      endDrawer: Consumer<ClassViewModel>(
+        builder: (context, viewModel, _) {
+          final classItem = viewModel.selectedClass;
+          if (classItem == null) return const SizedBox.shrink();
+
+          return ActionEndDrawer(
+            title: 'Tùy chọn Lớp học',
+            subtitle: classItem.name,
+            child: ClassSettingsDrawer(
+              viewModel: viewModel,
+              classItem: classItem,
+            ),
+          );
+        },
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top App Bar
-            _buildAppBar(context),
-            // Main Content
-            Expanded(
-              child: SingleChildScrollView(
+      body: Consumer<ClassViewModel>(
+        builder: (context, viewModel, _) {
+          // Loading state
+          if (viewModel.isLoading && viewModel.selectedClass == null) {
+            return SafeArea(
+              child: Center(
+                child: CircularProgressIndicator(color: DesignColors.primary),
+              ),
+            );
+          }
+
+          // Error state
+          if (viewModel.hasError && viewModel.selectedClass == null) {
+            return SafeArea(
+              child: Center(
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Quick Stats & Actions
-                    _buildQuickStatsSection(context),
-                    const SizedBox(height: 16),
-                    // Assignment List Section
-                    _buildAssignmentListSection(context),
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: DesignColors.error,
+                    ),
+                    SizedBox(height: DesignSpacing.md),
+                    Text(
+                      viewModel.errorMessage ?? 'Có lỗi xảy ra',
+                      style: DesignTypography.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: DesignSpacing.lg),
+                    ElevatedButton(
+                      onPressed: () => _onRefresh(),
+                      child: const Text('Thử lại'),
+                    ),
                   ],
                 ),
               ),
+            );
+          }
+
+          final classItem = viewModel.selectedClass;
+          if (classItem == null) {
+            return SafeArea(
+              child: Center(
+                child: Text(
+                  'Không tìm thấy lớp học',
+                  style: DesignTypography.bodyMedium,
+                ),
+              ),
+            );
+          }
+
+          return SafeArea(
+            child: RefreshIndicator(
+              onRefresh: _onRefresh,
+              child: Column(
+                children: [
+                  // Top App Bar
+                  _buildAppBar(context, classItem),
+                  // Main Content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          // Quick Stats & Actions
+                          _buildQuickStatsSection(context, viewModel),
+                          const SizedBox(height: 16),
+                          // Assignment List Section
+                          _buildAssignmentListSection(context),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
   /// App Bar với nút quay lại và thông tin lớp
-  Widget _buildAppBar(BuildContext context) {
+  Widget _buildAppBar(BuildContext context, dynamic classItem) {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: DesignSpacing.lg,
@@ -111,7 +183,7 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.className,
+                  classItem.name,
                   style: DesignTypography.titleLarge.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -120,7 +192,7 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
                 ),
                 SizedBox(height: DesignSpacing.xs),
                 Text(
-                  widget.semesterInfo,
+                  classItem.subject ?? classItem.academicYear ?? '',
                   style: DesignTypography.bodySmall.copyWith(
                     color: DesignColors.textSecondary,
                   ),
@@ -160,14 +232,17 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
   }
 
   /// Phần thống kê nhanh và hành động
-  Widget _buildQuickStatsSection(BuildContext context) {
+  Widget _buildQuickStatsSection(
+    BuildContext context,
+    ClassViewModel viewModel,
+  ) {
     return Container(
       padding: EdgeInsets.all(DesignSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Quick Stats Row
-          _buildQuickStatsRow(context),
+          _buildQuickStatsRow(context, viewModel),
           SizedBox(height: DesignSpacing.lg),
           // Create New Action
           _buildCreateAssignmentCard(context),
@@ -177,7 +252,7 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
   }
 
   /// Hàng thống kê nhanh
-  Widget _buildQuickStatsRow(BuildContext context) {
+  Widget _buildQuickStatsRow(BuildContext context, ClassViewModel viewModel) {
     return Row(
       children: [
         Expanded(
@@ -185,10 +260,18 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
             context: context,
             icon: Icons.groups,
             iconColor: DesignColors.primary,
-            value: '32',
+            value: '${viewModel.approvedCount}',
             label: 'Học sinh',
             onTap: () {
-              // TODO: Navigate to student list
+              // Navigate to student list
+              Navigator.pushNamed(
+                context,
+                '/student-list',
+                arguments: {
+                  'classId': widget.classId,
+                  'className': viewModel.selectedClass?.name ?? '',
+                },
+              );
             },
           ),
         ),
@@ -198,10 +281,16 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
             context: context,
             icon: Icons.assignment,
             iconColor: Colors.orange,
-            value: '4',
+            value: '0', // Tạm thời hiển thị 0 (chưa có bảng assignments)
             label: 'Bài tập đang mở',
             onTap: () {
-              // TODO: Navigate to assignment list
+              // Navigate to assignment list
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AssignmentListScreen(),
+                ),
+              );
             },
           ),
         ),
@@ -211,10 +300,16 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
             context: context,
             icon: Icons.check_circle,
             iconColor: Colors.green,
-            value: '85%',
+            value: '0%', // Tạm thời hiển thị 0% (chưa có bảng submissions)
             label: 'Tỷ lệ nộp bài',
             onTap: () {
-              // TODO: Navigate to submission stats
+              // TODO: Navigate to submission stats - Future work
+              // Màn hình thống kê nộp bài chưa được implement
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Chức năng thống kê nộp bài đang được phát triển'),
+                ),
+              );
             },
           ),
         ),
@@ -345,7 +440,12 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
               ),
             ),
             onPressed: () {
-              // TODO: Navigate to create assignment screen
+              // Navigate to create assignment screen
+              Navigator.pushNamed(
+                context,
+                '/create-assignment',
+                arguments: {'classId': widget.classId},
+              );
             },
             child: const Text('Tạo ngay'),
           ),
@@ -384,7 +484,13 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
         ),
         TextButton(
           onPressed: () {
-            // TODO: Navigate to all assignments
+            // Navigate to all assignments
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AssignmentListScreen(),
+              ),
+            );
           },
           child: Text(
             'Xem tất cả',
@@ -443,7 +549,13 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
       assignments: sampleAssignments,
       viewMode: AssignmentViewMode.teacher,
       onItemTap: (assignment) {
-        // TODO: Navigate to assignment detail
+        // TODO: Navigate to assignment detail - Future work
+        // Màn hình chi tiết bài tập chưa được implement
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Chi tiết bài tập "${assignment['title']}" đang được phát triển'),
+          ),
+        );
       },
     );
   }

@@ -372,7 +372,7 @@ class _AddStudentByCodeScreenState extends State<AddStudentByCodeScreen> {
           child: Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: DesignColors.primary,
+            activeThumbColor: DesignColors.primary,
             inactiveThumbColor: DesignColors.textSecondary,
             inactiveTrackColor: DesignColors.moonMedium,
           ),

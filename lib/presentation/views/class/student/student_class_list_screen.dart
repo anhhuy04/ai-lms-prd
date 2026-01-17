@@ -1,13 +1,52 @@
-import 'package:flutter/material.dart';
+import 'package:ai_mls/presentation/viewmodels/auth_viewmodel.dart';
+import 'package:ai_mls/presentation/viewmodels/class_viewmodel.dart';
 import 'package:ai_mls/widgets/class_item_widget.dart';
 import 'package:ai_mls/widgets/search/smart_search_dialog_v2.dart';
-import 'student_class_detail_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import 'join_class_screen.dart';
+import 'student_class_detail_screen.dart';
 
 /// Màn hình danh sách lớp học dành cho học sinh
 /// Thiết kế tối giản với nền xám nhẹ, kích thước nhỏ gọn
-class StudentClassListScreen extends StatelessWidget {
+/// Tích hợp với ClassViewModel và tuân thủ MVVM pattern
+class StudentClassListScreen extends StatefulWidget {
   const StudentClassListScreen({super.key});
+
+  @override
+  State<StudentClassListScreen> createState() => _StudentClassListScreenState();
+}
+
+class _StudentClassListScreenState extends State<StudentClassListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Load dữ liệu khi màn hình được khởi tạo
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadClasses();
+    });
+  }
+
+  /// Load danh sách lớp học từ ViewModel
+  Future<void> _loadClasses() async {
+    final classViewModel = context.read<ClassViewModel>();
+    final authViewModel = context.read<AuthViewModel>();
+
+    final studentId = authViewModel.userProfile?.id;
+    if (studentId != null) {
+      await classViewModel.loadStudentClasses(studentId).catchError((error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error.toString()),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,10 +61,8 @@ class StudentClassListScreen extends StatelessWidget {
             // Card tham gia lớp học mới với thiết kế nhỏ hơn
             _buildJoinClassCard(context),
             const SizedBox(height: 16),
-            // Danh sách lớp học
-            Expanded(
-              child: _buildClassList(),
-            ),
+            // Danh sách lớp học với Consumer
+            Expanded(child: _buildClassList(context)),
           ],
         ),
       ),
@@ -89,10 +126,7 @@ class StudentClassListScreen extends StatelessWidget {
                 height: 28, // Giảm từ 32 → 28
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.grey[300]!,
-                    width: 1,
-                  ),
+                  border: Border.all(color: Colors.grey[300]!, width: 1),
                 ),
                 child: ClipOval(
                   child: Image.network(
@@ -125,10 +159,7 @@ class StudentClassListScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white, // Nền trắng thay vì gradient
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Colors.blue[100]!,
-          width: 1,
-        ),
+        border: Border.all(color: Colors.blue[100]!, width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -205,135 +236,178 @@ class StudentClassListScreen extends StatelessWidget {
     );
   }
 
-  /// Danh sách lớp học với thiết kế nhỏ gọn
-  Widget _buildClassList() {
-    // Dữ liệu mẫu cho danh sách lớp học của học sinh
-    final List<Map<String, dynamic>> sampleClasses = [
-      {
-        'id': '1',
-        'name': 'Toán Học - Lớp 10A2',
-        'room': 'Phòng 302',
-        'schedule': 'Thứ 2, 4, 6',
-        'teacher': 'Nguyễn Văn A',
-        'studentCount': 32, // Thêm số học sinh
-        'pendingAssignments': 2, // Số bài tập chưa nộp
-        'icon': 'calculate',
-        'color': Colors.blue,
-      },
-      {
-        'id': '2',
-        'name': 'Vật Lý - Lớp 11B1',
-        'room': 'Phòng Lab 1',
-        'schedule': 'Thứ 3, 5',
-        'teacher': 'Trần Thị B',
-        'studentCount': 40, // Thêm số học sinh
-        'pendingAssignments': 0,
-        'icon': 'science',
-        'color': Colors.indigo,
-      },
-      {
-        'id': '3',
-        'name': 'Ngữ Văn - Lớp 12C3',
-        'room': 'Phòng 205',
-        'schedule': 'Chiều thứ 4',
-        'teacher': 'Lê Minh C',
-        'studentCount': 35, // Thêm số học sinh
-        'pendingAssignments': 1,
-        'icon': 'auto_stories',
-        'color': Colors.pink,
-      },
-      {
-        'id': '4',
-        'name': 'Chủ nhiệm - Lớp 10A2',
-        'room': 'Sinh hoạt lớp',
-        'schedule': 'Sáng thứ 2',
-        'teacher': 'Nguyễn Văn A',
-        'studentCount': 32, // Thêm số học sinh
-        'pendingAssignments': 0,
-        'hasAssignments': false,
-        'icon': 'meeting_room',
-        'color': Colors.teal,
-      },
-    ];
+  /// Danh sách lớp học với Consumer để lắng nghe thay đổi từ ViewModel
+  Widget _buildClassList(BuildContext context) {
+    return Consumer<ClassViewModel>(
+      builder: (context, viewModel, _) {
+        // Hiển thị loading state (chỉ khi đang loading và chưa có dữ liệu)
+        if (viewModel.isLoading && viewModel.classes.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header danh sách
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Danh sách lớp (${sampleClasses.length})',
-                style: TextStyle(
-                  fontSize: 14, // Giảm từ 18 → 14
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Row(
+        // Hiển thị error state (chỉ khi có lỗi thực sự, không phải empty list)
+        // Kiểm tra: có errorMessage VÀ không đang loading (đã hoàn thành request)
+        if (viewModel.hasError && !viewModel.isLoading) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.filter_list,
-                      size: 18, // Giảm từ 20 → 18
-                      color: Colors.grey[600],
+                  Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Đã xảy ra lỗi',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red[700],
                     ),
-                    onPressed: () {
-                      // TODO: Implement filter
-                    },
                   ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.sort,
-                      size: 18, // Giảm từ 20 → 18
-                      color: Colors.grey[600],
-                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    viewModel.errorMessage ?? 'Không thể tải danh sách lớp học',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
                     onPressed: () {
-                      // TODO: Implement sort
+                      viewModel.clearError();
+                      _loadClasses();
                     },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Thử lại'),
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        // Danh sách các lớp
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: sampleClasses.length,
-            itemBuilder: (context, index) {
-              final classData = sampleClasses[index];
-              return ClassItemWidget(
-                className: classData['name'],
-                roomInfo: classData['room'],
-                schedule: classData['schedule'],
-                studentCount: classData['studentCount'] ?? 0, // Số học sinh (mặc định 0 nếu không có)
-                ungradedCount: classData['pendingAssignments'], // Số bài tập chưa nộp
-                iconName: classData['icon'],
-                iconColor: classData['color'],
-                hasAssignments: classData['hasAssignments'] ?? true,
-                onTap: () {
-                  // Navigate to student class detail screen
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => StudentClassDetailScreen(
-                        classId: classData['id'],
-                        className: classData['name'],
-                        semesterInfo: 'Học kỳ 1 - 2023',
-                        studentName: 'Nguyễn Văn An', // TODO: Lấy từ profile thực tế
+            ),
+          );
+        }
+
+        // Hiển thị empty state (khi không có lỗi và danh sách rỗng)
+        if (viewModel.classes.isEmpty && !viewModel.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.school_outlined,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Chưa tham gia lớp học nào',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tham gia lớp học để bắt đầu học tập',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Hiển thị danh sách lớp học với pull-to-refresh
+        return RefreshIndicator(
+          onRefresh: () async {
+            await _loadClasses();
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header danh sách
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Danh sách lớp (${viewModel.classCount})',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  );
-                },
-              );
-            },
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.filter_list,
+                            size: 18,
+                            color: Colors.grey[600],
+                          ),
+                          onPressed: () {
+                            // TODO: Implement filter
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.sort,
+                            size: 18,
+                            color: Colors.grey[600],
+                          ),
+                          onPressed: () {
+                            // TODO: Implement sort
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              // Danh sách các lớp
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: viewModel.classes.length,
+                  itemBuilder: (context, index) {
+                    final classItem = viewModel.classes[index];
+                    return ClassItemWidget(
+                      className: classItem.name,
+                      roomInfo: classItem.subject ?? 'Chưa có môn học',
+                      schedule: classItem.academicYear ?? 'Chưa có năm học',
+                      studentCount: 0, // TODO: Lấy từ class members
+                      ungradedCount: null, // TODO: Lấy từ assignments
+                      iconName: 'school',
+                      iconColor: Colors.blue,
+                      hasAssignments: true,
+                      onTap: () {
+                        // Navigate to student class detail screen
+                        final authViewModel = context.read<AuthViewModel>();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => StudentClassDetailScreen(
+                              classId: classItem.id,
+                              className: classItem.name,
+                              semesterInfo:
+                                  classItem.academicYear ?? 'Chưa có năm học',
+                              studentName:
+                                  authViewModel.userProfile?.fullName ??
+                                  'Học sinh',
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 

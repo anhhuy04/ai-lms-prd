@@ -22,7 +22,6 @@ Hãy phản hồi lại tôi bằng tiếng Việt.
 
 ### Quy tắc đọc docs trước khi hành động:
 - Trước khi tạo/cập nhật tài liệu Markdown trong repo: phải đọc `docs/ai/DOCS_PROMPT_RULES.md`.
-- Trước khi quyết định lưu/truy xuất Memory MCP: phải đọc `docs/ai/MEMORY_MCP_PROMPT.md`.
 
 ### Quy tắc sử dụng MCP Servers:
 - **Supabase MCP**: Sử dụng để query database, kiểm tra schema, apply migrations, xem logs, và quản lý edge functions. Luôn kiểm tra schema trước khi tạo model hoặc repository.
@@ -30,7 +29,72 @@ Hãy phản hồi lại tôi bằng tiếng Việt.
 - **Context7 MCP**: Sử dụng để quản lý context và tìm kiếm thông tin trong codebase.
 - **GitHub MCP**: Sử dụng để quản lý Git operations như tạo commits, xem branches, tạo PRs. Chỉ sử dụng khi được yêu cầu rõ ràng.
 - **Filesystem MCP**: Sử dụng để đọc/ghi files, navigate codebase khi cần truy cập nhiều files cùng lúc hoặc tìm kiếm patterns.
-- **Memory MCP**: Sử dụng để lưu trữ và truy xuất context quan trọng giữa các sessions, đặc biệt là các quyết định kiến trúc hoặc patterns đã được thống nhất.
+- **Dart MCP**: Sử dụng để phân tích code Dart/Flutter, format code, kiểm tra linter errors, và các operations liên quan đến Dart tooling.
+
+#### Quy tắc sử dụng Dart MCP:
+
+**KHI NÀO NÊN SỬ DỤNG Dart MCP:**
+
+1. **Format code tự động:**
+   - Khi cần format một file hoặc nhiều files Dart
+   - Khi code chưa được format đúng chuẩn Dart style
+   - Ví dụ: "Sử dụng Dart MCP để format file lib/presentation/views/home_screen.dart"
+
+2. **Phân tích linter errors:**
+   - Khi cần kiểm tra linter errors trong một file hoặc thư mục cụ thể
+   - Khi muốn xem chi tiết warnings/errors trước khi fix
+   - Ví dụ: "Sử dụng Dart MCP để analyze linter errors trong lib/presentation/"
+
+3. **Kiểm tra code quality:**
+   - Khi cần đánh giá code quality của một phần code
+   - Khi muốn tìm các vấn đề tiềm ẩn trong code
+   - Ví dụ: "Sử dụng Dart MCP để kiểm tra code quality của file lib/data/repositories/"
+
+4. **Tìm kiếm patterns trong code Dart:**
+   - Khi cần tìm các patterns cụ thể trong codebase Dart
+   - Khi muốn phân tích cấu trúc code Dart
+   - Ví dụ: "Sử dụng Dart MCP để tìm tất cả các class extends ChangeNotifier"
+
+**KHI NÀO KHÔNG CẦN SỬ DỤNG Dart MCP:**
+
+1. **Đọc file đơn giản:**
+   - KHÔNG sử dụng Dart MCP để đọc file, dùng `read_file` tool thay thế
+   - `read_file` tool nhanh hơn và phù hợp hơn cho việc đọc file
+
+2. **Tìm kiếm text đơn giản:**
+   - KHÔNG sử dụng Dart MCP để tìm kiếm text trong files, dùng `grep` tool thay thế
+   - `grep` tool hiệu quả hơn cho text search
+
+3. **Semantic search:**
+   - KHÔNG sử dụng Dart MCP cho semantic search, dùng `codebase_search` tool thay thế
+   - `codebase_search` tool phù hợp hơn cho tìm kiếm theo ngữ nghĩa
+
+4. **Operations đơn giản:**
+   - KHÔNG sử dụng Dart MCP cho các operations đơn giản có thể dùng tools khác
+   - Chỉ sử dụng khi thực sự cần phân tích code Dart hoặc format code
+
+**CÁCH SỬ DỤNG Dart MCP:**
+
+1. **Format code:**
+   ```
+   Sử dụng Dart MCP để format file [đường dẫn file]
+   ```
+
+2. **Analyze linter:**
+   ```
+   Sử dụng Dart MCP để analyze linter errors trong [file hoặc thư mục]
+   ```
+
+3. **Code quality check:**
+   ```
+   Sử dụng Dart MCP để kiểm tra code quality của [file hoặc thư mục]
+   ```
+
+**Best Practices:**
+- Sử dụng Dart MCP sau khi viết code để đảm bảo code quality
+- Kết hợp với `flutter analyze` và `dart format` commands khi cần
+- Không lạm dụng Dart MCP cho các operations đơn giản
+- Ưu tiên sử dụng built-in tools (`read_file`, `grep`, `codebase_search`) trước khi dùng Dart MCP
 
 > **Xem thêm:** Chi tiết về MCP Usage Patterns trong `docs/ai/AI_INSTRUCTIONS.md` (Section 10) và `memory-bank/techContext.md` (MCP Setup section)
 
@@ -485,6 +549,48 @@ Scaffold(
 
 ---
 
+# MEMORY BANK FILE OPERATIONS
+
+## Memory Bank File Operations
+
+Memory Bank là các **FILE THỰC TẾ** trong folder `memory-bank/`, KHÔNG phải MCP tool. Tất cả operations đều thông qua file tools (`read_file`, `write`, `search_replace`, `edit_file`).
+
+### Đọc Memory Bank Files
+
+**BẮT BUỘC**: Trước khi bắt đầu mọi task, phải đọc TẤT CẢ các file trong `memory-bank/`:
+- `memory-bank/projectbrief.md` - Tổng quan dự án
+- `memory-bank/productContext.md` - Context sản phẩm
+- `memory-bank/activeContext.md` - Context hiện tại
+- `memory-bank/systemPatterns.md` - Patterns hệ thống
+- `memory-bank/techContext.md` - Context kỹ thuật
+- `memory-bank/progress.md` - Tiến độ dự án
+
+**Cách đọc:**
+- Sử dụng `read_file` tool với path đầy đủ: `memory-bank/{filename}.md`
+- Đọc song song nhiều file khi có thể để tối ưu thời gian
+- Ví dụ: `read_file('memory-bank/activeContext.md')`
+
+### Cập nhật Memory Bank Files
+
+**SAU KHI** hoàn thành code changes, phải cập nhật các file liên quan:
+- `activeContext.md`: Cập nhật "Recently Completed" và "Current Sprint Focus"
+- `progress.md`: Cập nhật "What works" và "Current status"
+- `systemPatterns.md`: Thêm patterns mới nếu có
+- `techContext.md`: Cập nhật dependencies hoặc setup nếu có thay đổi
+
+**Cách cập nhật:**
+- Sử dụng `write` tool để tạo mới file hoặc ghi đè hoàn toàn
+- Sử dụng `search_replace` hoặc `edit_file` để cập nhật một phần cụ thể
+- Luôn giữ format markdown nhất quán
+
+### Lưu ý quan trọng
+
+- Memory Bank là các **FILE THỰC TẾ** trong folder `memory-bank/`, **KHÔNG phải MCP tool**
+- **KHÔNG** sử dụng MCP Memory tool cho Memory Bank
+- Tất cả operations đều thông qua file tools (`read_file`, `write`, `edit_file`, `search_replace`)
+
+---
+
 # MEMORY BANK WORKFLOW
 
 ## Cline's Memory Bank
@@ -560,7 +666,7 @@ Create additional files/folders within memory-bank/ when they help organize:
 
 ### Plan Mode
 flowchart TD
-    Start[Start] --> ReadFiles[Read Memory Bank]
+    Start[Start] --> ReadFiles[Read Memory Bank Files using read_file tool]
     ReadFiles --> CheckFiles{Files Complete?}
     
     CheckFiles -->|No| Plan[Create Plan]
@@ -570,12 +676,22 @@ flowchart TD
     Verify --> Strategy[Develop Strategy]
     Strategy --> Present[Present Approach]
 
+**Implementation:**
+- Sử dụng `read_file` tool để đọc tất cả files trong `memory-bank/`
+- Đọc song song nhiều files: `read_file('memory-bank/projectbrief.md')`, `read_file('memory-bank/activeContext.md')`, etc.
+- Không sử dụng MCP Memory tool - Memory Bank là các file markdown thực tế
+
 ### Act Mode
 flowchart TD
-    Start[Start] --> Context[Check Memory Bank]
-    Context --> Update[Update Documentation]
+    Start[Start] --> Context[Read Memory Bank Files using read_file tool]
+    Context --> Update[Update Documentation using write/search_replace]
     Update --> Execute[Execute Task]
-    Execute --> Document[Document Changes]
+    Execute --> Document[Update Memory Bank Files]
+
+**Implementation:**
+- Đọc các file cần thiết bằng `read_file` tool trước khi bắt đầu task
+- Sau khi hoàn thành code changes, cập nhật các file liên quan bằng `write` hoặc `search_replace` tool
+- Cập nhật `activeContext.md` và `progress.md` sau mỗi thay đổi quan trọng
 
 ## Documentation Updates
 
@@ -589,20 +705,26 @@ flowchart TD
     Start[Update Process]
     
     subgraph Process
-        P1[Review ALL Files]
+        P1[Read ALL Files using read_file tool]
         P2[Document Current State]
         P3[Clarify Next Steps]
-        P4[Document Insights & Patterns]
+        P4[Update Files using write/search_replace]
         
         P1 --> P2 --> P3 --> P4
     end
     
     Start --> Process
 
-Note: When triggered by **update memory bank**, I MUST review every memory bank file, even if some don't require updates. Focus particularly on activeContext.md and progress.md as they track current state.
+**How to update:**
+- **Đọc files**: Sử dụng `read_file` tool với path `memory-bank/{filename}.md`
+- **Cập nhật files**: Sử dụng `write` tool để ghi đè hoàn toàn hoặc `search_replace`/`edit_file` để cập nhật một phần
+- **Files cần cập nhật thường xuyên**: `activeContext.md` và `progress.md` (track current state)
 
-REMEMBER: After every memory reset, I begin completely fresh. The Memory Bank is my only link to previous work. It must be maintained with precision and clarity, as my effectiveness depends entirely on its accuracy.
-After successfully editing and writing code, update the memory bank to correct the process
+**Note:** When triggered by **update memory bank**, I MUST review every memory bank file using `read_file` tool, even if some don't require updates. Focus particularly on `activeContext.md` and `progress.md` as they track current state.
+
+REMEMBER: After every memory reset, I begin completely fresh. The Memory Bank is my only link to previous work. It must be maintained with precision and clarity, as my effectiveness depends entirely on its accuracy. Memory Bank files are REAL FILES in the `memory-bank/` folder - use `read_file`, `write`, and `search_replace` tools to interact with them, NOT MCP Memory tool.
+
+After successfully editing and writing code, update the memory bank files to correct the process using file tools.
 
 ---
 

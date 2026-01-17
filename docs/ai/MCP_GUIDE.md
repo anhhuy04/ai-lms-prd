@@ -10,8 +10,9 @@ Tài liệu này hướng dẫn chi tiết cách sử dụng từng MCP server t
 4. [GitHub MCP Server](#github-mcp-server)
 5. [Filesystem MCP Server](#filesystem-mcp-server)
 6. [Memory MCP Server](#memory-mcp-server)
-7. [Best Practices](#best-practices)
-8. [Use Cases](#use-cases)
+7. [Dart MCP Server](#dart-mcp-server)
+8. [Best Practices](#best-practices)
+9. [Use Cases](#use-cases)
 
 ## Supabase MCP Server
 
@@ -319,6 +320,114 @@ Sử dụng Memory MCP để retrieve memory về architecture patterns
    Lưu context quan trọng giữa các sessions để AI agent có thể tiếp tục công việc hiệu quả
    ```
 
+## Dart MCP Server
+
+### Mục đích
+Phân tích code Dart/Flutter, format code, kiểm tra linter errors, và các operations liên quan đến Dart tooling.
+
+### Các tính năng chính
+
+#### Format Code
+**Khi nào sử dụng**: 
+- Khi cần format một file hoặc nhiều files Dart
+- Khi code chưa được format đúng chuẩn Dart style
+- Trước khi commit code
+
+**Ví dụ sử dụng**:
+```
+Sử dụng Dart MCP để format file lib/presentation/views/home_screen.dart
+Sử dụng Dart MCP để format tất cả files trong thư mục lib/presentation/
+```
+
+**Best Practice**: 
+- Format code sau khi viết xong
+- Format code trước khi commit
+- Không format code đã được format đúng chuẩn
+
+#### Analyze Linter Errors
+**Khi nào sử dụng**: 
+- Khi cần kiểm tra linter errors trong một file hoặc thư mục cụ thể
+- Khi muốn xem chi tiết warnings/errors trước khi fix
+- Khi cần đảm bảo code quality
+
+**Ví dụ sử dụng**:
+```
+Sử dụng Dart MCP để analyze linter errors trong lib/presentation/
+Sử dụng Dart MCP để kiểm tra linter errors trong file lib/data/repositories/user_repository_impl.dart
+```
+
+**Best Practice**: 
+- Analyze code sau khi viết xong
+- Fix tất cả errors trước khi commit
+- Không ignore warnings trừ khi có lý do chính đáng
+
+#### Code Quality Check
+**Khi nào sử dụng**: 
+- Khi cần đánh giá code quality của một phần code
+- Khi muốn tìm các vấn đề tiềm ẩn trong code
+- Khi refactoring code
+
+**Ví dụ sử dụng**:
+```
+Sử dụng Dart MCP để kiểm tra code quality của file lib/data/repositories/
+Sử dụng Dart MCP để phân tích code quality của feature authentication
+```
+
+#### Find Patterns in Dart Code
+**Khi nào sử dụng**: 
+- Khi cần tìm các patterns cụ thể trong codebase Dart
+- Khi muốn phân tích cấu trúc code Dart
+- Khi cần tìm tất cả các class/function theo pattern
+
+**Ví dụ sử dụng**:
+```
+Sử dụng Dart MCP để tìm tất cả các class extends ChangeNotifier
+Sử dụng Dart MCP để tìm tất cả các repository implementation
+```
+
+### Khi NÀO KHÔNG NÊN sử dụng Dart MCP
+
+1. **Đọc file đơn giản**:
+   - KHÔNG sử dụng Dart MCP để đọc file
+   - Dùng `read_file` tool thay thế (nhanh hơn và phù hợp hơn)
+
+2. **Tìm kiếm text đơn giản**:
+   - KHÔNG sử dụng Dart MCP để tìm kiếm text trong files
+   - Dùng `grep` tool thay thế (hiệu quả hơn cho text search)
+
+3. **Semantic search**:
+   - KHÔNG sử dụng Dart MCP cho semantic search
+   - Dùng `codebase_search` tool thay thế (phù hợp hơn cho tìm kiếm theo ngữ nghĩa)
+
+4. **Operations đơn giản**:
+   - KHÔNG sử dụng Dart MCP cho các operations đơn giản có thể dùng tools khác
+   - Chỉ sử dụng khi thực sự cần phân tích code Dart hoặc format code
+
+### Use Cases
+
+1. **Format code sau khi viết**:
+   ```
+   1. Viết code mới hoặc chỉnh sửa code
+   2. Sử dụng Dart MCP để format code
+   3. Kiểm tra lại code đã được format đúng
+   ```
+
+2. **Kiểm tra code quality trước khi commit**:
+   ```
+   1. Sử dụng Dart MCP để analyze linter errors
+   2. Fix tất cả errors và warnings
+   3. Format code lại nếu cần
+   4. Commit code
+   ```
+
+3. **Refactoring code**:
+   ```
+   1. Sử dụng Dart MCP để kiểm tra code quality của phần code cần refactor
+   2. Refactor code
+   3. Sử dụng Dart MCP để format và analyze lại
+   4. Đảm bảo không có lỗi mới
+   ```
+
 ## Best Practices
 
 ### 1. Sử dụng đúng tool cho đúng mục đích
@@ -328,6 +437,7 @@ Sử dụng Memory MCP để retrieve memory về architecture patterns
 - **GitHub MCP**: Git operations (chỉ khi được yêu cầu)
 - **Filesystem MCP**: File operations khi cần đọc nhiều files
 - **Memory MCP**: Lưu trữ context quan trọng
+- **Dart MCP**: Format code, analyze linter errors, code quality checks (KHÔNG dùng cho đọc file hoặc text search)
 
 ### 2. Luôn kiểm tra trước khi giả định
 - Sử dụng Supabase MCP để kiểm tra schema trước khi tạo model

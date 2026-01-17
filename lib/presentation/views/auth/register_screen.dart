@@ -176,7 +176,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 SizedBox(height: DesignSpacing.lg),
                 DropdownButtonFormField<String>(
-                  value: _selectedGender,
+                  initialValue: _selectedGender,
                   decoration: const InputDecoration(labelText: 'Giới tính'),
                   items: [
                     const DropdownMenuItem(value: 'male', child: Text('Nam')),
@@ -193,7 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 SizedBox(height: DesignSpacing.lg),
                 DropdownButtonFormField<String>(
-                  value: _selectedRole,
+                  initialValue: _selectedRole,
                   decoration: const InputDecoration(labelText: 'Vai trò'),
                   items: ['student', 'teacher', 'admin']
                       .map(

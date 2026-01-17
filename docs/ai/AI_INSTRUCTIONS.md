@@ -366,16 +366,22 @@ Khi thêm flutter_riverpod vào pubspec.yaml:
 - Sử dụng khi cần đọc nhiều files liên quan để hiểu đầy đủ context
 - Kết hợp với codebase_search để tìm các patterns
 
-### 10.6. Memory MCP Server
-**Khi nào sử dụng:**
-- Lưu trữ các quyết định kiến trúc quan trọng
-- Lưu các patterns đã được thống nhất
-- Lưu context quan trọng giữa các sessions
+### 10.6. Memory Bank Files (NOT MCP Tool)
+**Lưu ý quan trọng:**
+- Memory Bank là các **FILE THỰC TẾ** trong folder `memory-bank/`, KHÔNG phải MCP tool
+- Sử dụng `read_file` tool để đọc các file trong `memory-bank/`
+- Sử dụng `write` hoặc `search_replace` tool để cập nhật các file
+
+**Khi nào cập nhật Memory Bank files:**
+- Sau khi hoàn thành code changes quan trọng
+- Khi phát hiện patterns mới
+- Khi có thay đổi về kiến trúc hoặc quyết định kỹ thuật
+- Khi user yêu cầu "update memory bank"
 
 **Best Practices:**
-- Lưu các quyết định quan trọng về architecture và patterns
-- Cập nhật memory khi có thay đổi quan trọng về cách làm việc
-- Sử dụng để maintain context giữa các sessions
+- Đọc TẤT CẢ files trong `memory-bank/` trước khi bắt đầu task
+- Cập nhật `activeContext.md` và `progress.md` sau mỗi thay đổi quan trọng
+- Sử dụng file tools (`read_file`, `write`, `search_replace`) - KHÔNG sử dụng MCP Memory tool
 
 ### 10.7. General MCP Best Practices
 - **Luôn kiểm tra trước khi giả định**: Sử dụng MCP để kiểm tra thực tế thay vì giả định
@@ -383,7 +389,7 @@ Khi thêm flutter_riverpod vào pubspec.yaml:
 - **Kết hợp các MCP servers**: Có thể sử dụng nhiều MCP servers cùng lúc để có context đầy đủ
 - **Document findings**: Khi tìm thấy patterns hoặc best practices quan trọng, lưu vào memory bank hoặc documentation
 
-> **Xem thêm:** Chi tiết về MCP Setup và configuration trong `memory-bank/techContext.md` (MCP Setup section) và `.clinerules` (Database & MCP section)
+> **Xem thêm:** Chi tiết về MCP Setup và configuration trong `memory-bank/techContext.md` (MCP Setup section) và `.clinerules` (Database & MCP section). Lưu ý: Memory Bank là các file trong folder `memory-bank/`, không phải MCP tool - xem section "Memory Bank File Operations" trong `.clinerules` để biết cách đọc/ghi files.
 
 ---
 

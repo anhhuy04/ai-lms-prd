@@ -1,6 +1,7 @@
 import 'package:ai_mls/domain/entities/profile.dart';
 import 'package:ai_mls/presentation/views/auth/login_screen.dart';
 import 'package:ai_mls/presentation/views/auth/register_screen.dart';
+import 'package:ai_mls/presentation/views/class/teacher/teacher_class_list_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/admin_dashboard_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/student_dashboard_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/teacher_dashboard_screen.dart';
@@ -12,6 +13,8 @@ class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String home = '/home';
+  static const String teacherClasses = '/teacher/classes';
+  static const String teacherDashboard = '/teacher/dashboard';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -52,6 +55,27 @@ class AppRoutes {
           }
         }
         return _errorRoute('Không có thông tin người dùng cho trang chủ.');
+
+      case teacherClasses:
+        return MaterialPageRoute(
+          builder: (_) => const TeacherClassListScreen(),
+        );
+
+      case teacherDashboard:
+        // Navigate về dashboard với tab được chỉ định
+        final args = settings.arguments as Map<String, dynamic>? ?? {};
+        final userProfile = args['userProfile'] as Profile?;
+        final initialTab = args['initialTab'] as int? ?? 0;
+
+        if (userProfile != null) {
+          return MaterialPageRoute(
+            builder: (_) => TeacherDashboardScreen(
+              userProfile: userProfile,
+              initialTab: initialTab,
+            ),
+          );
+        }
+        return _errorRoute('Thiếu thông tin userProfile cho dashboard.');
 
       default:
         return _errorRoute('Không có định tuyến cho ${settings.name}');

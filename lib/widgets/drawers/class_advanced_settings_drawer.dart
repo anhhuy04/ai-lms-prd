@@ -2,36 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/widgets/drawers/drawer_section_header.dart';
 import 'package:ai_mls/widgets/drawers/drawer_toggle_tile.dart';
+import 'package:ai_mls/presentation/viewmodels/class_viewmodel.dart';
+import 'package:ai_mls/domain/entities/class.dart';
 
 /// Drawer cài đặt nâng cao cho lớp học
 /// Chuyển đổi từ HTML sang Dart theo quy tắc ánh xạ
 class ClassAdvancedSettingsDrawer extends StatelessWidget {
-  final String className;
-  final bool showGroupToStudents;
-  final bool lockGroupChanges;
-  final bool allowStudentProfileEdit;
-  final bool autoLockAfterSubmit;
-  final bool lockClass;
-  final Function(bool) onShowGroupToStudentsChanged;
-  final Function(bool) onLockGroupChangesChanged;
-  final Function(bool) onAllowStudentProfileEditChanged;
-  final Function(bool) onAutoLockAfterSubmitChanged;
-  final Function(bool) onLockClassChanged;
+  final ClassViewModel viewModel;
+  final Class classItem;
 
   const ClassAdvancedSettingsDrawer({
     super.key,
-    required this.className,
-    this.showGroupToStudents = true,
-    this.lockGroupChanges = false,
-    this.allowStudentProfileEdit = true,
-    this.autoLockAfterSubmit = false,
-    this.lockClass = false,
-    required this.onShowGroupToStudentsChanged,
-    required this.onLockGroupChangesChanged,
-    required this.onAllowStudentProfileEditChanged,
-    required this.onAutoLockAfterSubmitChanged,
-    required this.onLockClassChanged,
+    required this.viewModel,
+    required this.classItem,
   });
+
+  /// Đọc settings từ classItem.classSettings
+  Map<String, dynamic> get classSettings => classItem.classSettings;
+
+  /// Helper getters để đọc settings
+  bool get showGroupToStudents =>
+      classSettings['group_management']?['is_visible_to_students'] ?? true;
+
+  bool get lockGroupChanges =>
+      classSettings['group_management']?['lock_groups'] ?? false;
+
+  bool get allowStudentProfileEdit =>
+      classSettings['student_permissions']?['can_edit_profile_in_class'] ??
+      true;
+
+  bool get autoLockAfterSubmit =>
+      classSettings['student_permissions']?['auto_lock_on_submission'] ?? false;
+
+  bool get lockClass => classSettings['defaults']?['lock_class'] ?? false;
 
   @override
   Widget build(BuildContext context) {
@@ -42,24 +45,26 @@ class ClassAdvancedSettingsDrawer extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Phần kiểm soát nhóm
-          _buildGroupControlSection(),
+          Builder(builder: (context) => _buildGroupControlSection(context)),
 
           const SizedBox(height: 16),
 
           // Phần hạn chế quyền học sinh
-          _buildStudentRestrictionsSection(),
+          Builder(
+            builder: (context) => _buildStudentRestrictionsSection(context),
+          ),
 
           const SizedBox(height: 16),
 
           // Phần trạng thái lớp
-          _buildClassStatusSection(),
+          Builder(builder: (context) => _buildClassStatusSection(context)),
         ],
       ),
     );
   }
 
   /// Phần kiểm soát nhóm
-  Widget _buildGroupControlSection() {
+  Widget _buildGroupControlSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -71,10 +76,7 @@ class ClassAdvancedSettingsDrawer extends StatelessWidget {
           decoration: BoxDecoration(
             color: DesignColors.white,
             borderRadius: BorderRadius.circular(DesignRadius.lg),
-            border: Border.all(
-              color: DesignColors.dividerLight,
-              width: 1,
-            ),
+            border: Border.all(color: DesignColors.dividerLight, width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.05),
@@ -90,7 +92,24 @@ class ClassAdvancedSettingsDrawer extends StatelessWidget {
                 title: 'Hiển thị nhóm cho học sinh',
                 subtitle: 'Giúp giảm áp lực khi phân hóa bài tập',
                 value: showGroupToStudents,
-                onChanged: onShowGroupToStudentsChanged,
+                onChanged: (value) async {
+                  final success = await viewModel.updateClassSetting(
+                    classItem.id,
+                    'group_management.is_visible_to_students',
+                    value,
+                  );
+                  if (!success && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          viewModel.errorMessage ??
+                              'Không thể cập nhật cài đặt',
+                        ),
+                        backgroundColor: DesignColors.error,
+                      ),
+                    );
+                  }
+                },
               ),
               const Divider(
                 height: 1,
@@ -104,7 +123,24 @@ class ClassAdvancedSettingsDrawer extends StatelessWidget {
                 title: 'Khóa thay đổi nhóm',
                 subtitle: 'Chỉ giáo viên được quyền đổi nhóm',
                 value: lockGroupChanges,
-                onChanged: onLockGroupChangesChanged,
+                onChanged: (value) async {
+                  final success = await viewModel.updateClassSetting(
+                    classItem.id,
+                    'group_management.lock_groups',
+                    value,
+                  );
+                  if (!success && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          viewModel.errorMessage ??
+                              'Không thể cập nhật cài đặt',
+                        ),
+                        backgroundColor: DesignColors.error,
+                      ),
+                    );
+                  }
+                },
               ),
             ],
           ),
@@ -114,7 +150,7 @@ class ClassAdvancedSettingsDrawer extends StatelessWidget {
   }
 
   /// Phần hạn chế quyền học sinh
-  Widget _buildStudentRestrictionsSection() {
+  Widget _buildStudentRestrictionsSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -126,10 +162,7 @@ class ClassAdvancedSettingsDrawer extends StatelessWidget {
           decoration: BoxDecoration(
             color: DesignColors.white,
             borderRadius: BorderRadius.circular(DesignRadius.lg),
-            border: Border.all(
-              color: DesignColors.dividerLight,
-              width: 1,
-            ),
+            border: Border.all(color: DesignColors.dividerLight, width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.05),
@@ -145,7 +178,24 @@ class ClassAdvancedSettingsDrawer extends StatelessWidget {
                 title: 'Cho phép sửa hồ sơ trong lớp',
                 subtitle: 'Học sinh tự cập nhật tên và ảnh đại diện',
                 value: allowStudentProfileEdit,
-                onChanged: onAllowStudentProfileEditChanged,
+                onChanged: (value) async {
+                  final success = await viewModel.updateClassSetting(
+                    classItem.id,
+                    'student_permissions.can_edit_profile_in_class',
+                    value,
+                  );
+                  if (!success && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          viewModel.errorMessage ??
+                              'Không thể cập nhật cài đặt',
+                        ),
+                        backgroundColor: DesignColors.error,
+                      ),
+                    );
+                  }
+                },
               ),
               const Divider(
                 height: 1,
@@ -159,7 +209,24 @@ class ClassAdvancedSettingsDrawer extends StatelessWidget {
                 title: 'Tự động khóa bài sau khi nộp',
                 subtitle: 'Khóa không gian làm việc ngay khi nộp bài',
                 value: autoLockAfterSubmit,
-                onChanged: onAutoLockAfterSubmitChanged,
+                onChanged: (value) async {
+                  final success = await viewModel.updateClassSetting(
+                    classItem.id,
+                    'student_permissions.auto_lock_on_submission',
+                    value,
+                  );
+                  if (!success && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          viewModel.errorMessage ??
+                              'Không thể cập nhật cài đặt',
+                        ),
+                        backgroundColor: DesignColors.error,
+                      ),
+                    );
+                  }
+                },
               ),
             ],
           ),
@@ -169,7 +236,7 @@ class ClassAdvancedSettingsDrawer extends StatelessWidget {
   }
 
   /// Phần trạng thái lớp
-  Widget _buildClassStatusSection() {
+  Widget _buildClassStatusSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -181,10 +248,7 @@ class ClassAdvancedSettingsDrawer extends StatelessWidget {
           decoration: BoxDecoration(
             color: DesignColors.white,
             borderRadius: BorderRadius.circular(DesignRadius.lg),
-            border: Border.all(
-              color: DesignColors.dividerLight,
-              width: 1,
-            ),
+            border: Border.all(color: DesignColors.dividerLight, width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.05),
@@ -198,11 +262,26 @@ class ClassAdvancedSettingsDrawer extends StatelessWidget {
             title: 'Khóa lớp học',
             subtitle: 'Chặn học sinh mới qua mã QR/mã lớp',
             value: lockClass,
-            onChanged: onLockClassChanged,
+            onChanged: (value) async {
+              final success = await viewModel.updateClassSetting(
+                classItem.id,
+                'defaults.lock_class',
+                value,
+              );
+              if (!success && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      viewModel.errorMessage ?? 'Không thể cập nhật cài đặt',
+                    ),
+                    backgroundColor: DesignColors.error,
+                  ),
+                );
+              }
+            },
           ),
         ),
       ],
     );
   }
 }
-       

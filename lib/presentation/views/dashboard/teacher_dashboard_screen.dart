@@ -12,21 +12,27 @@ import '../../../widgets/smart_marquee_text.dart';
 /// Màn hình này đóng vai trò là "Layout" hoặc "Khung" chính cho Giáo viên.
 class TeacherDashboardScreen extends StatefulWidget {
   final Profile userProfile;
+  final int initialTab;
 
-  const TeacherDashboardScreen({super.key, required this.userProfile});
+  const TeacherDashboardScreen({
+    super.key,
+    required this.userProfile,
+    this.initialTab = 0, // Default to home tab
+  });
 
   @override
   State<TeacherDashboardScreen> createState() => _TeacherDashboardScreenState();
 }
 
 class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
 
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
+    _selectedIndex = widget.initialTab; // Set initial tab from parameter
     _pages = [
       // Trang 0: Nội dung trang chủ của giáo viên
       const TeacherHomeContentScreen(),

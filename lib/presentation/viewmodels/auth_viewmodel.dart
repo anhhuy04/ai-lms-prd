@@ -29,6 +29,19 @@ class AuthViewModel extends ChangeNotifier {
     _errorMessage = message;
   }
 
+  /// Trích xuất thông điệp lỗi từ exception, loại bỏ prefix "Exception: "
+  String _extractErrorMessage(dynamic error) {
+    if (error is Exception) {
+      final errorString = error.toString();
+      // Loại bỏ prefix "Exception: " nếu có
+      if (errorString.startsWith('Exception: ')) {
+        return errorString.substring(11);
+      }
+      return errorString;
+    }
+    return error.toString();
+  }
+
   void clearErrorMessage() {
     _errorMessage = null;
   }
@@ -51,7 +64,7 @@ class AuthViewModel extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _setError(e.toString());
+      _setError(_extractErrorMessage(e));
       _setLoading(false);
       notifyListeners();
       return false;
@@ -82,7 +95,7 @@ class AuthViewModel extends ChangeNotifier {
       _setLoading(false);
       return message;
     } catch (e) {
-      _setError(e.toString());
+      _setError(_extractErrorMessage(e));
       _setLoading(false);
       notifyListeners();
       return null;
@@ -97,7 +110,7 @@ class AuthViewModel extends ChangeNotifier {
       _userProfile = null;
       notifyListeners();
     } catch (e) {
-      _setError(e.toString());
+      _setError(_extractErrorMessage(e));
     }
   }
 

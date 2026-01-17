@@ -17,14 +17,15 @@ class BaseTableDataSource {
     bool ascending = true,
   }) async {
     try {
-      var query = _client.from(tableName).select();
+      dynamic query = _client.from(tableName).select();
 
+      // Áp dụng filter trước, sau đó mới order
       if (column != null && value != null) {
-        query = query.eq(column, value) as dynamic;
+        query = query.eq(column, value);
       }
 
       if (orderBy != null) {
-        query = query.order(orderBy, ascending: ascending) as dynamic;
+        query = query.order(orderBy, ascending: ascending);
       }
 
       final response = await query;
@@ -309,9 +310,68 @@ class BaseTableDataSource {
   /// 7. DELETE: Xóa dữ liệu theo ID
   Future<void> delete(String id) async {
     try {
-      await _client.from(tableName).delete().eq('id', id);
+      print('🟢 [DATASOURCE] delete: Bắt đầu xóa $tableName với id=$id');
+      print('🟢 [DATASOURCE] delete: Table: $tableName');
+      print('🟢 [DATASOURCE] delete: ID: $id');
+
+      // Kiểm tra authentication trước
+      final user = _client.auth.currentUser;
+      if (user == null) {
+        print('⚠️ [DATASOURCE] delete: User chưa đăng nhập!');
+        throw Exception('Bạn cần đăng nhập để thực hiện thao tác này');
+      }
+      print('🟢 [DATASOURCE] delete: User ID: ${user.id}');
+
+      // Thực hiện delete và verify bằng cách select
+      print('🟢 [DATASOURCE] delete: Gửi DELETE request đến Supabase...');
+      final response = await _client
+          .from(tableName)
+          .delete()
+          .eq('id', id)
+          .select();
+
+      print('🟢 [DATASOURCE] delete: Response từ Supabase: $response');
+      print('🟢 [DATASOURCE] delete: Response type: ${response.runtimeType}');
+
+      // Kiểm tra xem có dòng nào bị xóa không
+      final responseList = response as List;
+      if (responseList.isEmpty) {
+        print(
+          '⚠️ [DATASOURCE] delete: Không có dòng nào bị xóa. Có thể:',
+        );
+        print('   - ID không tồn tại trong database');
+        print('   - Không có quyền DELETE (RLS policies)');
+        print('   - User không phải là owner của record');
+        throw Exception(
+          'Không thể xóa dữ liệu. Có thể bạn không có quyền hoặc dữ liệu không tồn tại.',
+        );
+      } else {
+        print(
+          '✅ [DATASOURCE] delete: Đã xóa ${responseList.length} dòng thành công',
+        );
+        print('✅ [DATASOURCE] delete: Dữ liệu đã xóa: ${responseList.first}');
+      }
+
+      print('✅ [DATASOURCE] delete: Hoàn tất xóa $tableName với id=$id');
     } on PostgrestException catch (e) {
       String userFriendlyMessage = _getUserFriendlyError(e, 'DELETE');
+
+      print('🔴 [DATASOURCE ERROR] delete: PostgrestException');
+      print('   Code: ${e.code}');
+      print('   Message: ${e.message}');
+      print('   Details: ${e.details}');
+      print('   Hint: ${e.hint}');
+      print('   Table: $tableName');
+      print('   ID: $id');
+
+      // Log thêm thông tin về loại lỗi
+      if (e.code == '42501') {
+        print('⚠️ [DATASOURCE ERROR] delete: Lỗi permission - RLS policy chặn DELETE');
+      } else if (e.code == 'PGRST116') {
+        print('⚠️ [DATASOURCE ERROR] delete: Không tìm thấy dữ liệu');
+      } else if (e.code == '23503') {
+        print('⚠️ [DATASOURCE ERROR] delete: Lỗi foreign key constraint');
+      }
 
       throw Exception(
         'Lỗi Database tại $tableName.delete($id): '
@@ -321,7 +381,10 @@ class BaseTableDataSource {
         '\n- Details: ${e.details}'
         '\n- Hint: ${e.hint}',
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('🔴 [DATASOURCE ERROR] delete: Lỗi không xác định: $e');
+      print('🔴 [DATASOURCE ERROR] delete: StackTrace: $stackTrace');
+      print('🔴 [DATASOURCE ERROR] delete: Table: $tableName, ID: $id');
       throw Exception('Lỗi không xác định tại $tableName.delete($id): $e');
     }
   }
