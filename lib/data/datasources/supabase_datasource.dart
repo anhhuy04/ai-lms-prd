@@ -1,4 +1,5 @@
 // File: lib/data/datasources/base_repository.dart
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Base Repository để giao tiếp với Supabase

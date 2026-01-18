@@ -43,6 +43,32 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
   }
 
   @override
+  Future<List<Class>> getClassesByTeacherPaginated({
+    required String teacherId,
+    required int page,
+    required int pageSize,
+    String? searchQuery,
+    String? sortBy,
+    bool ascending = true,
+  }) async {
+    try {
+      final results = await _dataSource.getClassesByTeacherPaginated(
+        teacherId: teacherId,
+        page: page,
+        pageSize: pageSize,
+        searchQuery: searchQuery,
+        sortBy: sortBy,
+        ascending: ascending,
+      );
+      return results.map((json) => Class.fromJson(json)).toList();
+    } catch (e, stackTrace) {
+      print('🔴 [REPO ERROR] getClassesByTeacherPaginated: $e');
+      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
+      throw _translateError(e, 'Lấy danh sách lớp học');
+    }
+  }
+
+  @override
   Future<List<Class>> getClassesByStudent(String studentId) async {
     try {
       final results = await _dataSource.getClassesByStudent(studentId);

@@ -1,13 +1,43 @@
-
+import 'package:ai_mls/core/env/env.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+/// Service for initializing and accessing Supabase client
+/// 
+/// This service uses environment variables from the Env class
+/// which are loaded at compile-time for security.
+/// 
+/// The Supabase URL and anon key are now securely managed through
+/// environment configuration files (.env.dev, .env.staging, .env.prod)
 class SupabaseService {
+  /// Initialize Supabase with environment variables
+  /// 
+  /// This method should be called once at app startup (in main.dart)
+  /// before any Supabase operations.
   static Future<void> initialize() async {
-    await Supabase.initialize(
-      url: 'https://vazhgunhcjdwlkbslroc.supabase.co', // Replace with your Supabase URL
-      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhemhndW5oY2pkd2xrYnNscm9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxMTI3NTksImV4cCI6MjA4MDY4ODc1OX0.D-O3FbXF46mVEga152RmumAkmqS54_A-L7tFa6UBi0c', // Replace with your Supabase Anon Key
-    );
+    try {
+      await Supabase.initialize(
+        url: Env.supabaseUrl,
+        anonKey: Env.supabaseAnonKey,
+      );
+    } catch (e) {
+      throw Exception(
+        'Failed to initialize Supabase: $e\n'
+        'Please ensure your .env file is properly configured.',
+      );
+    }
   }
 
-  static SupabaseClient get client => Supabase.instance.client;
+  /// Get the Supabase client instance
+  /// 
+  /// Returns the initialized Supabase client.
+  /// Throws an error if Supabase has not been initialized.
+  static SupabaseClient get client {
+    if (!Supabase.instance.isInitialized) {
+      throw Exception(
+        'Supabase has not been initialized. '
+        'Call SupabaseService.initialize() first.',
+      );
+    }
+    return Supabase.instance.client;
+  }
 }

@@ -8,7 +8,86 @@ Hãy phản hồi lại tôi bằng tiếng Việt.
 
 ---
 
+# ⚠️ FILE TRUNG TÂM ĐIỀU PHỐI
+
+**File này (`.clinerules`) là file TRUNG TÂM điều phối tất cả quy tắc và hướng dẫn trong dự án.**
+
+**Cấu trúc điều phối:**
+- `.clinerules` → Reference đến các file docs chính
+- `docs/ai/AI_INSTRUCTIONS.md` → Core instructions cho AI agents
+- `docs/DOCS_STRUCTURE.md` → Cấu trúc documentation
+- `memory-bank/` → Context và memory cho AI agents
+
+**Quy tắc:**
+- ✅ Tất cả quy tắc chính nằm trong `.clinerules`
+- ✅ Chi tiết kỹ thuật → Reference đến `docs/ai/AI_INSTRUCTIONS.md`
+- ✅ Cấu trúc docs → Reference đến `docs/DOCS_STRUCTURE.md`
+- ✅ Context dự án → Reference đến `memory-bank/`
+
+---
+
 # QUY TẮC CỐT LÕI
+Cho phép tự động sử dụng các MCP Fetch, Context7
+
+## Mandatory Context Reading Protocol
+
+### Quy tắc BẮT BUỘC đọc tài liệu trước khi hành động:
+- **KHI NÀO:** Mỗi khi nhận lệnh từ người dùng, PHẢI đọc lại các tài liệu liên quan TRƯỚC KHI thực hiện
+- **PHÂN LOẠI TASK:** Xác định category của task để đọc đúng tài liệu:
+  - **UI/Giao diện** → Đọc `memory-bank/DESIGN_SYSTEM_GUIDE.md` + `memory-bank/systemPatterns.md` (Design System section)
+  - **Database/Repository** → Đọc `memory-bank/systemPatterns.md` (Data Layer) + `docs/ai/README_SUPABASE.md`
+  - **State Management** → Đọc `memory-bank/systemPatterns.md` (State Management) + `.cursor/.cursorrules` (Tech Stack)
+  - **Architecture** → Đọc `docs/ai/AI_INSTRUCTIONS.md` (Section 2) + `memory-bank/systemPatterns.md` (Architecture)
+  - **Thư viện mới** → Sử dụng MCP Fetch để đọc documentation từ pub.dev
+- **WORKFLOW:**
+  1. Nhận lệnh từ người dùng
+  2. Phân tích và xác định category (UI/Database/State/Architecture/Library)
+  3. Đọc tài liệu liên quan từ memory-bank hoặc docs (sử dụng `read_file` tool)
+  4. Kiểm tra patterns hiện tại trong codebase (sử dụng `codebase_search` hoặc `grep`)
+  5. Thực hiện task theo đúng patterns và standards đã đọc
+  6. Cập nhật memory-bank nếu có thay đổi quan trọng
+
+### Quy tắc BẮT BUỘC tuân thủ nguyên tắc giao diện:
+- **KHI NÀO:** Khi sửa bất kỳ file nào liên quan đến UI/giao diện (files trong `lib/presentation/views/`, `lib/widgets/`)
+- **BẮT BUỘC:**
+  1. Đọc `memory-bank/DESIGN_SYSTEM_GUIDE.md` trước khi sửa
+  2. Đọc `lib/core/constants/design_tokens.dart` để xem tokens có sẵn
+  3. Tuân thủ Design Tokens (màu sắc, spacing, typography, icons, radius, shadows)
+  4. Tuân thủ Component Standards (button heights, input heights, card sizes, etc.)
+  5. Sử dụng `flutter_screenutil` cho responsive design
+  6. Đảm bảo accessibility (contrast, touch targets)
+  7. Sử dụng `keyboardDismissBehavior` cho ScrollView
+- **KHÔNG ĐƯỢC:**
+  - Hardcode màu sắc, spacing, font sizes
+  - Bỏ qua Design Tokens
+  - Tạo custom sizes không tuân thủ standards
+  - Bỏ qua responsive design
+
+### Quy tắc BẮT BUỘC sử dụng MCP khi được yêu cầu:
+- **KHI NÀO:** Khi người dùng yêu cầu sử dụng MCP (ví dụ: "dùng MCP Fetch", "sử dụng MCP", "check bằng MCP", "đọc documentation bằng MCP")
+- **BẮT BUỘC:** PHẢI sử dụng MCP tools ngay lập tức, không được bỏ qua
+- **CÁC LOẠI MCP:**
+  - **MCP Fetch:** Đọc documentation của thư viện mới, best practices từ web
+  - **Supabase MCP:** Kiểm tra schema, query data, apply migrations
+  - **Context7 MCP:** Tìm patterns trong codebase
+  - **Dart MCP:** Format code, analyze linter errors, kiểm tra code quality
+  - **GitHub MCP:** Git operations (chỉ khi được yêu cầu rõ ràng)
+- **ƯU TIÊN:** Luôn ưu tiên MCP khi người dùng yêu cầu, không được tự ý bỏ qua
+
+### Quy tắc BẮT BUỘC sử dụng thư viện phù hợp:
+- **KHI NÀO:** Khi người dùng yêu cầu implement feature hoặc sử dụng thư viện
+- **BẮT BUỘC:** PHẢI sử dụng thư viện đã được định nghĩa trong `.cursor/.cursorrules` (Tech Stack Standards)
+- **THƯ VIỆN BẮT BUỘC:**
+  - **QR Code:** `QrHelper` từ `lib/core/utils/qr_helper.dart` (wraps `pretty_qr_code`)
+  - **Routing:** `go_router` cho routing mới
+  - **State Management:** Riverpod với `@riverpod` generator
+  - **Models:** `freezed` + `json_serializable`
+  - **Networking:** `dio` + `retrofit`
+  - **Local Storage:** `drift` (relational) + `flutter_secure_storage` (tokens)
+  - **Responsive UI:** `flutter_screenutil`
+  - **Logging:** `logger` package (sẽ có `AppLogger` wrapper)
+  - **Error Reporting:** `sentry_flutter`
+- **NẾU THƯ VIỆN CHƯA CÓ:** Hỏi người dùng hoặc đề xuất từ tech stack, không tự ý thêm thư viện mới
 
 ## Database & MCP
 
@@ -21,7 +100,22 @@ Hãy phản hồi lại tôi bằng tiếng Việt.
 ## Docs & Memory Prompt
 
 ### Quy tắc đọc docs trước khi hành động:
+- **BẮT BUỘC:** Đọc `docs/DOCS_STRUCTURE.md` để hiểu cấu trúc thư mục và quy tắc đặt tên trước khi tạo file markdown mới.
 - Trước khi tạo/cập nhật tài liệu Markdown trong repo: phải đọc `docs/ai/DOCS_PROMPT_RULES.md`.
+
+### Quy tắc tạo file markdown mới:
+- **Xác định loại file:**
+  - AI Agent doc → `docs/ai/`
+  - Developer guide → `docs/guides/development/`
+  - Feature doc → `docs/guides/features/{feature-name}/`
+  - Tool guide → `docs/guides/tools/`
+  - Report → `docs/reports/`
+- **Đặt tên:** Sử dụng kebab-case (ví dụ: `quick-reference.md`, `testing-guide.md`)
+- **Cập nhật `docs/DOCS_STRUCTURE.md`:** Sau khi tạo file mới, **BẮT BUỘC** cập nhật file `docs/DOCS_STRUCTURE.md`:
+  - Thêm file vào bảng tương ứng
+  - Mô tả mục đích và khi nào đọc
+  - Cập nhật thống kê nếu cần
+- **Cập nhật index (nếu là feature doc):** Nếu tạo file trong `docs/guides/features/{feature-name}/`, cập nhật `index.md` trong folder đó
 
 ### Quy tắc sử dụng MCP Servers:
 - **Supabase MCP**: Sử dụng để query database, kiểm tra schema, apply migrations, xem logs, và quản lý edge functions. Luôn kiểm tra schema trước khi tạo model hoặc repository.
@@ -97,6 +191,43 @@ Hãy phản hồi lại tôi bằng tiếng Việt.
 - Ưu tiên sử dụng built-in tools (`read_file`, `grep`, `codebase_search`) trước khi dùng Dart MCP
 
 > **Xem thêm:** Chi tiết về MCP Usage Patterns trong `docs/ai/AI_INSTRUCTIONS.md` (Section 10) và `memory-bank/techContext.md` (MCP Setup section)
+
+## Context Reading & Documentation Protocol
+
+### Quy tắc đọc tài liệu trước khi hành động:
+- **BẮT BUỘC:** Khi nhận bất kỳ lệnh nào từ người dùng, PHẢI đọc lại các tài liệu liên quan trước khi thực hiện:
+  - Nếu liên quan đến **UI/Giao diện**: Đọc `memory-bank/DESIGN_SYSTEM_GUIDE.md` và `memory-bank/systemPatterns.md` (Design System section)
+  - Nếu liên quan đến **Database/Repository**: Đọc `memory-bank/systemPatterns.md` (Data Layer section) và `docs/ai/README_SUPABASE.md`
+  - Nếu liên quan đến **State Management**: Đọc `memory-bank/systemPatterns.md` (State Management section) và `.cursor/.cursorrules` (Tech Stack section)
+  - Nếu liên quan đến **Architecture**: Đọc `docs/ai/AI_INSTRUCTIONS.md` (Section 2) và `memory-bank/systemPatterns.md` (Overall Architecture section)
+  - Nếu liên quan đến **Thư viện mới**: Sử dụng MCP Fetch để đọc documentation từ pub.dev trước khi implement
+- **Workflow chuẩn:**
+  1. Phân tích lệnh của người dùng → Xác định category (UI/Database/State/Architecture)
+  2. Đọc tài liệu liên quan từ memory-bank hoặc docs
+  3. Kiểm tra patterns hiện tại trong codebase
+  4. Thực hiện task theo đúng patterns và standards
+  5. Cập nhật memory-bank nếu có thay đổi quan trọng
+
+### Quy tắc sử dụng MCP khi được yêu cầu:
+- **BẮT BUỘC:** Khi người dùng yêu cầu sử dụng MCP (ví dụ: "dùng MCP Fetch", "sử dụng MCP", "check bằng MCP"), PHẢI sử dụng MCP tools ngay lập tức
+- **MCP Fetch:** Sử dụng khi cần đọc documentation của thư viện mới hoặc best practices từ web
+- **Supabase MCP:** Sử dụng khi cần kiểm tra schema, query data, apply migrations
+- **Context7 MCP:** Sử dụng khi cần tìm patterns trong codebase
+- **Dart MCP:** Sử dụng khi cần format code, analyze linter errors, kiểm tra code quality
+- **Luôn ưu tiên MCP** khi người dùng yêu cầu rõ ràng, không được bỏ qua
+
+### Quy tắc sử dụng thư viện phù hợp:
+- **BẮT BUỘC:** Khi người dùng yêu cầu implement feature, PHẢI sử dụng thư viện đã được định nghĩa trong `.cursor/.cursorrules` (Tech Stack Standards)
+- **QR Code:** Luôn sử dụng `QrHelper` từ `lib/core/utils/qr_helper.dart` (wraps `pretty_qr_code`)
+- **Routing:** Sử dụng `go_router` cho routing mới (migration từ AppRoutes đang trong tiến trình)
+- **State Management:** Ưu tiên Riverpod với `@riverpod` generator cho features mới
+- **Models:** Sử dụng `freezed` + `json_serializable` cho tất cả domain entities
+- **Networking:** Sử dụng `dio` + `retrofit` cho external API calls
+- **Local Storage:** Sử dụng `drift` cho relational data, `flutter_secure_storage` cho tokens
+- **Responsive UI:** Sử dụng `flutter_screenutil` cho responsive design
+- **Logging:** Sử dụng `logger` package (sẽ có `AppLogger` wrapper)
+- **Error Reporting:** Tích hợp `sentry_flutter` cho error tracking
+- **Nếu thư viện chưa có trong tech stack:** Hỏi người dùng trước khi thêm, hoặc đề xuất thư viện phù hợp từ tech stack
 
 ## Flutter Architecture (MVVM & Clean Architecture)
 
@@ -473,6 +604,60 @@ class UserCard extends StatelessWidget {
 - Widget custom: `UserCard` (widget mới được tạo)
 ```
 
+## UI/Interface Rules
+
+### QUY TẮC TUÂN THỦ NGUYÊN TẮC GIAO DIỆN
+Khi sửa file liên quan đến giao diện (UI), bạn PHẢI tuân thủ nghiêm ngặt các quy tắc sau:
+
+1. **BẮT BUỘC đọc Design System trước khi sửa UI:**
+   - Đọc `memory-bank/DESIGN_SYSTEM_GUIDE.md` để hiểu design tokens và component standards
+   - Đọc `memory-bank/systemPatterns.md` (Design System Specifications section)
+   - Kiểm tra `lib/core/constants/design_tokens.dart` để xem các tokens có sẵn
+
+2. **Tuân thủ Design Tokens:**
+   - **Màu sắc:** LUÔN sử dụng `DesignColors.*` từ `design_tokens.dart`, KHÔNG hardcode màu
+   - **Spacing:** LUÔN sử dụng `DesignSpacing.*` (xs, sm, md, lg, xl, etc.), KHÔNG hardcode spacing
+   - **Typography:** LUÔN sử dụng `DesignTypography.*` TextStyle objects, KHÔNG tạo custom font sizes
+   - **Icons:** LUÔN sử dụng `DesignIcons.*` constants cho icon sizes
+   - **Border Radius:** LUÔN sử dụng `DesignRadius.*` tokens
+   - **Shadows:** LUÔN sử dụng `DesignElevation.level*` cho shadows
+   - **Component Sizes:** Tham khảo `DesignComponents.*` trong design_tokens.dart
+
+3. **Responsive Design:**
+   - Sử dụng `flutter_screenutil` cho responsive sizing
+   - Sử dụng `DesignBreakpoints` để kiểm tra device type (mobile/tablet/desktop)
+   - Tuân thủ responsive breakpoints đã định nghĩa trong design system
+
+4. **Component Standards:**
+   - Button height: 44dp (medium), 36dp (small), 52dp (large)
+   - Input field height: 48dp (đã giảm từ 56dp)
+   - Card min height: 100dp (đã giảm từ 120dp)
+   - AppBar height: 56dp (Material standard)
+   - Touch targets: Minimum 48×48dp
+
+5. **Accessibility:**
+   - Đảm bảo contrast ratio ≥ 4.5:1 cho text
+   - Touch targets ≥ 48×48dp
+   - Sử dụng semantic labels cho screen readers
+
+6. **Widget Organization:**
+   - Tách widget thành các methods/classes nhỏ (< 50 dòng mỗi method)
+   - Sử dụng `const` constructors khi có thể
+   - Tái sử dụng widgets từ `lib/widgets/` khi có thể
+
+7. **Keyboard & Scroll Behavior:**
+   - Luôn sử dụng `keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag` cho ScrollView
+   - Dismiss keyboard khi scroll
+
+8. **State Preservation:**
+   - Sử dụng `AutomaticKeepAliveClientMixin` cho screens cần preserve state
+   - Sử dụng `AutomaticKeepAliveClientMixin` cho tabs trong TabBarView
+
+> **Xem thêm:** 
+> - Chi tiết Design System: `memory-bank/DESIGN_SYSTEM_GUIDE.md`
+> - Design Tokens: `lib/core/constants/design_tokens.dart`
+> - Component Patterns: `memory-bank/systemPatterns.md` (Design System Specifications section)
+
 ## Flutter Refactoring
 
 ### QUY TẮC VIẾT CODE (FLUTTER REFACTORING)
@@ -732,10 +917,13 @@ After successfully editing and writing code, update the memory bank files to cor
 
 Để tìm hiểu thêm về các chủ đề cụ thể, tham khảo:
 
-- **Cấu trúc thư mục và quy tắc tạo file:** `AI_INSTRUCTIONS.md` (Section 1)
-- **Kiến trúc Clean Architecture & MVVM:** `AI_INSTRUCTIONS.md` (Section 2) và `memory-bank/systemPatterns.md`
-- **MCP Usage Patterns:** `AI_INSTRUCTIONS.md` (Section 10) và `memory-bank/techContext.md`
-- **Design System:** `memory-bank/systemPatterns.md` (Design System Specifications section)
+- **Context Reading Protocol:** `docs/guides/development/context-reading-protocol.md` - BẮT BUỘC đọc trước khi thực hiện task (quy trình đọc tài liệu, tuân thủ giao diện, sử dụng MCP)
+- **Cấu trúc documentation:** `docs/DOCS_STRUCTURE.md` - Mô tả cấu trúc thư mục và mục đích từng file (BẮT BUỘC đọc trước khi tạo file markdown mới)
+- **Cấu trúc thư mục và quy tắc tạo file:** `docs/ai/AI_INSTRUCTIONS.md` (Section 1)
+- **Kiến trúc Clean Architecture & MVVM:** `docs/ai/AI_INSTRUCTIONS.md` (Section 2) và `memory-bank/systemPatterns.md`
+- **MCP Usage Patterns:** `docs/ai/AI_INSTRUCTIONS.md` (Section 10) và `memory-bank/techContext.md`
+- **Design System:** `memory-bank/DESIGN_SYSTEM_GUIDE.md` và `memory-bank/systemPatterns.md` (Design System Specifications section)
 - **Code Conventions:** `memory-bank/activeContext.md` (Active Preferences & Standards section)
-- **Technology Stack:** `memory-bank/techContext.md`
+- **Technology Stack:** `memory-bank/techContext.md` - Danh sách đầy đủ thư viện và tech stack
+- **Tech Stack Standards:** `.cursor/.cursorrules` (Tech Stack Standards section)
 - **Current Work Focus:** `memory-bank/activeContext.md` (Current Sprint Focus section)

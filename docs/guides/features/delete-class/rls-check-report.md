@@ -227,4 +227,4 @@ USING (true);
 
 - [Supabase RLS Documentation](https://supabase.com/docs/guides/database/postgres/row-level-security)
 - [Supabase Security Advisors](https://supabase.com/docs/guides/database/database-linter)
-- [Class Delete Debugging Guide](./class_delete_debugging_guide.md)
+- [Class Delete Debugging Guide](./debugging-guide.md)

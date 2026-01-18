@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/widgets/assignment_list.dart';
 import 'package:ai_mls/widgets/drawers/action_end_drawer.dart';
@@ -34,9 +37,95 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
   @override
   void initState() {
     super.initState();
+    // #region agent log
+    try {
+      final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
+      logFile.writeAsStringSync(
+        '${jsonEncode({
+          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+          "timestamp": DateTime.now().millisecondsSinceEpoch,
+          "location": "teacher_class_detail_screen.dart:35",
+          "message": "TeacherClassDetailScreen initState",
+          "data": {"classId": widget.classId, "className": widget.className, "semesterInfo": widget.semesterInfo},
+          "sessionId": "debug-session",
+          "runId": "run1",
+          "hypothesisId": "F",
+        })}\n',
+        mode: FileMode.append,
+      );
+    } catch (_) {}
+    // #endregion
     // Load class details khi màn hình khởi tạo
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ClassViewModel>().loadClassDetails(widget.classId);
+      // #region agent log
+      try {
+        final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
+        logFile.writeAsStringSync(
+          '${jsonEncode({
+            "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+            "timestamp": DateTime.now().millisecondsSinceEpoch,
+            "location": "teacher_class_detail_screen.dart:39",
+            "message": "About to load class details",
+            "data": {"classId": widget.classId, "mounted": mounted},
+            "sessionId": "debug-session",
+            "runId": "run1",
+            "hypothesisId": "F",
+          })}\n',
+          mode: FileMode.append,
+        );
+      } catch (_) {}
+      // #endregion
+      if (mounted) {
+        try {
+          context.read<ClassViewModel>().loadClassDetails(widget.classId).catchError((error, stackTrace) {
+            // #region agent log
+            try {
+              final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
+              logFile.writeAsStringSync(
+                '${jsonEncode({
+                  "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                  "timestamp": DateTime.now().millisecondsSinceEpoch,
+                  "location": "teacher_class_detail_screen.dart:50",
+                  "message": "Error loading class details",
+                  "data": {"classId": widget.classId, "error": error.toString(), "stackTrace": stackTrace.toString()},
+                  "sessionId": "debug-session",
+                  "runId": "run1",
+                  "hypothesisId": "F",
+                })}\n',
+                mode: FileMode.append,
+              );
+            } catch (_) {}
+            // #endregion
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Lỗi khi tải thông tin lớp học: ${error.toString()}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          });
+        } catch (e, stackTrace) {
+          // #region agent log
+          try {
+            final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
+            logFile.writeAsStringSync(
+              '${jsonEncode({
+                "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                "timestamp": DateTime.now().millisecondsSinceEpoch,
+                "location": "teacher_class_detail_screen.dart:65",
+                "message": "Exception in loadClassDetails call",
+                "data": {"classId": widget.classId, "error": e.toString(), "stackTrace": stackTrace.toString()},
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "F",
+              })}\n',
+              mode: FileMode.append,
+            );
+          } catch (_) {}
+          // #endregion
+        }
+      }
     });
   }
 

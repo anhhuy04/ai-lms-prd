@@ -70,9 +70,44 @@ ChangeNotifierProvider(
   - Implement error recovery logic
   - Example: `AuthRepositoryImpl` implements `AuthRepository` interface
 
-## State Management Pattern: ChangeNotifier + Provider
+## State Management Pattern: Riverpod (Primary) + Provider (Legacy)
 
-### ViewModel Structure
+### Current State: Mixed Approach
+- **Riverpod** (v2.5.1) - Primary state management solution
+  - Used for providers and reactive state
+  - Code generation via `riverpod_generator` (v2.3.0) with `@riverpod` annotation
+  - Better for dependency injection and state management
+- **Provider** (v6.0.0) - Legacy support for ViewModels
+  - Used for existing ViewModels with ChangeNotifier pattern
+  - Will gradually migrate to Riverpod
+  - Coexists with Riverpod for backward compatibility
+
+### Riverpod Pattern (Preferred for New Features)
+```dart
+// Using @riverpod code generation
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'auth_provider.g.dart';
+
+@riverpod
+class AuthNotifier extends _$AuthNotifier {
+  @override
+  FutureOr<AuthState> build() async {
+    return const AuthState.initial();
+  }
+  
+  Future<void> loginUser(String email, String password) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final repository = ref.read(authRepositoryProvider);
+      final user = await repository.loginUser(email, password);
+      return AuthState.success(user);
+    });
+  }
+}
+```
+
+### Provider Pattern (Legacy - Existing Code)
 ```dart
 class AuthViewModel extends ChangeNotifier {
   final AuthRepository _repository;
@@ -158,10 +193,17 @@ Future<User> loginUser(String email, String password) async {
 - **Constraint:** ALL Supabase calls in `data/datasources/` only
 - **Real-Time Support:** Leverage Supabase Realtime for live updates (submissions, grades)
 
-### 2. Provider for State Management
-- **Why:** Simple, lightweight, works well with MVVM
+### 2. Riverpod for State Management (Primary)
+- **Why:** Modern, powerful, excellent for dependency injection and state management
+- **Pattern:** Use `@riverpod` code generation for providers and notifiers
+- **Dependency Injection:** Use Riverpod providers for all dependencies
+- **Migration:** Gradually migrate from Provider to Riverpod for new features
+
+### 2b. Provider for State Management (Legacy Support)
+- **Why:** Existing codebase uses Provider for ViewModels
 - **Pattern:** Each feature has own ViewModel as ChangeNotifier
 - **Dependency Injection:** Use `ChangeNotifierProvider` with explicit constructor dependencies
+- **Status:** Coexists with Riverpod, will be gradually migrated
 
 ### 3. Clean Architecture Layers
 - **Why:** Separates concerns, enables testing, makes feature changes easier

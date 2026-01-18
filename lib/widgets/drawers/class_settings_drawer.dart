@@ -618,107 +618,66 @@ class ClassSettingsDrawer extends StatelessWidget {
       );
 
       if (confirmed != true) {
-        print('🟡 [UI] deleteClass: User đã hủy thao tác xóa');
         return;
       }
 
-      // Bước 2: Lưu context và đóng drawer
-      final drawerContext = context;
-      if (drawerContext.mounted) {
-        Navigator.pop(drawerContext);
+      // Bước 2: Lấy NavigatorState từ parent screen TRƯỚC KHI pop drawer
+      // Sử dụng rootNavigator: false để lấy navigator từ parent screen (không phải drawer)
+      final parentNavigator = Navigator.of(context, rootNavigator: false);
+      final parentContext = parentNavigator.context;
+
+      if (!parentContext.mounted) {
+        return;
       }
 
-      // Bước 3: Delay để drawer pop hoàn tất
+      // Bước 3: Đóng drawer
+      if (context.mounted) {
+        Navigator.pop(context);
+      }
+
+      // Đợi một chút để drawer đóng hoàn toàn
       await Future.delayed(const Duration(milliseconds: 100));
 
       // Bước 4: Hiển thị loading dialog
-      if (!drawerContext.mounted) {
-        print('🔴 [UI] deleteClass: Context của drawer không còn valid');
-        return;
-      }
-
       showDialog(
-        context: drawerContext,
+        context: parentContext,
         barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
 
       // Bước 5: Thực hiện xóa lớp
-      print('🟢 [UI] deleteClass: Bắt đầu xóa lớp học ${classItem.id}');
-      print('🟢 [UI] deleteClass: Tên lớp: ${classItem.name}');
-
       final success = await viewModel.deleteClass(classItem.id);
 
       // Bước 6: Đóng loading dialog
-      if (drawerContext.mounted) {
-        Navigator.pop(drawerContext);
-        print('✅ [UI] deleteClass: Đã đóng loading dialog');
+      if (parentContext.mounted) {
+        Navigator.of(parentContext).pop();
       }
 
       // Bước 7: Xử lý kết quả
       if (success) {
-        print('✅ [UI] deleteClass: Xóa thành công');
-        await Future.delayed(const Duration(milliseconds: 300));
-
-        // Schedule navigation after current frame to avoid context issues
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          try {
-            // Pop drawer (nếu vẫn còn)
-            if (drawerContext.mounted) {
-              Navigator.pop(drawerContext);
-              print('✅ [NAVIGATION] Drawer popped');
-            }
-
-            // Refresh data trong background
-            print('🔄 [NAVIGATION] Starting background refresh...');
-            viewModel
-                .refresh()
-                .then((_) {
-                  print('✅ [NAVIGATION] Background refresh completed');
-                })
-                .catchError((e) {
-                  print('❌ [NAVIGATION] Background refresh failed: $e');
-                });
-
-            // Navigate về danh sách lớp học using named route (safer approach)
-            await Future.delayed(const Duration(milliseconds: 200));
-
-            print('🧭 [NAVIGATION] Navigating back to teacher classes list...');
-
-            // Use named route navigation to avoid context issues
-            if (drawerContext.mounted) {
-              try {
-                // Navigate to teacher classes screen and remove all previous routes
-                Navigator.of(drawerContext).pushNamedAndRemoveUntil(
-                  AppRoutes.teacherClasses,
-                  (route) => false, // Remove all previous routes
-                );
-                print(
-                  '✅ [NAVIGATION] Successfully navigated to teacher classes list',
-                );
-              } catch (e) {
-                print('❌ [NAVIGATION] Named route navigation failed: $e');
-                // Fallback: try to pop back to previous screen
-                try {
-                  Navigator.of(drawerContext).pop();
-                  print('✅ [NAVIGATION] Fallback pop navigation successful');
-                } catch (e2) {
-                  print('❌ [NAVIGATION] All navigation attempts failed: $e2');
-                }
-              }
-            } else {
-              print('⚠️ [NAVIGATION] Context not mounted, skipping navigation');
-            }
-          } catch (e) {
-            print('❌ [NAVIGATION] Navigation failed with exception: $e');
-          }
+        // Refresh data trong background
+        viewModel.refresh().catchError((e) {
+          debugPrint('Background refresh failed: $e');
         });
 
-        // Schedule success message after navigation
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          try {
-            if (drawerContext.mounted) {
-              ScaffoldMessenger.of(drawerContext).showSnackBar(
+        // Navigate về danh sách lớp học
+        // Sử dụng parentNavigator đã lưu trước đó
+        if (parentContext.mounted) {
+          // Pop detail screen để quay về class list
+          if (parentNavigator.canPop()) {
+            parentNavigator.pop();
+          } else {
+            // Fallback: navigate bằng named route
+            parentNavigator.pushNamedAndRemoveUntil(
+              AppRoutes.teacherClasses,
+              (route) => false,
+            );
+          }
+
+          // Hiển thị success message sau một delay nhỏ
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (parentContext.mounted) {
+              ScaffoldMessenger.of(parentContext).showSnackBar(
                 const SnackBar(
                   content: Text('✅ Đã xóa lớp học thành công'),
                   backgroundColor: Colors.green,
@@ -726,33 +685,34 @@ class ClassSettingsDrawer extends StatelessWidget {
                 ),
               );
             }
-          } catch (e) {
-            print('⚠️ [UI] Could not show success message: $e');
-          }
-        });
-
-        // Schedule error message if deletion failed
-        if (!success) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _showErrorSnackBar(drawerContext, viewModel.errorMessage);
           });
         }
       } else {
-        // Schedule error message for deletion failure
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _showErrorSnackBar(drawerContext, viewModel.errorMessage);
-        });
+        // Hiển thị error message
+        if (parentContext.mounted) {
+          _showErrorSnackBar(parentContext, viewModel.errorMessage);
+        }
       }
     } catch (e, stackTrace) {
-      print('🔴 [UI] deleteClass: Exception: $e');
-      print('🔴 [UI] deleteClass: StackTrace: $stackTrace');
+      debugPrint('Error deleting class: $e');
+      debugPrint('StackTrace: $stackTrace');
 
-      if (context.mounted) {
-        Navigator.pop(context); // Close loading if still open
-      }
-
-      if (context.mounted) {
-        _showErrorSnackBar(context, 'Lỗi không mong đợi: $e');
+      // Đóng loading dialog nếu còn mở và hiển thị error
+      try {
+        final parentContext = Navigator.of(
+          context,
+          rootNavigator: false,
+        ).context;
+        if (parentContext.mounted) {
+          Navigator.of(parentContext).popUntil(
+            (route) =>
+                route.isFirst ||
+                route.settings.name == AppRoutes.teacherClasses,
+          );
+          _showErrorSnackBar(parentContext, 'Lỗi không mong đợi: $e');
+        }
+      } catch (_) {
+        // Ignore if context is already disposed
       }
     }
   }

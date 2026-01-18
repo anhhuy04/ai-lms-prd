@@ -109,9 +109,9 @@ content: Text('❌ $errorMsg')  // Thêm emoji
 
 ## 📚 Documentation
 
-- **Full Testing Guide:** [TESTING_DELETE_CLASS.md](./TESTING_DELETE_CLASS.md)
-- **Detailed Summary:** [FIX_DELETE_CLASS_SUMMARY.md](./FIX_DELETE_CLASS_SUMMARY.md)
-- **Original Analysis:** [class_delete_issue_analysis.md](./class_delete_issue_analysis.md)
+- **Full Testing Guide:** [testing-guide.md](../features/delete-class/testing-guide.md)
+- **Detailed Summary:** [fix-summary.md](../features/delete-class/fix-summary.md)
+- **Original Analysis:** [issue-analysis.md](../features/delete-class/issue-analysis.md)
 
 ---
 

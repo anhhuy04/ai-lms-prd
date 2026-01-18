@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:ai_mls/data/datasources/supabase_datasource.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -48,6 +51,109 @@ class SchoolClassDataSource {
       orderBy: 'created_at',
       ascending: false,
     );
+  }
+
+  /// Lấy danh sách lớp học của giáo viên với pagination, search và sort
+  Future<List<Map<String, dynamic>>> getClassesByTeacherPaginated({
+    required String teacherId,
+    required int page,
+    required int pageSize,
+    String? searchQuery,
+    String? sortBy,
+    bool ascending = true,
+  }) async {
+    try {
+      final from = (page - 1) * pageSize;
+      final to = from + pageSize - 1;
+
+      // Dùng dynamic ngay từ đầu để tránh type mismatch
+      dynamic query = _client
+          .from('classes')
+          .select()
+          .eq('teacher_id', teacherId);
+
+      // Áp dụng search filter (tìm kiếm trên name và subject)
+      // Lưu ý: Phải apply search TRƯỚC sort vì .or() trả về PostgrestFilterBuilder
+      // còn .order() trả về PostgrestTransformBuilder (không thể gọi filter methods)
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        final searchPattern = '%$searchQuery%';
+        // #region agent log
+        try {
+          final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
+          logFile.writeAsStringSync(
+            '${jsonEncode({
+              "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+              "timestamp": DateTime.now().millisecondsSinceEpoch,
+              "location": "school_class_datasource.dart:75",
+              "message": "Applying search filter",
+              "data": {"searchQuery": searchQuery, "searchPattern": searchPattern, "teacherId": teacherId, "page": page},
+              "sessionId": "debug-session",
+              "runId": "run1",
+              "hypothesisId": "A",
+            })}\n',
+            mode: FileMode.append,
+          );
+        } catch (_) {}
+        // #endregion
+        // Supabase PostgREST OR syntax: 'field1.ilike.pattern,field2.ilike.pattern'
+        query = query.or(
+          'name.ilike.$searchPattern,subject.ilike.$searchPattern',
+        );
+      }
+
+      // Áp dụng sort (sau khi đã apply tất cả filters)
+      if (sortBy != null) {
+        query = query.order(sortBy, ascending: ascending);
+      } else {
+        // Default sort by created_at desc
+        query = query.order('created_at', ascending: false);
+      }
+
+      // Áp dụng pagination
+      final response = await query.range(from, to);
+      final results = List<Map<String, dynamic>>.from(response);
+      // #region agent log
+      try {
+        final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
+        logFile.writeAsStringSync(
+          '${jsonEncode({
+            "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+            "timestamp": DateTime.now().millisecondsSinceEpoch,
+            "location": "school_class_datasource.dart:89",
+            "message": "Pagination query success",
+            "data": {"page": page, "pageSize": pageSize, "from": from, "to": to, "resultCount": results.length, "hasSearchQuery": searchQuery != null && searchQuery.isNotEmpty},
+            "sessionId": "debug-session",
+            "runId": "run1",
+            "hypothesisId": "A",
+          })}\n',
+          mode: FileMode.append,
+        );
+      } catch (_) {}
+      // #endregion
+      return results;
+    } catch (e, stackTrace) {
+      // #region agent log
+      try {
+        final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
+        logFile.writeAsStringSync(
+          '${jsonEncode({
+            "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+            "timestamp": DateTime.now().millisecondsSinceEpoch,
+            "location": "school_class_datasource.dart:95",
+            "message": "Pagination query error",
+            "data": {"error": e.toString(), "searchQuery": searchQuery, "page": page, "teacherId": teacherId},
+            "sessionId": "debug-session",
+            "runId": "run1",
+            "hypothesisId": "A",
+          })}\n',
+          mode: FileMode.append,
+        );
+      } catch (_) {}
+      // #endregion
+      print('🔴 [DATASOURCE ERROR] getClassesByTeacherPaginated: $e');
+      print('🔴 [DATASOURCE ERROR] StackTrace: $stackTrace');
+      throw Exception('Lỗi khi lấy danh sách lớp học: $e');
+    }
   }
 
   /// Lấy danh sách lớp học mà học sinh đã tham gia

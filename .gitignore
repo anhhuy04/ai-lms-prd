@@ -43,3 +43,15 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Environment files (contain secrets - never commit!)
+.env
+.env.dev
+.env.staging
+.env.prod
+.env.local
+.env.*
+
+# Generated environment files
+lib/core/env/env.g.dart
+**/*.g.dart

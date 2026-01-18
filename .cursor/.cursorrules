@@ -1,0 +1,43 @@
+# AI LMS Project Rules & Standards (2026)
+
+## 1. Professional Tech Stack Standards
+Always implement features using these specific libraries:
+- State Management: Riverpod with @riverpod generator (Never use old Provider/ChangeNotifier).
+- Routing: GoRouter v14+ (Declarative routing, type-safe).
+- Models: Freezed & JsonSerializable (Always immutable).
+- Local DB: Drift (Relational) & Flutter Secure Storage (Sensitive data).
+- Networking: Dio + Retrofit (Interface-based API).
+- Environment: Envied (Compile-time secrets).
+- UI: Flutter ScreenUtil (Responsive) & Shimmer (Loading).
+- QR Codes: pretty_qr_code (Use QrHelper utility class for consistency).
+- Error Reporting: Sentry Flutter (All errors must be reported).
+- Logging: logger package (Use AppLogger wrapper, never print()).
+
+## 2. Mandatory MCP & Web Usage Policy
+You MUST act as an "Always-Learning" AI. Follow these protocols:
+- **Library Context:** Before implementing any feature using the tech stack above, if your internal knowledge is older than 2025, you MUST use `MCP Fetch` to read the latest documentation from:
+  - Riverpod: https://riverpod.dev
+  - GoRouter: https://pub.dev/packages/go_router
+  - Drift: https://drift.simonbinder.eu
+- **Automated Research:** If you encounter a bug or a complex implementation (e.g., Deep Linking, OAuth2), use `@Web` to find the 2025-2026 best practices before suggesting code.
+- **Deep Fetching:** Use MCP Fetch on specific `/latest/` or `/example/` subpages of a package on pub.dev to understand the exact API surface.
+
+## 3. Architecture & Clean Code Rules
+- Follow Clean Architecture: `domain` (entities/interfaces), `data` (models/repositories/datasources), `presentation` (views/providers).
+- **Naming Convention:**
+  - Providers: `[feature]Provider`, `[feature]NotifierProvider`.
+  - UI: `[Feature]Screen`, `[Feature]Widget`.
+  - Utilities: `[Feature]Helper`, `[Feature]Utils`.
+- **Error Handling:** Never use `print()`. Use `AppLogger` (structured logging) and wrap critical flows with Sentry reporting.
+- **Race Condition:** Always use `CancelToken` in Dio for search or fast-switching UI to prevent race conditions.
+- **QR Code Generation:** Always use `QrHelper` utility class from `lib/core/utils/qr_helper.dart` for consistency.
+- **Code Generation:** Always run `flutter pub run build_runner build --delete-conflicting-outputs` after modifying Freezed/JsonSerializable/Envied classes.
+
+## 4. Documentation & Memory Bank
+- After every significant change, remind me to update the `memory-bank/` files.
+- Always check `@Memory_Bank` before starting a new task to ensure continuity.
+
+## 5. UI/UX Rules
+- Use `SmartHighlightText` for all search results (Supports Vietnamese diacritics removal).
+- Ensure all screens use `AutomaticKeepAliveClientMixin` where state preservation is needed.
+- Keyboard MUST be dismissed on scroll: `keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag`.

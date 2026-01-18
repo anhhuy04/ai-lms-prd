@@ -21,6 +21,17 @@ abstract class SchoolClassRepository {
   /// Trả về danh sách Class, có thể rỗng nếu không có lớp nào.
   Future<List<Class>> getClassesByTeacher(String teacherId);
 
+  /// Lấy danh sách lớp học của giáo viên với pagination, search và sort.
+  /// Trả về danh sách Class, có thể rỗng nếu không có lớp nào.
+  Future<List<Class>> getClassesByTeacherPaginated({
+    required String teacherId,
+    required int page,
+    required int pageSize,
+    String? searchQuery,
+    String? sortBy,
+    bool ascending = true,
+  });
+
   /// Lấy danh sách lớp học mà học sinh đã tham gia (status = 'approved').
   /// Trả về danh sách Class, có thể rỗng nếu không có lớp nào.
   Future<List<Class>> getClassesByStudent(String studentId);

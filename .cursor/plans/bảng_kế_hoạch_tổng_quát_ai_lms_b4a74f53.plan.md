@@ -5,6 +5,15 @@ todos:
   - id: todo-1768634220316-hy58f442h
     content: tôi mới thêm mcp dart vào, bạn hãy ghi trong rules lúc nào nên tự sử dung, lúc nào ko cần, ghi rõ cách dùng trong đó
     status: completed
+  - id: todo-1768635613582-t3ht05fxs
+    content: "tối ưu lại code giao diện để sau này có thể chia ra chỉnh giao diện cho các loại màn hình, các loại máy khác nhau như laptop, pc, tablet, điện thoại,... . Và chỉnh sửa lại các rules để code lại theo chuẩn "
+    status: pending
+  - id: todo-1768643598490-sbyotqa8d
+    content: tối ưu và lọc lại các file docs, md. đọc toàn bộ các file đó và tiếnh hành sàn lọc, suy nghĩ, phân tích. file nào dùng để hiển thị cho người đọc hiểu thì sẽ viết và để vào 1 forder riêng còn file nào dùng để cho ai agent hiểu thì để riêng.
+    status: completed
+  - id: todo-1768643713129-kt8dw6bxl
+    content: kiểm tra các liên kết, chỉ mục của những file docs cần liên kết vs .clinerules đã tối ưu hay chưa. nếu có vấn đề j cần tối ưu hoặc thi triển để giúp project sau này làm việc ổn định với agent hơn thì hãy đề xuất để tôi quyết định
+    status: completed
 ---
 
 # Bảng Kế Hoạch Tổng Quát - AI LMS Project
@@ -118,16 +127,28 @@ Bảng kế hoạch này cung cấp workflow chuẩn và checklist để thực 
 #### Checklist UI Screen
 
 - [ ] Import Design Tokens: `import 'package:ai_mls/core/constants/design_tokens.dart';`
+- [ ] Import ResponsiveUtils: `import 'package:ai_mls/core/utils/responsive_utils.dart';`
+- [ ] Import ResponsiveWidgets: `import 'package:ai_mls/widgets/responsive/responsive_*.dart';`
 - [ ] Sử dụng DesignColors thay vì hardcoded colors
 - [ ] Sử dụng DesignSpacing thay vì hardcoded spacing
 - [ ] Sử dụng DesignTypography thay vì hardcoded font sizes
 - [ ] Sử dụng DesignRadius cho border radius
 - [ ] Sử dụng DesignElevation cho shadows
-- [ ] Responsive: Sử dụng DesignBreakpoints nếu cần
+- [ ] **Responsive Design (BẮT BUỘC):**
+  - [ ] Wrap screen với `ResponsiveScreen` hoặc sử dụng `ResponsiveContainer`
+  - [ ] Sử dụng `ResponsivePadding` thay vì hardcoded EdgeInsets
+  - [ ] Sử dụng `ResponsiveText` cho text cần responsive sizing
+  - [ ] Sử dụng `ResponsiveGrid` cho grid layouts
+  - [ ] Sử dụng `ResponsiveRow` cho row layouts với spacing responsive
+  - [ ] Sử dụng `ResponsiveCard` cho cards với padding responsive
+  - [ ] Sử dụng `ResponsiveUtils.getLayoutConfig()` để lấy spacing values
+  - [ ] **KHÔNG** sử dụng MediaQuery trực tiếp trong UI code
+  - [ ] **KHÔNG** hardcode device-specific values
 - [ ] Tách widget: Functions > 50 dòng → tách thành `_build*()` methods
 - [ ] Const constructors khi có thể
 - [ ] Error handling: Hiển thị errors từ ViewModel
 - [ ] Loading states: Hiển thị loading indicator
+- [ ] Test trên mobile, tablet, desktop sizes
 
 #### Checklist Screen với ViewModel
 
@@ -227,6 +248,24 @@ Bảng kế hoạch này cung cấp workflow chuẩn và checklist để thực 
 5. **NO hardcoded border radius** → Use `DesignRadius.*`
 6. **NO custom shadows** → Use `DesignElevation.level*`
 7. **NO magic numbers** → Use `DesignComponents.*`
+
+### Responsive Design Rules
+
+1. **BẮT BUỘC:** Sử dụng `ResponsiveUtils` để detect device type
+2. **BẮT BUỘC:** Sử dụng `ResponsiveLayoutConfig` để lấy layout config
+3. **BẮT BUỘC:** Ưu tiên sử dụng widgets từ `lib/widgets/responsive/`
+4. **KHÔNG** hardcode device-specific values
+5. **KHÔNG** sử dụng MediaQuery trực tiếp trong UI code
+6. **KHÔNG** sử dụng hardcoded EdgeInsets → Use `ResponsivePadding`
+7. **Layout Structure:**
+
+   - Mobile: Single column, full width
+   - Tablet: 2 columns, max width 768px
+   - Desktop: 3+ columns, max width 1200px
+
+8. **Sử dụng `ResponsiveScreen` wrapper cho screens mới**
+9. **Sử dụng `ResponsiveLayoutConfig` cho spacing values**
+10. **Font sizes tự động scale theo device type qua `ResponsiveText`**
 
 ### Git Workflow Rules
 
@@ -409,3 +448,100 @@ class ExampleViewModel extends ChangeNotifier {
 ```dart
 
 // lib/
+```
+
+### Template: Tạo Responsive Screen
+
+```dart
+// lib/presentation/views/example/example_screen.dart
+
+import 'package:flutter/material.dart';
+import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/utils/responsive_utils.dart';
+import 'package:ai_mls/widgets/responsive/responsive_screen.dart';
+import 'package:ai_mls/widgets/responsive/responsive_container.dart';
+import 'package:ai_mls/widgets/responsive/responsive_padding.dart';
+import 'package:ai_mls/widgets/responsive/responsive_text.dart';
+import 'package:ai_mls/widgets/responsive/responsive_row.dart';
+import 'package:ai_mls/widgets/responsive/responsive_grid.dart';
+import 'package:ai_mls/widgets/responsive/responsive_card.dart';
+
+class ExampleScreen extends StatelessWidget {
+  const ExampleScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ResponsiveScreen(
+      mobile: _buildMobileLayout(context),
+      tablet: _buildTabletLayout(context),
+      desktop: _buildDesktopLayout(context),
+    );
+  }
+
+  Widget _buildMobileLayout(BuildContext context) {
+    final config = ResponsiveUtils.getLayoutConfig(context);
+    return ListView(
+      padding: EdgeInsets.all(config.screenPadding),
+      children: [
+        ResponsiveText(
+          'Tiêu đề',
+          fontSize: DesignTypography.headlineLargeSize,
+        ),
+        SizedBox(height: config.sectionSpacing),
+        ResponsiveCard(
+          child: ResponsiveText('Nội dung card'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout(BuildContext context) {
+    final config = ResponsiveUtils.getLayoutConfig(context);
+    return ListView(
+      padding: EdgeInsets.all(config.screenPadding),
+      children: [
+        ResponsiveText(
+          'Tiêu đề',
+          fontSize: DesignTypography.headlineLargeSize,
+        ),
+        SizedBox(height: config.sectionSpacing),
+        ResponsiveGrid(
+          children: [
+            ResponsiveCard(child: ResponsiveText('Card 1')),
+            ResponsiveCard(child: ResponsiveText('Card 2')),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopLayout(BuildContext context) {
+    final config = ResponsiveUtils.getLayoutConfig(context);
+    return ListView(
+      padding: EdgeInsets.all(config.screenPadding),
+      children: [
+        ResponsiveText(
+          'Tiêu đề',
+          fontSize: DesignTypography.headlineLargeSize,
+        ),
+        SizedBox(height: config.sectionSpacing),
+        ResponsiveGrid(
+          desktopColumns: 3,
+          children: [
+            ResponsiveCard(child: ResponsiveText('Card 1')),
+            ResponsiveCard(child: ResponsiveText('Card 2')),
+            ResponsiveCard(child: ResponsiveText('Card 3')),
+          ],
+        ),
+      ],
+    );
+  }
+}
+```
+
+**Lưu ý:**
+
+- Sử dụng `ResponsiveScreen` wrapper để tự động apply responsive layout
+- Sử dụng `ResponsiveUtils.getLayoutConfig()` để lấy spacing values
+- Sử dụng responsive widgets thay vì hardcoded values
+- Có thể tạo layout riêng cho từng device type hoặc dùng chung

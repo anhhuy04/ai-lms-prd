@@ -36,15 +36,15 @@ lib/widgets/drawers/
 ### Documentation
 
 ```
-docs/
-├── 📋 DELETE_CLASS_FIXES.md          ← THIS FILE (Overview of all fixes)
-├── 🧪 TESTING_DELETE_CLASS.md        ← Complete testing guide
-├── 📝 FIX_DELETE_CLASS_SUMMARY.md    ← Detailed fix explanation
-├── ⚡ QUICK_REFERENCE.md            ← Quick reference guide
-├── 🔍 class_delete_issue_analysis.md ← Problem analysis
-├── 📊 class_delete_rls_check_report.md ← RLS/DB check
-├── ✅ class_delete_function_review.md ← Function review
-└── 🐛 class_delete_debugging_guide.md ← Debug guide
+docs/guides/features/delete-class/
+├── 📋 index.md (THIS FILE)           ← Overview of all fixes
+├── 🧪 testing-guide.md               ← Complete testing guide
+├── 📝 fix-summary.md                 ← Detailed fix explanation
+├── 🔍 issue-analysis.md              ← Problem analysis
+├── 📊 rls-check-report.md            ← RLS/DB check
+├── ✅ function-review.md              ← Function review
+├── 🐛 debugging-guide.md              ← Debug guide
+└── fixes-overview.md                 ← Fixes overview
 ```
 
 ---
@@ -52,17 +52,17 @@ docs/
 ## 🚀 Quick Start
 
 ### For Testers
-1. Read: [TESTING_DELETE_CLASS.md](./TESTING_DELETE_CLASS.md)
+1. Read: [testing-guide.md](./testing-guide.md)
 2. Run all test cases
 3. Report any issues
 
 ### For Developers
-1. Read: [DELETE_CLASS_FIXES.md](./DELETE_CLASS_FIXES.md)
-2. Review: [FIX_DELETE_CLASS_SUMMARY.md](./FIX_DELETE_CLASS_SUMMARY.md)
+1. Read: [fixes-overview.md](./fixes-overview.md)
+2. Review: [fix-summary.md](./fix-summary.md)
 3. Check code: `lib/widgets/drawers/class_settings_drawer.dart`
 
 ### For Managers
-1. Read: [QUICK_REFERENCE.md](./QUICK_REFERENCE.md)
+1. Read: [quick-reference.md](../../development/quick-reference.md)
 2. Check: Success rate improved from 60% to 95%+
 3. Status: ✅ Ready for production
 
@@ -70,7 +70,7 @@ docs/
 
 ## 📖 Document Guide
 
-### 1️⃣ DELETE_CLASS_FIXES.md (You are here)
+### 1️⃣ fixes-overview.md (You are here)
 **Purpose:** Overview and quick summary  
 **Content:**
 - Problem & Root Cause
@@ -83,7 +83,7 @@ docs/
 
 ---
 
-### 2️⃣ TESTING_DELETE_CLASS.md
+### 2️⃣ testing-guide.md
 **Purpose:** Comprehensive testing guide  
 **Content:**
 - 6 detailed test scenarios
@@ -95,7 +95,7 @@ docs/
 
 ---
 
-### 3️⃣ FIX_DELETE_CLASS_SUMMARY.md
+### 3️⃣ fix-summary.md
 **Purpose:** Detailed explanation of the fix  
 **Content:**
 - Problem analysis (5 issues)
@@ -108,7 +108,7 @@ docs/
 
 ---
 
-### 4️⃣ QUICK_REFERENCE.md
+### 4️⃣ quick-reference.md (trong development/)
 **Purpose:** Quick lookup guide  
 **Content:**
 - TL;DR
@@ -121,7 +121,7 @@ docs/
 
 ---
 
-### 5️⃣ class_delete_issue_analysis.md
+### 5️⃣ issue-analysis.md
 **Purpose:** Original problem analysis  
 **Content:**
 - Database schema check ✅
@@ -133,7 +133,7 @@ docs/
 
 ---
 
-### 6️⃣ class_delete_rls_check_report.md
+### 6️⃣ rls-check-report.md
 **Purpose:** Database & RLS detailed report  
 **Content:**
 - RLS status (disabled ✅)
@@ -145,7 +145,7 @@ docs/
 
 ---
 
-### 7️⃣ class_delete_function_review.md
+### 7️⃣ function-review.md
 **Purpose:** Code review before fix  
 **Content:**
 - UI layer review
@@ -158,7 +158,7 @@ docs/
 
 ---
 
-### 8️⃣ class_delete_debugging_guide.md
+### 8️⃣ debugging-guide.md
 **Purpose:** Debugging guide  
 **Content:**
 - Console logs to watch
@@ -344,14 +344,14 @@ This document set teaches:
 
 | Document | Purpose | Read Time |
 |----------|---------|-----------|
-| [DELETE_CLASS_FIXES.md](./DELETE_CLASS_FIXES.md) | Overview | 5 min |
-| [TESTING_DELETE_CLASS.md](./TESTING_DELETE_CLASS.md) | Testing | 15 min |
-| [FIX_DELETE_CLASS_SUMMARY.md](./FIX_DELETE_CLASS_SUMMARY.md) | Details | 10 min |
-| [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) | Reference | 3 min |
-| [class_delete_issue_analysis.md](./class_delete_issue_analysis.md) | Analysis | 5 min |
-| [class_delete_rls_check_report.md](./class_delete_rls_check_report.md) | Database | 10 min |
-| [class_delete_function_review.md](./class_delete_function_review.md) | Review | 8 min |
-| [class_delete_debugging_guide.md](./class_delete_debugging_guide.md) | Debug | 10 min |
+| [fixes-overview.md](./fixes-overview.md) | Overview | 5 min |
+| [testing-guide.md](./testing-guide.md) | Testing | 15 min |
+| [fix-summary.md](./fix-summary.md) | Details | 10 min |
+| [quick-reference.md](../../development/quick-reference.md) | Reference | 3 min |
+| [issue-analysis.md](./issue-analysis.md) | Analysis | 5 min |
+| [rls-check-report.md](./rls-check-report.md) | Database | 10 min |
+| [function-review.md](./function-review.md) | Review | 8 min |
+| [debugging-guide.md](./debugging-guide.md) | Debug | 10 min |
 
 **Total Reading Time:** ~66 min (or choose only what you need)
 

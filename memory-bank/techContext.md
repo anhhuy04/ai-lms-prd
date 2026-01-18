@@ -9,8 +9,10 @@
 
 ### Backend & Database
 - **Supabase** - Backend-as-a-Service (PostgreSQL + Auth + Real-time + Storage)
-  - **URL:** `https://vazhgunhcjdwlkbslroc.supabase.co`
-  - **Anon Key:** Stored in environment or hardcoded (review security)
+  - **URL:** Loaded from environment variables via `Env.supabaseUrl`
+  - **Anon Key:** Loaded from environment variables via `Env.supabaseAnonKey`
+  - **Configuration:** Managed through `envied` package (see `lib/core/env/env.dart`)
+  - **Service:** `SupabaseService` in `lib/core/services/supabase_service.dart`
   - **Features Used:**
     - Auth (sign up, sign in, sign out, password reset)
     - PostgreSQL (table queries, RLS policies)
@@ -19,26 +21,97 @@
     - Edge Functions (optional - for AI grading API calls)
 
 ### State Management
-- **Provider** (v6.0.0+) - Reactive state management using ChangeNotifier pattern
-  - Dependency injection via `ChangeNotifierProvider`
-  - Scoped access to ViewModels via `Consumer` or `context.read`
+- **Riverpod** (v2.5.1) - Primary state management solution
+  - Reactive state management with providers
+  - Code generation via `riverpod_generator` (v2.3.0)
+  - Provider-based dependency injection
+- **Provider** (v6.0.0+) - Legacy support for ViewModels (ChangeNotifier pattern)
+  - Used alongside Riverpod for backward compatibility
+  - Will gradually migrate to pure Riverpod
+
+### Routing & Navigation
+- **GoRouter** (v14.0.0+) - Declarative routing solution
+  - Type-safe routing
+  - Deep linking support
+  - Web routing support
+  - Integration with Riverpod for auth guards
+
+### Networking
+- **Dio** (v5.4.0) - HTTP client with interceptors
+  - Request/response interceptors
+  - Retry logic and timeout control
+  - Form data and file uploads
+  - Cancel tokens for request cancellation
+- **Retrofit** (v4.0.0) - Interface-based API client
+  - Type-safe API definitions
+  - Code generation via `retrofit_generator` (v8.0.0)
+  - Works seamlessly with Dio
+
+### Local Database & Storage
+- **Drift** (v2.30.0) - Relational database (SQLite wrapper)
+  - Type-safe Dart queries
+  - Reactive streams
+  - Robust migration system
+  - Cross-platform support (mobile, web, desktop)
+- **flutter_secure_storage** (v9.0.0) - Secure token storage
+  - Platform-native encryption (Keychain/Keystore)
+  - Perfect for JWT tokens and API keys
+- **Shared Preferences** (v2.15) - Simple key-value storage (for non-sensitive data)
+
+### Environment & Configuration
+- **envied** (v0.4.0) - Compile-time environment variables
+  - Type-safe environment configuration
+  - Obfuscated secrets in compiled binary
+  - Support for multiple environments (dev/staging/prod)
+  - Code generation via `envied_generator` (v0.4.0)
+
+### Code Generation & Data Models
+- **freezed** (v2.4.0) - Immutable data classes
+  - Union types for state management
+  - JSON serialization support
+  - Reduces boilerplate code
+- **json_serializable** (v6.7.0) - JSON serialization
+  - Compile-time type-safe serialization
+  - Works with freezed for complete model generation
 
 ### UI & Utilities
 - **Cupertino Icons** (v1.0.8) - iOS-style icon set
 - **Marquee** (v2.2.0) - Scrolling text widget (for long labels)
-- **Shared Preferences** (v2.15) - Local key-value storage for caching & drafts
+- **Shimmer** (v3.0.0) - Loading skeleton animations
+- **flutter_screenutil** (v5.9.0) - Responsive design utilities
+  - Screen size adaptation
+  - Font scaling
+  - Widget sizing utilities
+- **pretty_qr_code** (v3.5.0) - Beautiful QR code generation
+  - Custom shapes and themes
+  - Embedded logos/images
+  - Gradient support
+  - Image export functionality
+  - Helper class: `QrHelper` in `lib/core/utils/qr_helper.dart`
 - **Flutter Launcher Icons** (v0.13.1) - App icon generation tooling
 - **Flutter Lints** (v5.0.0) - Code quality and style checking
+- **riverpod_lint** (v2.3.0) - Riverpod-specific linting rules
+
+### Error Reporting & Logging
+- **sentry_flutter** (v9.10.0) - Crash and error reporting
+  - Cross-platform error tracking
+  - Performance monitoring
+  - Rich error context and breadcrumbs
+- **logger** (v2.0.0) - Structured logging
+  - Log levels (debug, info, warning, error)
+  - Pretty console output
+  - Customizable outputs (file, remote)
+  - Will be wrapped in `AppLogger` utility class
 
 ### Development & Testing
 - **Flutter Test** - Unit and widget testing framework (built-in)
 - **Dart Analysis** - Static code analysis for quality assurance
+- **build_runner** (v2.4.0) - Code generation runner
+- **mocktail** (v1.0.0) - Mocking library for tests (null-safe, no code generation)
 
 ### Optional/Future Dependencies
-- **flutter_secure_storage** - Secure token storage (not yet added; recommended for production)
 - **image_picker** - Photo/document selection (for assignment submissions)
 - **intl** - Internationalization & date formatting (for Vietnamese localization)
-- **http** or **dio** - HTTP client for external AI grading API (when needed)
 - **charts_flutter** - Charts library for analytics dashboards
 - **uuid** - Generate unique IDs for records
 
@@ -134,21 +207,35 @@ flutter run -d <device-id>   # Specific device
 lib/
 ├── main.dart                          # App entry point, provider setup
 ├── core/
-│   ├── constants/ui_constants.dart    # UI constants (colors, spacing, etc.)
-│   ├── services/supabase_service.dart # Supabase client initialization
-│   ├── theme/app_theme.dart          # Material Design theme
-│   ├── routes/app_routes.dart        # Route definitions & navigation
-│   └── utils/ & ultils/              # Utility functions (note: typo in folder)
+│   ├── constants/
+│   │   ├── design_tokens.dart        # Design system tokens (colors, spacing, typography)
+│   │   └── ui_constants.dart         # UI constants (deprecated, use design_tokens)
+│   ├── env/
+│   │   └── env.dart                  # Environment configuration (envied)
+│   ├── services/
+│   │   └── supabase_service.dart     # Supabase client initialization
+│   ├── theme/
+│   │   └── app_theme.dart            # Material Design theme
+│   ├── routes/
+│   │   └── app_routes.dart           # Route definitions (will migrate to GoRouter)
+│   └── utils/                        # Utility functions
+│       ├── qr_helper.dart            # QR code generation helper
+│       └── ...                       # Other utilities
 ├── data/
-│   ├── datasources/supabase_datasource.dart  # Direct Supabase queries
-│   └── repositories/auth_repository_impl.dart # Repository implementations
+│   ├── datasources/
+│   │   └── supabase_datasource.dart  # Direct Supabase queries
+│   └── repositories/
+│       └── auth_repository_impl.dart  # Repository implementations
 ├── domain/
-│   ├── entities/profile.dart         # Domain models
-│   └── repositories/auth_repository.dart # Abstract interfaces
+│   ├── entities/                     # Domain models (will use freezed)
+│   │   └── profile.dart
+│   └── repositories/                 # Abstract interfaces
+│       └── auth_repository.dart
 └── presentation/
-    ├── views/                         # Screens (login, dashboard, etc.)
-    ├── viewmodels/                    # State management (MVVM)
-    └── widgets/                       # Reusable UI components
+    ├── views/                        # Screens (login, dashboard, etc.)
+    ├── viewmodels/                   # State management (MVVM)
+    ├── providers/                    # Riverpod providers
+    └── widgets/                      # Reusable UI components
 ```
 
 ## Important Configuration Files

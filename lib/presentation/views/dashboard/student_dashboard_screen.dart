@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io' show File, FileMode, Platform;
+
 import 'package:ai_mls/domain/entities/profile.dart';
 import 'package:ai_mls/presentation/viewmodels/auth_viewmodel.dart';
 import 'package:ai_mls/presentation/viewmodels/student_dashboard_viewmodel.dart';
@@ -8,8 +11,76 @@ import 'package:ai_mls/presentation/views/grading/scores_screen.dart';
 import 'package:ai_mls/presentation/views/profile/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../../core/constants/design_tokens.dart';
+import '../../../core/utils/responsive_utils.dart';
+import '../../../widgets/responsive/responsive_row.dart';
+import '../../../widgets/responsive/responsive_text.dart';
 import '../../../widgets/smart_marquee_text.dart';
+
+// #region agent log
+dynamic _sanitizeData(dynamic data) {
+  if (data is Map) {
+    return Map<String, dynamic>.fromEntries(
+      data.entries.map(
+        (e) => MapEntry(e.key.toString(), _sanitizeData(e.value)),
+      ),
+    );
+  } else if (data is List) {
+    return data.map((e) => _sanitizeData(e)).toList();
+  } else if (data is double) {
+    if (data.isInfinite) return 'Infinity';
+    if (data.isNaN) return 'NaN';
+    return data;
+  } else if (data is num && !data.isFinite) {
+    return 'Infinity';
+  }
+  return data;
+}
+
+void _log(
+  String location,
+  String message,
+  Map<String, dynamic> data,
+  String hypothesisId,
+) {
+  try {
+    final logPath = Platform.isWindows
+        ? r'd:\code\Flutter_Android\AI_LMS_PRD\.cursor\debug.log'
+        : '/data/data/com.example.ai_mls/files/debug.log';
+    final logFile = File(logPath);
+
+    try {
+      logFile.parent.createSync(recursive: true);
+    } catch (_) {
+      debugPrint('Log: $location - $message - ${_sanitizeData(data)}');
+      return;
+    }
+
+    final sanitizedData = _sanitizeData(data);
+    final logEntry = {
+      'sessionId': 'debug-session',
+      'runId': 'run1',
+      'hypothesisId': hypothesisId,
+      'location': location,
+      'message': message,
+      'data': sanitizedData,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
+    final jsonString = jsonEncode(logEntry);
+    final existingContent = logFile.existsSync()
+        ? logFile.readAsStringSync()
+        : '';
+    logFile.writeAsStringSync(
+      '$existingContent$jsonString\n',
+      mode: FileMode.write,
+    );
+  } catch (e) {
+    debugPrint('Log: $location - $message - ${_sanitizeData(data)}');
+    debugPrint('Logging error: $e');
+  }
+}
+// #endregion
 
 class StudentDashboardScreen extends StatefulWidget {
   final Profile userProfile;
@@ -27,14 +98,14 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   @override
   void initState() {
     super.initState();
-      _pages = [
-        // Cập nhật danh sách trang
-        const StudentHomeContentScreen(), // 0
-        const StudentClassListScreen(), // 1
-        const AssignmentListScreen(), // 2
-        const ScoresScreen(), // 3
-        const ProfileScreen(), // 4
-      ];
+    _pages = [
+      // Cập nhật danh sách trang
+      const StudentHomeContentScreen(), // 0
+      const StudentClassListScreen(), // 1
+      const AssignmentListScreen(), // 2
+      const ScoresScreen(), // 3
+      const ProfileScreen(), // 4
+    ];
   }
 
   void _onItemTapped(int index) {
@@ -45,6 +116,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // #region agent log
+    _log('student_dashboard_screen.dart:50', 'StudentDashboardScreen build', {
+      'selectedIndex': _selectedIndex,
+    }, 'G');
+    // #endregion
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _selectedIndex == 0
@@ -76,18 +152,20 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   }
 
   Widget _buildHeader(BuildContext context, Profile profile) {
-    return Row(
+    final config = ResponsiveUtils.getLayoutConfig(context);
+    return ResponsiveRow(
       children: [
         _UserProfileAvatar(profile: profile),
-        SizedBox(width: DesignSpacing.md),
+        SizedBox(width: config.itemSpacing),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text(
+              ResponsiveText(
                 'Chào buổi sáng,',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: const TextStyle(color: Colors.grey),
+                fontSize: DesignTypography.bodySmallSize,
               ),
               SizedBox(height: DesignSpacing.xs),
               SmartMarqueeText(
@@ -97,7 +175,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             ],
           ),
         ),
-        SizedBox(width: DesignSpacing.md),
+        SizedBox(width: config.itemSpacing),
         Container(
           width: DesignComponents.avatarMedium,
           height: DesignComponents.avatarMedium,
@@ -199,13 +277,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           children: [
             Icon(isActive ? icon : icon, color: color),
             const SizedBox(height: 4),
-            Text(
+            ResponsiveText(
               label,
               style: TextStyle(
                 color: color,
-                fontSize: 10,
                 fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
               ),
+              fontSize: DesignTypography.labelSmallSize,
             ),
           ],
         ),
@@ -231,13 +309,13 @@ class _UserProfileAvatar extends StatelessWidget {
       backgroundColor: DesignColors.primary.withOpacity(0.1),
       backgroundImage: hasAvatar ? NetworkImage(profile.avatarUrl!) : null,
       child: !hasAvatar
-          ? Text(
+          ? ResponsiveText(
               initials,
               style: const TextStyle(
-                fontSize: 22,
                 color: DesignColors.primary,
                 fontWeight: FontWeight.bold,
               ),
+              fontSize: 22,
             )
           : null,
     );

@@ -1,77 +1,272 @@
-import 'package:ai_mls/presentation/viewmodels/auth_viewmodel.dart';
-import 'package:ai_mls/presentation/viewmodels/class_viewmodel.dart';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/utils/avatar_utils.dart';
+import 'package:ai_mls/core/utils/sorting_utils.dart';
+import 'package:ai_mls/domain/entities/class.dart';
+import 'package:ai_mls/presentation/providers/auth_providers.dart';
+import 'package:ai_mls/presentation/providers/class_providers.dart';
 import 'package:ai_mls/widgets/class_item_widget.dart';
-import 'package:ai_mls/widgets/search/smart_search_dialog_v2.dart';
+import 'package:ai_mls/widgets/shimmer_loading.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 import 'create_class_screen.dart';
 import 'teacher_class_detail_screen.dart';
+import 'teacher_class_search_screen.dart';
 
 /// Màn hình danh sách lớp học dành cho giáo viên
-/// Thiết kế tối giản với nền trắng, kích thước nhỏ gọn
-/// Tích hợp với ClassViewModel và tuân thủ MVVM pattern
-class TeacherClassListScreen extends StatefulWidget {
+/// Sử dụng Riverpod + Infinite Scroll Pagination + Shimmer
+/// Sử dụng AutomaticKeepAliveClientMixin để giữ state khi navigate away
+class TeacherClassListScreen extends ConsumerStatefulWidget {
   const TeacherClassListScreen({super.key});
 
   @override
-  State<TeacherClassListScreen> createState() => _TeacherClassListScreenState();
+  ConsumerState<TeacherClassListScreen> createState() =>
+      _TeacherClassListScreenState();
 }
 
-class _TeacherClassListScreenState extends State<TeacherClassListScreen> {
+class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
+    with AutomaticKeepAliveClientMixin {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  bool get wantKeepAlive => true; // Giữ state khi navigate away
+
   @override
   void initState() {
     super.initState();
-    // Load dữ liệu khi màn hình được khởi tạo
+
+    // Restore scroll position sau khi data đã load
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadClasses();
+      _restoreScrollPosition();
     });
   }
 
-  /// Load danh sách lớp học từ ViewModel
-  void _loadClasses() {
-    final classViewModel = context.read<ClassViewModel>();
-    final authViewModel = context.read<AuthViewModel>();
+  @override
+  void dispose() {
+    _saveScrollPosition();
+    _scrollController.dispose();
+    super.dispose();
+  }
 
-    final teacherId = authViewModel.userProfile?.id;
-    if (teacherId != null) {
-      classViewModel.setTeacherId(teacherId);
-      classViewModel.fetchData().catchError((error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(error.toString()),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      });
+  /// Lưu scroll position vào provider
+  void _saveScrollPosition() {
+    final teacherId = ref.read(currentUserIdProvider);
+    // #region agent log
+    try {
+      final logFile = File(
+        'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+      );
+      logFile.writeAsStringSync(
+        '${jsonEncode({
+          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+          "timestamp": DateTime.now().millisecondsSinceEpoch,
+          "location": "teacher_class_list_screen.dart:73",
+          "message": "Saving scroll position",
+          "data": {"teacherId": teacherId, "hasClients": _scrollController.hasClients, "offset": _scrollController.hasClients ? _scrollController.offset : 0},
+          "sessionId": "debug-session",
+          "runId": "run1",
+          "hypothesisId": "D",
+        })}\n',
+        mode: FileMode.append,
+      );
+    } catch (_) {}
+    // #endregion
+    if (teacherId != null && _scrollController.hasClients) {
+      ref.read(scrollPositionProvider(teacherId).notifier).state =
+          _scrollController.offset;
+    }
+  }
+
+  /// Restore scroll position từ provider
+  void _restoreScrollPosition() {
+    final teacherId = ref.read(currentUserIdProvider);
+    // #region agent log
+    try {
+      final logFile = File(
+        'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+      );
+      logFile.writeAsStringSync(
+        '${jsonEncode({
+          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+          "timestamp": DateTime.now().millisecondsSinceEpoch,
+          "location": "teacher_class_list_screen.dart:82",
+          "message": "Attempting to restore scroll position",
+          "data": {"teacherId": teacherId, "hasClients": _scrollController.hasClients},
+          "sessionId": "debug-session",
+          "runId": "run1",
+          "hypothesisId": "D",
+        })}\n',
+        mode: FileMode.append,
+      );
+    } catch (_) {}
+    // #endregion
+    if (teacherId != null && _scrollController.hasClients) {
+      final savedPosition = ref.read(scrollPositionProvider(teacherId));
+      // #region agent log
+      try {
+        final logFile = File(
+          'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+        );
+        logFile.writeAsStringSync(
+          '${jsonEncode({
+            "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+            "timestamp": DateTime.now().millisecondsSinceEpoch,
+            "location": "teacher_class_list_screen.dart:86",
+            "message": "Restoring scroll position",
+            "data": {"teacherId": teacherId, "savedPosition": savedPosition, "hasClients": _scrollController.hasClients},
+            "sessionId": "debug-session",
+            "runId": "run1",
+            "hypothesisId": "D",
+          })}\n',
+          mode: FileMode.append,
+        );
+      } catch (_) {}
+      // #endregion
+      if (savedPosition > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(savedPosition);
+          }
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    // Watch current user ID
+    final teacherId = ref.watch(currentUserIdProvider);
+    final currentUserAsync = ref.watch(currentUserProvider);
+
+    // #region agent log
+    try {
+      final logFile = File(
+        'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+      );
+      logFile.writeAsStringSync(
+        '${jsonEncode({
+          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+          "timestamp": DateTime.now().millisecondsSinceEpoch,
+          "location": "teacher_class_list_screen.dart:200",
+          "message": "Build method - checking user state",
+          "data": {"isLoading": currentUserAsync.isLoading, "hasError": currentUserAsync.hasError, "error": currentUserAsync.hasError ? currentUserAsync.error.toString() : null, "hasValue": currentUserAsync.hasValue, "valueIsNull": currentUserAsync.value == null, "teacherId": teacherId, "userIdFromValue": currentUserAsync.value?.id},
+          "sessionId": "debug-session",
+          "runId": "run1",
+          "hypothesisId": "E",
+        })}\n',
+        mode: FileMode.append,
+      );
+    } catch (_) {}
+    // #endregion
+
+    // Loading state khi đang lấy user info
+    if (currentUserAsync.isLoading) {
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    // Error state khi không lấy được user info
+    if (currentUserAsync.hasError || teacherId == null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+              const SizedBox(height: 16),
+              Text(
+                'Không tìm thấy thông tin giáo viên',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => ref.refresh(currentUserProvider),
+                child: Text('Thử lại'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Watch providers
+    // #region agent log
+    try {
+      final logFile = File(
+        'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+      );
+      logFile.writeAsStringSync(
+        '${jsonEncode({
+          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+          "timestamp": DateTime.now().millisecondsSinceEpoch,
+          "location": "teacher_class_list_screen.dart:256",
+          "message": "Watching providers",
+          "data": {"teacherId": teacherId},
+          "sessionId": "debug-session",
+          "runId": "run1",
+          "hypothesisId": "G",
+        })}\n',
+        mode: FileMode.append,
+      );
+    } catch (_) {}
+
+    final pagingController = ref.watch(pagingControllerProvider(teacherId));
+    final sortOption = ref.watch(sortOptionProvider);
+    final searchQuery = ref.watch(searchQueryProvider);
+
+    // #region agent log
+    try {
+      final logFile = File(
+        'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+      );
+      logFile.writeAsStringSync(
+        '${jsonEncode({
+          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+          "timestamp": DateTime.now().millisecondsSinceEpoch,
+          "location": "teacher_class_list_screen.dart:275",
+          "message": "Providers watched successfully",
+          "data": {"hasItemList": pagingController.itemList != null, "itemListLength": pagingController.itemList?.length ?? 0},
+          "sessionId": "debug-session",
+          "runId": "run1",
+          "hypothesisId": "G",
+        })}\n',
+        mode: FileMode.append,
+      );
+    } catch (_) {}
+    // #endregion
+
     return Scaffold(
-      backgroundColor: Colors.grey[50], // Nền xám nhẹ như yêu cầu
+      backgroundColor: Colors.grey[50],
       body: SafeArea(
         child: Column(
           children: [
-            // Header với tiêu đề nhỏ gọn
-            _buildHeader(context),
+            // Header
+            _buildHeader(context, currentUserAsync.value),
             const SizedBox(height: 12),
-            // Card tạo lớp học mới với thiết kế nhỏ hơn
+            // Card tạo lớp học mới
             _buildCreateClassCard(context),
             const SizedBox(height: 16),
-            // Danh sách lớp học với Consumer
-            Expanded(child: _buildClassList(context)),
+            // Danh sách lớp học với PagedListView
+            Expanded(
+              child: _buildClassList(
+                context,
+                pagingController,
+                sortOption,
+                searchQuery,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  /// Header nhỏ gọn với tiêu đề và avatar
-  Widget _buildHeader(BuildContext context) {
+  /// Header với tiêu đề và avatar
+  Widget _buildHeader(BuildContext context, profile) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
@@ -83,7 +278,7 @@ class _TeacherClassListScreenState extends State<TeacherClassListScreen> {
                 Text(
                   'Lớp học của tôi',
                   style: TextStyle(
-                    fontSize: 16, // Giảm từ 20 → 16
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).textTheme.titleLarge?.color,
                   ),
@@ -91,10 +286,7 @@ class _TeacherClassListScreenState extends State<TeacherClassListScreen> {
                 const SizedBox(height: 2),
                 Text(
                   'Năm học 2023 - 2024',
-                  style: TextStyle(
-                    fontSize: 12, // Giảm từ 14 → 12
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -102,49 +294,23 @@ class _TeacherClassListScreenState extends State<TeacherClassListScreen> {
           Row(
             children: [
               IconButton(
-                icon: Icon(
-                  Icons.search,
-                  size: 20, // Giảm từ 24 → 20
-                  color: Theme.of(context).iconTheme.color,
-                ),
+                icon: Icon(Icons.search, size: 20),
                 onPressed: () {
-                  _showSearchDialog(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const TeacherClassSearchScreen(),
+                    ),
+                  );
                 },
               ),
               IconButton(
-                icon: Icon(
-                  Icons.notifications,
-                  size: 20, // Giảm từ 24 → 20
-                  color: Theme.of(context).iconTheme.color,
-                ),
+                icon: Icon(Icons.notifications, size: 20),
                 onPressed: () {
                   // TODO: Implement notifications
                 },
               ),
               const SizedBox(width: 6),
-              Container(
-                width: 28, // Giảm từ 32 → 28
-                height: 28, // Giảm từ 32 → 28
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.grey[300]!, width: 1),
-                ),
-                child: ClipOval(
-                  child: Image.network(
-                    'https://lh3.googleusercontent.com/aida-public/AB6AXuA-iG40b1tmIe9rA2DkgKPE-hadnEvexC9hGqhf4sCPZ8TdvRh2VKw6r-XJ8-KItbRD6BJdbteNPNx96gD8PwvtIHdjP9sfWuFZFqxMip_HM63iTQQhjd_QvaZUf0y9TVAK-hCmOufCnvbtamVreHibLszZobUODWoElYWb_nfLsfg4I3sALmRG3-Jlo0_jWAIcc7uHkbc6ijrqgZ0T42DTha2cfCkzJ9ABSMQG98nTirIdJ-cTJGty_7doW5oVZySvBv02oKAYxg',
-                    width: 28,
-                    height: 28,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(
-                        Icons.person,
-                        size: 16, // Giảm từ 20 → 16
-                        color: Colors.grey[600],
-                      );
-                    },
-                  ),
-                ),
-              ),
+              AvatarUtils.buildAvatar(profile: profile),
             ],
           ),
         ],
@@ -152,13 +318,13 @@ class _TeacherClassListScreenState extends State<TeacherClassListScreen> {
     );
   }
 
-  /// Card tạo lớp học mới với thiết kế nhỏ gọn
+  /// Card tạo lớp học mới
   Widget _buildCreateClassCard(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white, // Nền trắng thay vì gradient
+        color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.blue[100]!, width: 1),
         boxShadow: [
@@ -172,17 +338,13 @@ class _TeacherClassListScreenState extends State<TeacherClassListScreen> {
       child: Row(
         children: [
           Container(
-            width: 36, // Giảm từ 48 → 36
-            height: 36, // Giảm từ 48 → 36
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.blue[50],
             ),
-            child: Icon(
-              Icons.domain_add,
-              size: 18, // Giảm từ 26 → 18
-              color: Colors.blue[800],
-            ),
+            child: Icon(Icons.domain_add, size: 18, color: Colors.blue[800]),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -192,7 +354,7 @@ class _TeacherClassListScreenState extends State<TeacherClassListScreen> {
                 Text(
                   'Thêm Lớp học mới',
                   style: TextStyle(
-                    fontSize: 14, // Giảm từ 16 → 14
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).textTheme.titleMedium?.color,
                   ),
@@ -200,10 +362,7 @@ class _TeacherClassListScreenState extends State<TeacherClassListScreen> {
                 const SizedBox(height: 2),
                 Text(
                   'Tạo không gian lớp học để quản lý',
-                  style: TextStyle(
-                    fontSize: 12, // Giảm từ 14 → 12
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -218,12 +377,11 @@ class _TeacherClassListScreenState extends State<TeacherClassListScreen> {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               textStyle: const TextStyle(
-                fontSize: 12, // Giảm từ 14 → 12
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
             ),
             onPressed: () {
-              // Điều hướng đến màn hình tạo lớp học mới
               Navigator.of(context)
                   .push(
                     MaterialPageRoute(
@@ -231,10 +389,12 @@ class _TeacherClassListScreenState extends State<TeacherClassListScreen> {
                     ),
                   )
                   .then((newClass) {
-                    // Xử lý dữ liệu lớp học mới được tạo
-                    if (newClass != null) {
-                      // Reload danh sách lớp học để cập nhật
-                      _loadClasses();
+                    // Reload danh sách khi tạo lớp mới
+                    if (newClass != null && mounted) {
+                      final teacherId = ref.read(currentUserIdProvider);
+                      if (teacherId != null) {
+                        ref.read(pagingControllerProvider(teacherId)).refresh();
+                      }
                     }
                   });
             },
@@ -245,230 +405,425 @@ class _TeacherClassListScreenState extends State<TeacherClassListScreen> {
     );
   }
 
-  /// Danh sách lớp học với Consumer để lắng nghe thay đổi từ ViewModel
-  Widget _buildClassList(BuildContext context) {
-    return Consumer<ClassViewModel>(
-      builder: (context, viewModel, _) {
-        // Hiển thị loading state (chỉ khi đang loading và chưa có dữ liệu)
-        if (viewModel.isLoading && viewModel.classes.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        // Hiển thị error state (chỉ khi có lỗi thực sự, không phải empty list)
-        // Kiểm tra: có errorMessage VÀ không đang loading (đã hoàn thành request)
-        if (viewModel.hasError && !viewModel.isLoading) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Đã xảy ra lỗi',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red[700],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    viewModel.errorMessage ?? 'Không thể tải danh sách lớp học',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      viewModel.clearError();
-                      _loadClasses();
-                    },
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Thử lại'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        // Hiển thị empty state (khi không có lỗi và danh sách rỗng)
-        if (viewModel.classes.isEmpty && !viewModel.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.school_outlined,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Chưa có lớp học nào',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Tạo lớp học đầu tiên của bạn',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        // Hiển thị danh sách lớp học với pull-to-refresh
-        return RefreshIndicator(
-          onRefresh: () async {
-            await viewModel.refresh();
-          },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  /// Danh sách lớp học với PagedListView
+  Widget _buildClassList(
+    BuildContext context,
+    PagingController<int, Class> pagingController,
+    ClassSortOption sortOption,
+    String? searchQuery,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header danh sách với sort button
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Header danh sách
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Danh sách lớp (${viewModel.classCount})',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.filter_list,
-                            size: 18,
-                            color: Colors.grey[600],
-                          ),
-                          onPressed: () {
-                            // TODO: Implement filter
-                          },
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.sort,
-                            size: 18,
-                            color: Colors.grey[600],
-                          ),
-                          onPressed: () {
-                            // TODO: Implement sort
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+              Text(
+                'Danh sách lớp',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 6),
-              // Danh sách các lớp
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: viewModel.classes.length,
-                  itemBuilder: (context, index) {
-                    final classItem = viewModel.classes[index];
-                    return ClassItemWidget(
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.filter_list,
+                      size: 18,
+                      color: Colors.grey[600],
+                    ),
+                    onPressed: () {
+                      // TODO: Implement filter
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.sort, size: 18, color: Colors.grey[600]),
+                    onPressed: () {
+                      _showSortDialog(context);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        // PagedListView
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () => Future.sync(() {
+              try {
+                pagingController.refresh();
+              } catch (e) {
+                // #region agent log
+                try {
+                  final logFile = File(
+                    'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+                  );
+                  logFile.writeAsStringSync(
+                    '${jsonEncode({
+                      "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                      "timestamp": DateTime.now().millisecondsSinceEpoch,
+                      "location": "teacher_class_list_screen.dart:540",
+                      "message": "Error refreshing pagingController",
+                      "data": {"error": e.toString()},
+                      "sessionId": "debug-session",
+                      "runId": "run1",
+                      "hypothesisId": "G",
+                    })}\n',
+                    mode: FileMode.append,
+                  );
+                } catch (_) {}
+                // #endregion
+              }
+            }),
+            child: PagedListView<int, Class>(
+              pagingController: pagingController,
+              scrollController: _scrollController,
+              builderDelegate: PagedChildBuilderDelegate<Class>(
+                itemBuilder: (context, classItem, index) {
+                  // #region agent log
+                  try {
+                    final logFile = File(
+                      'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+                    );
+                    logFile.writeAsStringSync(
+                      '${jsonEncode({
+                        "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                        "timestamp": DateTime.now().millisecondsSinceEpoch,
+                        "location": "teacher_class_list_screen.dart:582",
+                        "message": "Building class item",
+                        "data": {"index": index, "classId": classItem.id, "className": classItem.name},
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "G",
+                      })}\n',
+                      mode: FileMode.append,
+                    );
+                  } catch (_) {}
+                  // #endregion
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: ClassItemWidget(
                       className: classItem.name,
                       roomInfo: classItem.subject ?? 'Chưa có môn học',
                       schedule: classItem.academicYear ?? 'Chưa có năm học',
-                      studentCount: viewModel.approvedCount,
-                      ungradedCount: viewModel.pendingCount,
+                      studentCount: 0, // TODO: Load từ class members
+                      ungradedCount: 0, // TODO: Load từ class members
                       iconName: 'school',
                       iconColor: Colors.blue,
                       hasAssignments: true,
                       onTap: () {
-                        // Navigate to class detail screen
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => TeacherClassDetailScreen(
-                              classId: classItem.id,
-                              className: classItem.name,
-                              semesterInfo:
-                                  classItem.academicYear ?? 'Chưa có năm học',
-                            ),
-                          ),
-                        );
+                        // #region agent log
+                        try {
+                          final logFile = File(
+                            'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+                          );
+                          logFile.writeAsStringSync(
+                            '${jsonEncode({
+                              "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                              "timestamp": DateTime.now().millisecondsSinceEpoch,
+                              "location": "teacher_class_list_screen.dart:522",
+                              "message": "Navigating to class detail",
+                              "data": {"classId": classItem.id, "className": classItem.name, "mounted": mounted},
+                              "sessionId": "debug-session",
+                              "runId": "run1",
+                              "hypothesisId": "F",
+                            })}\n',
+                            mode: FileMode.append,
+                          );
+                        } catch (_) {}
+                        // #endregion
+                        if (mounted) {
+                          Navigator.of(context)
+                              .push(
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      TeacherClassDetailScreen(
+                                        classId: classItem.id,
+                                        className: classItem.name,
+                                        semesterInfo:
+                                            classItem.academicYear ??
+                                            'Chưa có năm học',
+                                      ),
+                                ),
+                              )
+                              .catchError((error) {
+                                // #region agent log
+                                try {
+                                  final logFile = File(
+                                    'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+                                  );
+                                  logFile.writeAsStringSync(
+                                    '${jsonEncode({
+                                      "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                                      "timestamp": DateTime.now().millisecondsSinceEpoch,
+                                      "location": "teacher_class_list_screen.dart:540",
+                                      "message": "Navigation error",
+                                      "data": {"error": error.toString()},
+                                      "sessionId": "debug-session",
+                                      "runId": "run1",
+                                      "hypothesisId": "F",
+                                    })}\n',
+                                    mode: FileMode.append,
+                                  );
+                                } catch (_) {}
+                                // #endregion
+                              });
+                        }
                       },
-                    );
-                  },
+                    ),
+                  );
+                },
+                firstPageProgressIndicatorBuilder: (context) =>
+                    const ShimmerLoading(),
+                newPageProgressIndicatorBuilder: (context) => const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(child: CircularProgressIndicator()),
                 ),
+                firstPageErrorIndicatorBuilder: (context) =>
+                    _buildErrorWidget(context, pagingController),
+                newPageErrorIndicatorBuilder: (context) => Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          'Lỗi khi tải thêm dữ liệu',
+                          style: TextStyle(color: Colors.red[700]),
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: () =>
+                              pagingController.retryLastFailedRequest(),
+                          child: Text('Thử lại'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                noItemsFoundIndicatorBuilder: (context) =>
+                    _buildEmptyState(searchQuery),
+                noMoreItemsIndicatorBuilder: (context) => _buildNoMoreItems(),
               ),
-            ],
+            ),
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
-  /// Hiển thị dialog tìm kiếm cho danh sách lớp học
-  void _showSearchDialog(BuildContext context) {
-    // Dữ liệu mẫu cho tìm kiếm
-    final List<Map<String, dynamic>> classes = [
-      {
-        'id': '1',
-        'title': 'Toán Học - Lớp 10A2',
-        'subtitle': 'Phòng 302 • Thứ 2, 4, 6',
-        'type': 'class',
-      },
-      {
-        'id': '2',
-        'title': 'Vật Lý - Lớp 11B1',
-        'subtitle': 'Phòng Lab 1 • Thứ 3, 5',
-        'type': 'class',
-      },
-      {
-        'id': '3',
-        'title': 'Ngữ Văn - Lớp 12C3',
-        'subtitle': 'Phòng 205 • Chiều thứ 4',
-        'type': 'class',
-      },
-      {
-        'id': '4',
-        'title': 'Chủ nhiệm - Lớp 10A2',
-        'subtitle': 'Sinh hoạt lớp • Sáng thứ 2',
-        'type': 'class',
-      },
-    ];
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.6),
-      builder: (context) => SmartSearchDialogV2(
-        initialQuery: '',
-        assignments: [], // Không có bài tập ở màn hình danh sách lớp
-        students: [], // Không có học sinh ở màn hình danh sách lớp
-        classes: classes,
-        onItemSelected: (item) {
-          Navigator.pop(context);
-          // Tìm và điều hướng đến lớp được chọn
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => TeacherClassDetailScreen(
-                classId: item['id'],
-                className: item['title'],
-                semesterInfo: 'Học kỳ 1 - 2023',
+  /// Error widget
+  Widget _buildErrorWidget(
+    BuildContext context,
+    PagingController<int, Class> pagingController,
+  ) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            Text(
+              'Đã xảy ra lỗi',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.red[700],
               ),
             ),
-          );
-        },
+            const SizedBox(height: 8),
+            Text(
+              pagingController.error?.toString() ??
+                  'Không thể tải danh sách lớp học',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => pagingController.refresh(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Thử lại'),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  /// Empty state widget - phân biệt search vs no data
+  Widget _buildEmptyState(String? searchQuery) {
+    final isSearching = searchQuery != null && searchQuery.isNotEmpty;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isSearching ? Icons.search_off : Icons.school_outlined,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isSearching
+                  ? 'Không tìm thấy lớp học nào'
+                  : 'Chưa có lớp học nào',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isSearching
+                  ? 'Thử tìm kiếm với từ khóa khác'
+                  : 'Tạo lớp học đầu tiên của bạn',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// No more items widget
+  Widget _buildNoMoreItems() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Center(
+        child: Text(
+          'Đã hiển thị tất cả lớp học',
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        ),
+      ),
+    );
+  }
+
+  /// Sort dialog
+  void _showSortDialog(BuildContext context) {
+    final currentSortOption = ref.read(sortOptionProvider);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                'Sắp xếp lớp học',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).textTheme.titleLarge?.color,
+                ),
+              ),
+            ),
+            const Divider(),
+            // Sort options
+            _buildSortOption(
+              context,
+              'Tên lớp (A-Z)',
+              ClassSortOption.nameAscending,
+              Icons.sort_by_alpha,
+              currentSortOption,
+            ),
+            _buildSortOption(
+              context,
+              'Tên lớp (Z-A)',
+              ClassSortOption.nameDescending,
+              Icons.sort_by_alpha,
+              currentSortOption,
+            ),
+            _buildSortOption(
+              context,
+              'Mới nhất',
+              ClassSortOption.dateNewest,
+              Icons.access_time,
+              currentSortOption,
+            ),
+            _buildSortOption(
+              context,
+              'Cũ nhất',
+              ClassSortOption.dateOldest,
+              Icons.access_time,
+              currentSortOption,
+            ),
+            _buildSortOption(
+              context,
+              'Môn học (A-Z)',
+              ClassSortOption.subjectAscending,
+              Icons.subject,
+              currentSortOption,
+            ),
+            _buildSortOption(
+              context,
+              'Môn học (Z-A)',
+              ClassSortOption.subjectDescending,
+              Icons.subject,
+              currentSortOption,
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSortOption(
+    BuildContext context,
+    String title,
+    ClassSortOption option,
+    IconData icon,
+    ClassSortOption currentOption,
+  ) {
+    final isSelected = currentOption == option;
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isSelected ? DesignColors.primary : Colors.grey[600],
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? DesignColors.primary : Colors.black87,
+        ),
+      ),
+      trailing: isSelected
+          ? Icon(Icons.check, color: DesignColors.primary)
+          : null,
+      onTap: () {
+        ref.read(sortOptionProvider.notifier).state = option;
+        Navigator.pop(context);
+      },
     );
   }
 }

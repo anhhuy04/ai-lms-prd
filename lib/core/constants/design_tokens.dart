@@ -420,8 +420,8 @@ class DesignBreakpoints {
 
   // Responsive padding adjustments
   static double getScreenPadding(double width) {
-    if (isDesktop(width)) return DesignSpacing.xxxl; // 32dp for desktop
-    if (isTablet(width)) return DesignSpacing.xxl; // 24dp for tablets
+    if (isDesktop(width)) return DesignSpacing.xxxl; // 28dp for desktop
+    if (isTablet(width)) return DesignSpacing.xxl; // 22dp for tablets
     return DesignSpacing.lg; // 16dp for mobile (standard)
   }
 
@@ -435,6 +435,59 @@ class DesignBreakpoints {
     if (isDesktop(screenWidth)) return mobileSize * desktopMultiplier;
     if (isTablet(screenWidth)) return mobileSize * tabletMultiplier;
     return mobileSize;
+  }
+
+  // Responsive value helper - returns value based on screen width
+  /// Get responsive value based on screen width
+  /// 
+  /// Example:
+  /// ```dart
+  /// final padding = DesignBreakpoints.responsiveValue(
+  ///   screenWidth: MediaQuery.of(context).size.width,
+  ///   mobile: 16.0,
+  ///   tablet: 24.0,
+  ///   desktop: 32.0,
+  /// );
+  /// ```
+  static T responsiveValue<T>({
+    required double screenWidth,
+    required T mobile,
+    T? tablet,
+    T? desktop,
+  }) {
+    if (isDesktop(screenWidth)) {
+      return desktop ?? tablet ?? mobile;
+    } else if (isTablet(screenWidth)) {
+      return tablet ?? mobile;
+    } else {
+      return mobile;
+    }
+  }
+
+  // Responsive column count helper
+  /// Get responsive column count for grid layouts
+  static int getColumnCount(double screenWidth, {
+    int mobileColumns = 1,
+    int tabletColumns = 2,
+    int desktopColumns = 3,
+  }) {
+    return responsiveValue(
+      screenWidth: screenWidth,
+      mobile: mobileColumns,
+      tablet: tabletColumns,
+      desktop: desktopColumns,
+    );
+  }
+
+  // Responsive max content width helper
+  /// Get responsive max content width
+  static double getMaxContentWidth(double screenWidth) {
+    return responsiveValue(
+      screenWidth: screenWidth,
+      mobile: double.infinity, // Full width on mobile
+      tablet: tabletMedium, // 768dp for tablet
+      desktop: desktop, // 1200dp for desktop
+    );
   }
 }
 

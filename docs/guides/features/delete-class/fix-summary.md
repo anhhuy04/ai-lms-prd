@@ -237,7 +237,7 @@ if (currentContext.mounted) {
 
 ## 🧪 Cách Test
 
-Xem file: [TESTING_DELETE_CLASS.md](./TESTING_DELETE_CLASS.md)
+Xem file: [testing-guide.md](./testing-guide.md)
 
 ### Quick Test:
 1. Mở app → Đăng nhập

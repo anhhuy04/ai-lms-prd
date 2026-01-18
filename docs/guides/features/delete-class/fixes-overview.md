@@ -187,7 +187,7 @@ flutter pub get
 ```
 
 ### 3. Full Test
-Follow: [TESTING_DELETE_CLASS.md](./TESTING_DELETE_CLASS.md)
+Follow: [testing-guide.md](./testing-guide.md)
 
 ---
 
@@ -208,10 +208,10 @@ Follow: [TESTING_DELETE_CLASS.md](./TESTING_DELETE_CLASS.md)
 - ✅ [class_settings_drawer.dart](../lib/widgets/drawers/class_settings_drawer.dart) - Fixed delete function
 
 ### Documentation
-- ✅ [TESTING_DELETE_CLASS.md](./TESTING_DELETE_CLASS.md) - Comprehensive test guide
-- ✅ [FIX_DELETE_CLASS_SUMMARY.md](./FIX_DELETE_CLASS_SUMMARY.md) - Detailed fix explanation
-- ✅ [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) - Quick reference guide
-- ✅ [DELETE_CLASS_FIXES.md](./DELETE_CLASS_FIXES.md) - This document
+- ✅ [testing-guide.md](./testing-guide.md) - Comprehensive test guide
+- ✅ [fix-summary.md](./fix-summary.md) - Detailed fix explanation
+- ✅ [quick-reference.md](../../development/quick-reference.md) - Quick reference guide
+- ✅ [fixes-overview.md](./fixes-overview.md) - This document
 
 ---
 
@@ -267,11 +267,11 @@ If you encounter issues:
 
 ## 📚 Related Documents
 
-1. **Testing Guide**: [TESTING_DELETE_CLASS.md](./TESTING_DELETE_CLASS.md)
-2. **Detailed Analysis**: [class_delete_issue_analysis.md](./class_delete_issue_analysis.md)
-3. **RLS Report**: [class_delete_rls_check_report.md](./class_delete_rls_check_report.md)
-4. **Function Review**: [class_delete_function_review.md](./class_delete_function_review.md)
-5. **Debug Guide**: [class_delete_debugging_guide.md](./class_delete_debugging_guide.md)
+1. **Testing Guide**: [testing-guide.md](./testing-guide.md)
+2. **Detailed Analysis**: [issue-analysis.md](./issue-analysis.md)
+3. **RLS Report**: [rls-check-report.md](./rls-check-report.md)
+4. **Function Review**: [function-review.md](./function-review.md)
+5. **Debug Guide**: [debugging-guide.md](./debugging-guide.md)
 
 ---
 
