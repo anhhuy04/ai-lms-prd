@@ -1,13 +1,18 @@
-import 'package:flutter/material.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/widgets/assignment_list.dart';
-import 'package:ai_mls/widgets/search/smart_search_dialog_v2.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/presentation/providers/auth_notifier.dart';
+import 'package:ai_mls/presentation/providers/class_notifier.dart';
+import 'package:ai_mls/presentation/views/class/student/widgets/drawers/student_class_settings_drawer.dart';
 import 'package:ai_mls/widgets/drawers/action_end_drawer.dart';
-import 'package:ai_mls/widgets/drawers/student_class_settings_drawer.dart';
+import 'package:ai_mls/widgets/list/class_detail_assignment_list.dart';
+import 'package:ai_mls/widgets/search/dialogs/quick_search_dialog.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Màn hình chi tiết lớp học dành cho học sinh
 /// Thiết kế theo chuẩn Design System với thông tin cá nhân và tiến độ học tập
-class StudentClassDetailScreen extends StatefulWidget {
+class StudentClassDetailScreen extends ConsumerStatefulWidget {
   final String classId;
   final String className;
   final String semesterInfo;
@@ -22,12 +27,47 @@ class StudentClassDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<StudentClassDetailScreen> createState() => _StudentClassDetailScreenState();
+  ConsumerState<StudentClassDetailScreen> createState() =>
+      _StudentClassDetailScreenState();
 }
 
-class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
+class _StudentClassDetailScreenState
+    extends ConsumerState<StudentClassDetailScreen> {
   // State cho tìm kiếm
   final String _searchQuery = '';
+
+  // Dữ liệu mẫu cho danh sách bài tập (const để tránh tạo lại trong mỗi build)
+  static const List<Map<String, dynamic>> _sampleAssignments = [
+    {
+      'id': '1',
+      'title': 'Toán Đại Số - Chương 1: Hàm Số',
+      'dueDate': 'Hôm nay, 23:59',
+      'status': 'active',
+      'studentStatus': 'submitted', // Trạng thái của học sinh
+      'score': '9.5', // Điểm nếu đã chấm
+      'icon': 'calculate',
+      'classInfo': 'Lớp 10A1',
+    },
+    {
+      'id': '2',
+      'title': 'Ngữ Văn - Phân tích tác phẩm',
+      'dueDate': '15/10/2023',
+      'status': 'new',
+      'studentStatus': 'not_submitted', // Chưa nộp
+      'icon': 'menu_book',
+      'classInfo': 'Lớp 11B2',
+    },
+    {
+      'id': '3',
+      'title': 'Vật Lý - Bài tập Quang học',
+      'dueDate': '15/10/2023',
+      'status': 'closed',
+      'studentStatus': 'graded', // Đã chấm điểm
+      'score': '8.0',
+      'icon': 'science',
+      'classInfo': 'Lớp 12A5',
+    },
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +82,7 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
           studentName: widget.studentName,
           unreadNotifications: 2,
           pendingAssignments: 3,
+          onLeaveClass: () => _handleLeaveClass(context),
         ),
       ),
       body: SafeArea(
@@ -52,17 +93,19 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
             // Main Content
             Expanded(
               child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    // Quick Stats & Actions
-                    _buildQuickStatsSection(context),
-                    const SizedBox(height: 16),
-                    // Student Progress Section
-                    _buildStudentProgressSection(context),
-                    const SizedBox(height: 16),
-                    // Assignment List Section
-                    _buildAssignmentListSection(context),
-                  ],
+                child: RepaintBoundary(
+                  child: Column(
+                    children: [
+                      // Quick Stats & Actions
+                      _buildQuickStatsSection(context),
+                      const SizedBox(height: 16),
+                      // Student Progress Section
+                      _buildStudentProgressSection(context),
+                      const SizedBox(height: 16),
+                      // Assignment List Section
+                      _buildAssignmentListSection(context),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -89,7 +132,7 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
         children: [
           GestureDetector(
             onTap: () {
-              Navigator.of(context).pop();
+              context.pop();
             },
             child: Container(
               padding: EdgeInsets.all(DesignSpacing.sm),
@@ -296,79 +339,84 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
 
   /// Card tiến độ học tập
   Widget _buildStudentProgressCard(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(DesignSpacing.lg),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [DesignColors.primary.withOpacity(0.1), DesignColors.white],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+    return RepaintBoundary(
+      child: Container(
+        padding: EdgeInsets.all(DesignSpacing.lg),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              DesignColors.primary.withValues(alpha: 0.1),
+              DesignColors.white,
+            ],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(DesignRadius.md),
+          border: Border.all(
+            color: DesignColors.primary.withValues(alpha: 0.2),
+            width: 1,
+          ),
+          boxShadow: [DesignElevation.level1],
         ),
-        borderRadius: BorderRadius.circular(DesignRadius.md),
-        border: Border.all(
-          color: DesignColors.primary.withOpacity(0.2),
-          width: 1,
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: DesignColors.primary.withValues(alpha: 0.2),
+              ),
+              child: Icon(
+                Icons.assessment,
+                size: DesignIcons.mdSize,
+                color: DesignColors.primary,
+              ),
+            ),
+            SizedBox(width: DesignSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tiến độ học tập',
+                    style: DesignTypography.titleMedium.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: DesignSpacing.xs),
+                  Text(
+                    'Xem điểm số và tiến độ cá nhân',
+                    style: DesignTypography.bodySmall.copyWith(
+                      color: DesignColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: DesignSpacing.md),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: DesignColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(DesignRadius.sm),
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: DesignSpacing.md,
+                  vertical: DesignSpacing.sm,
+                ),
+                textStyle: DesignTypography.labelMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () {
+                // TODO: Navigate to student progress screen
+              },
+              child: const Text('Xem chi tiết'),
+            ),
+          ],
         ),
-        boxShadow: [DesignElevation.level1],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: DesignColors.primary.withOpacity(0.2),
-            ),
-            child: Icon(
-              Icons.assessment,
-              size: DesignIcons.mdSize,
-              color: DesignColors.primary,
-            ),
-          ),
-          SizedBox(width: DesignSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Tiến độ học tập',
-                  style: DesignTypography.titleMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: DesignSpacing.xs),
-                Text(
-                  'Xem điểm số và tiến độ cá nhân',
-                  style: DesignTypography.bodySmall.copyWith(
-                    color: DesignColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(width: DesignSpacing.md),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: DesignColors.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(DesignRadius.sm),
-              ),
-              padding: EdgeInsets.symmetric(
-                horizontal: DesignSpacing.md,
-                vertical: DesignSpacing.sm,
-              ),
-              textStyle: DesignTypography.labelMedium.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            onPressed: () {
-              // TODO: Navigate to student progress screen
-            },
-            child: const Text('Xem chi tiết'),
-          ),
-        ],
       ),
     );
   }
@@ -418,41 +466,8 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
 
   /// Danh sách bài tập cho học sinh
   Widget _buildAssignmentList(BuildContext context) {
-    // Dữ liệu mẫu cho danh sách bài tập của học sinh
-    final List<Map<String, dynamic>> sampleAssignments = [
-      {
-        'id': '1',
-        'title': 'Toán Đại Số - Chương 1: Hàm Số',
-        'dueDate': 'Hôm nay, 23:59',
-        'status': 'active',
-        'studentStatus': 'submitted', // Trạng thái của học sinh
-        'score': '9.5', // Điểm nếu đã chấm
-        'icon': 'calculate',
-        'classInfo': 'Lớp 10A1',
-      },
-      {
-        'id': '2',
-        'title': 'Ngữ Văn - Phân tích tác phẩm',
-        'dueDate': '15/10/2023',
-        'status': 'new',
-        'studentStatus': 'not_submitted', // Chưa nộp
-        'icon': 'menu_book',
-        'classInfo': 'Lớp 11B2',
-      },
-      {
-        'id': '3',
-        'title': 'Vật Lý - Bài tập Quang học',
-        'dueDate': '15/10/2023',
-        'status': 'closed',
-        'studentStatus': 'graded', // Đã chấm điểm
-        'score': '8.0',
-        'icon': 'science',
-        'classInfo': 'Lớp 12A5',
-      },
-    ];
-
-    return AssignmentList(
-      assignments: sampleAssignments,
+    return ClassDetailAssignmentList(
+      assignments: _sampleAssignments,
       viewMode: AssignmentViewMode.student,
       onItemTap: (assignment) {
         // TODO: Navigate to assignment detail or action based on studentStatus
@@ -483,21 +498,9 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
 
     // Dữ liệu học sinh
     final List<Map<String, dynamic>> students = [
-      {
-        'id': '1',
-        'title': 'Nguyễn Văn An',
-        'subtitle': 'Lớp 12A1',
-      },
-      {
-        'id': '2',
-        'title': 'Trần Thị Bích',
-        'subtitle': 'Lớp 11A3',
-      },
-      {
-        'id': '3',
-        'title': 'Lê Minh Cường',
-        'subtitle': 'Lớp 9A1',
-      },
+      {'id': '1', 'title': 'Nguyễn Văn An', 'subtitle': 'Lớp 12A1'},
+      {'id': '2', 'title': 'Trần Thị Bích', 'subtitle': 'Lớp 11A3'},
+      {'id': '3', 'title': 'Lê Minh Cường', 'subtitle': 'Lớp 9A1'},
     ];
 
     // Dữ liệu lớp học
@@ -522,19 +525,105 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.6),
-      builder: (context) => SmartSearchDialogV2(
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (context) => QuickSearchDialog(
         initialQuery: _searchQuery,
         assignments: assignments,
         students: students,
         classes: classes,
         onItemSelected: (item) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Đã chọn: ${item['title']}')),
-          );
+          context.pop();
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Đã chọn: ${item['title']}')));
         },
       ),
     );
+  }
+
+  /// Xử lý khi học sinh rời lớp học
+  Future<void> _handleLeaveClass(BuildContext context) async {
+    // Hiển thị dialog xác nhận
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận rời lớp'),
+        content: Text(
+          'Bạn có chắc chắn muốn rời lớp "${widget.className}"?\n\n'
+          'Sau khi rời lớp, bạn sẽ không thể xem thông tin và bài tập của lớp này nữa.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Rời lớp'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return; // User cancelled
+    }
+
+    // Lấy studentId từ auth
+    final auth = ref.read(authNotifierProvider);
+    final studentId = auth.value?.id;
+    if (studentId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy thông tin học sinh'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Hiển thị loading
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // Gọi API để rời lớp
+    final success = await ref
+        .read(classNotifierProvider.notifier)
+        .leaveClass(widget.classId, studentId);
+
+    // Đóng loading dialog
+    if (!mounted) return;
+    Navigator.of(context).pop(); // Close loading dialog
+
+    if (success) {
+      // Hiển thị thông báo thành công
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã rời lớp "${widget.className}"'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // Navigate về danh sách lớp học
+      if (!mounted) return;
+      context.goNamed(AppRoute.studentClassList);
+    } else {
+      // Hiển thị thông báo lỗi
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể rời lớp. Vui lòng thử lại sau.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

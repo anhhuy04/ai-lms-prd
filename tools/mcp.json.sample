@@ -1,0 +1,68 @@
+{
+  "mcpServers": {
+    "supabase-official": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN_HERE",
+        "SUPABASE_PROJECT_REF": "YOUR_PROJECT_REF_HERE"
+      }
+    },
+    "supabase": {
+      "command": "supabase-mcp-server",
+      "env": {
+        "QUERY_API_KEY": "YOUR_QUERY_API_KEY_FROM_THEQUERY_DEV",
+        "SUPABASE_PROJECT_REF": "YOUR_PROJECT_REF",
+        "SUPABASE_DB_PASSWORD": "YOUR_DB_PASSWORD",
+        "SUPABASE_REGION": "us-east-1",
+        "SUPABASE_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN",
+        "SUPABASE_SERVICE_ROLE_KEY": "YOUR_SERVICE_ROLE_KEY"
+      }
+    },
+    "github.com/upstash/context7-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ],
+      "env": {
+        "CONTEXT7_API_KEY": "YOUR_CONTEXT7_API_KEY"
+      }
+    },
+    "github.com/zcaceres/fetch-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@zcaceres/fetch-mcp@latest"
+      ]
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github@latest"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_YOUR_TOKEN_HERE"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@latest",
+        "D:\\code\\Flutter_Android\\AI_LMS_PRD"
+      ]
+    },
+    "memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory@latest"
+      ]
+    }
+  }
+}

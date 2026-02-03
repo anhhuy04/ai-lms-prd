@@ -29,6 +29,7 @@ Create the following files in the project root (they are gitignored):
 SUPABASE_URL=https://vazhgunhcjdwlkbslroc.supabase.co
 SUPABASE_ANON_KEY=your-dev-anon-key-here
 SUPABASE_SERVICE_ROLE_KEY=your-dev-service-role-key-here
+SENTRY_DSN=your-dev-sentry-dsn-here
 ```
 
 #### `.env.staging` (Staging)
@@ -36,6 +37,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-dev-service-role-key-here
 SUPABASE_URL=https://your-staging-project-id.supabase.co
 SUPABASE_ANON_KEY=your-staging-anon-key-here
 SUPABASE_SERVICE_ROLE_KEY=your-staging-service-role-key-here
+SENTRY_DSN=your-staging-sentry-dsn-here
 ```
 
 #### `.env.prod` (Production)
@@ -43,6 +45,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-staging-service-role-key-here
 SUPABASE_URL=https://your-production-project-id.supabase.co
 SUPABASE_ANON_KEY=your-production-anon-key-here
 SUPABASE_SERVICE_ROLE_KEY=your-production-service-role-key-here
+SENTRY_DSN=your-production-sentry-dsn-here
 ```
 
 **Important:** 

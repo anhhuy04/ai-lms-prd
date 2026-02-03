@@ -21,7 +21,7 @@ class DrawerActionTile extends StatelessWidget {
     this.subtitle,
     required this.onTap,
     this.iconColor,
-    this.showChevron = true,
+    this.showChevron = false,
     this.trailing,
     this.showNotificationDot = false,
     this.notificationCount,
@@ -29,19 +29,20 @@ class DrawerActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final spacing = context.spacing;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(DesignRadius.md),
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: DesignSpacing.md,
-          vertical: DesignSpacing.sm,
+          horizontal: spacing.md,
+          vertical: spacing.sm,
         ),
         child: Row(
           children: [
             // Icon bên trái
             _buildIconContainer(context),
-            SizedBox(width: DesignSpacing.md),
+            SizedBox(width: spacing.md),
 
             // Nội dung chính
             Expanded(
@@ -53,18 +54,18 @@ class DrawerActionTile extends StatelessWidget {
                     style: DesignTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.w500,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    // maxLines: 2,
+                    // overflow: TextOverflow.ellipsis,
                   ),
                   if (subtitle != null) ...[
-                    SizedBox(height: DesignSpacing.xs),
+                    SizedBox(height: spacing.xs),
                     Text(
                       subtitle!,
                       style: DesignTypography.bodySmall.copyWith(
                         color: DesignColors.textSecondary,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      // maxLines: 2,
+                      // overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ],
@@ -107,13 +108,13 @@ class DrawerActionTile extends StatelessWidget {
       width: DesignComponents.avatarSmall,
       height: DesignComponents.avatarSmall,
       decoration: BoxDecoration(
-        color: iconColor?.withOpacity(0.1) ?? DesignColors.moonMedium,
+        color: iconColor?.withValues(alpha: 0.1) ?? DesignColors.moonMedium,
         borderRadius: BorderRadius.circular(DesignRadius.full),
       ),
       child: Icon(
         icon,
         size: DesignIcons.mdSize,
-        color: iconColor ?? DesignColors.primary,
+        color: iconColor ?? DesignColors.drawerIcon,
       ),
     );
   }

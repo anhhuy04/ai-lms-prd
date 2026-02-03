@@ -15,7 +15,7 @@ Widget _build(){
       appBar: AppBar(
         // Đây là nơi bạn thường xuyên thay đổi code
         backgroundColor: Colors.blue,
-        title: Text("Tiêu đề", textAlign: TextAlign.center),
+        title: const Text('Tiêu đề', textAlign: TextAlign.center),
       ),
       body: const Text(
         'dhfauifthiuahdìu'

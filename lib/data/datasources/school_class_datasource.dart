@@ -1,6 +1,4 @@
-import 'dart:convert';
-import 'dart:io';
-
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/data/datasources/supabase_datasource.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -31,6 +29,21 @@ class SchoolClassDataSource {
         Supabase.instance.client,
         'group_members',
       );
+
+  // ==================== Helper Methods ====================
+
+  /// Tạo OR filter cho nhiều giá trị cùng một cột
+  /// Ví dụ: ['id1', 'id2'] -> 'id.eq.id1,id.eq.id2'
+  String _buildOrFilter(String column, List<String> values) {
+    return values.map((value) => '$column.eq.$value').join(',');
+  }
+
+  /// Áp dụng OR filter vào query
+  dynamic _applyOrFilter(dynamic query, String column, List<String> values) {
+    if (values.isEmpty) return query;
+    final filterString = _buildOrFilter(column, values);
+    return query.or(filterString) as dynamic;
+  }
 
   // ==================== Class CRUD ====================
 
@@ -77,24 +90,9 @@ class SchoolClassDataSource {
       // còn .order() trả về PostgrestTransformBuilder (không thể gọi filter methods)
       if (searchQuery != null && searchQuery.isNotEmpty) {
         final searchPattern = '%$searchQuery%';
-        // #region agent log
-        try {
-          final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
-          logFile.writeAsStringSync(
-            '${jsonEncode({
-              "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-              "timestamp": DateTime.now().millisecondsSinceEpoch,
-              "location": "school_class_datasource.dart:75",
-              "message": "Applying search filter",
-              "data": {"searchQuery": searchQuery, "searchPattern": searchPattern, "teacherId": teacherId, "page": page},
-              "sessionId": "debug-session",
-              "runId": "run1",
-              "hypothesisId": "A",
-            })}\n',
-            mode: FileMode.append,
-          );
-        } catch (_) {}
-        // #endregion
+        AppLogger.debug(
+          '🔍 [DATASOURCE] getClassesByTeacherPaginated: Áp dụng search filter',
+        );
         // Supabase PostgREST OR syntax: 'field1.ilike.pattern,field2.ilike.pattern'
         query = query.or(
           'name.ilike.$searchPattern,subject.ilike.$searchPattern',
@@ -112,46 +110,74 @@ class SchoolClassDataSource {
       // Áp dụng pagination
       final response = await query.range(from, to);
       final results = List<Map<String, dynamic>>.from(response);
-      // #region agent log
-      try {
-        final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
-        logFile.writeAsStringSync(
-          '${jsonEncode({
-            "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-            "timestamp": DateTime.now().millisecondsSinceEpoch,
-            "location": "school_class_datasource.dart:89",
-            "message": "Pagination query success",
-            "data": {"page": page, "pageSize": pageSize, "from": from, "to": to, "resultCount": results.length, "hasSearchQuery": searchQuery != null && searchQuery.isNotEmpty},
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "A",
-          })}\n',
-          mode: FileMode.append,
-        );
-      } catch (_) {}
-      // #endregion
+
+      // Enrich dữ liệu: thêm student_count cho mỗi class
+      if (results.isNotEmpty) {
+        try {
+          // Lấy danh sách class IDs
+          final classIds = results
+              .map((c) => c['id'])
+              .where((id) => id is String && id.isNotEmpty)
+              .cast<String>()
+              .toList();
+
+          if (classIds.isNotEmpty) {
+            // Query class_members để đếm tổng số học sinh đã duyệt cho mỗi lớp
+            Map<String, int> studentCountByClassId = {};
+
+            var membersQuery = _client
+                .from('class_members')
+                .select('class_id')
+                .eq('status', 'approved');
+
+            // OR filter cho nhiều class_id
+            membersQuery = _applyOrFilter(membersQuery, 'class_id', classIds);
+
+            final membersResponse = await membersQuery;
+
+            for (final m in membersResponse as List<dynamic>) {
+              final map = m as Map<String, dynamic>;
+              final id = map['class_id'] as String?;
+              if (id == null) continue;
+              studentCountByClassId[id] = (studentCountByClassId[id] ?? 0) + 1;
+            }
+
+            // Merge student_count vào từng class
+            for (final classData in results) {
+              final classId = classData['id'] as String?;
+              if (classId != null) {
+                classData['student_count'] =
+                    studentCountByClassId[classId] ?? 0;
+              } else {
+                classData['student_count'] = 0;
+              }
+            }
+          }
+        } catch (e, stackTrace) {
+          AppLogger.error(
+            '🔴 [DATASOURCE ERROR] getClassesByTeacherPaginated: Lỗi khi đếm số học sinh: $e',
+            error: e,
+            stackTrace: stackTrace,
+          );
+          // Không throw để không block luồng chính, chỉ bỏ qua student_count
+          // Set default student_count = 0 cho tất cả classes
+          for (final classData in results) {
+            classData['student_count'] = 0;
+          }
+        }
+      }
+
+      AppLogger.debug(
+        '✅ [DATASOURCE] getClassesByTeacherPaginated: Query thành công - '
+        'page: $page, pageSize: $pageSize, results: ${results.length}',
+      );
       return results;
     } catch (e, stackTrace) {
-      // #region agent log
-      try {
-        final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
-        logFile.writeAsStringSync(
-          '${jsonEncode({
-            "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-            "timestamp": DateTime.now().millisecondsSinceEpoch,
-            "location": "school_class_datasource.dart:95",
-            "message": "Pagination query error",
-            "data": {"error": e.toString(), "searchQuery": searchQuery, "page": page, "teacherId": teacherId},
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "A",
-          })}\n',
-          mode: FileMode.append,
-        );
-      } catch (_) {}
-      // #endregion
-      print('🔴 [DATASOURCE ERROR] getClassesByTeacherPaginated: $e');
-      print('🔴 [DATASOURCE ERROR] StackTrace: $stackTrace');
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] getClassesByTeacherPaginated: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
       throw Exception('Lỗi khi lấy danh sách lớp học: $e');
     }
   }
@@ -161,45 +187,160 @@ class SchoolClassDataSource {
     String studentId,
   ) async {
     try {
-      // Lấy danh sách class_members với status = 'approved'
+      // 1. Lấy danh sách class_members với status = 'approved' hoặc 'pending'
       final members = await _client
           .from('class_members')
-          .select('class_id')
+          .select('class_id, status')
           .eq('student_id', studentId)
-          .eq('status', 'approved');
+          .or('status.eq.approved,status.eq.pending');
 
       if (members.isEmpty) {
         return [];
       }
 
-      // Lấy danh sách class IDs
-      final classIds = (members as List)
-          .map((m) => m['class_id'] as String)
-          .toList();
+      // 2. Lấy danh sách class IDs và map trạng thái tham gia
+      final Map<String, String> memberStatusByClassId = {};
+      final classIds = <String>[];
+      for (final m in members as List<dynamic>) {
+        final map = m as Map<String, dynamic>;
+        final classId = map['class_id'] as String?;
+        final status = map['status']?.toString();
+        if (classId == null) continue;
+        classIds.add(classId);
+        // Nếu có nhiều record, ưu tiên pending (đang chờ duyệt)
+        if (!memberStatusByClassId.containsKey(classId)) {
+          memberStatusByClassId[classId] = status ?? 'approved';
+        } else if (status == 'pending') {
+          memberStatusByClassId[classId] = 'pending';
+        }
+      }
 
-      // Lấy thông tin các lớp học
       if (classIds.isEmpty) {
         return [];
       }
 
-      // Sử dụng filter với nhiều giá trị
+      // 3. Lấy thông tin các lớp học theo list ID
       var query = _client.from('classes').select();
 
-      // Build filter string cho multiple IDs
-      final filterString = classIds.map((id) => 'id.eq.$id').join(',');
-      query = query.or(filterString) as dynamic;
+      // Sử dụng OR filter cho nhiều IDs
+      query = _applyOrFilter(query, 'id', classIds);
 
-      final classes = await (query as dynamic).order(
+      final classesResponse = await (query as dynamic).order(
         'created_at',
         ascending: false,
       );
-
-      return List<Map<String, dynamic>>.from(classes);
-    } catch (e, stackTrace) {
-      print(
-        '🔴 [DATASOURCE ERROR] getClassesByStudent(studentId: $studentId): $e',
+      final classes = List<Map<String, dynamic>>.from(
+        classesResponse as List<dynamic>,
       );
-      print('🔴 [DATASOURCE ERROR] StackTrace: $stackTrace');
+
+      if (classes.isEmpty) {
+        return [];
+      }
+
+      // 4. Enrich dữ liệu: map thêm teacher_name và student_count
+      // 4.1. Lấy danh sách teacher_id và class_id duy nhất
+      final teacherIds = classes
+          .map((c) => c['teacher_id'])
+          .where((id) => id is String && id.isNotEmpty)
+          .cast<String>()
+          .toSet()
+          .toList();
+
+      final uniqueClassIds = classes
+          .map((c) => c['id'])
+          .where((id) => id is String && id.isNotEmpty)
+          .cast<String>()
+          .toSet()
+          .toList();
+
+      // 4.2. Query profiles để lấy tên giáo viên
+      Map<String, String> teacherNameById = {};
+      if (teacherIds.isNotEmpty) {
+        try {
+          var profilesQuery = _client.from('profiles').select('id, full_name');
+
+          // Sử dụng OR filter cho nhiều teacher_id
+          profilesQuery = _applyOrFilter(profilesQuery, 'id', teacherIds);
+
+          final profilesResponse = await profilesQuery;
+
+          for (final p in profilesResponse as List<dynamic>) {
+            final map = p as Map<String, dynamic>;
+            final id = map['id'] as String?;
+            final fullName = map['full_name']?.toString();
+            if (id != null && fullName != null && fullName.isNotEmpty) {
+              teacherNameById[id] = fullName;
+            }
+          }
+        } catch (e, stackTrace) {
+          AppLogger.error(
+            '🔴 [DATASOURCE ERROR] getClassesByStudent: Lỗi khi lấy tên giáo viên: $e',
+            error: e,
+            stackTrace: stackTrace,
+          );
+          // Không throw để không block luồng chính, chỉ bỏ qua teacher_name
+        }
+      }
+
+      // 4.3. Query class_members để đếm tổng số học sinh đã duyệt cho mỗi lớp
+      Map<String, int> studentCountByClassId = {};
+      if (uniqueClassIds.isNotEmpty) {
+        try {
+          var membersQuery = _client
+              .from('class_members')
+              .select('class_id')
+              .eq('status', 'approved');
+
+          // OR filter cho nhiều class_id
+          membersQuery = _applyOrFilter(membersQuery, 'class_id', uniqueClassIds);
+
+          final membersResponse = await membersQuery;
+
+          for (final m in membersResponse as List<dynamic>) {
+            final map = m as Map<String, dynamic>;
+            final id = map['class_id'] as String?;
+            if (id == null) continue;
+            studentCountByClassId[id] = (studentCountByClassId[id] ?? 0) + 1;
+          }
+        } catch (e, stackTrace) {
+          AppLogger.error(
+            '🔴 [DATASOURCE ERROR] getClassesByStudent: Lỗi khi đếm số học sinh: $e',
+            error: e,
+            stackTrace: stackTrace,
+          );
+          // Không throw để không block luồng chính, chỉ bỏ qua student_count
+        }
+      }
+
+      // 4.4. Merge dữ liệu enrich vào từng class
+      final enrichedClasses = classes.map((c) {
+        final classId = c['id'] as String?;
+        final teacherId = c['teacher_id'] as String?;
+        final teacherName = teacherId != null
+            ? teacherNameById[teacherId]
+            : null;
+        final studentCount = classId != null
+            ? (studentCountByClassId[classId] ?? 0)
+            : 0;
+        final memberStatus = classId != null
+            ? memberStatusByClassId[classId]
+            : null;
+
+        return <String, dynamic>{
+          ...c,
+          'teacher_name': teacherName,
+          'student_count': studentCount,
+          'member_status': memberStatus,
+        };
+      }).toList();
+
+      return enrichedClasses;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] getClassesByStudent(studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
       throw Exception('Lỗi khi lấy danh sách lớp học của học sinh: $e');
     }
   }
@@ -249,11 +390,90 @@ class SchoolClassDataSource {
       final response = await query;
       return List<Map<String, dynamic>>.from(response);
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [DATASOURCE ERROR] getClassMembers(classId: $classId, status: $status): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [DATASOURCE ERROR] StackTrace: $stackTrace');
       throw Exception('Lỗi khi lấy danh sách thành viên lớp học: $e');
+    }
+  }
+
+  /// Tìm lớp học theo join_code trong class_settings.enrollment.qr_code.join_code.
+  /// Đồng thời kiểm tra một số rule cơ bản: is_active, expires_at, manual_join_limit.
+  Future<Map<String, dynamic>?> getClassByJoinCode(String joinCode) async {
+    try {
+      // Query tất cả classes để kiểm tra join_code trong class_settings
+      final results = await _client
+          .from('classes')
+          .select('id, class_settings, *');
+
+      for (final classData in results) {
+        final classSettings =
+            classData['class_settings'] as Map<String, dynamic>?;
+        if (classSettings == null) continue;
+
+        final enrollment = classSettings['enrollment'] as Map<String, dynamic>?;
+        if (enrollment == null) continue;
+
+        final qrCode = enrollment['qr_code'] as Map<String, dynamic>?;
+        if (qrCode == null) continue;
+
+        final existingCode = qrCode['join_code'] as String?;
+        if (existingCode == null || existingCode != joinCode) {
+          continue;
+        }
+
+        final classId = classData['id'] as String?;
+        if (classId == null) continue;
+
+        // Kiểm tra trạng thái kích hoạt mã
+        final isActive = qrCode['is_active'] as bool? ?? false;
+        if (!isActive) {
+          throw Exception(
+            'Mã lớp hiện đã được tắt, vui lòng liên hệ giáo viên.',
+          );
+        }
+
+        // Kiểm tra thời hạn mã
+        final expiresAtRaw = qrCode['expires_at'];
+        if (expiresAtRaw != null) {
+          try {
+            final expiresAt = DateTime.parse(expiresAtRaw.toString());
+            if (expiresAt.isBefore(DateTime.now().toUtc())) {
+              throw Exception(
+                'Mã lớp đã hết hạn, vui lòng yêu cầu giáo viên tạo mã mới.',
+              );
+            }
+          } catch (_) {
+            // Nếu parse lỗi thì bỏ qua check expires_at để không block user.
+          }
+        }
+
+        // Kiểm tra giới hạn số lượng tham gia thủ công (nếu có)
+        final manualJoinLimit = enrollment['manual_join_limit'] as int?;
+        if (manualJoinLimit != null) {
+          final members = await getClassMembers(classId);
+          if (members.length >= manualJoinLimit) {
+            throw Exception(
+              'Lớp đã đạt giới hạn số lượng tham gia, không thể tham gia thêm.',
+            );
+          }
+        }
+
+        // Nếu qua được tất cả điều kiện, trả về classData hiện tại
+        return Map<String, dynamic>.from(classData);
+      }
+
+      // Không tìm thấy lớp phù hợp với join_code
+      return null;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] getClassByJoinCode(joinCode: $joinCode): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw Exception('Lỗi khi tìm lớp bằng mã tham gia: $e');
     }
   }
 
@@ -274,11 +494,31 @@ class SchoolClassDataSource {
 
       return response;
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [DATASOURCE ERROR] updateClassMemberStatus(classId: $classId, studentId: $studentId, status: $status): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [DATASOURCE ERROR] StackTrace: $stackTrace');
       throw Exception('Lỗi khi cập nhật trạng thái thành viên: $e');
+    }
+  }
+
+  /// Học sinh rời lớp học
+  /// Xóa hoàn toàn record khỏi class_members
+  Future<void> leaveClass(String classId, String studentId) async {
+    try {
+      await _client
+          .from('class_members')
+          .delete()
+          .eq('class_id', classId)
+          .eq('student_id', studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] leaveClass(classId: $classId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw Exception('Lỗi khi rời lớp học: $e');
     }
   }
 
@@ -321,10 +561,11 @@ class SchoolClassDataSource {
           .eq('group_id', groupId)
           .eq('student_id', studentId);
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [DATASOURCE ERROR] removeStudentFromGroup(groupId: $groupId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [DATASOURCE ERROR] StackTrace: $stackTrace');
       throw Exception('Lỗi khi xóa học sinh khỏi nhóm: $e');
     }
   }
@@ -335,5 +576,57 @@ class SchoolClassDataSource {
       column: 'group_id',
       value: groupId,
     );
+  }
+
+  // ==================== Join Code Validation ====================
+
+  /// Kiểm tra xem join code đã tồn tại trong database chưa.
+  /// Query tất cả classes và check trong class_settings.enrollment.qr_code.join_code.
+  /// [joinCode] - Mã join cần kiểm tra.
+  /// [excludeClassId] - Class ID cần loại trừ khỏi việc kiểm tra (class hiện tại).
+  /// Trả về true nếu code đã tồn tại, false nếu chưa.
+  Future<bool> checkJoinCodeExists(
+    String joinCode, {
+    String? excludeClassId,
+  }) async {
+    try {
+      // Query tất cả classes
+      var query = _client.from('classes').select('id, class_settings');
+
+      // Exclude class hiện tại nếu có
+      if (excludeClassId != null) {
+        query = query.neq('id', excludeClassId) as dynamic;
+      }
+
+      final results = await query;
+
+      // Check xem có class nào có join_code trùng không
+      for (final classData in results) {
+        final classSettings =
+            classData['class_settings'] as Map<String, dynamic>?;
+        if (classSettings == null) continue;
+
+        final enrollment = classSettings['enrollment'] as Map<String, dynamic>?;
+        if (enrollment == null) continue;
+
+        final qrCode = enrollment['qr_code'] as Map<String, dynamic>?;
+        if (qrCode == null) continue;
+
+        final existingCode = qrCode['join_code'] as String?;
+        if (existingCode != null && existingCode == joinCode) {
+          return true; // Code đã tồn tại
+        }
+      }
+
+      return false; // Code chưa tồn tại
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] checkJoinCodeExists(joinCode: $joinCode, excludeClassId: $excludeClassId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      // Nếu có lỗi, trả về false để không block user
+      return false;
+    }
   }
 }

@@ -1,19 +1,23 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/presentation/viewmodels/class_viewmodel.dart';
-import 'package:ai_mls/presentation/viewmodels/auth_viewmodel.dart';
-import 'qr_scan_screen.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/domain/entities/class_member.dart';
+import 'package:ai_mls/presentation/providers/auth_notifier.dart';
+import 'package:ai_mls/presentation/providers/class_notifier.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-class JoinClassScreen extends StatefulWidget {
+class JoinClassScreen extends ConsumerStatefulWidget {
   const JoinClassScreen({super.key});
 
   @override
-  State<JoinClassScreen> createState() => _JoinClassScreenState();
+  ConsumerState<JoinClassScreen> createState() => _JoinClassScreenState();
 }
 
-class _JoinClassScreenState extends State<JoinClassScreen> {
+class _JoinClassScreenState extends ConsumerState<JoinClassScreen> {
   final _classCodeController = TextEditingController();
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -63,7 +67,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
         vertical: DesignSpacing.sm,
       ),
       decoration: BoxDecoration(
-        color: DesignColors.moonLight.withOpacity(0.8),
+        color: DesignColors.moonLight.withValues(alpha: 0.8),
         border: Border(
           bottom: BorderSide(color: DesignColors.dividerLight, width: 1),
         ),
@@ -72,7 +76,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
         children: [
           IconButton(
             icon: Icon(Icons.arrow_back, color: DesignColors.textPrimary),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => context.pop(),
           ),
           Expanded(
             child: Center(
@@ -115,16 +119,14 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
         TextFormField(
           controller: _classCodeController,
           textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 24,
+          style: DesignTypography.displayMedium.copyWith(
             fontWeight: FontWeight.bold,
             letterSpacing: 2,
             color: DesignColors.textPrimary,
           ),
           decoration: InputDecoration(
             hintText: 'XY78ZQ',
-            hintStyle: TextStyle(
-              fontSize: 24,
+            hintStyle: DesignTypography.displayMedium.copyWith(
               color: DesignColors.textTertiary,
               letterSpacing: 2,
             ),
@@ -155,6 +157,10 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
           ),
           keyboardType: TextInputType.text,
           textCapitalization: TextCapitalization.characters,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(6),
+            _UpperCaseTextFormatter(),
+          ],
         ),
       ],
     );
@@ -170,8 +176,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
           padding: EdgeInsets.symmetric(horizontal: DesignSpacing.md),
           child: Text(
             'HOẶC',
-            style: TextStyle(
-              fontSize: 11,
+            style: DesignTypography.caption.copyWith(
               color: DesignColors.textSecondary,
               fontWeight: FontWeight.bold,
               letterSpacing: 1,
@@ -187,11 +192,14 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
 
   Widget _buildQRScanButton(BuildContext context) {
     return ElevatedButton(
-      onPressed: () {
-        // Navigate to QR scan screen
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (context) => const QRScanScreen()));
+      onPressed: () async {
+        // Navigate to QR scan screen (GoRouter)
+        final result = await context.pushNamed(AppRoute.studentQrScan);
+        if (!context.mounted) return;
+        if (result != null) {
+          // Propagate result về màn trước (StudentClassListScreen) để refresh & navigate
+          context.pop(result);
+        }
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: DesignColors.white,
@@ -203,7 +211,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
           borderRadius: BorderRadius.circular(DesignRadius.lg),
         ),
         padding: EdgeInsets.symmetric(horizontal: DesignSpacing.md),
-        minimumSize: Size(double.infinity, 80),
+        minimumSize: Size(double.infinity, DesignComponents.buttonHeightLarge),
       ),
       child: Row(
         children: [
@@ -211,7 +219,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: DesignColors.primary.withOpacity(0.1),
+              color: DesignColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(DesignRadius.lg),
             ),
             child: Icon(
@@ -253,53 +261,50 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
   }
 
   Widget _buildJoinButton() {
-    return Consumer<ClassViewModel>(
-      builder: (context, viewModel, _) {
-        return Container(
-          padding: EdgeInsets.all(DesignSpacing.md),
-          decoration: BoxDecoration(
-            color: DesignColors.white,
-            border: Border(
-              top: BorderSide(color: DesignColors.dividerLight, width: 1),
-            ),
+    return Container(
+      padding: EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        color: DesignColors.white,
+        border: Border(
+          top: BorderSide(color: DesignColors.dividerLight, width: 1),
+        ),
+      ),
+      child: ElevatedButton(
+        onPressed: _isSubmitting
+            ? null
+            : () {
+                _joinClass(context);
+              },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: DesignColors.primary,
+          foregroundColor: DesignColors.white,
+          elevation: 3,
+          shadowColor: DesignColors.primary.withValues(alpha: 0.3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(DesignRadius.lg),
           ),
-          child: ElevatedButton(
-            onPressed: viewModel.isLoading
-                ? null
-                : () {
-                    _joinClass(context);
-                  },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: DesignColors.primary,
-              foregroundColor: DesignColors.white,
-              elevation: 3,
-              shadowColor: DesignColors.primary.withOpacity(0.3),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(DesignRadius.lg),
+          padding: EdgeInsets.symmetric(vertical: DesignSpacing.md),
+          minimumSize: Size(
+            double.infinity,
+            DesignComponents.buttonHeightMedium,
+          ),
+        ),
+        child: _isSubmitting
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(DesignColors.white),
+                ),
+              )
+            : Text(
+                'Tham gia',
+                style: DesignTypography.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              padding: EdgeInsets.symmetric(vertical: DesignSpacing.md),
-              minimumSize: Size(double.infinity, 30),
-            ),
-            child: viewModel.isLoading
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        DesignColors.white,
-                      ),
-                    ),
-                  )
-                : Text(
-                    'Tham gia',
-                    style: DesignTypography.titleMedium.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-          ),
-        );
-      },
+      ),
     );
   }
 
@@ -310,49 +315,136 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Vui lòng nhập mã lớp học'),
-          backgroundColor: Colors.red[600],
+          backgroundColor: DesignColors.error,
         ),
       );
       return;
     }
 
-    final classViewModel = context.read<ClassViewModel>();
-    final authViewModel = context.read<AuthViewModel>();
-
-    final studentId = authViewModel.userProfile?.id;
+    final auth = ref.read(authNotifierProvider);
+    final studentId = auth.value?.id;
     if (studentId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Không tìm thấy thông tin học sinh'),
-          backgroundColor: Colors.red[600],
+          backgroundColor: DesignColors.error,
         ),
       );
       return;
     }
 
-    // TODO: Tìm classId từ classCode (cần thêm method trong repository)
-    // Tạm thời sử dụng classCode như classId
-    final success = await classViewModel.requestJoinClass(classCode, studentId);
+    setState(() {
+      _isSubmitting = true;
+    });
 
-    if (mounted) {
-      if (success) {
+    try {
+      // B1: Resolve lớp học từ join_code (classCode)
+      final classNotifier = ref.read(classNotifierProvider.notifier);
+      final targetClass = await classNotifier.resolveClassByJoinCode(classCode);
+
+      if (!context.mounted) return;
+
+      if (targetClass == null) {
+        // Không tìm thấy lớp tương ứng với mã
+        setState(() {
+          _isSubmitting = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Đã gửi yêu cầu tham gia lớp học'),
-            backgroundColor: Colors.green[600],
+            content: const Text('Mã lớp không hợp lệ hoặc lớp không tồn tại'),
+            backgroundColor: DesignColors.error,
           ),
         );
-        Navigator.pop(context);
+        return;
+      }
+
+      // Hỏi xác nhận trước khi tham gia
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Xác nhận tham gia lớp'),
+          content: Text('Bạn có chắc muốn tham gia lớp "${targetClass.name}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Đồng ý'),
+            ),
+          ],
+        ),
+      );
+
+      if (!context.mounted) return;
+
+      if (confirmed != true) {
+        setState(() {
+          _isSubmitting = false;
+        });
+        return;
+      }
+
+      // B2: Gửi yêu cầu tham gia lớp với classId thực
+      final ClassMember? member = await classNotifier.requestJoinClass(
+        targetClass.id,
+        studentId,
+      );
+
+      // Tránh dùng BuildContext sau async gap nếu widget đã bị dispose
+      if (!context.mounted) return;
+      setState(() {
+        _isSubmitting = false;
+      });
+
+      if (member != null) {
+        // Trả result về màn trước để:
+        // - show snackbar đúng màu
+        // - refresh list classes
+        // - nếu approved thì navigate vào class detail
+        context.pop({
+          'status': member.status,
+          'classId': targetClass.id,
+          'className': targetClass.name,
+          'academicYear': targetClass.academicYear,
+        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              classViewModel.errorMessage ?? 'Không thể tham gia lớp học',
-            ),
-            backgroundColor: Colors.red[600],
+            content: const Text('Không thể tham gia lớp học'),
+            backgroundColor: DesignColors.error,
           ),
         );
       }
+    } catch (e) {
+      if (!context.mounted) return;
+      setState(() {
+        _isSubmitting = false;
+      });
+      final message = e.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message.isEmpty ? 'Không thể tham gia lớp học' : message,
+          ),
+          backgroundColor: DesignColors.error,
+        ),
+      );
     }
+  }
+}
+
+/// Formatter để luôn chuyển text sang chữ hoa khi nhập
+class _UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue.copyWith(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
   }
 }

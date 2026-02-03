@@ -1,13 +1,178 @@
 # Active Context
 
 ## Current Sprint Focus
-**Goal:** Complete Authentication & Foundational Setup, then move into Chapter 1 (Assignment Builder)
+**Goal:** Widget Organization & UI Refinement (2026-01-21) - Complete widget reorganization, responsive spacing system, and search system refactoring
 
 ## Project Phase
-**Phase:** Early Development (Chapters 1-2 prioritized)
+**Phase:** Widget System Refactoring Complete (2026-01-21) - Ready for continued feature development
+
+## Session Note (2026-01-29)
+- Tiếp tục ưu tiên **hoàn thiện module Class** theo các patterns đã chuẩn hoá (GoRouter v2.0 + Riverpod + DesignTokens + shimmer).
+- **Module Câu hỏi/Assignments để sau** (chỉ bắt đầu sau khi chốt schema Supabase qua MCP).
+
+## Session Note (2026-01-29 - Latest)
+- ✅ **Student Class List Enhancements**: Thêm teacher name, student count, sorting, filtering, search screen
+- ✅ **Student Leave Class Feature**: Implement chức năng rời lớp (xóa hoàn toàn record khỏi database)
+- ✅ **QR Scan Screen Redesign**: Cải thiện giao diện theo phong cách app ngân hàng với overlay cutout, toggle flash, chọn ảnh từ thư viện
+- ✅ **Search Improvements**: Highlight teacher name thay vì academic year, bỏ search theo academic year
+- ✅ **Avatar Enhancement**: Hiển thị chữ đầu của tên thay vì họ
+- ✅ **Teacher Class List**: Hiển thị số học sinh động từ database
 
 ## Recently Completed
+
+### Student Class Features & QR Scan Enhancement (NEW - 2026-01-29)
+✅ **Student Class List Enhancements**
+  - Added teacher name display below class name in `ClassItemWidget`
+  - Added dynamic student count from database (aggregated from `class_members` with status='approved')
+  - Implemented sorting options (name A-Z/Z-A, date newest/oldest) using `ClassSortBottomSheet`
+  - Implemented filtering by enrollment status (all/approved/pending) using `FilteringUtils`
+  - Created dedicated search screen (`StudentClassSearchScreen`) using `SearchScreen` generic pattern
+  - Added `StudentClassMemberStatus` enum for type-safe status representation
+  - Created `StudentClassInteractionHandler` for centralized pending class interaction logic
+  - Updated `getClassesByStudent` to enrich data with teacher_name and student_count via SQL joins
+
+✅ **Student Leave Class Feature**
+  - Implemented `leaveClass` method in repository, datasource, and notifier layers
+  - **Decision**: Xóa hoàn toàn record khỏi `class_members` (không chỉ đổi status)
+  - Added confirmation dialog with warning message
+  - Auto-refresh class list after leaving
+  - Navigate back to class list screen on success
+  - Files: `school_class_repository.dart`, `school_class_datasource.dart`, `class_notifier.dart`, `student_class_detail_screen.dart`
+
+## Session Note (2026-01-30 - Question Bank & RLS)
+- ✅ Hoàn thiện schema Question Bank & Assignments (8 bảng mới + indexes + triggers) trong `db/02_create_question_bank_tables.sql`.
+- ✅ Thiết lập đầy đủ RLS cho các bảng mới (learning_objectives, questions, question_choices, question_objectives, assignments, assignment_questions, assignment_variants, assignment_distributions) với pattern: admin full access, teacher owner, student được xem theo distributions.
+- ✅ Tối ưu RLS: thay tất cả `auth.uid()` trong policies mới bằng `(select auth.uid())` theo khuyến nghị Supabase để tránh re-evaluate per-row.
+- ✅ Bật và bổ sung RLS cho core tables: `profiles`, `classes`, `schools`, `groups`, `class_teachers`, `class_members`, `group_members` (owner-based cho teacher, self-only cho student, admin full access).
+- ✅ Tạo RPC `publish_assignment` (security definer, explicit auth checks) để publish assignment trong 1 transaction (upsert assignments + replace assignment_questions + assignment_distributions), expose qua Repository/Usecase/Notifier.
+
+✅ **QR Scan Screen Redesign (Banking App Style)**
+  - Redesigned overlay with cutout (khoét lỗ) in center using `QRScanOverlayPainter`
+  - Implemented toggle flash functionality with `MobileScannerController`
+  - Added image picker from gallery using `image_picker` package
+  - Scan QR code from selected image file
+  - Improved UI/UX: modern app bar, better scan frame corners, smooth animations
+  - Added processing overlay during QR analysis
+  - Files: `qr_scan_screen.dart`, `pubspec.yaml` (added `image_picker: ^1.0.7`)
+
+✅ **Search & Display Improvements**
+  - **Search**: Highlight teacher name instead of academic year in search results
+  - **Search**: Removed academic year from search filter (only search by name, subject, teacher name)
+  - **Avatar**: Changed to display first letter of given name (tên) instead of surname (họ)
+  - **Teacher Class List**: Added dynamic student count display (fetched from database)
+  - Files: `class_item_widget.dart`, `avatar_utils.dart`, `class_providers.dart`, `school_class_datasource.dart`
+
+✅ **Code Organization & Reusability**
+  - Created `ClassSortBottomSheet` reusable widget for sorting options
+  - Created `FilteringUtils` for centralized filtering logic
+  - Created `QuickSearchClassMapper` for consistent class-to-search-item mapping
+  - Created `ClassScreenHeader` and `ClassPrimaryActionCard` reusable widgets
+  - Extracted common patterns between teacher and student class lists
+
+### Class Settings & Search Architecture Consolidation (2026-01-27)
+✅ **Search System v2 Folder & Naming Refactor**
+  - Restructured `lib/widgets/search/` into:
+    - `screens/` (full-screen generic search with `SearchScreen<T>` + `SearchScreenConfig<T>`)
+    - `dialogs/` (overlay quick search using `QuickSearchDialog` and support widgets)
+    - `shared/` (shared UI like `SearchField`)
+  - Removed legacy `v1/v2/smart_v2` naming in favor of function-based names (screens/dialogs/shared).
+  - Updated all imports (TeacherClassSearchScreen, assignment list, class detail screens) to use new structure.
+
+✅ **Drawer System & Class Settings Alignment with Supabase**
+  - `ClassCreateClassSettingDrawer` and `ClassSettingsDrawer` now map 1-1 to `classes.class_settings` JSON:
+    - `defaults.lock_class`
+    - `enrollment.qr_code.{is_active, require_approval, join_code, expires_at, logo_enabled}`
+    - `enrollment.manual_join_limit`
+    - `group_management.{is_visible_to_students, lock_groups, allow_student_switch}`
+    - `student_permissions.{auto_lock_on_submission, can_edit_profile_in_class}`
+  - Added advanced settings section to teacher class drawer:
+    - Group controls (visibility, lock changes, allow student switch)
+    - Student permissions (profile edit, auto-lock on submission)
+  - Created create-class advanced drawer (`ClassCreateClassSettingDrawer`) that configures the same JSON before class creation.
+
+✅ **Optimistic Class Settings Updates & Concurrency Guard**
+  - Introduced `ClassNotifier.updateClassSettingOptimistic` pattern:
+    - Immediate local update of `_selectedClass` and list state.
+    - Background sync to Supabase via `_syncClassSettingToBackend` (no loading state).
+    - Rollback on failure with detailed logging.
+  - Updated all drawer toggles (including `lock_class`) to use optimistic updates.
+  - Added `_isUpdating` guard to `ClassNotifier.updateClass` to prevent concurrent AsyncNotifier state completion issues.
+  - Switched QR/Enrollment screen (`AddStudentByCodeScreen`) to use `updateClassSettingOptimistic('enrollment', enrollment)` instead of `updateClassSetting` to avoid `Future already completed` errors.
+
+✅ **Teacher Class List Auto-Refresh After Class Creation**
+  - After successful `CreateClassScreen._createClass()`:
+    - Call `ref.read(pagingControllerProvider(currentTeacherId)).refresh()` to reload paged class list.
+    - Then navigate back to `TeacherClassListScreen` via `context.go(AppRoute.teacherClassListPath)`.
+  - Ensures newly created class appears immediately in the teacher’s list.
+
+### Widget Organization & Search System Refactoring (NEW - 2026-01-21)
+✅ **Widget Directory Reorganization**
+  - Created new subdirectories: `text/`, `loading/`, `list/`, `list_item/`, `navigation/`
+  - Moved widgets to appropriate directories based on functionality
+  - Updated `lib/widgets/README.md` with comprehensive documentation
+  - Clear separation: shared widgets vs feature-specific widgets
+
+✅ **Generic Search Screen Implementation**
+  - Created `SearchScreen<T>` generic widget in `lib/widgets/search/search_screen.dart`
+  - Created `SearchConfig<T>` for flexible configuration
+  - Recreated `TeacherClassSearchScreen` using generic `SearchScreen<Class>`
+  - Pattern: Reusable search screen for different data types (classes, assignments, students)
+
+✅ **Class Item Widget Enhancement**
+  - Added optional `searchQuery` and `highlightColor` parameters
+  - Implemented `SmartHighlightText` for search result highlighting
+  - Fixed highlighting to only highlight actual values, not labels ("Môn:", "Học kỳ:")
+  - Used `Expanded` wrapper to prevent text overflow
+
+✅ **Academic Year Input Refinement**
+  - Updated `create_class_screen.dart` and `edit_class_screen.dart` with 3 input fields:
+    - Start year (mandatory, 4 digits)
+    - End year (mandatory, 4 digits, must be > start year)
+    - Semester (optional, max 2 digits)
+  - Format: `xxxx_xxxx_x` (with semester) or `xxxx_xxxx` (without semester)
+  - Automatic focus shifting between fields
+  - Robust validation with clear error messages
+
+✅ **Responsive Spacing System Implementation**
+  - Created `ResponsiveSpacing` class in `design_tokens.dart`
+  - Created `ResponsiveSpacingExtension` on `BuildContext` for easy access
+  - Automatic scaling based on device type:
+    - Mobile: 1.0x (base)
+    - Tablet: 1.1x-1.25x (depending on spacing size)
+    - Desktop: 1.2x-1.5x (depending on spacing size)
+  - Usage: `context.spacing.md`, `context.spacing.lg`, etc.
+  - Replaced hardcoded spacing values in widgets
+
+✅ **Router Fix**
+  - Recreated `TeacherClassSearchScreen` after deletion
+  - Fixed router imports and route definitions
+  - All routes now working correctly
+
 ✅ Project structure established (Clean Architecture + MVVM)
+
+### Dashboard Refresh System (NEW - 2026-01-21)
+✅ **Student Dashboard Refresh Fix**
+  - Fixed refresh logic to prevent auth state reset and redirect to login
+  - Removed `checkCurrentUser()` call from `refresh()` method
+  - Changed `showLoading: true` → `showLoading: false` to avoid router redirect
+  - Refresh now only updates data providers (classes, assignments) without touching auth state
+  - Removed duplicate `RefreshIndicator` from `student_dashboard_screen.dart` (kept only in `student_home_content_screen.dart`)
+  - File: `lib/presentation/providers/student_dashboard_notifier.dart`
+
+✅ **Teacher Dashboard Refresh Implementation**
+  - Created `teacher_dashboard_notifier.dart` with `refresh()` method
+  - Added `RefreshIndicator` to `teacher_home_content_screen.dart`
+  - Converted `TeacherHomeContentScreen` from `StatelessWidget` to `ConsumerWidget`
+  - Added `physics: AlwaysScrollableScrollPhysics` for proper pull-to-refresh behavior
+  - Pattern: Same as student dashboard (refresh data only, no auth state reset)
+  - Files:
+    - `lib/presentation/providers/teacher_dashboard_notifier.dart` (new)
+    - `lib/presentation/views/dashboard/home/teacher_home_content_screen.dart` (updated)
+
+✅ **Code Optimization**
+  - Removed unused imports from dashboard screens
+  - Fixed duplicate RefreshIndicator issue (caused `refresh()` to be called twice)
+  - Ensured consistent refresh pattern across both student and teacher dashboards
 
 ### Tech Stack Upgrade (NEW - 2026-01-17)
 ✅ **Environment Configuration (Priority 1.1)**
@@ -116,6 +281,23 @@
   - Standardized drawer width (340px)
   - Consistent UI patterns across app
 
+### Performance & Async List Pattern (NEW - 2026-01-29)
+✅ **Logging & File I/O Safety**
+  - All debug file logging now guarded by `kDebugMode && Platform.isWindows` to avoid crashes on Android/iOS.
+  - Switched to async `writeAsString` with `.catchError` to prevent blocking the main thread and frame drops.
+✅ **Shimmer Loading Standardization**
+  - Introduced three shimmer patterns:
+    - `ShimmerLoading` for card-style lists (e.g. classes).
+    - `ShimmerListTileLoading` for compact list tiles (avatar + 2 lines).
+    - `ShimmerDashboardLoading` for dashboard layouts.
+  - Updated `StudentClassListScreen` to use `ShimmerListTileLoading` for initial and loading states to keep transitions smooth.
+✅ **Async ListPage & Background Parsing**
+  - Created `AsyncListPage<T>` (`lib/widgets/async/async_list_page.dart`) to standardize async list loading:
+    - Accepts `Future<List<T>>` + `itemBuilder`.
+    - Uses shimmer list tiles while loading.
+    - Provides DesignTokens-based empty/error states.
+  - Pattern: Data layer parses large JSON payloads in a background isolate (via `compute`), UI only consumes `Future<List<T>>` for smooth 60fps transitions.
+
 ## Currently In Progress
 🔄 **Assignment Creation Feature** - Starting Chapter 1
    - Assignment entity model
@@ -175,9 +357,9 @@
 - **Enforcement:** Code reviews must catch direct Supabase imports in other layers
 
 ### 4. Role-Based Navigation
-- **Decision:** After login, check profile.role and route to appropriate dashboard
-- **Why:** Different users need different UIs; simplifies conditional rendering
-- **Implementation:** In AppRoutes, route determination happens immediately post-auth
+- **Decision (UPDATED 2026-01-21):** Sử dụng **GoRouter** với `appRouterProvider` để điều hướng dựa trên `profile.role`.
+- **Why:** Different users cần UI khác nhau; GoRouter + Riverpod cho phép guard rõ ràng, deep-link tốt hơn và dễ test.
+- **Implementation:** Logic định tuyến nằm trong `lib/core/routes/app_router.dart` (GoRouter) thay vì `AppRoutes` legacy.
 
 ### 5. Rich Text Support
 - **Decision:** Use simple text fields initially; plan Flutter_Quill or Markdown package later
@@ -290,6 +472,10 @@
 
 ## Dependencies Considerations
 - ✅ **Tech Stack Upgrade Complete** - All core libraries from Tech Stack Upgrade Plan added
+- ✅ **Dependency Review Complete (2026-01-21)** - Reviewed unused dependencies
+  - **Drift**: KEEP - Planned for offline-first features
+  - **Retrofit/Dio**: KEEP - Planned for external API integration
+  - **Freezed**: ACTIVELY USED - Domain entities use `@freezed` annotation
 - Review new dependency additions (ask: Is it really needed?)
 - Keep pubspec.yaml lean (avoid bloat)
 - Monitor breaking changes in major updates
@@ -298,9 +484,9 @@
   - ✅ Secure Storage: `flutter_secure_storage` (added)
   - ✅ QR Code: `pretty_qr_code` (added)
   - ✅ Routing: `go_router` (added, ready for migration)
-  - ✅ Networking: `dio` + `retrofit` (added)
-  - ✅ Local DB: `drift` (added)
-  - ✅ Code Gen: `freezed`, `json_serializable`, `riverpod_generator` (added)
+  - ✅ Networking: `dio` + `retrofit` (added, ready for external APIs)
+  - ✅ Local DB: `drift` (added, ready for offline-first)
+  - ✅ Code Gen: `freezed`, `json_serializable`, `riverpod_generator` (added, freezed actively used)
   - ✅ Error Reporting: `sentry_flutter` + `logger` (added)
 - **Future Dependencies:**
   - Plan for: `intl` (i18n), `image_picker`, `charts_flutter`

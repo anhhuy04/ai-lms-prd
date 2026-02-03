@@ -2,16 +2,21 @@ import 'dart:convert';
 import 'dart:io' show File, FileMode, Platform;
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/responsive_utils.dart';
-import 'package:ai_mls/presentation/viewmodels/student_dashboard_viewmodel.dart';
+import 'package:ai_mls/presentation/providers/auth_notifier.dart';
+import 'package:ai_mls/presentation/providers/student_dashboard_notifier.dart';
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/responsive/responsive_card.dart';
 import 'package:ai_mls/widgets/responsive/responsive_row.dart';
 import 'package:ai_mls/widgets/responsive/responsive_text.dart';
+import 'package:ai_mls/widgets/text/smart_marquee_text.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Widget này chỉ chứa phần nội dung có thể cuộn của trang chủ sinh viên.
-class StudentHomeContentScreen extends StatelessWidget {
+class StudentHomeContentScreen extends ConsumerWidget {
   const StudentHomeContentScreen({super.key});
 
   // #region agent log
@@ -40,16 +45,20 @@ class StudentHomeContentScreen extends StatelessWidget {
     Map<String, dynamic> data,
     String hypothesisId,
   ) {
+    // Widget này rebuild khá thường xuyên; logging sync sẽ gây jank.
+    if (!kDebugMode) return;
     try {
-      final logPath = Platform.isWindows
-          ? r'd:\code\Flutter_Android\AI_LMS_PRD\.cursor\debug.log'
-          : '/data/data/com.example.ai_mls/files/debug.log';
+      // Chỉ ghi log ra file trên Windows host để tránh I/O + jank trên mobile.
+      if (!Platform.isWindows) return;
+      final logPath = r'd:\code\Flutter_Android\AI_LMS_PRD\.cursor\debug.log';
       final logFile = File(logPath);
 
       try {
-        logFile.parent.createSync(recursive: true);
+        // Tránh I/O sync trong runtime UI loop
+        // ignore: discarded_futures
+        logFile.parent.create(recursive: true);
       } catch (_) {
-        debugPrint('Log: $location - $message - ${_sanitizeData(data)}');
+        AppLogger.debug('Log: $location - $message - ${_sanitizeData(data)}');
         return;
       }
 
@@ -64,22 +73,20 @@ class StudentHomeContentScreen extends StatelessWidget {
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
       final jsonString = jsonEncode(logEntry);
-      final existingContent = logFile.existsSync()
-          ? logFile.readAsStringSync()
-          : '';
-      logFile.writeAsStringSync(
-        '$existingContent$jsonString\n',
-        mode: FileMode.write,
-      );
+      // Append async, không đọc/ghi sync.
+      // ignore: discarded_futures
+      logFile
+          .writeAsString('$jsonString\n', mode: FileMode.append, flush: false)
+          .catchError((_) => logFile);
     } catch (e) {
-      debugPrint('Log: $location - $message - ${_sanitizeData(data)}');
-      debugPrint('Logging error: $e');
+      AppLogger.debug('Log: $location - $message - ${_sanitizeData(data)}');
+      AppLogger.error('Logging error: $e', error: e);
     }
   }
   // #endregion
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // #region agent log
     _log(
       'student_home_content_screen.dart:15',
@@ -88,10 +95,7 @@ class StudentHomeContentScreen extends StatelessWidget {
       'G',
     );
     // #endregion
-    final dashboardViewModel = Provider.of<StudentDashboardViewModel>(
-      context,
-      listen: false,
-    );
+    final dashboardState = ref.watch(studentDashboardNotifierProvider);
     final config = ResponsiveUtils.getLayoutConfig(context);
     // #region agent log
     _log('student_home_content_screen.dart:22', 'Layout config retrieved', {
@@ -101,20 +105,25 @@ class StudentHomeContentScreen extends StatelessWidget {
     }, 'E');
     // #endregion
 
-    return RefreshIndicator(
-      onRefresh: () => dashboardViewModel.refresh(),
-      child: Stack(
-        children: [
-          ListView(
+    return dashboardState.when(
+      loading: () => const ShimmerDashboardLoading(),
+      error: (error, _) =>
+          Center(child: ResponsiveText('Lỗi: ${error.toString()}')),
+      data: (_) {
+        return RefreshIndicator(
+          onRefresh: () =>
+              ref.read(studentDashboardNotifierProvider.notifier).refresh(),
+          child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.fromLTRB(
               config.screenPadding,
-              0,
+              config.sectionSpacing,
               config.screenPadding,
               config.sectionSpacing + 80,
             ),
             children: [
-              // Header được hiển thị ở AppBar, nên phần này bắt đầu ngay với nội dung
+              _buildHeader(context, ref),
+              SizedBox(height: config.sectionSpacing),
               _buildProgressCard(context),
               SizedBox(height: config.sectionSpacing),
               _buildStatsRow(context),
@@ -132,24 +141,71 @@ class StudentHomeContentScreen extends StatelessWidget {
               _buildScoresList(context),
             ],
           ),
-          // Consumer chỉ để hiển thị trạng thái loading/error
-          Consumer<StudentDashboardViewModel>(
-            builder: (context, vm, _) {
-              if (vm.isRefreshing) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (vm.refreshError != null) {
-                return Center(child: ResponsiveText('Lỗi: ${vm.refreshError}'));
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   // --- Các hàm build giao diện con cho nội dung ---
+
+  Widget _buildHeader(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authNotifierProvider);
+    final profile = authState.value;
+    final config = ResponsiveUtils.getLayoutConfig(context);
+
+    return ResponsiveRow(
+      children: [
+        CircleAvatar(
+          radius: DesignComponents.avatarMedium / 2,
+          backgroundColor: DesignColors.primary.withValues(alpha: 0.1),
+          child: ResponsiveText(
+            (profile?.fullName?.isNotEmpty ?? false)
+                ? profile!.fullName![0].toUpperCase()
+                : '?',
+            style: const TextStyle(
+              color: DesignColors.primary,
+              fontWeight: FontWeight.bold,
+            ),
+            fontSize: 22,
+          ),
+        ),
+        SizedBox(width: config.itemSpacing),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ResponsiveText(
+                'Chào buổi sáng,',
+                style: const TextStyle(color: Colors.grey),
+                fontSize: DesignTypography.bodySmallSize,
+              ),
+              SizedBox(height: DesignSpacing.xs),
+              SmartMarqueeText(
+                text: profile?.fullName ?? 'Học sinh',
+                style: DesignTypography.titleLarge,
+              ),
+            ],
+          ),
+        ),
+        SizedBox(width: config.itemSpacing),
+        Container(
+          width: DesignComponents.avatarMedium,
+          height: DesignComponents.avatarMedium,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(DesignRadius.md),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.notifications_none_outlined),
+            color: DesignColors.primary,
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _buildProgressCard(BuildContext context) {
     final config = ResponsiveUtils.getLayoutConfig(context);

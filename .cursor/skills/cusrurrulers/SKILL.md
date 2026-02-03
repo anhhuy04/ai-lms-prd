@@ -1,151 +1,111 @@
 ---
 name: cusrurrulers
-description: This is a new rule
+description: Canonical skills handbook index for AI_LMS_PRD (Cursor skills entrypoint)
 ---
 
-# Overview
-# SMART CONTEXT READING PROTOCOL
+## Overview
 
-## Nguyên tắc
+File entrypoint cho bộ skill trong `.cursor/skills/`.
 
-`.clinerules` là file trung tâm điều phối. Đọc có chọn lọc theo task category, chỉ đọc sections liên quan, reference đến các file chi tiết khi cần. Tránh đọc toàn bộ file nếu chỉ cần một phần. Sử dụng `read_file` với offset và limit để đọc selective. Luôn bắt đầu với task classification.
+**Mục tiêu:** giúp agent/dev tra cứu nhanh rule/pattern đúng lúc, đúng nơi (Flutter + Supabase + MCP), và có checklist để build dự án.
 
-## Workflow
+## Nguyên tắc chống “loạn”
 
-### Bước 1: Phân loại Task
+- `.`**clinerules** là **single source of truth** cho rules toàn dự án.
+- `SKILL.md` chỉ giữ vai trò **Index + playbook routing** (trỏ đến đúng module), không lặp nguyên văn `.clinerules`.
+- Khi có rule mới: cập nhật `.clinerules` trước; `SKILL.md` chỉ thêm link trong Index nếu cần.
 
-Xác định task category từ user request:
-- **Category 1: UI/Widget** - Tạo/chỉnh sửa screen, widget, drawer, component
-- **Category 2: Database/Repository/Model** - Tạo entity, model, repository, datasource, query, migration
-- **Category 3: Documentation** - Tạo file markdown, documentation
-- **Category 4: Architecture/Refactoring** - Refactor code, extract components, implement patterns
-- **Category 5: Git Operations** - Commit, branch, merge operations
-- **Category 6: MCP Operations** - Sử dụng MCP servers
+---
 
-### Bước 2: Đọc có chọn lọc theo Category
+## Cách dùng nhanh
 
-#### Category 1: UI/Widget (Flutter UI)
+- **Nếu bạn đang làm UI** → xem `40_ui_design_system_tokens.md` + `70_code_quality_and_lints.md`
+- **Nếu bạn đang làm routing** → xem `30_routing_gorouter_rbac_shellroute.md` + `critical_splash_no_manual_navigation.md`
+- **Nếu bạn đang làm state/Riverpod** → xem `20_state_riverpod_asyncnotifier.md` + `critical_asyncnotifier_concurrency_guards.md`
+- **Nếu bạn đang làm Supabase/data** → xem `50_data_supabase_rls_storage.md` + `playbook_add_new_supabase_table_and_rls.md`
+- **Nếu bạn đang làm end-to-end feature** → xem `playbook_add_new_feature_end_to_end.md`
 
-**Đọc:**
-1. `.clinerules` - Section "Flutter Refactoring" (lines ~509-533)
-2. `.clinerules` - Section "HTML → Dart Conversion" (lines ~174-508) - chỉ nếu convert HTML
-3. `.clinerules` - Section "Drawer System" (lines ~535-581) - chỉ nếu làm drawer
-4. `.clinerules` - Section "Flutter Architecture (MVVM & Clean Architecture)" (lines ~134-145)
-5. `.clinerules` - Section "Code Quality" (lines ~147-159)
-6. `memory-bank/systemPatterns.md` - Section "Widget Component Patterns" và "Design System Specifications"
-7. `memory-bank/activeContext.md` - Section "Active Preferences & Standards"
-8. `docs/ai/AI_INSTRUCTIONS.md` - Section 1 (Cấu trúc thư mục), Section 2 (Architecture), Section 3 (Presentation Layer), Section 4 (Design System nếu có)
-9. `docs/guides/development/responsive-system-guide.md` - chỉ nếu cần responsive
+---
 
-**Không đọc:**
-- Database & MCP sections
-- Git Workflow
-- Memory Bank Workflow
-- Docs creation rules
+## Index (canonical)
 
-**MCP Tools:** Dart MCP (format code sau khi viết), Supabase MCP (nếu cần query data)
+### Foundations (modules)
 
-#### Category 2: Database/Repository/Model
+- `00_task_classification_and_context_reading.md`
+- `10_architecture_clean_mvvm.md`
+- `20_state_riverpod_asyncnotifier.md`
+- `30_routing_gorouter_rbac_shellroute.md`
+- `40_ui_design_system_tokens.md`
+- `50_data_supabase_rls_storage.md`
+- `60_mcp_workflow.md`
+- `70_code_quality_and_lints.md`
+- `75_logging_and_observability.md`
+- `80_testing_strategy_and_structure.md`
+- `85_performance_and_responsiveness.md`
+- `90_security_and_privacy.md`
+- `95_local_storage_conventions.md`
 
-**Đọc:**
-1. `.clinerules` - Section "Database & MCP" (lines ~31-37)
-2. `.clinerules` - Section "Quy tắc sử dụng MCP Servers" (lines ~59-132)
-3. `.clinerules` - Section "Flutter Architecture (MVVM & Clean Architecture)" (lines ~134-145)
-4. `.clinerules` - Section "Code Quality" (lines ~147-159) - cho Repository
-5. `docs/ai/README_SUPABASE.md` - Schema reference
-6. `memory-bank/systemPatterns.md` - Section "Data Layer" và "Repository Pattern"
-7. `memory-bank/techContext.md` - Section "Database Schema"
-8. `docs/ai/AI_INSTRUCTIONS.md` - Section 1 (Cấu trúc thư mục), Section 2 (Architecture), Section 5 (Data Layer), Section 6 (Repository nếu có)
+### UX Performance (loading & tab smoothness)
 
-**Không đọc:**
-- UI/Widget sections
-- HTML conversion
-- Flutter Refactoring (trừ khi cần)
-- Docs creation rules
+- **Loading shimmer/skeleton**: dùng widgets trong `lib/widgets/loading/shimmer_loading.dart`:
+  - `ShimmerLoading` (list lớp học)
+  - `ShimmerListTileLoading` (list avatar + text)
+  - `ShimmerDashboardLoading` (dashboard/page tổng hợp)
+- **Async list chuẩn hóa**: dùng `AsyncListPage<T>` (`lib/widgets/async/async_list_page.dart`) cho các màn list mới nhận `Future<List<T>>`.
+- **Tab switching smooth**: đảm bảo ShellRoute/IndexedStack preserve state, không chạy việc nặng trong `build()`.
+- **Parallel fetching (bundle loader)**:
+  - Đưa toàn bộ fetch của screen vào 1 method notifier kiểu `loadXxxBundle(...)`.
+  - Dùng `Future.wait([...])` cho các request độc lập.
+  - Chỉ commit `state = AsyncValue.data(...)` **1 lần** (tránh rebuild nhiều lần).
+  - Secondary data: load riêng theo section (không set full-page loading), UI dùng shimmer/placeholder section.
 
-**MCP Tools:** Supabase MCP (check schema, query/check data)
+### Micro-skills (gác cổng lỗi lớn)
 
-#### Category 3: Documentation
+- `critical_splash_no_manual_navigation.md`
+- `critical_dashboard_refresh_no_auth_reset.md`
+- `critical_asyncnotifier_concurrency_guards.md`
 
-**Đọc:**
-1. `.clinerules` - Section "Docs & Memory Prompt" (lines ~39-57)
-2. `docs/DOCS_STRUCTURE.md` - Toàn bộ file để hiểu cấu trúc
-3. `docs/ai/DOCS_PROMPT_RULES.md` - Rules tạo docs
+### Playbooks (workflow)
 
-**Không đọc:**
-- UI sections
-- Database sections
-- Code quality (trừ khi cần)
-- Architecture details
+- `playbook_add_new_feature_end_to_end.md`
+- `playbook_add_new_supabase_table_and_rls.md`
+- `playbook_debug_and_fix_regression.md`
+- `playbook_refactor_or_migration.md`
 
-**MCP Tools:** None
+---
 
-#### Category 4: Architecture/Refactoring
+## Scenario drills (tự luyện để scale lên app lớn)
 
-**Đọc:**
-1. `.clinerules` - Section "Flutter Architecture (MVVM & Clean Architecture)" (lines ~134-145)
-2. `.clinerules` - Section "Code Quality" (lines ~147-159)
-3. `.clinerules` - Section "Flutter Refactoring" (lines ~509-533)
-4. `memory-bank/systemPatterns.md` - Toàn bộ file
-5. `docs/ai/AI_INSTRUCTIONS.md` - Section 2 (Architecture), Section 3 (Presentation Layer)
-6. `memory-bank/activeContext.md` - Section "Active Preferences & Standards"
+Mỗi tình huống dưới đây phải map được đến **1 playbook** + **1–3 skills** (và micro-skill nếu liên quan).
 
-**Không đọc:**
-- UI specific sections (trừ khi refactor UI)
-- Database MCP details (trừ khi refactor data layer)
-- HTML conversion
-- Docs creation rules
+1) **Thêm màn hình mới + route mới (teacher)**: `playbook_add_new_feature_end_to_end.md` + `30_*` + `20_*` + `70_*`
+2) **Pull-to-refresh bị đá về login**: `critical_dashboard_refresh_no_auth_reset.md` + `20_*`
+3) **Splash loop / initState spam**: `critical_splash_no_manual_navigation.md` + `30_*`
+4) **Toggle setting bị lỗi Future already completed**: `critical_asyncnotifier_concurrency_guards.md` + `20_*`
+5) **Thêm bảng `assignments` + policies**: `playbook_add_new_supabase_table_and_rls.md` + `50_*` + `90_*`
+6) **Thêm trường mới vào JSON `class_settings`**: `50_*` + `critical_asyncnotifier_concurrency_guards.md`
+7) **Bug RenderFlex overflow**: `40_*` + `.cursor/.cursorrules` (UI rules)
+8) **Cần thêm thư viện mới (vd: editor)**: `60_mcp_workflow.md` + `.cursor/.cursorrules` (Fetch docs trước)
+9) **Lỗi RLS khi query**: `50_*` + `90_*` + Supabase MCP
+10) **Auto-save cho workspace**: `85_*` + `95_*` + `50_*` (nếu sync Supabase)
+11) **Tối ưu list lớn / pagination**: `85_*` + `70_*`
+12) **Viết test cho notifier + repo**: `80_testing_strategy_and_structure.md`
+13) **Offline-first (Drift) cho workspace/cache**: `95_local_storage_conventions.md` + `.cursor/.cursorrules` (Drift) + `playbook_add_new_feature_end_to_end.md`
+14) **Tích hợp external API (Dio/Retrofit)**: `85_performance_and_responsiveness.md` (CancelToken) + `60_mcp_workflow.md` (Fetch docs) + `70_code_quality_and_lints.md`
+15) **Deep link / reset-password / verify-email**: `30_routing_gorouter_rbac_shellroute.md` + `.clinerules` (RBAC redirect)
+16) **Upload file (Supabase Storage + files/file_links)**: `50_data_supabase_rls_storage.md` + `90_security_and_privacy.md` + `playbook_add_new_supabase_table_and_rls.md`
+17) **Thêm Freezed/Envied model → codegen**: `.cursor/.cursorrules` (build_runner) + `70_code_quality_and_lints.md`
+18) **Bug liên quan schema mismatch (thiếu cột/constraint)**: `50_*` + `60_mcp_workflow.md` + Supabase MCP
+19) **Thêm rich text editor/library mới**: `60_mcp_workflow.md` + `.cursor/.cursorrules` (Fetch docs trước) + `40_ui_design_system_tokens.md`
+20) **Chuẩn hóa error messages VN + boundary handling**: `50_*` + `75_logging_and_observability.md`
+21) **Debug regression sau khi merge/refactor**: `playbook_debug_and_fix_regression.md` + `70_*` + `75_*`
+22) **Refactor/migration lớn (vd: Provider → Riverpod, đổi folder)**: `playbook_refactor_or_migration.md` + `10_*` + `20_*` + `70_*`
 
-**MCP Tools:** Dart MCP (analyze code, format)
+---
+## Context reading (canonical)
 
-#### Category 5: Git Operations
-
-**Đọc:**
-1. `.clinerules` - Section "Git Workflow" (lines ~165-172)
-
-**Không đọc:**
-- Tất cả sections khác
-
-**MCP Tools:** None
-
-#### Category 6: MCP Operations
-
-**Đọc:**
-1. `.clinerules` - Section "Quy tắc sử dụng MCP Servers" (lines ~59-132)
-2. `docs/ai/MCP_GUIDE.md` - Chi tiết MCP usage
-3. `memory-bank/techContext.md` - Section "MCP Setup"
-
-**Không đọc:**
-- UI sections
-- Architecture details (trừ khi cần)
-- Database details (trừ khi cần)
-
-**MCP Tools:** Tùy theo MCP server cần sử dụng
-
-### Bước 3: Thực hiện Task
-
-Sau khi đọc đủ context theo category, thực hiện task theo patterns và standards đã đọc.
-
-### Bước 4: Cập nhật (nếu cần)
-
-Cập nhật memory-bank nếu có thay đổi quan trọng về patterns, standards, hoặc architecture.
-
-## Lưu ý Implementation
-
-- Luôn bắt đầu với task classification
-- Sử dụng `read_file` với offset và limit để đọc selective sections
-- Sử dụng `grep` để tìm sections cụ thể trước khi đọc
-- Không đọc toàn bộ `.clinerules` nếu chỉ cần 1 section
-- Không đọc memory-bank files nếu không liên quan đến task
-- Reference đến files chi tiết chỉ khi cần thông tin cụ thể
-
-## Ví dụ: Tạo UI mới
-
-1. Phân loại: "tạo màn hình mới" → Category 1 (UI/Widget)
-2. Đọc `.clinerules` lines 509-533 (Flutter Refactoring)
-3. Đọc `.clinerules` lines 134-145 (Flutter Architecture)
-4. Đọc `memory-bank/systemPatterns.md` section "Widget Component Patterns"
-5. Đọc `docs/ai/AI_INSTRUCTIONS.md` section 1 (Cấu trúc thư mục)
-6. Implement code theo patterns đã đọc
-7. Sử dụng Dart MCP để format code
+Protocol đọc context là **canonical** trong `.clinerules` (xem `## Mandatory Context Reading Protocol`).
+`SKILL.md` không lặp lại để tránh drift; khi cần chi tiết hãy mở:
+- `00_task_classification_and_context_reading.md`
+- `.clinerules` (context reading + MCP + docs rules)
 

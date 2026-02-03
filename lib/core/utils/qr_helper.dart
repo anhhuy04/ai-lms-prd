@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 
@@ -38,16 +39,28 @@ class QrHelper {
   /// [size] - The size of the QR code (default: 200.0)
   ///
   /// Returns a Widget displaying the QR code with embedded image
+  ///
+  /// Uses error correction level H (High - 30%) to ensure QR code remains
+  /// scannable even when logo covers part of the code.
+  /// Note: If QR code still cannot be scanned, consider using buildPrettyQr()
+  /// without logo, or reduce the logo size in the image asset itself.
   static Widget buildQrWithLogo(
     String data,
     ImageProvider image, {
     double size = 200.0,
   }) {
+    // Create QR code with High error correction level (30% recovery)
+    // This ensures the QR code can still be scanned even with logo overlay
+    final qrCode = QrCode.fromData(
+      data: data,
+      errorCorrectLevel: QrErrorCorrectLevel.H,
+    );
+
     return SizedBox(
       width: size,
       height: size,
-      child: PrettyQrView.data(
-        data: data,
+      child: PrettyQrView(
+        qrImage: QrImage(qrCode),
         decoration: PrettyQrDecoration(
           image: PrettyQrDecorationImage(
             image: image,
@@ -83,8 +96,8 @@ class QrHelper {
       );
       return byteData?.buffer.asUint8List();
     } catch (e) {
-      // Log error (will be replaced with AppLogger later)
-      debugPrint('Error exporting QR code: $e');
+      // Log error using AppLogger
+      AppLogger.error('Error exporting QR code: $e', error: e);
       return null;
     }
   }

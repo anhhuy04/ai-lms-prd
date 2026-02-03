@@ -1,4 +1,6 @@
+import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 // App theme and shared color palette (moon + blue-green)
 class AppColors {
@@ -38,9 +40,23 @@ final ThemeData appTheme = ThemeData(
   floatingActionButtonTheme: const FloatingActionButtonThemeData(
     backgroundColor: AppColors.teal,
   ),
-  textTheme: const TextTheme(
-    titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-    bodyMedium: TextStyle(fontSize: 14, color: AppColors.textPrimary),
+  // Hiệu ứng chuyển trang global: push custom (slide full từ phải sang trái)
+  pageTransitionsTheme: const PageTransitionsTheme(
+    builders: <TargetPlatform, PageTransitionsBuilder>{
+      TargetPlatform.android: PushPageTransitionsBuilder(),
+      TargetPlatform.iOS: PushPageTransitionsBuilder(),
+      TargetPlatform.macOS: PushPageTransitionsBuilder(),
+      TargetPlatform.windows: PushPageTransitionsBuilder(),
+      TargetPlatform.linux: PushPageTransitionsBuilder(),
+    },
+  ),
+  textTheme: TextTheme(
+    titleLarge: DesignTypography.titleLarge.copyWith(
+      fontSize: DesignTypography.titleLargeSize.sp,
+    ),
+    bodyMedium: DesignTypography.bodyMedium.copyWith(
+      fontSize: DesignTypography.bodyMediumSize.sp,
+    ),
   ),
 );
 
@@ -49,4 +65,46 @@ class AppTheme {
   AppTheme._();
 
   static ThemeData get lightTheme => appTheme;
+}
+
+/// Global push-style page transitions:
+/// - New page: slide in from right (Offset(1, 0) -> Offset.zero)
+/// - Old page: slide out to left (Offset.zero -> Offset(-1, 0))
+class PushPageTransitionsBuilder extends PageTransitionsBuilder {
+  const PushPageTransitionsBuilder();
+
+  static const Curve _curveIn = Curves.easeOutCubic;
+  static const Curve _curveOut = Curves.easeInCubic;
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    // Dialogs / popups giữ hiệu ứng mặc định của Flutter.
+    if (route is PopupRoute) {
+      return child;
+    }
+
+    // Route hiện tại (trang mới trên top): dùng animation → trượt từ phải vào.
+    if (route.isCurrent) {
+      final inOffset = Tween<Offset>(
+        begin: const Offset(1.0, 0.0),
+        end: Offset.zero,
+      ).chain(CurveTween(curve: _curveIn)).animate(animation);
+
+      return SlideTransition(position: inOffset, child: child);
+    }
+
+    // Route bên dưới (trang cũ): dùng secondaryAnimation → trượt toàn bộ sang trái.
+    final outOffset = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(-1.0, 0.0),
+    ).chain(CurveTween(curve: _curveOut)).animate(secondaryAnimation);
+
+    return SlideTransition(position: outOffset, child: child);
+  }
 }

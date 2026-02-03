@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:flutter/material.dart';
 
 /// Tile toggle với switch trong drawer
 /// Hiển thị một mục với switch để bật/tắt tính năng
@@ -39,13 +39,16 @@ class DrawerToggleTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final spacing = context.spacing;
     return InkWell(
       onTap: () => onChanged(!value),
       borderRadius: BorderRadius.circular(DesignRadius.md),
       child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: DesignSpacing.md,
-          vertical: DesignSpacing.sm,
+        padding: EdgeInsets.only(
+          left: spacing.md,
+          right: 0, // Sát lề phải cho switch
+          top: spacing.sm,
+          bottom: spacing.sm,
         ),
         child: Row(
           children: [
@@ -61,10 +64,10 @@ class DrawerToggleTile extends StatelessWidget {
                 child: Icon(
                   icon,
                   size: iconSize ?? defaultIconSize,
-                  color: DesignColors.textSecondary,
+                  color: DesignColors.drawerIcon,
                 ),
               ),
-              SizedBox(width: DesignSpacing.md),
+              SizedBox(width: spacing.md),
             ],
 
             // Nội dung chính
@@ -75,31 +78,34 @@ class DrawerToggleTile extends StatelessWidget {
                   Text(
                     title,
                     style: titleStyle ?? defaultTitleStyle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    // maxLines: 1,
+                    // overflow: TextOverflow.ellipsis,
+                    softWrap: true,
                   ),
                   if (subtitle != null) ...[
-                    SizedBox(height: DesignSpacing.xs),
+                    SizedBox(height: spacing.xs),
                     Text(
                       subtitle!,
                       style: subtitleStyle ?? defaultSubtitleStyle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      //   maxLines: 1,
+                      // overflow: TextOverflow.ellipsis,
+                      softWrap: true,
                     ),
                   ],
                 ],
               ),
             ),
 
-            // Switch bên phải với kích cỡ tùy chỉnh
+            // Switch bên phải với kích cỡ tùy chỉnh, sát lề phải
             Transform.scale(
               scale: switchScale ?? defaultSwitchScale,
               child: Switch(
                 value: value,
                 onChanged: onChanged,
-                activeColor: DesignColors.primary,
-                inactiveThumbColor: DesignColors.textTertiary,
-                inactiveTrackColor: DesignColors.moonMedium,
+                thumbColor: WidgetStateProperty.all(Colors.white),
+                activeTrackColor: DesignColors.drawerSwitchActive,
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: DesignColors.drawerSwitchInactive,
               ),
             ),
           ],

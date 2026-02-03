@@ -1,14 +1,16 @@
+import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/domain/entities/class.dart';
+import 'package:ai_mls/domain/entities/update_class_params.dart';
+import 'package:ai_mls/presentation/providers/class_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/presentation/viewmodels/class_viewmodel.dart';
-import 'package:ai_mls/domain/entities/update_class_params.dart';
-import 'package:ai_mls/domain/entities/class.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Màn hình chỉnh sửa thông tin lớp học
 /// Tái sử dụng form từ CreateClassScreen nhưng pre-fill dữ liệu hiện tại
-class EditClassScreen extends StatefulWidget {
+class EditClassScreen extends ConsumerStatefulWidget {
   final Class classItem;
 
   const EditClassScreen({
@@ -17,21 +19,23 @@ class EditClassScreen extends StatefulWidget {
   });
 
   @override
-  State<EditClassScreen> createState() => _EditClassScreenState();
+  ConsumerState<EditClassScreen> createState() => _EditClassScreenState();
 }
 
-class _EditClassScreenState extends State<EditClassScreen> {
+class _EditClassScreenState extends ConsumerState<EditClassScreen> {
   // Biến trạng thái cho form
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _classNameController;
   late final TextEditingController _subjectController;
   late final TextEditingController _descriptionController;
 
-  // Biến trạng thái cho năm học
+  // Biến trạng thái cho năm học và kỳ học
   late final TextEditingController _startYearController;
   late final TextEditingController _endYearController;
+  late final TextEditingController _semesterController;
   final _startYearFocusNode = FocusNode();
   final _endYearFocusNode = FocusNode();
+  final _semesterFocusNode = FocusNode();
 
   // Biến trạng thái cho gợi ý môn học
   List<Map<String, String>> _filteredSubjects = [];
@@ -58,19 +62,43 @@ class _EditClassScreenState extends State<EditClassScreen> {
     _subjectController = TextEditingController(text: widget.classItem.subject ?? '');
     _descriptionController = TextEditingController(text: widget.classItem.description ?? '');
 
-    // Parse academic year (format: "2023 - 2024")
+    // Parse academic year (format: "2024_2025_1" hoặc "2024_2025")
     if (widget.classItem.academicYear != null) {
-      final parts = widget.classItem.academicYear!.split(' - ');
+      final academicYear = widget.classItem.academicYear!;
+      // Thử parse format mới: xxxx_xxxx_x hoặc xxxx_xxxx
+      if (academicYear.contains('_')) {
+        final parts = academicYear.split('_');
+        if (parts.length >= 2) {
+          _startYearController = TextEditingController(text: parts[0].trim());
+          _endYearController = TextEditingController(text: parts[1].trim());
+          // Nếu có kỳ học (phần thứ 3)
+          if (parts.length >= 3) {
+            _semesterController = TextEditingController(text: parts[2].trim());
+          } else {
+            _semesterController = TextEditingController();
+          }
+        } else {
+          _startYearController = TextEditingController();
+          _endYearController = TextEditingController();
+          _semesterController = TextEditingController();
+        }
+      } else {
+        // Fallback: parse format cũ "2023 - 2024"
+        final parts = academicYear.split(' - ');
       if (parts.length == 2) {
         _startYearController = TextEditingController(text: parts[0].trim());
         _endYearController = TextEditingController(text: parts[1].trim());
+          _semesterController = TextEditingController();
       } else {
         _startYearController = TextEditingController();
         _endYearController = TextEditingController();
+          _semesterController = TextEditingController();
+        }
       }
     } else {
       _startYearController = TextEditingController();
       _endYearController = TextEditingController();
+      _semesterController = TextEditingController();
     }
   }
 
@@ -81,8 +109,10 @@ class _EditClassScreenState extends State<EditClassScreen> {
     _descriptionController.dispose();
     _startYearController.dispose();
     _endYearController.dispose();
+    _semesterController.dispose();
     _startYearFocusNode.dispose();
     _endYearFocusNode.dispose();
+    _semesterFocusNode.dispose();
     _subjectFocusNode.dispose();
     super.dispose();
   }
@@ -94,7 +124,17 @@ class _EditClassScreenState extends State<EditClassScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              // Fallback: navigate về class detail nếu không thể pop
+              context.goNamed(
+                AppRoute.teacherClassDetail,
+                pathParameters: {'classId': widget.classItem.id},
+              );
+            }
+          },
         ),
         title: const Text(
           'Chỉnh sửa lớp học',
@@ -132,7 +172,7 @@ class _EditClassScreenState extends State<EditClassScreen> {
         border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -478,7 +518,7 @@ class _EditClassScreenState extends State<EditClassScreen> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -523,7 +563,7 @@ class _EditClassScreenState extends State<EditClassScreen> {
     );
   }
 
-  /// Trường năm học với 2 ô nhập riêng biệt
+  /// Trường năm học với 3 ô nhập: năm đầu, năm sau, kỳ học
   Widget _buildSchoolYearField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -544,7 +584,7 @@ class _EditClassScreenState extends State<EditClassScreen> {
             ),
             const SizedBox(width: 8),
             const Text(
-              'Năm học',
+              'Kỳ học',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -556,13 +596,13 @@ class _EditClassScreenState extends State<EditClassScreen> {
         const SizedBox(height: 8),
         Row(
           children: [
-            // Năm bắt đầu
+            // Năm đầu
             Expanded(
               child: TextFormField(
                 controller: _startYearController,
                 focusNode: _startYearFocusNode,
                 decoration: InputDecoration(
-                  hintText: 'Năm bắt đầu',
+                  hintText: 'Năm đầu',
                   hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -595,7 +635,7 @@ class _EditClassScreenState extends State<EditClassScreen> {
                 keyboardType: TextInputType.number,
                 textInputAction: TextInputAction.next,
                 onFieldSubmitted: (value) {
-                  // Tự động chuyển focus sang năm kết thúc
+                  // Tự động chuyển focus sang năm sau
                   _endYearFocusNode.requestFocus();
                 },
                 inputFormatters: [
@@ -603,30 +643,110 @@ class _EditClassScreenState extends State<EditClassScreen> {
                   LengthLimitingTextInputFormatter(4),
                 ],
                 validator: (value) {
-                  if (value != null && value.isNotEmpty && value.length != 4) {
-                    return 'Năm phải có 4 chữ số';
+                  if (value == null || value.isEmpty) {
+                    return 'Bắt buộc';
+                  }
+                  if (value.length != 4) {
+                    return '4 chữ số';
                   }
                   return null;
                 },
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 8),
             const Text(
-              '-',
+              '_',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Colors.grey,
               ),
             ),
-            const SizedBox(width: 16),
-            // Năm kết thúc
+            const SizedBox(width: 8),
+            // Năm sau
             Expanded(
               child: TextFormField(
                 controller: _endYearController,
                 focusNode: _endYearFocusNode,
                 decoration: InputDecoration(
-                  hintText: 'Năm kết thúc',
+                  hintText: 'Năm sau',
+                  hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.blue[800]!, width: 2),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.red, width: 1),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                  ),
+                  fillColor: Colors.grey[50],
+                  filled: true,
+                ),
+                style: const TextStyle(fontSize: 14, color: Colors.black),
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.next,
+                onFieldSubmitted: (value) {
+                  // Tự động chuyển focus sang kỳ học
+                  _semesterFocusNode.requestFocus();
+                },
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Bắt buộc';
+                  }
+                    if (value.length != 4) {
+                    return '4 chữ số';
+                    }
+                  final startText = _startYearController.text;
+                  if (startText.isNotEmpty) {
+                    final startYear = int.tryParse(startText);
+                      final endYear = int.tryParse(value);
+                      if (startYear != null &&
+                          endYear != null &&
+                          endYear <= startYear) {
+                      return 'Phải > năm đầu';
+                    }
+                  }
+                  return null;
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              '_',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Kỳ học (không bắt buộc)
+            Expanded(
+              child: TextFormField(
+                controller: _semesterController,
+                focusNode: _semesterFocusNode,
+                decoration: InputDecoration(
+                  hintText: 'Kỳ (tùy chọn)',
                   hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -659,25 +779,9 @@ class _EditClassScreenState extends State<EditClassScreen> {
                 keyboardType: TextInputType.number,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(4),
+                  LengthLimitingTextInputFormatter(2),
                 ],
-                validator: (value) {
-                  if (value != null && value.isNotEmpty) {
-                    if (value.length != 4) {
-                      return 'Năm phải có 4 chữ số';
-                    }
-                    if (_startYearController.text.isNotEmpty) {
-                      final startYear = int.tryParse(_startYearController.text);
-                      final endYear = int.tryParse(value);
-                      if (startYear != null &&
-                          endYear != null &&
-                          endYear <= startYear) {
-                        return 'Năm kết thúc phải lớn hơn năm bắt đầu';
-                      }
-                    }
-                  }
-                  return null;
-                },
+                // Không có validator vì không bắt buộc
               ),
             ),
           ],
@@ -695,14 +799,9 @@ class _EditClassScreenState extends State<EditClassScreen> {
           color: Colors.white,
           border: Border(top: BorderSide(color: Colors.grey[200]!, width: 1)),
         ),
-        child: Consumer<ClassViewModel>(
-          builder: (context, viewModel, _) {
-            return ElevatedButton(
-              onPressed: viewModel.isUpdating
-                  ? null
-                  : () {
+        child: ElevatedButton(
+          onPressed: () {
                       if (_formKey.currentState!.validate()) {
-                        // Xử lý cập nhật lớp học
                         _updateClass();
                       }
                     },
@@ -714,33 +813,9 @@ class _EditClassScreenState extends State<EditClassScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 elevation: 2,
-                shadowColor: Colors.blue.withOpacity(0.3),
+                shadowColor: Colors.blue.withValues(alpha: 0.3),
               ),
-              child: viewModel.isUpdating
-                  ? const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Text(
-                          'Đang lưu...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    )
-                  : const Row(
+          child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
@@ -754,8 +829,6 @@ class _EditClassScreenState extends State<EditClassScreen> {
                         Icon(Icons.check, size: 20),
                       ],
                     ),
-            );
-          },
         ),
       ),
     );
@@ -763,13 +836,10 @@ class _EditClassScreenState extends State<EditClassScreen> {
 
   /// Xử lý cập nhật lớp học
   Future<void> _updateClass() async {
-    final classViewModel = context.read<ClassViewModel>();
+    final classNotifier = ref.read(classNotifierProvider.notifier);
 
     // Tạo params từ form data
-    final academicYear = _startYearController.text.isNotEmpty &&
-            _endYearController.text.isNotEmpty
-        ? '${_startYearController.text} - ${_endYearController.text}'
-        : null;
+    final academicYear = _buildAcademicYearString();
 
     final params = UpdateClassParams(
       name: _classNameController.text,
@@ -788,14 +858,14 @@ class _EditClassScreenState extends State<EditClassScreen> {
     );
 
     // Gọi ViewModel để cập nhật lớp học
-    final success = await classViewModel.updateClass(
+    final success = await classNotifier.updateClass(
       widget.classItem.id,
       params,
     );
 
     // Đóng loading dialog
     if (mounted) {
-      Navigator.pop(context);
+      context.pop();
     }
 
     if (success) {
@@ -804,26 +874,32 @@ class _EditClassScreenState extends State<EditClassScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Đã cập nhật lớp học "${_classNameController.text}" thành công!'),
-            backgroundColor: Colors.green[600],
+            backgroundColor: DesignColors.success,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(DesignRadius.sm),
             ),
-            margin: const EdgeInsets.all(16),
+            margin: EdgeInsets.all(DesignSpacing.lg),
           ),
         );
 
         // Quay lại màn hình trước
-        Navigator.pop(context);
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          // Fallback: navigate về class detail nếu không thể pop
+          context.goNamed(
+            AppRoute.teacherClassDetail,
+            pathParameters: {'classId': widget.classItem.id},
+          );
+        }
       }
     } else {
       // Hiển thị lỗi nếu có
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              classViewModel.errorMessage ?? 'Không thể cập nhật lớp học',
-            ),
+            content: const Text('Không thể cập nhật lớp học'),
             backgroundColor: Colors.red[600],
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -833,6 +909,26 @@ class _EditClassScreenState extends State<EditClassScreen> {
           ),
         );
       }
+    }
+  }
+
+  /// Xây dựng chuỗi academicYear theo định dạng xxxx_xxxx_x
+  String? _buildAcademicYearString() {
+    final startYear = _startYearController.text.trim();
+    final endYear = _endYearController.text.trim();
+    final semester = _semesterController.text.trim();
+
+    // Nếu không có đủ 2 năm thì trả về null
+    if (startYear.isEmpty || endYear.isEmpty) {
+      return null;
+    }
+
+    // Định dạng: xxxx_xxxx_x
+    // Nếu có kỳ học thì thêm vào, không có thì bỏ qua phần kỳ
+    if (semester.isNotEmpty) {
+      return '${startYear}_${endYear}_$semester';
+    } else {
+      return '${startYear}_$endYear';
     }
   }
 }

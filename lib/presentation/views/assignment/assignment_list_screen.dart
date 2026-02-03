@@ -1,278 +1,390 @@
-import 'package:flutter/material.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/widgets/search_field.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/domain/entities/assignment.dart';
+import 'package:ai_mls/presentation/providers/auth_notifier.dart';
+import 'package:ai_mls/presentation/providers/assignment_providers.dart';
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-class AssignmentListScreen extends StatefulWidget {
+/// Màn hình danh sách bài tập
+/// Hỗ trợ cả chế độ giáo viên và học sinh
+class AssignmentListScreen extends ConsumerStatefulWidget {
   const AssignmentListScreen({super.key});
 
   @override
-  State<AssignmentListScreen> createState() => _AssignmentListScreenState();
+  ConsumerState<AssignmentListScreen> createState() =>
+      _AssignmentListScreenState();
 }
 
-class _AssignmentListScreenState extends State<AssignmentListScreen> {
-  String _searchQuery = '';
+class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Load dữ liệu khi màn hình được khởi tạo
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAssignments();
+    });
+  }
 
-  // Dữ liệu mẫu cho danh sách bài tập
-  final List<Map<String, dynamic>> sampleAssignments = [
-    {
-      'id': '1',
-      'title': 'Bài tập Toán - Phương trình bậc 2',
-      'className': 'Toán Học - Lớp 10A2',
-      'dueDate': '2024-01-20',
-      'status': 'pending',
-      'submissions': 15,
-      'total': 32,
-    },
-    {
-      'id': '2',
-      'title': 'Thí nghiệm Vật Lý: Động lực học',
-      'className': 'Vật Lý - Lớp 11B1',
-      'dueDate': '2024-01-18',
-      'status': 'overdue',
-      'submissions': 38,
-      'total': 40,
-    },
-    {
-      'id': '3',
-      'title': 'Bài luận Ngữ Văn: Tình yêu quê hương',
-      'className': 'Ngữ Văn - Lớp 12C3',
-      'dueDate': '2024-01-25',
-      'status': 'active',
-      'submissions': 22,
-      'total': 35,
-    },
-    {
-      'id': '4',
-      'title': 'Hoạt động ngoài giờ',
-      'className': 'Chủ nhiệm - Lớp 10A2',
-      'dueDate': '2024-02-10',
-      'status': 'active',
-      'submissions': 28,
-      'total': 32,
-    },
-  ];
-
-  // Lọc danh sách bài tập theo tìm kiếm
-  List<Map<String, dynamic>> get _filteredAssignments {
-    if (_searchQuery.isEmpty) {
-      return sampleAssignments;
-    }
-
-    final query = _searchQuery.toLowerCase();
-    return sampleAssignments.where((assignment) {
-      final title = assignment['title'].toString().toLowerCase();
-      final className = assignment['className'].toString().toLowerCase();
-      return title.contains(query) || className.contains(query);
-    }).toList();
+  Future<void> _loadAssignments() async {
+    // Data sẽ được load thông qua provider
+    // Chỉ cần trigger refresh nếu cần
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('Danh sách bài tập'),
-        backgroundColor: Colors.white,
-        elevation: 1,
-        foregroundColor: Colors.black,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Thanh tìm kiếm
-            Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: DesignSpacing.lg,
-                vertical: DesignSpacing.md,
-              ),
-              child: SearchField(
-                hintText: 'Tìm kiếm bài tập...',
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
-                onClear: () {
-                  setState(() {
-                    _searchQuery = '';
-                  });
-                },
-              ),
-            ),
-            // Danh sách bài tập
-            Expanded(child: _buildAssignmentList()),
-          ],
+    final authState = ref.watch(authNotifierProvider);
+    final profile = authState.value;
+
+    if (authState.isLoading) {
+      return const Scaffold(
+        body: ShimmerLoading(),
+      );
+    }
+
+    if (authState.hasError || profile == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Danh sách bài tập'),
         ),
-      ),
-    );
-  }
-
-  /// Danh sách bài tập
-  Widget _buildAssignmentList() {
-    final filteredList = _filteredAssignments;
-
-    if (filteredList.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.assignment_turned_in, size: 48, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'Không tìm thấy bài tập',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-          ],
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+              const SizedBox(height: 16),
+              const Text(
+                'Không thể tải thông tin người dùng',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => ref.refresh(authNotifierProvider),
+                child: const Text('Thử lại'),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.builder(
-      padding: EdgeInsets.symmetric(
-        horizontal: DesignSpacing.lg,
-        vertical: DesignSpacing.md,
-      ),
-      itemCount: filteredList.length,
-      itemBuilder: (context, index) {
-        final assignment = filteredList[index];
-        final dueDate = DateTime.parse(assignment['dueDate']);
-        final isOverdue =
-            dueDate.isBefore(DateTime.now()) &&
-            assignment['status'] != 'completed';
+    final userRole = profile.role;
 
-        return Card(
-          margin: EdgeInsets.only(bottom: DesignSpacing.lg),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(DesignRadius.md),
-          ),
-          child: Padding(
-            padding: EdgeInsets.all(DesignSpacing.lg),
+    return Scaffold(
+      backgroundColor: DesignColors.moonLight,
+      appBar: AppBar(
+        title: const Text('Danh sách bài tập'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: userRole == 'teacher'
+            ? _buildTeacherView(profile.id)
+            : _buildStudentView(profile.id),
+      ),
+    );
+  }
+
+  /// Xây dựng view cho giáo viên
+  Widget _buildTeacherView(String teacherId) {
+    return FutureBuilder<List<Assignment>>(
+      future: ref.read(assignmentRepositoryProvider).getAssignmentsByTeacher(teacherId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const ShimmerLoading();
+        }
+
+        if (snapshot.hasError) {
+          return Center(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            assignment['title'],
-                            style: DesignTypography.titleMedium,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            assignment['className'],
-                            style: DesignTypography.bodySmall.copyWith(
-                              color: DesignColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: DesignSpacing.sm,
-                        vertical: DesignSpacing.xs,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _getStatusColor(
-                          assignment['status'],
-                          isOverdue,
-                        ).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(DesignRadius.sm),
-                      ),
-                      child: Text(
-                        _getStatusLabel(assignment['status'], isOverdue),
-                        style: DesignTypography.caption.copyWith(
-                          color: _getStatusColor(
-                            assignment['status'],
-                            isOverdue,
-                          ),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
+                Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                const SizedBox(height: 16),
+                Text(
+                  'Lỗi khi tải danh sách bài tập: ${snapshot.error}',
+                  style: const TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Hạn: ${_formatDate(dueDate)}',
-                            style: DesignTypography.caption.copyWith(
-                              color: isOverdue
-                                  ? Colors.red
-                                  : DesignColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: DesignSpacing.sm,
-                        vertical: DesignSpacing.xs,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(DesignRadius.sm),
-                      ),
-                      child: Text(
-                        '${assignment['submissions']}/${assignment['total']}',
-                        style: DesignTypography.caption.copyWith(
-                          color: Colors.blue[800],
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _loadAssignments();
+                    });
+                  },
+                  child: const Text('Thử lại'),
                 ),
               ],
             ),
+          );
+        }
+
+        final assignments = snapshot.data ?? [];
+
+        if (assignments.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.assignment_outlined,
+                  size: 64,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Chưa có bài tập nào',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tạo bài tập mới từ Hub',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    context.goNamed(AppRoute.teacherAssignmentHub);
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Đi đến Assignment Hub'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            setState(() {
+              _loadAssignments();
+            });
+          },
+          child: ListView.builder(
+            padding: const EdgeInsets.all(DesignSpacing.md),
+            itemCount: assignments.length,
+            itemBuilder: (context, index) {
+              final assignment = assignments[index];
+              return _buildAssignmentCard(assignment, isTeacher: true);
+            },
           ),
         );
       },
     );
   }
 
-  String _getStatusLabel(String status, bool isOverdue) {
-    if (isOverdue) return 'Quá hạn';
-    switch (status) {
-      case 'active':
-        return 'Đang diễn ra';
-      case 'pending':
-        return 'Sắp tới';
-      case 'completed':
-        return 'Hoàn thành';
-      default:
-        return 'Quá hạn';
-    }
+  /// Xây dựng view cho học sinh
+  Widget _buildStudentView(String studentId) {
+    // TODO: Implement student assignment list
+    // Students get assignments through their classes
+    // For now, show a placeholder
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.assignment_outlined,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Danh sách bài tập',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Xem bài tập trong từng lớp học',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              context.goNamed(AppRoute.studentClassList);
+            },
+            icon: const Icon(Icons.class_outlined),
+            label: const Text('Xem lớp học'),
+          ),
+        ],
+      ),
+    );
   }
 
-  Color _getStatusColor(String status, bool isOverdue) {
-    if (isOverdue) return Colors.red;
-    switch (status) {
-      case 'active':
-        return Colors.green;
-      case 'pending':
-        return Colors.orange;
-      case 'completed':
-        return Colors.blue;
-      default:
-        return Colors.red;
-    }
+  /// Xây dựng card hiển thị một bài tập
+  Widget _buildAssignmentCard(Assignment assignment, {required bool isTeacher}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: DesignSpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () {
+          // TODO: Navigate to assignment detail
+          if (isTeacher) {
+            // context.goNamed(AppRoute.teacherAssignmentDetail, pathParameters: {'assignmentId': assignment.id});
+          } else {
+            // context.goNamed(AppRoute.studentAssignmentDetail, pathParameters: {'assignmentId': assignment.id});
+          }
+        },
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        child: Padding(
+          padding: const EdgeInsets.all(DesignSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.assignment,
+                    color: DesignColors.primary,
+                    size: 24,
+                  ),
+                  const SizedBox(width: DesignSpacing.md),
+                  Expanded(
+                    child: Text(
+                      assignment.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (assignment.isPublished)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: DesignSpacing.sm,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(DesignRadius.sm),
+                        border: Border.all(color: Colors.green[300]!),
+                      ),
+                      child: Text(
+                        'Đã xuất bản',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: DesignSpacing.sm,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange[50],
+                        borderRadius: BorderRadius.circular(DesignRadius.sm),
+                        border: Border.all(color: Colors.orange[300]!),
+                      ),
+                      child: Text(
+                        'Bản nháp',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              if (assignment.description != null &&
+                  assignment.description!.isNotEmpty) ...[
+                const SizedBox(height: DesignSpacing.sm),
+                Text(
+                  assignment.description!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+              const SizedBox(height: DesignSpacing.md),
+              Row(
+                children: [
+                  if (assignment.dueAt != null) ...[
+                    Icon(
+                      Icons.access_time,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Hạn nộp: ${_formatDate(assignment.dueAt!)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(width: DesignSpacing.md),
+                  ],
+                  if (assignment.totalPoints != null) ...[
+                    Icon(
+                      Icons.star,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${assignment.totalPoints} điểm',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
+  /// Format ngày tháng
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    final now = DateTime.now();
+    final difference = date.difference(now);
+
+    if (difference.inDays == 0) {
+      return 'Hôm nay';
+    } else if (difference.inDays == 1) {
+      return 'Ngày mai';
+    } else if (difference.inDays > 1 && difference.inDays <= 7) {
+      return '${difference.inDays} ngày nữa';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 }

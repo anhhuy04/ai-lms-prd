@@ -27,4 +27,16 @@ abstract class AuthRepository {
   /// Hàm kiểm tra người dùng hiện tại và lấy thông tin profile.
   /// Trả về đối tượng Profile nếu có phiên đăng nhập hợp lệ, ngược lại trả về null.
   Future<Profile?> checkCurrentUser();
+
+  /// Hàm cập nhật thông tin profile của người dùng.
+  /// Trả về Profile đã được cập nhật.
+  /// Ném ra một Exception nếu thất bại.
+  Future<Profile> updateProfile({
+    String? fullName,
+    String? bio,
+    String? phone,
+    String? gender,
+    String? avatarUrl,
+    Map<String, dynamic>? metadata,
+  });
 }

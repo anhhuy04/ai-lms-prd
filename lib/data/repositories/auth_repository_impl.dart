@@ -1,3 +1,5 @@
+import 'package:ai_mls/core/services/profile_metadata_service.dart';
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/validation_utils.dart';
 import 'package:ai_mls/data/datasources/supabase_datasource.dart';
 import 'package:ai_mls/domain/entities/profile.dart';
@@ -26,7 +28,7 @@ class AuthRepositoryImpl implements AuthRepository {
       );
 
       if (authResponse.user == null) {
-        print('🔴 [REPO ERROR] SignIn: User is null');
+        AppLogger.error('🔴 [REPO ERROR] SignIn: User is null');
         throw Exception('Không tìm thấy người dùng');
       }
 
@@ -35,7 +37,7 @@ class AuthRepositoryImpl implements AuthRepository {
         authResponse.user!.id,
       );
       if (profileData == null) {
-        print(
+        AppLogger.error(
           '🔴 [REPO ERROR] SignIn: Profile not found for user ${authResponse.user!.id}',
         );
         throw Exception('Không thể tải thông tin hồ sơ. Vui lòng thử lại.');
@@ -43,7 +45,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return Profile.fromJson(profileData);
     } on AuthException catch (e) {
       // Log error hệ thống cho developer
-      print('🔴 [REPO ERROR] SignIn Auth: ${e.message}');
+      AppLogger.error('🔴 [REPO ERROR] SignIn Auth: ${e.message}', error: e);
 
       // Hiển thị lỗi tiếng Việt cho người dùng
       if (e.message.contains('Invalid login credentials')) {
@@ -56,7 +58,7 @@ class AuthRepositoryImpl implements AuthRepository {
         throw Exception('Lỗi đăng nhập. Vui lòng thử lại.');
       }
     } catch (e) {
-      print('🔴 [REPO ERROR] SignIn (Unknown): $e');
+      AppLogger.error('🔴 [REPO ERROR] SignIn (Unknown): $e', error: e);
       throw Exception('Lỗi đăng nhập. Vui lòng thử lại.');
     }
   }
@@ -100,11 +102,14 @@ class AuthRepositoryImpl implements AuthRepository {
             'avatar_url': null,
             'updated_at': DateTime.now().toIso8601String(),
           });
-          print(
+          AppLogger.info(
             '✅ [REPO] SignUp: Profile updated in database with capitalized name and full data',
           );
         } catch (e) {
-          print('⚠️ [REPO WARN] SignUp: Failed to update profile: $e');
+          AppLogger.warning(
+            '⚠️ [REPO WARN] SignUp: Failed to update profile: $e',
+            error: e,
+          );
           // Không ném lỗi, vì auth đã thành công
           // Profile có thể được update sau hoặc user có thể update nó
         }
@@ -112,18 +117,20 @@ class AuthRepositoryImpl implements AuthRepository {
 
       // Xử lý các trường hợp khác nhau dựa trên phản hồi của Supabase
       if (response.user != null && response.session == null) {
-        print('✅ [REPO] SignUp: Email verification required');
-        return "Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.";
+        AppLogger.info('✅ [REPO] SignUp: Email verification required');
+        return 'Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.';
       } else if (response.user != null && response.session != null) {
-        print('✅ [REPO] SignUp: Auto-confirmed (no email verification needed)');
-        return "Đăng ký thành công! Bạn có thể đăng nhập ngay bây giờ.";
+        AppLogger.info(
+          '✅ [REPO] SignUp: Auto-confirmed (no email verification needed)',
+        );
+        return 'Đăng ký thành công! Bạn có thể đăng nhập ngay bây giờ.';
       } else {
-        print('🔴 [REPO ERROR] SignUp: Unexpected response');
+        AppLogger.error('🔴 [REPO ERROR] SignUp: Unexpected response');
         throw Exception('Đăng ký thất bại. Vui lòng thử lại.');
       }
     } on AuthException catch (e) {
       // Log error hệ thống cho developer
-      print('🔴 [REPO ERROR] SignUp Auth: ${e.message}');
+      AppLogger.error('🔴 [REPO ERROR] SignUp Auth: ${e.message}', error: e);
 
       // Hiển thị lỗi tiếng Việt cho người dùng
       if (e.message.contains('already registered') ||
@@ -137,7 +144,7 @@ class AuthRepositoryImpl implements AuthRepository {
         throw Exception('Đăng ký thất bại. Vui lòng thử lại.');
       }
     } catch (e) {
-      print('🔴 [REPO ERROR] SignUp (Unknown): $e');
+      AppLogger.error('🔴 [REPO ERROR] SignUp (Unknown): $e', error: e);
       throw Exception('Lỗi đăng ký. Vui lòng thử lại.');
     }
   }
@@ -147,12 +154,12 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       // Gọi Supabase Auth
       await _supabaseClient.auth.signOut();
-      print('✅ [REPO] SignOut: Success');
+      AppLogger.info('✅ [REPO] SignOut: Success');
     } on AuthException catch (e) {
-      print('🔴 [REPO ERROR] SignOut Auth: ${e.message}');
+      AppLogger.error('🔴 [REPO ERROR] SignOut Auth: ${e.message}', error: e);
       throw Exception('Lỗi đăng xuất. Vui lòng thử lại.');
     } catch (e) {
-      print('🔴 [REPO ERROR] SignOut (Unknown): $e');
+      AppLogger.error('🔴 [REPO ERROR] SignOut (Unknown): $e', error: e);
       throw Exception('Lỗi đăng xuất. Vui lòng thử lại.');
     }
   }
@@ -161,24 +168,35 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Profile?> checkCurrentUser() async {
     try {
       final session = _supabaseClient.auth.currentSession;
+      AppLogger.debug(
+        '🔵 [REPO] checkCurrentUser: Session snapshot - '
+        'hasSession: ${session != null}, userId: ${session?.user.id}',
+      );
+
       if (session?.user == null) {
-        print('⚠️ [REPO WARN] CheckCurrentUser: No active session');
+        // No active session is a normal condition, use debug level instead of warning
+        AppLogger.debug('🔵 [REPO INFO] CheckCurrentUser: No active session (normal for first launch)');
         return null;
       }
 
       final userId = session!.user.id;
 
-      // Thử lấy profile bằng cách sử dụng Supabase client trực tiếp
-      // với RLS-aware query (đảm bảo user chỉ đọc được profile của chính họ)
-      try {
-        final response = await _supabaseClient
-            .from('profiles')
-            .select()
-            .eq('id', userId)
-            .maybeSingle();
+        // Thử lấy profile bằng cách sử dụng Supabase client trực tiếp
+        // với RLS-aware query (đảm bảo user chỉ đọc được profile của chính họ)
+        try {
+          final response = await _supabaseClient
+              .from('profiles')
+              .select()
+              .eq('id', userId)
+              .maybeSingle();
 
-        if (response == null) {
-          print(
+          AppLogger.debug(
+            '🔵 [REPO] checkCurrentUser: Query result - '
+            'isResponseNull: ${response == null}, keys: ${response?.keys.toList()}',
+          );
+
+          if (response == null) {
+          AppLogger.warning(
             '⚠️ [REPO WARN] CheckCurrentUser: Profile not found for user $userId',
           );
           return null;
@@ -190,7 +208,7 @@ class AuthRepositoryImpl implements AuthRepository {
         if (e.code == '401' ||
             e.code == 'PGRST301' ||
             e.message.contains('permission')) {
-          print(
+          AppLogger.warning(
             '⚠️ [REPO WARN] CheckCurrentUser: Permission denied (401). '
             'This may be due to RLS policies. User ID: $userId',
           );
@@ -202,7 +220,10 @@ class AuthRepositoryImpl implements AuthRepository {
               return Profile.fromJson(profileData);
             }
           } catch (fallbackError) {
-            print('🔴 [REPO ERROR] CheckCurrentUser Fallback: $fallbackError');
+            AppLogger.error(
+              '🔴 [REPO ERROR] CheckCurrentUser Fallback: $fallbackError',
+              error: fallbackError,
+            );
           }
 
           return null;
@@ -210,22 +231,97 @@ class AuthRepositoryImpl implements AuthRepository {
         rethrow;
       }
     } on PostgrestException catch (e) {
+      AppLogger.debug(
+        '🔵 [REPO] checkCurrentUser: Postgrest error - '
+        'code: ${e.code}, message: ${e.message}',
+      );
+
       // Xử lý lỗi Postgrest cụ thể
       if (e.code == '401' || e.code == 'PGRST301') {
-        print(
+        AppLogger.warning(
           '⚠️ [REPO WARN] CheckCurrentUser: Unauthorized (401). '
           'Please check RLS policies for profiles table.',
         );
       } else {
-        print(
+        AppLogger.error(
           '🔴 [REPO ERROR] CheckCurrentUser Postgrest: ${e.code} - ${e.message}',
+          error: e,
         );
       }
       return null;
     } catch (e) {
-      print('🔴 [REPO ERROR] CheckCurrentUser: $e');
+      AppLogger.debug(
+        '🔵 [REPO] checkCurrentUser: Unknown error - ${e.toString()}',
+      );
+      AppLogger.error('🔴 [REPO ERROR] CheckCurrentUser: $e', error: e);
       // Không ném lỗi, chỉ return null nếu không lấy được profile
       return null;
+    }
+  }
+
+  @override
+  Future<Profile> updateProfile({
+    String? fullName,
+    String? bio,
+    String? phone,
+    String? gender,
+    String? avatarUrl,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      final userId = _supabaseClient.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Tạo map chứa các fields cần update (chỉ những field không null)
+      final updateData = <String, dynamic>{
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      if (fullName != null) updateData['full_name'] = fullName;
+      if (bio != null) updateData['bio'] = bio;
+      if (phone != null) updateData['phone'] = phone;
+      if (gender != null) updateData['gender'] = gender;
+      if (avatarUrl != null) updateData['avatar_url'] = avatarUrl;
+      
+      // Xử lý metadata: merge với metadata hiện tại nếu có
+      if (metadata != null) {
+        // Lấy metadata hiện tại
+        final currentProfile = await _profileDataSource.getById(userId);
+        final currentMetadata = currentProfile?['metadata'] as Map<String, dynamic>?;
+        
+        // Merge metadata mới với metadata cũ
+        final mergedMetadata = <String, dynamic>{};
+        if (currentMetadata != null) {
+          mergedMetadata.addAll(currentMetadata);
+        }
+        mergedMetadata.addAll(metadata);
+        
+        updateData['metadata'] = mergedMetadata;
+      }
+
+      // Update profile trong database
+      await _profileDataSource.update(userId, updateData);
+
+      // Lấy profile đã được update
+      final updatedProfileData = await _profileDataSource.getById(userId);
+      if (updatedProfileData == null) {
+        throw Exception('Failed to fetch updated profile');
+      }
+
+      AppLogger.info('✅ [REPO] UpdateProfile: Profile updated successfully');
+      
+      // Invalidate metadata cache khi profile được update
+      ProfileMetadataService.invalidateCache();
+      
+      return Profile.fromJson(updatedProfileData);
+    } catch (e) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] UpdateProfile: $e',
+        error: e,
+      );
+      rethrow;
     }
   }
 }

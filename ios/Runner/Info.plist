@@ -45,5 +45,27 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Deep linking: Custom URL scheme -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>ai_mls</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ai_mls</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Deep linking: Universal Links -->
+	<!-- TODO: Thêm Associated Domains khi deploy -->
+	<!--
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:yourdomain.com</string>
+	</array>
+	-->
 </dict>
 </plist>

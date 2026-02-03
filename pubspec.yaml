@@ -39,10 +39,11 @@ dependencies:
   shared_preferences: ^2.0.15
   marquee: ^2.2.0
   flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.6.1
   infinite_scroll_pagination: ^4.0.0
   easy_debounce: ^2.0.3
   shimmer: ^3.0.0
-  
+
   # Environment Configuration
   
   # QR Code Generation
@@ -50,10 +51,16 @@ dependencies:
   
   # Routing & Navigation
   go_router: ^14.0.0
+  app_links: ^6.4.1  # Tương thích với supabase_flutter ^2.0.0
   
   # Networking
   dio: ^5.4.0
-  retrofit: ^4.0.0
+  # retrofit_generator 9.x chưa tương thích retrofit 4.9.x (enum Parser.DartMappable),
+  # nên tạm thời pin retrofit <4.9.0 để build_runner chạy ổn định.
+  retrofit: ">=4.8.0 <4.9.0"
+  
+  # HTML Parsing
+  html: ^0.15.4
   
   # Local Database & Storage
   flutter_secure_storage: ^9.0.0
@@ -71,6 +78,9 @@ dependencies:
   drift_flutter: ^0.2.8
   envied: ^1.3.2
   json_annotation: ^4.9.0
+  connectivity_plus: ^6.0.0
+  mobile_scanner: ^6.0.2
+  image_picker: ^1.0.7
 
 dev_dependencies:
 
@@ -91,12 +101,19 @@ dev_dependencies:
   json_serializable: ^6.9.5
   retrofit_generator: ^9.7.0
   riverpod_generator: ^2.3.0
+  # drift_dev: ^2.30.1  # TODO: Deferred due to dependency conflict with retrofit_generator (analyzer version mismatch)
   
   # Testing
   mocktail: ^1.0.0
   
   # Linting
   riverpod_lint: ^2.3.0
+  dependency_validator: ^5.0.3
+
+# Temporary overrides to keep build_runner working with Dart 3.8.x analyzer APIs.
+# TODO: Remove overrides after upgrading packages to a fully compatible set.
+dependency_overrides:
+  analyzer_plugin: ^0.13.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -116,9 +133,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/icon/logo_app.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

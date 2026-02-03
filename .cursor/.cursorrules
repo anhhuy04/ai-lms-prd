@@ -1,9 +1,10 @@
 # AI LMS Project Rules & Standards (2026)
-
+rules liên quan bắt buộc phải đọc .clinerules
 ## 1. Professional Tech Stack Standards
 Always implement features using these specific libraries:
 - State Management: Riverpod with @riverpod generator (Never use old Provider/ChangeNotifier).
 - Routing: GoRouter v14+ (Declarative routing, type-safe).
+- Routing usage: Không dùng `Navigator.push*` cho screen; dùng `context.go/push/pushNamed` với hằng `AppRoute`. Ngoại lệ: dialog/bottom sheet/tab nội bộ.
 - Models: Freezed & JsonSerializable (Always immutable).
 - Local DB: Drift (Relational) & Flutter Secure Storage (Sensitive data).
 - Networking: Dio + Retrofit (Interface-based API).
@@ -12,6 +13,21 @@ Always implement features using these specific libraries:
 - QR Codes: pretty_qr_code (Use QrHelper utility class for consistency).
 - Error Reporting: Sentry Flutter (All errors must be reported).
 - Logging: logger package (Use AppLogger wrapper, never print()).
+
+## 1.1 Conflict Resolution Priority (Source of Truth)
+If any documents/rules conflict, follow this priority:
+1) `.clinerules`
+2) `.cursor/.cursorrules`
+3) `.cursor/skills/**` (skills handbook, playbooks)
+4) `memory-bank/**`
+5) `docs/**` (some sections may be legacy)
+
+## 1.2 Sentry Reporting (Critical Flows)
+All critical flows MUST be reported to Sentry when errors occur (at least):
+- Auth flows (login/register/logout, session restoration)
+- Data writes (create/update/delete) to Supabase
+- Crash/unhandled exceptions
+- DataSource/Repository boundary errors that block user tasks
 
 ## 2. Mandatory MCP & Web Usage Policy
 You MUST act as an "Always-Learning" AI. Follow these protocols:
@@ -33,11 +49,120 @@ You MUST act as an "Always-Learning" AI. Follow these protocols:
 - **QR Code Generation:** Always use `QrHelper` utility class from `lib/core/utils/qr_helper.dart` for consistency.
 - **Code Generation:** Always run `flutter pub run build_runner build --delete-conflicting-outputs` after modifying Freezed/JsonSerializable/Envied classes.
 
+### 3.2 Supabase RLS & Data Access Conventions (2026-01-30)
+- All Supabase **public** tables exposed via PostgREST (đặc biệt: `profiles`, `classes`, `schools`, `groups`, `class_teachers`, `class_members`, `group_members`, question/assignment tables) MUST have RLS enabled + explicit policies for admin / teacher / student.
+- When writing new RLS policies, ALWAYS use `(select auth.uid())` instead of `auth.uid()` directly (as per Supabase Database Advisor) to avoid per-row re-evaluation.
+- For complex writes touching multiple tables (e.g. publish assignment + questions + distributions), prefer a **single RPC (security definer + explicit auth checks)** over multiple client-side round-trips.
+
+### 3.1 Error Prevention Rules (CRITICAL - Learn from Mistakes)
+**MANDATORY:** Đọc `.cursor/rules/error-prevention-rules.md` trước khi implement feature mới.
+
+**Quick Checklist:**
+- ✅ **GoRouter Routes**: Route cụ thể PHẢI đứng TRƯỚC route có parameter (tránh route matching conflict)
+- ✅ **Provider Duplication**: Grep tên provider trước khi tạo mới (tránh "already defined" error)
+- ✅ **Null Safety**: LUÔN kiểm tra null và empty trước khi access collection elements
+- ✅ **Dependencies**: Thêm vào `pubspec.yaml` và chạy `flutter pub get` TRƯỚC KHI import
+- ✅ **Requirement Clarification**: Hỏi rõ behavior trước khi implement (đặc biệt với delete/update operations)
+- ✅ **Import Management**: Chạy `read_lints` sau khi viết code để kiểm tra missing imports
+- ✅ **Code Generation**: Chạy build_runner sau khi thay đổi Freezed/JsonSerializable classes
+- ✅ **Testing**: Test happy path, error cases, và edge cases sau khi implement
+
+**Xem chi tiết:** `.cursor/rules/error-prevention-rules.md`
+
 ## 4. Documentation & Memory Bank
 - After every significant change, remind me to update the `memory-bank/` files.
 - Always check `@Memory_Bank` before starting a new task to ensure continuity.
+- **Session notes bắt buộc:** Đầu mỗi phiên phải đọc `docs/ai/session-notes.md` để nắm context; cuối mỗi phiên (hoặc khi hoàn tất một nhánh công việc) phải append entry mới theo template trong file đó (không overwrite). Có thể dọn các entry cũ đã được thay thế/sửa khi quy trình log đã ổn định và có entry mới thay thế rõ ràng.
 
 ## 5. UI/UX Rules
 - Use `SmartHighlightText` for all search results (Supports Vietnamese diacritics removal).
 - Ensure all screens use `AutomaticKeepAliveClientMixin` where state preservation is needed.
 - Keyboard MUST be dismissed on scroll: `keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag`.
+
+# Flutter Debug & Development Rules
+
+You are an expert Flutter & Dart Engineer. Your goal is to monitor, diagnose, and fix issues in real-time by analyzing the Debug Console and codebase.
+## Log Access
+- Always read the file `logs.txt` at the root directory to see the latest runtime errors.
+- If `logs.txt` is updated, analyze the new lines immediately.
+## 🛠 Debugging Workflow
+- **Monitor Terminal:** Actively watch the Debug Console for "Exception", "Error", "Null check operator used on a null value", or "RenderFlex overflowed".
+- **Stack Trace Analysis:** When an error occurs, analyze the stack trace to identify the exact file and line number.
+- **Auto-Fix Protocol:** 1. Identify the root cause (State management, UI constraint, or Logic).
+    2. Propose a fix that aligns with the project's state management.
+    3. Ensure no breaking changes to existing UI logic.
+
+## 🏗 State Management Preference
+# Bạn hãy giữ lại phần bạn đang dùng và xóa các phần khác:
+- **Provider/Riverpod:** Use `ref.read` for events and `ref.watch` for UI updates. Avoid unnecessary rebuilds.
+- **Bloc/Cubit:** Ensure all states are immutable. Use `context.read<T>().add()` for events. Check if `equatable` is implemented.
+- **GetX:** Use `Get.find` and ensure controllers are properly disposed.
+
+## 🎨 UI & Rendering Rules
+- If a "RenderFlex overflow" occurs, prioritize using `Flexible`, `Expanded`, or `SingleChildScrollView`.
+- Always check for null-safety before accessing properties in the Widget tree.
+- Use `LayoutBuilder` for responsive debugging.
+
+## ⚡ Real-time Fix Behavior
+- When I say "Fix this", look at the last 50 lines of the @Terminal.
+- Automatically check if the issue is related to missing dependencies in `pubspec.yaml`.
+- If a fix requires a "Hot Reload" or "Hot Restart", notify me after applying the code change.
+
+## 6. Widget Composition Pattern (Assignment List)
+**MANDATORY:** Khi tạo các màn hình list tương tự nhau, PHẢI sử dụng Composition Pattern thay vì copy-paste code.
+
+### 6.1 Assignment List Widgets Structure
+Location: `lib/presentation/views/assignment/teacher/widgets/assignment_list/`
+
+**Core Widgets:**
+- `AssignmentCard`: Reusable card widget để hiển thị một assignment
+  - Nhận config từ bên ngoài (badge, action, metadata)
+  - Không hardcode logic, chỉ render UI
+- `AssignmentListView`: List view wrapper với pull-to-refresh
+  - Compose AssignmentCard và EmptyState
+  - Xử lý refresh logic
+- `AssignmentEmptyState`: Empty state widget
+  - Factory methods: `.draft()`, `.published()`
+- `AssignmentErrorState`: Error state widget với retry
+- `AssignmentCardConfig`: Config classes (Badge, Action, Metadata)
+- `AssignmentDateFormatter`: Utility class format dates
+
+**Design Principles:**
+1. **Composition over Configuration**: Tách thành widget nhỏ, compose lại
+2. **Single Responsibility**: Mỗi widget chỉ làm 1 việc
+3. **Open/Closed**: Dễ mở rộng, không cần sửa code cũ
+4. **Dependency Inversion**: Widget nhận config từ bên ngoài
+
+**Usage Pattern:**
+```dart
+// Screen chỉ compose, không có logic UI phức tạp
+AssignmentListView(
+  assignments: filteredAssignments,
+  badgeConfig: AssignmentBadgeConfig.draft,
+  actionBuilder: (assignment) => AssignmentActionConfig(...),
+  metadataConfig: AssignmentMetadataConfig.draft,
+  emptyState: AssignmentEmptyState.draft(),
+  onRefresh: () => refresh(),
+)
+```
+
+**Khi nào áp dụng:**
+- ✅ Có 2+ màn hình list tương tự nhau (>70% code giống)
+- ✅ Cần tái sử dụng UI components
+- ✅ Muốn dễ maintain và mở rộng
+
+**Khi nào KHÔNG áp dụng:**
+- ❌ Chỉ có 1 màn hình duy nhất
+- ❌ Các màn hình khác nhau hoàn toàn
+- ❌ Over-engineering cho use case đơn giản
+
+**Best Practices:**
+- ✅ Sử dụng preset configs: `AssignmentBadgeConfig.draft`, `AssignmentMetadataConfig.published`
+- ✅ Tách utility functions: `AssignmentDateFormatter`
+- ✅ Factory methods cho empty states: `AssignmentEmptyState.draft()`
+- ✅ Test từng widget nhỏ riêng biệt
+- ❌ Không hardcode config trong widget
+- ❌ Không copy-paste code, dùng lại widgets
+- ❌ Không tạo config class quá phức tạp
+
+**Xem chi tiết:** `docs/architecture/assignment_list_widgets_composition_pattern.md`

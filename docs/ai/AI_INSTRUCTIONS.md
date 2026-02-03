@@ -2,6 +2,12 @@
 
 Đây là các quy tắc và hướng dẫn mặc định cho AI khi làm việc với dự án Flutter "AI LMS".
 
+**Version:** 2.0  
+**Last Updated:** 2026-01-30  
+**Status:** Cập nhật với Riverpod migration, GoRouter v2.0, ErrorTranslationUtils, và cấu trúc mới nhất
+
+---
+
 ## ĐỀ BÀI
 Tôi đang phát triển một hệ thống học tập thông minh trên nền tảng di động.
 
@@ -102,18 +108,28 @@ project_root/
 └── lib/                       # Thư mục chính chứa source code Flutter
     ├── main.dart              # File entry point: Khởi tạo ứng dụng, setup Supabase client, provider cho dependency injection, và chạy app với MaterialApp hoặc CupertinoApp. Bao gồm route initial dựa trên auth state.
     ├── app.dart               # File định nghĩa App widget: Quản lý theme, localization, và router (sử dụng GoRouter hoặc Navigator). Kết nối với ViewModel để kiểm tra trạng thái auth.
-    ├── routes/                # Thư mục chứa các route và navigation config
-    │   ├── app_routes.dart    # File định nghĩa tất cả các route: Sử dụng GoRouter hoặc named routes, ví dụ: '/login', '/dashboard', '/assignment/create'. Đảm bảo bảo mật route dựa trên role (teacher/student).
-    │   └── guards/            # Thư mục con cho route guards
-    │       └── auth_guard.dart # File guard: Kiểm tra auth state từ ViewModel để redirect nếu chưa login hoặc không có quyền.
+    ├── routes/                # Thư mục chứa các route và navigation config (GoRouter v2.0)
+    │   ├── route_constants.dart # File định nghĩa TẤT CẢ route names, paths, helpers (Single Source of Truth).
+    │   ├── app_router.dart    # File GoRouter configuration: ShellRoute, RBAC redirect, deep linking.
+    │   └── route_guards.dart  # File guard utilities: Auth/role check functions cho RBAC.
     ├── core/                  # Thư mục chứa các phần cốt lõi, chung cho toàn app
     │   ├── constants/         # Thư mục chứa hằng số
     │   │   ├── api_constants.dart # File chứa các hằng: URL Supabase, anon key, role enums ('teacher', 'student', 'admin').
     │   │   └── ui_constants.dart  # File chứa các hằng UI: colors, sizes, strings chung như error messages.
     │   ├── utils/             # Thư mục chứa các hàm tiện ích
+    │   │   ├── app_logger.dart    # File util: Centralized logging service với các cấp độ (debug, info, warning, error, fatal).
     │   │   ├── date_utils.dart    # File util: Hàm xử lý ngày tháng, format timestamp từ Supabase.
     │   │   ├── network_utils.dart # File util: Kiểm tra kết nối mạng, handle errors từ Supabase queries.
     │   │   ├── validators.dart    # File util: Hàm validate input như email, password, full_name.
+    │   │   ├── error_translation_utils.dart # File util: Translate error messages sang tiếng Việt, tái sử dụng cho tất cả repositories. BẮT BUỘC sử dụng trong repositories.
+    │   │   ├── optimistic_update_utils.dart # File util: Optimistic update pattern cho UI updates không blocking.
+    │   │   ├── filtering_utils.dart # File util: Filtering logic cho lists và search.
+    │   │   ├── sorting_utils.dart # File util: Sorting logic cho lists.
+    │   │   ├── refresh_utils.dart # File util: Refresh patterns cho Riverpod providers.
+    │   │   ├── responsive_utils.dart # File util: Responsive design helpers.
+    │   │   ├── qr_helper.dart # File util: QR code generation và processing.
+    │   │   ├── avatar_utils.dart # File util: Avatar generation và processing.
+    │   │   ├── vietnamese_text_utils.dart # File util: Vietnamese text processing.
     │   │   └── extensions.dart    # File extension: Mở rộng các class như String, DateTime cho tiện dùng.
     │   └── services/          # Thư mục chứa các service inject qua provider
     │       ├── supabase_service.dart # File service: Khởi tạo và quản lý Supabase client, auth, realtime subscriptions (ví dụ: listen changes trên tables như assignments).
@@ -122,17 +138,17 @@ project_root/
     │       └── ai_service.dart    # File service: Gọi API AI (nếu tích hợp external AI như OpenAI) cho grading, feedback, recommendations.
     ├── data/                  # Thư mục chứa data layer (liên quan đến Supabase)
     │   ├── datasources/       # Thư mục chứa nguồn dữ liệu cụ thể
-    │   │   └── supabase_datasource.dart # File datasource: Các hàm trực tiếp query Supabase như select, insert, update cho tables (profiles, classes, assignments, etc.).
+    │   │   ├── supabase_datasource.dart # File datasource: BaseTableDataSource - Generic CRUD operations cho Supabase tables.
+    │   │   ├── school_class_datasource.dart # File datasource: Queries cho classes, class_members, groups, group_members.
+    │   │   ├── question_bank_datasource.dart # File datasource: Queries cho questions, question_choices, question_objectives.
+    │   │   ├── assignment_datasource.dart # File datasource: Queries cho assignments, assignment_questions, assignment_variants, assignment_distributions.
+    │   │   └── learning_objective_datasource.dart # File datasource: Queries cho learning_objectives.
     │   └── repositories/      # Thư mục chứa implement repository
-    │       ├── auth_repository_impl.dart # File repo: Implement auth functions như signUp, signIn, getUserRole từ Supabase Auth.
-    │       ├── profile_repository_impl.dart # File repo: Xử lý profiles: getProfile, updateProfile, trigger handle_new_user.
-    │       ├── school_class_repository_impl.dart # File repo: Xử lý schools, classes, class_members, class_teachers: createClass, joinClass, etc.
-    │       ├── group_objective_repository_impl.dart # File repo: Xử lý groups, group_members, learning_objectives, question_objectives.
-    │       ├── question_file_repository_impl.dart # File repo: Xử lý questions, question_choices, files, file_links: createQuestion, uploadFile.
-    │       ├── assignment_distribution_repository_impl.dart # File repo: Xử lý assignments, assignment_questions, assignment_variants, assignment_distributions: createAssignment, publishAssignment.
-    │       ├── workspace_submission_repository_impl.dart # File repo: Xử lý work_sessions, autosave_answers, submission_answers, submissions: startSession, submitAnswer, autoSave.
-    │       ├── ai_grading_repository_impl.dart # File repo: Xử lý ai_queue, ai_evaluations, grade_overrides: queueAIGrading, overrideGrade.
-    │       └── analytics_recommendation_repository_impl.dart # File repo: Xử lý student_skill_mastery, question_stats, submission_analytics, ai_recommendations, teacher_notes: getMastery, generateRecommendations.
+    │       ├── auth_repository_impl.dart # File repo: Implement auth functions như signUp, signIn, getUserRole từ Supabase Auth. BẮT BUỘC sử dụng ErrorTranslationUtils.
+    │       ├── school_class_repository_impl.dart # File repo: Xử lý schools, classes, class_members, class_teachers: createClass, joinClass, etc. BẮT BUỘC sử dụng ErrorTranslationUtils.
+    │       ├── question_repository_impl.dart # File repo: Xử lý questions, question_choices: createQuestion, getQuestionsByAuthor, etc. BẮT BUỘC sử dụng ErrorTranslationUtils.
+    │       ├── learning_objective_repository_impl.dart # File repo: Xử lý learning_objectives, question_objectives. BẮT BUỘC sử dụng ErrorTranslationUtils.
+    │       └── assignment_repository_impl.dart # File repo: Xử lý assignments, assignment_questions, assignment_variants, assignment_distributions: createAssignment, publishAssignment. BẮT BUỘC sử dụng ErrorTranslationUtils.
     ├── domain/                # Thư mục chứa domain layer (abstract, entities)
     │   ├── entities/          # Thư mục chứa các entity model (tương ứng tables SQL)
     │   │   ├── profile.dart   # Entity: Model cho profiles table: id, full_name, role, avatar_url, etc.
@@ -160,54 +176,91 @@ project_root/
     │       └── ...            # Các usecase khác tương ứng chức năng (tạo class, join group, etc.).
     ├── presentation/          # Thư mục chứa presentation layer (MVVM: Views và ViewModels)
     │   ├── views/             # Thư mục chứa các screen/widget UI (Views)
+    │   │   ├── splash/        # Thư mục con cho splash screen
+    │   │   │   └── splash_screen.dart # View: Splash screen với auth check và routing.
     │   │   ├── auth/          # Thư mục con cho auth screens
-    │   │   │   ├── login_screen.dart # View: Màn hình login với form, button sign in/up, liên kết Supabase Auth.
-    │   │   │   └── register_screen.dart # View: Màn hình đăng ký, chọn role (teacher/student), trigger handle_new_user.
+    │   │   │   ├── login_screen.dart # View: Màn hình login với form, button sign in/up, liên kết Supabase Auth. Sử dụng AuthNotifier.
+    │   │   │   └── register_screen.dart # View: Màn hình đăng ký, chọn role (teacher/student), trigger handle_new_user. Sử dụng AuthNotifier.
     │   │   ├── dashboard/     # Thư mục con cho dashboard
-    │   │   │   ├── teacher_dashboard_screen.dart # View: Dashboard giáo viên: Danh sách classes, assignments, recommendations (Chương 5).
-    │   │   │   └── student_dashboard_screen.dart # View: Dashboard học sinh: Danh sách assignments, skill map, performance trends (Chương 4).
+    │   │   │   ├── student_dashboard_screen.dart # View: Dashboard học sinh với ShellRoute, bottom nav. Sử dụng StudentDashboardNotifier.
+    │   │   │   ├── teacher_dashboard_screen.dart # View: Dashboard giáo viên với ShellRoute, bottom nav. Sử dụng TeacherDashboardNotifier.
+    │   │   │   ├── admin_dashboard_screen.dart # View: Dashboard admin.
+    │   │   │   └── home/      # Thư mục con cho home content
+    │   │   │       ├── student_home_content_screen.dart # View: Nội dung home của học sinh.
+    │   │   │       └── teacher_home_content_screen.dart # View: Nội dung home của giáo viên.
+    │   │   ├── class/        # Thư mục con cho class management
+    │   │   │   ├── student/   # Thư mục con cho student class screens
+    │   │   │   │   ├── student_class_list_screen.dart # View: Danh sách lớp học của học sinh. Sử dụng ClassNotifier.
+    │   │   │   │   ├── student_class_detail_screen.dart # View: Chi tiết lớp học cho học sinh.
+    │   │   │   │   ├── join_class_screen.dart # View: Tham gia lớp học bằng mã.
+    │   │   │   │   ├── qr_scan_screen.dart # View: Quét QR code để tham gia lớp.
+    │   │   │   │   └── widgets/ # Widgets cho student class screens
+    │   │   │   │       ├── search/ # Search screens
+    │   │   │   │       └── drawers/ # Drawer components
+    │   │   │   └── teacher/   # Thư mục con cho teacher class screens
+    │   │   │       ├── teacher_class_list_screen.dart # View: Danh sách lớp học của giáo viên. Sử dụng ClassNotifier.
+    │   │   │       ├── teacher_class_detail_screen.dart # View: Chi tiết lớp học cho giáo viên.
+    │   │   │       ├── create_class_screen.dart # View: Tạo lớp học mới.
+    │   │   │       ├── edit_class_screen.dart # View: Chỉnh sửa lớp học.
+    │   │   │       ├── student_list_screen.dart # View: Danh sách học sinh trong lớp.
+    │   │   │       ├── add_student_by_code_screen.dart # View: Thêm học sinh bằng mã QR.
+    │   │   │       └── widgets/ # Widgets cho teacher class screens
+    │   │   │           ├── search/ # Search screens
+    │   │   │           └── drawers/ # Drawer components (class_settings_drawer, etc.)
     │   │   ├── assignment/    # Thư mục con cho assignment (Chương 1)
-    │   │   │   ├── assignment_builder_screen.dart # View: Builder tạo assignment: Rich text editor, add questions, set rubrics, preview.
-    │   │   │   ├── assignment_distribution_screen.dart # View: Phân phối assignment: Chọn class/group/student, set due date, notifications.
-    │   │   │   └── assignment_list_screen.dart # View: Danh sách assignments cho teacher/student.
-    │   │   ├── workspace/     # Thư mục con cho student workspace (Chương 2)
-    │   │   │   ├── student_workspace_screen.dart # View: Không gian làm bài: Auto-save, progress bar, upload files, timer, flag questions.
-    │   │   │   └── submission_confirmation_screen.dart # View: Xác nhận nộp bài, review trước submit.
+    │   │   │   ├── assignment_list_screen.dart # View: Danh sách assignments cho teacher/student.
+    │   │   │   └── teacher/   # Thư mục con cho teacher assignment screens
+    │   │   │       └── teacher_assignment_hub_screen.dart # View: Hub quản lý assignments của giáo viên.
     │   │   ├── grading/       # Thư mục con cho grading (Chương 3)
-    │   │   │   ├── grading_dashboard_screen.dart # View: Dashboard chấm bài: List submissions, batch grading, side-by-side view, publish grades.
-    │   │   │   └── feedback_editor_screen.dart # View: Chỉnh sửa feedback AI, override scores.
-    │   │   ├── analytics/     # Thư mục con cho analytics (Chương 4)
-    │   │   │   ├── student_analytics_screen.dart # View: Phân tích strength/weakness: Charts, skill mastery, comparisons.
-    │   │   │   └── individual_profile_screen.dart # View: Hồ sơ cá nhân: History, engagement metrics, teacher notes.
-    │   │   └── recommendations/ # Thư mục con cho recommendations (Chương 5)
-    │   │       └── recommendations_screen.dart # View: List recommendations: Prioritized actions, resources, dismiss option.
-    │   └── viewmodels/        # Thư mục chứa ViewModels (state management, sử dụng ChangeNotifier hoặc Riverpod)
+    │   │   │   └── scores_screen.dart # View: Màn hình điểm số.
+    │   │   ├── profile/       # Thư mục con cho profile
+    │   │   │   └── profile_screen.dart # View: Màn hình profile.
+    │   │   └── network/       # Thư mục con cho network
+    │   │       └── no_internet_screen.dart # View: Màn hình không có internet.
+    │   ├── providers/         # Thư mục chứa Riverpod Providers và Notifiers (PRIMARY - Ưu tiên cho code mới)
+    │   │   ├── auth_providers.dart # Providers: AuthNotifier, currentUserProvider, auth state providers.
+    │   │   ├── class_providers.dart # Providers: ClassNotifier, class list providers với pagination/search.
+    │   │   ├── question_bank_providers.dart # Providers: QuestionBankNotifier cho question bank management.
+    │   │   ├── assignment_providers.dart # Providers: AssignmentBuilderNotifier, assignment list providers.
+    │   │   ├── learning_objective_providers.dart # Providers: Learning objective providers.
+    │   │   ├── student_dashboard_notifier.dart # Notifier: Student dashboard state và refresh logic.
+    │   │   ├── teacher_dashboard_notifier.dart # Notifier: Teacher dashboard state và refresh logic.
+    │   │   └── ...            # Các providers khác cho các features.
+    │   └── viewmodels/        # Thư mục chứa ViewModels (LEGACY - Chỉ cho code cũ, không dùng cho code mới)
     │       ├── mixins/
     │       │   ├── refreshable_view_model.dart
     │       │   ├── realtime_listener.dart
     │       │   ├── loading_state_mixin.dart
     │       │   └── pagination_mixin.dart
-    │       ├── auth_viewmodel.dart # VM: Quản lý auth state: login, logout, role check, listen auth changes từ Supabase.
-    │       ├── profile_viewmodel.dart # VM: Load/update profile, full_name, avatar.
-    │       ├── assignment_viewmodel.dart # VM: Logic tạo/distribute assignment: Call usecases, handle form states, validations (Chương 1).
-    │       ├── workspace_viewmodel.dart # VM: Quản lý work session: Auto-save, timer, submit, progress tracking (Chương 2).
-    │       ├── grading_viewmodel.dart # VM: Load submissions, AI grading queue, override, batch publish (Chương 3).
-    │       ├── analytics_viewmodel.dart # VM: Fetch mastery data, charts, predictions (Chương 4).
-    │       ├── recommendations_viewmodel.dart # VM: Generate/load recommendations, prioritize, dismiss (Chương 5).
-    │       └── ...            # Các VM khác như class_viewmodel cho quản lý classes/groups.
-    └── widgets/               # Thư mục chứa các widget reusable
-        ├── custom_button.dart # Widget: Button tùy chỉnh với loading state.
-        ├── rich_text_editor.dart # Widget: Editor cho questions/answers, hỗ trợ LaTeX, images.
-        ├── progress_indicator.dart # Widget: Bar hiển thị tiến độ assignment.
-        ├── file_uploader.dart # Widget: Upload files đến Supabase Storage.
-        ├── chart_widgets.dart # Widget: Các chart cho analytics (sử dụng fl_chart).
-        ├── error_handler.dart # Widget: Hiển thị errors từ API calls.
-        └── drawers/            # Thư mục chứa hệ thống drawer
-            ├── action_end_drawer.dart        # Khung chung cho tất cả drawer bên phải
-            ├── class_settings_drawer.dart    # Nội dung cụ thể cho cài đặt lớp học
-            ├── drawer_section_header.dart    # Header cho các section trong drawer
-            ├── drawer_action_tile.dart       # Tile hành động với icon, tiêu đề, phụ đề
-            └── drawer_toggle_tile.dart      # Tile với switch để bật/tắt tính năng
+    │       ├── auth_viewmodel.dart # VM (LEGACY): Quản lý auth state. Sử dụng AuthNotifier thay thế.
+    │       ├── class_viewmodel.dart # VM (LEGACY): Quản lý classes. Sử dụng ClassNotifier thay thế.
+    │       └── ...            # Các VM khác (LEGACY) - sẽ migrate dần sang Riverpod Notifiers.
+    └── widgets/               # Thư mục chứa các widget reusable (SHARED - dùng chung cho cả teacher và student)
+        ├── buttons/           # Button widgets (quick_action_button, etc.)
+        ├── cards/             # Card widgets (base_card, statistics_card, etc.)
+        ├── async/             # Widgets cho async operations
+        ├── dialogs/           # Dialog widgets
+        ├── drawers/           # Thư mục chứa hệ thống drawer (shared primitives)
+        │   ├── action_end_drawer.dart        # Khung chung cho tất cả drawer bên phải
+        │   ├── drawer_section_header.dart    # Header cho các section trong drawer
+        │   ├── drawer_action_tile.dart       # Tile hành động với icon, tiêu đề, phụ đề
+        │   └── drawer_toggle_tile.dart      # Tile với switch để bật/tắt tính năng
+        ├── list/              # List widgets
+        │   └── class_detail_assignment_list.dart # Widget: Container list bài tập trong class detail.
+        ├── list_item/         # List item widgets (tổ chức theo feature)
+        │   ├── class/         # Class-related list items
+        │   │   ├── class_item_widget.dart    # Widget: Class item trong list với search highlighting.
+        │   │   └── class_status_badge.dart   # Widget: Badge hiển thị trạng thái lớp học.
+        │   └── assignment/    # Assignment-related list items
+        │       └── class_detail_assignment_list_item.dart # Widget: Assignment item trong class detail (hỗ trợ teacher/student view mode).
+        ├── loading/           # Loading indicators
+        ├── navigation/        # Navigation widgets
+        ├── responsive/       # Responsive widgets
+        ├── search/            # Search widgets và screens
+        │   ├── screens/       # Full-screen search screens
+        │   ├── dialogs/       # Dialog-based search
+        │   └── shared/        # Shared search components (search_field.dart)
+        └── text/              # Text widgets
 ```
 
 **Lưu ý:** Nếu bạn cần tạo thêm các thư mục và file mới không có trong cây trên thì hãy hỏi tôi xem có đồng ý cho bạn tạo thêm câu thư mục và file mới hay ko.
@@ -231,7 +284,12 @@ project_root/
 
 - **Screens/Views:** Kết thúc bằng `_screen.dart` (ví dụ: `login_screen.dart`).
 - **Entities:** Nằm trong `domain/entities/` và có tên phản ánh bảng trong CSDL (ví dụ: `profile.dart`).
-- **ViewModels:** Nằm trong `presentation/viewmodels/` và kết thúc bằng `_viewmodel.dart` (ví dụ: `auth_viewmodel.dart`).
+- **ViewModels (LEGACY):** Nằm trong `presentation/viewmodels/` và kết thúc bằng `_viewmodel.dart` (ví dụ: `auth_viewmodel.dart`). KHÔNG dùng cho code mới.
+- **Notifiers (Riverpod):** Nằm trong `presentation/providers/` và kết thúc bằng `_notifier.dart` (ví dụ: `auth_notifier.dart`). Ưu tiên cho code mới.
+- **Providers (Riverpod):** Nằm trong `presentation/providers/` và kết thúc bằng `_providers.dart` (ví dụ: `auth_providers.dart`).
+- **DataSources:** Kết thúc bằng `_datasource.dart` (ví dụ: `school_class_datasource.dart`).
+- **Repositories:** Kết thúc bằng `_repository_impl.dart` (ví dụ: `school_class_repository_impl.dart`).
+- **Utils:** Kết thúc bằng `_utils.dart` (ví dụ: `error_translation_utils.dart`).
 
 > **Xem thêm:** Chi tiết về naming conventions trong `memory-bank/systemPatterns.md` (Code Organization Patterns section)
 
@@ -239,23 +297,80 @@ project_root/
 
 ## 4. Quản lý Trạng thái (State Management)
 
-- Sử dụng **`ChangeNotifier`** cho các ViewModel.
-- ViewModel chịu trách nhiệm xử lý logic và gọi các `Usecase` hoặc `Repository`.
-- View chỉ "lắng nghe" các thay đổi từ ViewModel để cập nhật giao diện. Sử dụng `ChangeNotifier.addListener` để lắng nghe và gọi `setState` khi cần thiết.
-- Các trạng thái như `isLoading`, `errorMessage` phải được quản lý bên trong ViewModel.
+### Riverpod (Primary - Ưu tiên cho code mới)
+- **Riverpod** (v2.5.1) là giải pháp state management chính, sử dụng code generation với `@riverpod` annotation.
+- **Pattern:** Sử dụng `AsyncNotifier` cho async state, `Notifier` cho sync state.
+- **UI Integration:**
+  - Views sử dụng `ConsumerWidget` hoặc `ConsumerStatefulWidget`
+  - Sử dụng `ref.watch()` cho reactive state (tự động rebuild khi state thay đổi)
+  - Sử dụng `ref.read()` cho one-time access (trong callbacks, không rebuild)
+- **Providers:** Được định nghĩa trong `lib/presentation/providers/` với pattern:
+  ```dart
+  @riverpod
+  class ClassNotifier extends _$ClassNotifier {
+    @override
+    FutureOr<List<Class>> build() async {
+      return <Class>[];
+    }
+    // Methods...
+  }
+  ```
+- **Dashboard Refresh Pattern (QUAN TRỌNG):**
+  - Refresh methods CHỈ refresh data providers, KHÔNG touch auth state
+  - KHÔNG gọi `checkCurrentUser()` trong refresh để tránh reset auth state
+  - KHÔNG set state về `loading` trong refresh để tránh router redirect
 
-> **Xem thêm:** Chi tiết về State Management Pattern và ViewModel structure trong `memory-bank/systemPatterns.md` (State Management Pattern section)
+### Provider (Legacy - Chỉ cho code cũ)
+- **Provider** (v6.0.0) chỉ còn dùng cho một số screens/widgets cũ chưa migrate.
+- **ViewModels** (`ChangeNotifier`) cũ vẫn tồn tại để tương thích ngược, nhưng KHÔNG dùng cho code mới.
+
+> **Xem thêm:** Chi tiết về State Management Pattern và Riverpod usage trong `memory-bank/systemPatterns.md` (State Management Pattern section) và `memory-bank/techContext.md` (State Management section)
 
 ---
 
-## 5. Điều hướng (Routing & Navigation)
+## 5. Điều hướng (Routing & Navigation) - GoRouter v2.0
 
-- Mọi hoạt động điều hướng phải được định nghĩa và xử lý tập trung tại `routes/app_routes.dart`.
-- Khi điều hướng đến một màn hình cần dữ liệu (ví dụ: `profile`), dữ liệu đó **BẮT BUỘC** phải được truyền qua tham số `arguments` của `Navigator.pushNamed()`.
-- Hàm `generateRoute` chịu trách nhiệm lấy `arguments`, kiểm tra kiểu dữ liệu, và truyền vào hàm khởi tạo của màn hình tương ứng.
-- Sử dụng các hằng số được định nghĩa trong lớp `AppRoutes` (ví dụ: `AppRoutes.home`) thay vì chuỗi thuần (hard-coded string) như `'/home'`.
+### Architecture: Tứ Trụ (Four Pillars)
+1. **GoRouter** - Navigation framework (v14.0.0+)
+2. **Riverpod** - State management (auth, role checks)
+3. **RBAC** - 3-step redirect logic (public → auth → role)
+4. **ShellRoute** - Preserve bottom nav during navigation
 
-> **Xem thêm:** Chi tiết về Role-Based Navigation trong `memory-bank/systemPatterns.md` (Key Technical Decisions section)
+### Core Files
+- **`lib/core/routes/route_constants.dart`** - Single Source of Truth cho TẤT CẢ routes:
+  - Route names (static constants)
+  - Route paths (static helpers như `AppRoute.teacherEditClassPath(classId)`)
+  - RBAC helpers (`canAccessRoute()`, `getDashboardPathForRole()`)
+- **`lib/core/routes/app_router.dart`** - GoRouter configuration:
+  - ShellRoute cho Student/Teacher/Admin dashboards
+  - RBAC redirect logic tích hợp
+  - Deep linking support
+- **`lib/core/routes/route_guards.dart`** - Auth/role utility functions
+
+### Navigation Patterns
+- **UI Navigation:** Sử dụng `context.goNamed()` với route constants:
+  ```dart
+  context.goNamed(
+    AppRoute.teacherEditClass,
+    pathParameters: {'classId': classId},
+  );
+  ```
+- **Logic Navigation:** Sử dụng `ref.read(routerProvider).goNamed(...)`
+- **KHÔNG sử dụng:** `Navigator.push()`, hardcoded paths như `'/home'`
+
+### RBAC (Role-Based Access Control)
+- **Automatic Redirect Logic:**
+  1. Public routes → Allow (splash, login, register, deep links)
+  2. Not authenticated → Redirect to `/login`
+  3. Role mismatch → Redirect to role's dashboard
+- **Route Protection:** Tự động kiểm tra qua `route_guards.dart`
+
+### ShellRoute Pattern
+- **Student Shell:** `/student-dashboard` preserves bottom nav
+- **Teacher Shell:** `/teacher-dashboard` preserves bottom nav
+- **Admin Shell:** `/admin-dashboard` preserves bottom nav
+
+> **Xem thêm:** Chi tiết về Router Architecture v2.0 trong `memory-bank/systemPatterns.md` (Router Architecture section) và `memory-bank/techContext.md` (Routing & Navigation section)
 
 ---
 
@@ -263,6 +378,8 @@ project_root/
 
 - Các lỗi cần hiển thị cho người dùng (ví dụ: "Sai mật khẩu") phải được quản lý qua `errorMessage` trong ViewModel và hiển thị bằng `ScaffoldMessenger.of(context).showSnackBar(...)` ở View.
 - Các lỗi trong tầng `Data` hoặc `Domain` nên được bắt và ném lại (re-throw) dưới dạng các Exception đã được định nghĩa, thay vì trả về `null` một cách chung chung.
+- **Error Translation:** Tất cả repositories PHẢI sử dụng `ErrorTranslationUtils.translateError()` để translate lỗi sang tiếng Việt. KHÔNG được tự implement `_translateError()` method riêng.
+- **Logging:** Sử dụng `AppLogger` thống nhất cho tất cả logging. KHÔNG được tạo custom logging functions như `_agentLog()`.
 
 > **Xem thêm:** Chi tiết về Error Handling Pattern và error flow trong `memory-bank/systemPatterns.md` (Error Handling Pattern section)
 
@@ -293,9 +410,81 @@ project_root/
 
 ---
 
-## 10. MCP Usage Patterns và Best Practices
+## 10. UI/UX Rules & Widget Composition Pattern
 
-### 10.1. Supabase MCP Server
+### 10.1. UI/UX General Rules
+- Use `SmartHighlightText` for all search results (Supports Vietnamese diacritics removal).
+- Ensure all screens use `AutomaticKeepAliveClientMixin` where state preservation is needed.
+- Keyboard MUST be dismissed on scroll: `keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag`.
+- Use `AppRefreshIndicator` widget (from `lib/widgets/refresh/app_refresh_indicator.dart`) for consistent pull-to-refresh styling across the app.
+
+### 10.2. Widget Composition Pattern (Assignment List)
+**MANDATORY:** Khi tạo các màn hình list tương tự nhau (>70% code giống), PHẢI sử dụng Composition Pattern thay vì copy-paste code.
+
+**Location:** `lib/presentation/views/assignment/teacher/widgets/assignment_list/`
+
+**Core Components:**
+- `AssignmentCard`: Reusable card widget để hiển thị một assignment
+  - Nhận config từ bên ngoài (badge, action, metadata)
+  - Không hardcode logic, chỉ render UI
+- `AssignmentListView`: List view wrapper với pull-to-refresh
+  - Compose AssignmentCard và EmptyState
+  - Xử lý refresh logic
+- `AssignmentEmptyState`: Empty state widget
+  - Factory methods: `.draft()`, `.published()`
+- `AssignmentErrorState`: Error state widget với retry
+- `AssignmentCardConfig`: Config classes (Badge, Action, Metadata)
+- `AssignmentDateFormatter`: Utility class format dates
+
+**Design Principles:**
+1. **Composition over Configuration**: Tách thành widget nhỏ, compose lại
+2. **Single Responsibility**: Mỗi widget chỉ làm 1 việc
+3. **Open/Closed**: Dễ mở rộng, không cần sửa code cũ
+4. **Dependency Inversion**: Widget nhận config từ bên ngoài
+
+**Usage Pattern:**
+```dart
+// Screen chỉ compose, không có logic UI phức tạp
+AssignmentListView(
+  assignments: filteredAssignments,
+  badgeConfig: AssignmentBadgeConfig.draft,
+  actionBuilder: (assignment) => AssignmentActionConfig(
+    label: 'Chỉnh sửa',
+    icon: Icons.edit_outlined,
+    onPressed: () => navigateToEdit(assignment),
+  ),
+  metadataConfig: AssignmentMetadataConfig.draft,
+  emptyState: AssignmentEmptyState.draft(),
+  onRefresh: () => refresh(),
+)
+```
+
+**Khi nào áp dụng:**
+- ✅ Có 2+ màn hình list tương tự nhau (>70% code giống)
+- ✅ Cần tái sử dụng UI components
+- ✅ Muốn dễ maintain và mở rộng
+
+**Khi nào KHÔNG áp dụng:**
+- ❌ Chỉ có 1 màn hình duy nhất
+- ❌ Các màn hình khác nhau hoàn toàn
+- ❌ Over-engineering cho use case đơn giản
+
+**Best Practices:**
+- ✅ Sử dụng preset configs: `AssignmentBadgeConfig.draft`, `AssignmentMetadataConfig.published`
+- ✅ Tách utility functions: `AssignmentDateFormatter`
+- ✅ Factory methods cho empty states: `AssignmentEmptyState.draft()`
+- ✅ Test từng widget nhỏ riêng biệt
+- ❌ Không hardcode config trong widget
+- ❌ Không copy-paste code, dùng lại widgets
+- ❌ Không tạo config class quá phức tạp
+
+**Xem chi tiết:** `docs/architecture/assignment_list_widgets_composition_pattern.md`
+
+---
+
+## 11. MCP Usage Patterns và Best Practices
+
+### 11.1. Supabase MCP Server
 **Khi nào sử dụng:**
 - Kiểm tra schema database trước khi tạo model hoặc repository
 - Query dữ liệu để hiển thị trực tiếp cho người dùng
@@ -316,7 +505,7 @@ Trước khi tạo ProfileRepository:
 3. Sau đó mới tạo entity và repository phù hợp
 ```
 
-### 10.2. Fetch MCP Server
+### 11.2. Fetch MCP Server
 **Khi nào sử dụng:**
 - Tìm documentation của thư viện mới được thêm vào pubspec.yaml
 - Tìm examples và best practices từ web
@@ -398,13 +587,20 @@ Khi thêm flutter_riverpod vào pubspec.yaml:
 Để tìm hiểu thêm về các chủ đề cụ thể, tham khảo:
 
 - **Clean Architecture & MVVM Patterns:** `memory-bank/systemPatterns.md` (Overall Architecture section)
-- **State Management:** `memory-bank/systemPatterns.md` (State Management Pattern section)
-- **Error Handling:** `memory-bank/systemPatterns.md` (Error Handling Pattern section)
-- **Design System:** `memory-bank/systemPatterns.md` (Design System Specifications section)
+- **State Management (Riverpod):** `memory-bank/systemPatterns.md` (State Management Pattern section) và `memory-bank/techContext.md` (State Management section)
+- **Routing & Navigation (GoRouter v2.0):** `memory-bank/systemPatterns.md` (Router Architecture section) và `memory-bank/techContext.md` (Routing & Navigation section)
+- **Error Handling:** `memory-bank/systemPatterns.md` (Error Handling Pattern section) - Sử dụng `ErrorTranslationUtils` cho tất cả repositories
+- **Design System:** `memory-bank/systemPatterns.md` (Design System Specifications section) và `memory-bank/DESIGN_SYSTEM_GUIDE.md`
 - **Code Conventions:** `.clinerules` (Code Quality section) và `memory-bank/activeContext.md` (Active Preferences & Standards section)
 - **MCP Setup & Configuration:** `memory-bank/techContext.md` (MCP Setup section)
-- **Technology Stack:** `memory-bank/techContext.md`
+- **Technology Stack:** `memory-bank/techContext.md` - Chi tiết về tất cả dependencies và tools
 - **Current Work Focus:** `memory-bank/activeContext.md` (Current Sprint Focus section)
+- **Progress Tracking:** `memory-bank/progress.md` - Lịch sử các thay đổi và optimizations
 - **Git Workflow:** `.clinerules` (Git Workflow section)
 - **HTML → Dart Conversion:** `.clinerules` (HTML → Dart Conversion section)
 - **Flutter Refactoring Rules:** `.clinerules` (Flutter Refactoring section)
+
+---
+
+**Last Updated:** 2026-01-30  
+**Version:** 2.0 (Updated với Riverpod migration, GoRouter v2.0, ErrorTranslationUtils, và cấu trúc mới nhất)

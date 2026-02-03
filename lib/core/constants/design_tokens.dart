@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'device_types.dart';
+
 /// Design System - Unified Design Tokens
 ///
 /// This file is the single source of truth for all design specifications
@@ -24,7 +26,8 @@ class DesignColors {
   static const Color tealPrimary = Color(0xFF0EA5A4); // Teal accent color
   static const Color tealDark = Color(0xFF0B7E7C); // Dark variant
   static const Color tealLight = Color(0xFF14B8A6); // Light variant
-  static const Color tealAccent = Color(0xff1f0ea5a4); // 12% opacity accent
+  // 12% opacity accent (alpha 0x1F) với full 8-digit ARGB hex
+  static const Color tealAccent = Color(0x1F0EA5A4);
 
   // Neutral Colors
   static const Color white = Color(0xFFFFFFFF);
@@ -52,10 +55,23 @@ class DesignColors {
   static const Color disabledLight = Color(0xFFFAFAFA);
   static const Color disabledMedium = Color(0xFFEBEBEB);
 
+  // Drawer Component Colors
+  static const Color drawerIcon = Color(0xFF4A90E2); // Blue for drawer icons
+  static const Color drawerSwitchActive = Color(
+    0xFF4A90E2,
+  ); // Blue for active switch
+  static const Color drawerSwitchInactive = Color(
+    0xFFE9EEF3,
+  ); // Gray for inactive switch
+
+  // Refresh Indicator
+  static const Color refreshIndicator = Color(0xFF1976D2); // Blue for refresh indicator (xanh nước biển)
+
   // Shadows (Black with opacity variants)
-  static Color shadowLight = Colors.black.withOpacity(0.05);
-  static Color shadowMedium = Colors.black.withOpacity(0.12);
-  static Color shadowHeavy = Colors.black.withOpacity(0.2);
+  // Sử dụng withValues để tránh deprecated withOpacity
+  static Color shadowLight = Colors.black.withValues(alpha: 0.05);
+  static Color shadowMedium = Colors.black.withValues(alpha: 0.12);
+  static Color shadowHeavy = Colors.black.withValues(alpha: 0.2);
 }
 
 // ==================== SPACING SCALE (8dp Base Unit) ====================
@@ -93,6 +109,130 @@ class DesignSpacing {
   static const double itemSpacing = md; // Space between list items (12dp)
   static const double sectionSpacing =
       xxl; // Space between major sections (24dp)
+
+  /// Get responsive spacing instance for the given context
+  ///
+  /// Spacing will automatically adjust based on device type:
+  /// - Mobile: base values (1.0x)
+  /// - Tablet: 1.15x - 1.25x (depending on spacing size)
+  /// - Desktop: 1.3x - 1.5x (depending on spacing size)
+  ///
+  /// Example:
+  /// ```dart
+  /// final spacing = DesignSpacing.responsive(context);
+  /// padding: EdgeInsets.all(spacing.md),
+  /// ```
+  ///
+  /// Or use the extension:
+  /// ```dart
+  /// padding: EdgeInsets.all(context.spacing.md),
+  /// ```
+  static ResponsiveSpacing responsive(BuildContext context) {
+    return ResponsiveSpacing.of(context);
+  }
+}
+
+/// Responsive spacing that adjusts based on device type
+///
+/// Small spacing (xs, sm): scales less (1.1x tablet, 1.2x desktop)
+/// Medium spacing (md, lg): scales moderately (1.15x tablet, 1.3x desktop)
+/// Large spacing (xl, xxl+): scales more (1.25x tablet, 1.5x desktop)
+class ResponsiveSpacing {
+  final BuildContext context;
+  final DeviceType deviceType;
+
+  ResponsiveSpacing._(this.context, this.deviceType);
+
+  /// Create ResponsiveSpacing instance from context
+  factory ResponsiveSpacing.of(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    DeviceType deviceType;
+    if (width < DesignBreakpoints.tabletSmall) {
+      deviceType = DeviceType.mobile;
+    } else if (width < DesignBreakpoints.desktop) {
+      deviceType = DeviceType.tablet;
+    } else {
+      deviceType = DeviceType.desktop;
+    }
+    return ResponsiveSpacing._(context, deviceType);
+  }
+
+  /// Get multiplier based on spacing size and device type
+  double _getMultiplier(String spacingSize) {
+    switch (deviceType) {
+      case DeviceType.mobile:
+        return 1.0; // Base value
+      case DeviceType.tablet:
+        // Small spacing: minimal scaling
+        if (spacingSize == 'xs' || spacingSize == 'sm') {
+          return 1.1;
+        }
+        // Medium spacing: moderate scaling
+        if (spacingSize == 'md' || spacingSize == 'lg') {
+          return 1.15;
+        }
+        // Large spacing: more scaling
+        return 1.25;
+      case DeviceType.desktop:
+        // Small spacing: minimal scaling
+        if (spacingSize == 'xs' || spacingSize == 'sm') {
+          return 1.2;
+        }
+        // Medium spacing: moderate scaling
+        if (spacingSize == 'md' || spacingSize == 'lg') {
+          return 1.3;
+        }
+        // Large spacing: more scaling
+        return 1.5;
+    }
+  }
+
+  // Small spacing (xs, sm) - minimal scaling
+  double get xs => DesignSpacing.xs * _getMultiplier('xs');
+  double get sm => DesignSpacing.sm * _getMultiplier('sm');
+
+  // Medium spacing (md, lg) - moderate scaling
+  double get md => DesignSpacing.md * _getMultiplier('md');
+  double get lg => DesignSpacing.lg * _getMultiplier('lg');
+
+  // Large spacing (xl, xxl+) - more scaling
+  double get xl => DesignSpacing.xl * _getMultiplier('xl');
+  double get xxl => DesignSpacing.xxl * _getMultiplier('xxl');
+  double get xxxl => DesignSpacing.xxxl * _getMultiplier('xxxl');
+  double get xxxxl => DesignSpacing.xxxxl * _getMultiplier('xxxxl');
+  double get xxxxxl => DesignSpacing.xxxxxl * _getMultiplier('xxxxxl');
+  double get xxxxxxl => DesignSpacing.xxxxxxl * _getMultiplier('xxxxxxl');
+
+  // Semantic spacing names
+  double get paddingMinimal => xs;
+  double get paddingSmall => sm;
+  double get paddingNormal => lg;
+  double get paddingLarge => xxl;
+  double get paddingXLarge => xxxl;
+
+  double get marginMinimal => xs;
+  double get marginSmall => sm;
+  double get marginNormal => lg;
+  double get marginLarge => xxl;
+  double get marginXLarge => xxxl;
+
+  // Component-specific spacing
+  double get screenPadding => lg;
+  double get cardPadding => lg;
+  double get itemSpacing => md;
+  double get sectionSpacing => xxl;
+}
+
+/// Extension for easy access to responsive spacing via BuildContext
+///
+/// Example:
+/// ```dart
+/// padding: EdgeInsets.all(context.spacing.md),
+/// SizedBox(height: context.spacing.lg),
+/// ```
+extension ResponsiveSpacingExtension on BuildContext {
+  /// Get responsive spacing for current device
+  ResponsiveSpacing get spacing => ResponsiveSpacing.of(this);
 }
 
 // ==================== TYPOGRAPHY SCALE ====================
@@ -439,7 +579,7 @@ class DesignBreakpoints {
 
   // Responsive value helper - returns value based on screen width
   /// Get responsive value based on screen width
-  /// 
+  ///
   /// Example:
   /// ```dart
   /// final padding = DesignBreakpoints.responsiveValue(
@@ -466,7 +606,8 @@ class DesignBreakpoints {
 
   // Responsive column count helper
   /// Get responsive column count for grid layouts
-  static int getColumnCount(double screenWidth, {
+  static int getColumnCount(
+    double screenWidth, {
     int mobileColumns = 1,
     int tabletColumns = 2,
     int desktopColumns = 3,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'flexible_dialog.dart';
 import 'success_dialog.dart';
 
@@ -18,10 +19,12 @@ class WarningDialog {
 
     // Thêm hành động xác nhận (nút chính)
     if (confirmAction != null) {
-      actions.add(confirmAction.copyWith(
-        type: DialogActionType.primary,
-        isDestructive: confirmAction.isDestructive,
-      ));
+      actions.add(
+        confirmAction.copyWith(
+          type: DialogActionType.primary,
+          isDestructive: confirmAction.isDestructive,
+        ),
+      );
     }
 
     // Thêm hành động hủy (nút phụ)
@@ -67,31 +70,90 @@ class WarningDialog {
   }
 
   /// Hiển thị dialog cảnh báo không lưu thay đổi
+  /// Trả về: true nếu user chọn "Lưu thay đổi", false nếu chọn "Không lưu", null nếu đóng dialog (hủy)
+  /// Layout: "Lưu thay đổi" (bên trái, có màu) | "Không lưu" (bên phải, không màu)
+  /// Bấm ra ngoài dialog = hủy (ở lại trang) = trả về null
   static Future<bool?> showUnsavedChanges({
     required BuildContext context,
-    required VoidCallback onDiscard,
-    required VoidCallback onSave,
     bool barrierDismissible = true,
   }) {
     return show<bool>(
       context: context,
       title: 'Thay đổi chưa được lưu',
       message: 'Bạn có muốn lưu thay đổi trước khi rời khỏi?',
+      // Nút "Lưu thay đổi" - bên trái, có màu (primary)
       confirmAction: DialogAction(
-        text: 'Không lưu',
-        onPressed: () {
-          onDiscard();
-          Navigator.pop(context, true);
-        },
+        text: 'Lưu thay đổi',
+        onPressed: () => Navigator.pop(context, true), // true = lưu thay đổi
         isDestructive: false,
       ),
+      // Nút "Không lưu" - bên phải, không màu (secondary)
       cancelAction: DialogAction(
-        text: 'Lưu thay đổi',
-        onPressed: () {
-          onSave();
-          Navigator.pop(context, false);
-        },
+        text: 'Không lưu',
+        onPressed: () => Navigator.pop(context, false), // false = không lưu
       ),
+      barrierDismissible: barrierDismissible,
+    );
+  }
+
+  /// Trạng thái cho dialog "thay đổi chưa lưu" dạng 3 lựa chọn.
+  /// - save: lưu rồi thoát
+  /// - discard: không lưu rồi thoát
+  /// - cancel: ở lại trang
+  static Future<WarningUnsavedDecision> showUnsavedChangesWithCancel({
+    required BuildContext context,
+    String title = 'Thay đổi chưa được lưu',
+    String message = 'Bạn có muốn lưu thay đổi trước khi rời khỏi?',
+    String saveText = 'Lưu',
+    String discardText = 'Không lưu',
+    String cancelText = 'Hủy',
+    bool barrierDismissible = true,
+  }) async {
+    final result = await FlexibleDialog.show<WarningUnsavedDecision>(
+      context: context,
+      title: title,
+      message: message,
+      type: DialogType.warning,
+      barrierDismissible: barrierDismissible,
+      actions: [
+        DialogAction(
+          text: cancelText,
+          type: DialogActionType.tertiary,
+          onPressed: () =>
+              Navigator.pop(context, WarningUnsavedDecision.cancel),
+        ),
+        DialogAction(
+          text: discardText,
+          type: DialogActionType.secondary,
+          onPressed: () =>
+              Navigator.pop(context, WarningUnsavedDecision.discard),
+        ),
+        DialogAction(
+          text: saveText,
+          type: DialogActionType.primary,
+          onPressed: () => Navigator.pop(context, WarningUnsavedDecision.save),
+        ),
+      ],
+    );
+
+    return result ?? WarningUnsavedDecision.cancel;
+  }
+
+  /// Hiển thị dialog xác nhận lưu thay đổi
+  /// Trả về: true nếu user chọn "Lưu", false nếu chọn "Hủy", null nếu đóng dialog
+  static Future<bool?> showSaveConfirmation({
+    required BuildContext context,
+    String title = 'Xác nhận lưu',
+    String message = 'Bạn có chắc chắn muốn lưu các thay đổi?',
+    bool barrierDismissible = true,
+  }) {
+    return showConfirmation(
+      context: context,
+      title: title,
+      message: message,
+      confirmText: 'Lưu',
+      cancelText: 'Hủy',
+      isDestructive: false,
       barrierDismissible: barrierDismissible,
     );
   }
@@ -106,7 +168,8 @@ class WarningDialog {
     return show<bool>(
       context: context,
       title: 'Xác nhận xóa',
-      message: 'Bạn có chắc chắn muốn xóa "$itemName"? Hành động này không thể hoàn tác.',
+      message:
+          'Bạn có chắc chắn muốn xóa "$itemName"? Hành động này không thể hoàn tác.',
       confirmAction: DialogAction(
         text: 'Xóa',
         onPressed: () {
@@ -123,3 +186,5 @@ class WarningDialog {
     );
   }
 }
+
+enum WarningUnsavedDecision { save, discard, cancel }

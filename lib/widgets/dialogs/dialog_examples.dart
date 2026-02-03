@@ -2,11 +2,13 @@
 /// Chứa các ví dụ thực tế cho từng loại dialog
 library;
 
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:flutter/material.dart';
+
 import 'error_dialog.dart';
+import 'flexible_dialog.dart';
 import 'success_dialog.dart';
 import 'warning_dialog.dart';
-import 'flexible_dialog.dart';
 
 class DialogExamples {
   /// Ví dụ 1: Dialog thành công duyệt học sinh (theo thiết kế HTML gốc)
@@ -30,7 +32,7 @@ class DialogExamples {
       itemName: 'Bài tập Toán - Chương 1',
       onDelete: () {
         // Thực hiện xóa bài tập
-        print('Đang xóa bài tập...');
+        AppLogger.debug('Đang xóa bài tập...');
       },
     );
   }
@@ -41,24 +43,28 @@ class DialogExamples {
       context: context,
       onRetry: () {
         // Thử kết nối lại
-        print('Đang thử kết nối lại...');
+        AppLogger.debug('Đang thử kết nối lại...');
       },
     );
   }
 
   /// Ví dụ 4: Dialog xác nhận không lưu thay đổi
-  static void showUnsavedChangesDialog(BuildContext context) {
-    WarningDialog.showUnsavedChanges(
-      context: context,
-      onDiscard: () {
-        // Bỏ qua thay đổi và quay lại
-        Navigator.pop(context);
-      },
-      onSave: () {
-        // Lưu thay đổi trước khi rời khỏi
-        print('Đang lưu thay đổi...');
-      },
-    );
+  /// Lưu ý: Method này đã được cập nhật, không còn callback onDiscard/onSave
+  /// Thay vào đó, method trả về bool? để caller xử lý
+  static Future<void> showUnsavedChangesDialog(BuildContext context) async {
+    final result = await WarningDialog.showUnsavedChanges(context: context);
+    if (!context.mounted) return;
+
+    if (result == true) {
+      // User chọn "Không lưu" → bỏ qua thay đổi và quay lại
+      Navigator.pop(context);
+    } else if (result == false) {
+      // User chọn "Lưu thay đổi" → lưu trước khi rời khỏi
+      AppLogger.debug('Đang lưu thay đổi...');
+      // TODO: Gọi method lưu thay đổi ở đây
+      // Sau khi lưu xong, có thể pop nếu cần
+    }
+    // result == null: User đóng dialog → không làm gì
   }
 
   /// Ví dụ 5: Dialog lỗi xác thực
@@ -86,7 +92,7 @@ class DialogExamples {
       errorMessage: 'Bạn không có quyền thực hiện hành động này.',
       onDetails: () {
         // Hiển thị chi tiết lỗi
-        print('Hiển thị chi tiết lỗi AUTH-403');
+        AppLogger.debug('Hiển thị chi tiết lỗi AUTH-403');
       },
     );
   }
@@ -116,7 +122,7 @@ class DialogExamples {
           text: 'Cập nhật ngay',
           onPressed: () {
             // Thực hiện cập nhật
-            print('Đang cập nhật ứng dụng...');
+            AppLogger.debug('Đang cập nhật ứng dụng...');
           },
           type: DialogActionType.primary,
         ),
@@ -142,7 +148,7 @@ class DialogExamples {
       message: 'Không thể tải danh sách lớp học. Vui lòng thử lại.',
       onRetry: () {
         // Thử tải lại dữ liệu
-        print('Đang tải lại dữ liệu...');
+        AppLogger.debug('Đang tải lại dữ liệu...');
       },
     );
   }
@@ -158,13 +164,17 @@ class DialogExamples {
       isDestructive: false,
     ).then((confirmed) async {
       if (confirmed == true) {
-        // Gọi hàm tạo lớp học
         try {
           // Giả lập gọi API tạo lớp
-          await Future.delayed(Duration(seconds: 1));
+          await Future.delayed(const Duration(seconds: 1));
+
+          // Sau async gap, đảm bảo context vẫn còn mounted
+          if (!context.mounted) return;
+
           // Nếu thành công, hiển thị dialog thành công
           showClassCreationSuccessDialog(context);
         } catch (e) {
+          if (!context.mounted) return;
           // Nếu thất bại, hiển thị dialog lỗi
           showClassCreationFailureDialog(context);
         }
@@ -181,7 +191,7 @@ class DialogExamples {
       onViewDetails: () {
         Navigator.pop(context);
         // TODO: Điều hướng đến màn hình chi tiết lớp học
-        print('Điều hướng đến chi tiết lớp học');
+        AppLogger.debug('Điều hướng đến chi tiết lớp học');
       },
     );
   }
@@ -191,17 +201,21 @@ class DialogExamples {
     ErrorDialog.showWithRetry(
       context: context,
       title: 'Tạo lớp học thất bại',
-      message: 'Không thể tạo lớp học. Vui lòng kiểm tra kết nối mạng và thử lại.',
+      message:
+          'Không thể tạo lớp học. Vui lòng kiểm tra kết nối mạng và thử lại.',
       onRetry: () {
         // Thử tạo lại lớp học
-        print('Đang thử tạo lại lớp học...');
+        AppLogger.debug('Đang thử tạo lại lớp học...');
         // TODO: Gọi lại hàm tạo lớp
       },
     );
   }
 
   /// Ví dụ 14: Dialog xác nhận thêm nhiều học sinh vào lớp
-  static void showAddMultipleStudentsConfirmationDialog(BuildContext context, int studentCount) {
+  static void showAddMultipleStudentsConfirmationDialog(
+    BuildContext context,
+    int studentCount,
+  ) {
     WarningDialog.showConfirmation(
       context: context,
       title: 'Xác nhận thêm học sinh',
@@ -213,7 +227,10 @@ class DialogExamples {
       if (confirmed == true) {
         try {
           // Giả lập quá trình thêm học sinh
-          await Future.delayed(Duration(seconds: 2));
+          await Future.delayed(const Duration(seconds: 2));
+
+          if (!context.mounted) return;
+
           // Hiển thị kết quả
           SuccessDialog.showSimple(
             context: context,
@@ -221,6 +238,7 @@ class DialogExamples {
             message: 'Đã thêm $studentCount học sinh vào lớp thành công.',
           );
         } catch (e) {
+          if (!context.mounted) return;
           ErrorDialog.showSimple(
             context: context,
             title: 'Thêm học sinh thất bại',
@@ -326,7 +344,10 @@ class DialogDemoScreen extends StatelessWidget {
             _buildDemoButton(
               context,
               '14. Warning Dialog - Thêm nhiều học sinh',
-              (ctx) => DialogExamples.showAddMultipleStudentsConfirmationDialog(ctx, 5),
+              (ctx) => DialogExamples.showAddMultipleStudentsConfirmationDialog(
+                ctx,
+                5,
+              ),
             ),
           ],
         ),

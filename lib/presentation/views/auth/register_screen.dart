@@ -1,19 +1,20 @@
-import 'package:ai_mls/presentation/viewmodels/auth_viewmodel.dart'; // Updated path
-import 'package:ai_mls/routes/app_routes.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/validation_utils.dart';
+import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   // Renamed class
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState(); // Renamed class
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState(); // Renamed class
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   // Renamed class
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -94,14 +95,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
-    final successMessage = await authViewModel.signUp(
-      email,
-      password,
-      fullName,
-      _selectedRole,
-      phone,
-      _selectedGender,
+    final authNotifier = ref.read(authNotifierProvider.notifier);
+    final successMessage = await authNotifier.signUp(
+      email: email,
+      password: password,
+      fullName: fullName,
+      role: _selectedRole,
+      phone: phone,
+      gender: _selectedGender,
     );
 
     if (mounted && successMessage != null) {
@@ -110,26 +111,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
 
-      // Chuyển sang LoginScreen và auto-fill email
+      // Chuyển sang LoginScreen (GoRouter sẽ tự động điều hướng)
+      // Note: initialEmail sẽ được xử lý qua query params nếu cần
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) {
-          Navigator.pushReplacementNamed(
-            context,
-            AppRoutes.login,
-            arguments: email,
-          );
+          context.goNamed(AppRoute.login);
         }
       });
-    } else if (mounted) {
-      final errorMsg = authViewModel.errorMessage ?? 'Đăng ký thất bại';
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(errorMsg)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authNotifierProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Đăng ký')),
       body: Center(
@@ -218,9 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 SizedBox(height: DesignSpacing.xxxl),
-                Consumer<AuthViewModel>(
-                  builder: (context, authViewModel, _) {
-                    return authViewModel.isLoading
+                authState.isLoading
                         ? const CircularProgressIndicator()
                         : SizedBox(
                             width: double.infinity,
@@ -228,8 +220,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               onPressed: _register,
                               child: const Text('Đăng ký'),
                             ),
-                          );
-                  },
                 ),
               ],
             ),

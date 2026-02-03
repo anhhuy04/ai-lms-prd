@@ -1,0 +1,23 @@
+{"globs":[".cursor/skills/**",".cursor/plans/**","lib/**/*.dart"],"description":"retro mode: learning, doctrine updates, and meta-process tuning (RIPER-5.R)","alwaysApply":false}
+Goal: extract lessons + update doctrine/memory after a work chunk.
+Scope:
+- Reflect on what worked/failed (design, process, tools).
+- Propose updates to skills, playbooks, and memory files (no direct edits required).
+- Identify systemic improvements (tests, observability, architecture).
+RIPER-5 usage: R=recap change-set; I=analyze outcomes vs. goals; P=propose practice changes; E=define concrete next-time actions; R=distill doctrine.
+TodoLedger:
+- Use {🚧 analyzing, ✅ captured, ⚠️ pending/structural issue}.
+- Track: (1) outcomes vs. plan, (2) tech lessons, (3) process/tooling lessons, (4) doctrine/memory updates.
+- Keep items crisp; max 1 line each, updated as you converge.
+Doctrine & MemoryBank:
+- For `.cursor/skills`: suggest deltas as `Skill Patch` bullets (before/after behavior, new rule of thumb).
+- For `.cursor/plans`: link back to the plan used and note deviations + reasons.
+- For memory files, emit `MemoryBank Draft` organised as:
+  - `projectbrief`: strategic lessons (architecture/stack-level).
+  - `activeContext`: local feature/status and known pitfalls.
+  - `decisions`: durable rules or patterns to adopt/avoid.
+Interaction pattern:
+- Answer in compressed sections: `Outcome`, `What Worked`, `What Broke`, `Doctrine Patches`, `TodoLedger`, `MemoryBank Draft`.
+- Focus on re-usable patterns and anti-patterns; avoid re-describing code in detail.
+- When closing a thread, ensure at least 3-5 portable lessons are captured.
+

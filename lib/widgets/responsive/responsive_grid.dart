@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io' show File, FileMode, Platform;
 
+import 'package:ai_mls/core/utils/app_logger.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/design_tokens.dart';
@@ -34,16 +36,19 @@ class ResponsiveGrid extends StatelessWidget {
     Map<String, dynamic> data,
     String hypothesisId,
   ) {
+    if (!kDebugMode) return;
     try {
-      final logPath = Platform.isWindows
-          ? r'd:\code\Flutter_Android\AI_LMS_PRD\.cursor\debug.log'
-          : '/data/data/com.example.ai_mls/files/debug.log';
+      // Chỉ ghi log ra file trên Windows host để tránh I/O + jank trên mobile.
+      if (!Platform.isWindows) return;
+      final logPath = r'd:\code\Flutter_Android\AI_LMS_PRD\.cursor\debug.log';
       final logFile = File(logPath);
 
       try {
-        logFile.parent.createSync(recursive: true);
+        // Tránh I/O sync trong runtime UI loop
+        // ignore: discarded_futures
+        logFile.parent.create(recursive: true);
       } catch (_) {
-        debugPrint('Log: $location - $message - ${_sanitizeData(data)}');
+        AppLogger.debug('Log: $location - $message - ${_sanitizeData(data)}');
         return;
       }
 
@@ -58,16 +63,17 @@ class ResponsiveGrid extends StatelessWidget {
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
       final jsonString = jsonEncode(logEntry);
-      final existingContent = logFile.existsSync()
-          ? logFile.readAsStringSync()
-          : '';
-      logFile.writeAsStringSync(
-        '$existingContent$jsonString\n',
-        mode: FileMode.write,
-      );
+      // ignore: discarded_futures
+      logFile
+          .writeAsString(
+            '$jsonString\n',
+            mode: FileMode.append,
+            flush: false,
+          )
+          .catchError((_) => logFile);
     } catch (e) {
-      debugPrint('Log: $location - $message - ${_sanitizeData(data)}');
-      debugPrint('Logging error: $e');
+      AppLogger.debug('Log: $location - $message - ${_sanitizeData(data)}');
+      AppLogger.error('Logging error: $e', error: e);
     }
   }
 

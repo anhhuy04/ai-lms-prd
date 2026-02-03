@@ -1,27 +1,21 @@
-import 'package:ai_mls/domain/entities/profile.dart';
 import 'package:ai_mls/domain/repositories/auth_repository.dart';
-import 'package:ai_mls/presentation/viewmodels/auth_viewmodel.dart';
+import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-/// Provider cho AuthRepository
-final authRepositoryProvider = Provider<AuthRepository>((ref) {
+part 'auth_providers.g.dart';
+
+/// Provider cho AuthRepository (dùng @riverpod để codegen)
+@riverpod
+AuthRepository authRepository(Ref ref) {
   throw UnimplementedError('Must override authRepositoryProvider');
-});
-
-/// Provider cho AuthViewModel
-final authViewModelProvider = Provider<AuthViewModel>((ref) {
-  final authRepository = ref.watch(authRepositoryProvider);
-  return AuthViewModel(authRepository);
-});
+}
 
 /// Provider cho current user profile (reactive, async)
-final currentUserProvider = FutureProvider<Profile?>((ref) async {
-  final authViewModel = ref.watch(authViewModelProvider);
-  if (authViewModel.userProfile == null) {
-    await authViewModel.checkCurrentUser();
-  }
-  return authViewModel.userProfile;
-});
+///
+/// Sử dụng AuthNotifier (đã migrate sang @riverpod).
+/// State: AsyncValue&lt;Profile?&gt; - null nếu chưa đăng nhập, Profile nếu đã đăng nhập.
+final currentUserProvider = authNotifierProvider;
 
 /// Provider cho current user ID (synchronous, nullable)
 /// Watch currentUserProvider để đảm bảo đợi user được load xong

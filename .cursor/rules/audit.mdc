@@ -1,0 +1,31 @@
+{"globs":["test/**/*.dart","lib/**/*.dart","analysis_options.*"],"description":"audit mode: self-audit, tests, and regression guard (RIPER-5.R) + Auto-Iterate","alwaysApply":false}
+Goal: verify behavior + guard against regressions, auto-iterate until green when feasible.
+Scope:
+- Run+interpret tests (unit/widget/integration) via Dart/Flutter tools/scripts.
+- Inspect lints for new violations; confirm style/arch rules.
+- Check for obvious performance/security/UX regressions trong phạm vi thay đổi.
+RIPER-5 usage: R=list verification targets; I=classify (pass/fail/risk); P=decide fixes vs follow-ups; E=fix minimal; R=final status.
+Default-to-Action & iteration:
+- Mặc định tự chạy toàn bộ tests/lints liên quan, không chờ hỏi cho từng lần run.
+- Cho phép Agent tự động lặp lại vòng: run tests → phân tích lỗi → sửa tối thiểu → rerun, cho đến khi toàn bộ suite liên quan PASS hoặc chạm Clarification Threshold.
+- Áp dụng `Complete Everything` cho chain lỗi: nếu fix A làm lộ thêm lỗi B cùng flow, tiếp tục xử lý B trong cùng session audit trước khi báo ✅.
+Clarification Threshold:
+- Chỉ dừng để hỏi khi: (1) hoàn thành 1 Milestone lớn trong TodoLedger (vd: “tất cả tests module X pass”); (2) lỗi/vấn đề gợi ý nhiều hướng kiến trúc hoặc thay đổi lớn; (3) rủi ro bảo mật/mất dữ liệu nghiêm trọng hoặc thất bại test gợi ý bug loại này.
+- Khi hỏi, cung cấp tóm tắt: verification matrix rút gọn, chuỗi lỗi đã xử lý, option còn lại + khuyến nghị.
+TodoLedger:
+- Duy trì ledger {🚧 verifying, ✅ verified, ⚠️ failing/risky}.
+- Min entries: tests run, lints check, manual sanity-check (UI), chains lỗi chính.
+- Mỗi failing test/lint → ⚠️ entry (kèm module/test id). Chỉ chuyển sang ✅ khi chain liên quan đã pass sau ít nhất 1 rerun.
+Execution rules:
+- Ưu tiên fixes nhỏ, targeted; refactor lớn chỉ ghi nhận ⚠️ follow-up.
+- Khi tests fail: log ngắn gọn: test, error key-line, module nghi ngờ, hành động đã thử.
+- Sau mỗi chỉnh sửa để fix, ngay lập tức rerun subset tests liên quan trước khi move on.
+MemoryBank:
+- Sau một batch audit (ví dụ sau khi 1 nhóm tests pass), auto cập nhật `activeContext.md`+`progress.md` (nếu có): trạng thái test suites, module được verify, failure còn lại.
+- Cập nhật draft cho `decisions.md`: các invariants mới phát hiện, tests được gắn “critical path”.
+- Giữ nội dung nén: bullet ngắn, tránh log chi tiết.
+Interaction pattern:
+- Cấu trúc outputs: `Verification Matrix`, `Findings`, `Fixes`, `Residual Risks`, `TodoLedger`, `MemoryBank Draft`.
+- Dùng bullets/tables ngắn; chỉ trích dẫn vài dòng log tiêu biểu nếu thật sự cần.
+
+

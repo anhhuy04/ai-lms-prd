@@ -72,15 +72,22 @@ ChangeNotifierProvider(
 
 ## State Management Pattern: Riverpod (Primary) + Provider (Legacy)
 
-### Current State: Mixed Approach
-- **Riverpod** (v2.5.1) - Primary state management solution
+### Current State: Migration Complete (2026-01-20)
+- **Riverpod** (v2.5.1) - Primary state management solution (MIGRATED)
   - Used for providers and reactive state
   - Code generation via `riverpod_generator` (v2.3.0) with `@riverpod` annotation
   - Better for dependency injection and state management
-- **Provider** (v6.0.0) - Legacy support for ViewModels
-  - Used for existing ViewModels with ChangeNotifier pattern
-  - Will gradually migrate to Riverpod
-  - Coexists with Riverpod for backward compatibility
+  - **Migration Status:** Hầu hết screens quan trọng đã migrate (login, register, splash, dashboards, class screens)
+  - **Notifiers:** `AuthNotifier`, `ClassNotifier`, `StudentDashboardNotifier`, `TeacherDashboardNotifier` (AsyncNotifier pattern)
+  - **Screens:** Đã convert sang `ConsumerWidget`/`ConsumerStatefulWidget` với `ref.watch()`/`ref.read()`
+  - **Dashboard Refresh Pattern (2026-01-21):**
+    - Refresh methods in dashboard notifiers only refresh data providers (classes, assignments)
+    - **CRITICAL:** Do NOT call `checkCurrentUser()` in refresh methods to avoid auth state reset
+    - Do NOT set state to `loading` in refresh (use `showLoading: false`) to prevent router redirect
+    - Pattern: `refresh()` → read auth state → refresh data providers → preserve auth state
+- **Provider** (v6.0.0) - Legacy support (còn một số screens/ widgets đơn giản)
+  - Chỉ còn dùng trong một số screens/ widgets cũ (sẽ migrate dần)
+  - ViewModels cũ vẫn tồn tại để tương thích ngược (không dùng cho code mới)
 
 ### Riverpod Pattern (Preferred for New Features)
 ```dart
@@ -205,15 +212,104 @@ Future<User> loginUser(String email, String password) async {
 - **Dependency Injection:** Use `ChangeNotifierProvider` with explicit constructor dependencies
 - **Status:** Coexists with Riverpod, will be gradually migrated
 
+### 2c. Async List & Background Parsing Pattern (2026-01-29)
+- **Goal:** Avoid jank (16ms/frame) when loading large lists (e.g. 500+ items).
+- **Data Layer Rule:** Heavy JSON parsing must run in background isolate using `compute` (or explicit Isolate) inside datasources; repositories expose `Future<List<Entity>>` to domain/UI.
+- **UI Pattern:** Use generic `AsyncListPage<T>` (`lib/widgets/async/async_list_page.dart`) for new list screens:
+  - Accepts `Future<List<T>>` + `itemBuilder`.
+  - Uses shimmer skeletons (`ShimmerListTileLoading`) while loading.
+  - Provides standardized empty/error states using DesignTokens.
+- **Existing Screens:** Legacy lists (e.g. teacher/student class lists) may keep custom Riverpod + pagination logic; new heavy lists should prefer `AsyncListPage<T>` + background parsing.
+
+### Student Class Management Patterns (NEW - 2026-01-29)
+✅ **Student Class List Features**
+  - **Sorting**: Use `ClassSortBottomSheet` reusable widget with `ClassSortOption` enum (name A-Z/Z-A, date newest/oldest)
+  - **Filtering**: Use `FilteringUtils.filterStudentClasses()` with `StudentClassFilterOption` enum (all/approved/pending)
+  - **Search**: Dedicated `StudentClassSearchScreen` using generic `SearchScreen<Class>` pattern
+  - **Status Handling**: Use `StudentClassMemberStatus` enum for type-safe status representation
+  - **Pending Class Interaction**: Use `StudentClassInteractionHandler.handleClassTap()` for centralized logic
+  - **Data Enrichment**: `getClassesByStudent` enriches data with `teacher_name` and `student_count` via SQL joins
+
+✅ **Student Leave Class Pattern**
+  - **Decision**: Xóa hoàn toàn record khỏi `class_members` (không chỉ đổi status)
+  - **Flow**: Repository → Datasource → Notifier → UI Handler
+  - **UI Pattern**: Confirmation dialog → Loading → Success/Error SnackBar → Navigate back
+  - **State Update**: Auto-refresh class list after leaving (remove from state)
+
+✅ **QR Scan Screen Pattern (Banking App Style)**
+  - **Overlay**: Custom painter với cutout (khoét lỗ) ở giữa màn hình
+  - **Camera Control**: `MobileScannerController` để toggle flash và analyze image
+  - **Image Picker**: `image_picker` package để chọn ảnh từ thư viện
+  - **Scan from Image**: `analyzeImage(file.path)` để scan QR từ file
+  - **UI Elements**: Modern app bar, scan frame corners, animated scan line, processing overlay
+
+✅ **Search & Display Patterns**
+  - **Highlight**: Highlight teacher name instead of academic year in search results
+  - **Search Filter**: Only search by name, subject, teacher name (academic year excluded)
+  - **Avatar**: Display first letter of given name (tên) instead of surname (họ) - Vietnamese culture
+  - **Student Count**: Dynamic count from database aggregation (status='approved' only)
+
 ### 3. Clean Architecture Layers
 - **Why:** Separates concerns, enables testing, makes feature changes easier
 - **Trade-off:** More boilerplate, but pays off as project scales
 - **Enforcement:** Code review must ensure no layer jumps (no direct DataSource in Views)
 
-### 4. Role-Based Navigation
-- **Why:** Different users see different UI
-- **Implementation:** After auth, route to dashboard based on `profile.role`
-- **Files:** [lib/core/routes/app_routes.dart](lib/core/routes/app_routes.dart)
+### 4. Router Architecture (Tứ Trụ: GoRouter + Riverpod + RBAC + ShellRoute) - v2.0 PRODUCTION READY
+
+**Core Philosophy:**
+- Router as **infrastructure layer** - NO UI logic, NO business logic
+- Named routes + static path helpers (NOT hardcoded paths)
+- RBAC guards automatic via redirect (3-step check: public → auth → role)
+- ShellRoute preserves bottom nav during navigation
+
+**Key Components:**
+- `lib/core/routes/route_constants.dart` - ALL route names, paths, helpers (Single Source of Truth)
+  - Route names: `static const String studentClassDetail = 'student-class-detail'`
+  - Path constants: `static const String studentClassDetailPath = '/student/class/:classId'`
+  - Path helpers: `static String studentClassDetailPath(String classId) => '/student/class/$classId'`
+  - RBAC helpers: `canAccessRoute(role, routeName)`
+
+- `lib/core/routes/app_router.dart` - GoRouter configuration (routes, ShellRoute, redirect)
+  - ShellRoute for Student/Teacher/Admin (preserves bottom nav)
+  - All routes have `name` property (enable `context.goNamed()`)
+  - RBAC redirect in redirect callback (public → auth → role check)
+  - Provider: `appRouterProvider` (Riverpod)
+
+- `lib/core/routes/route_guards.dart` - Utility functions
+  - `isAuthenticated(ref)`, `getCurrentUserRole(ref)`, `canAccessRoute(ref, routeName)`
+  - `appRouterRedirect()` - 3-step RBAC guard
+
+**RBAC Redirect Flow:**
+```
+Step 1: Public route? (splash, login, register, reset-password, verify-email) → Allow
+Step 2: Authenticated? No → Redirect /login?redirect=... ; Yes → Step 3
+Step 3: Role match? No → Redirect to role's dashboard ; Yes → Allow
+```
+
+**Navigation Pattern (MUST USE):**
+```dart
+// ✅ Use named routes
+context.goNamed(
+  AppRoute.teacherEditClass,
+  pathParameters: {'classId': id},
+  extra: objectIfNeeded,
+);
+
+// ✅ Use path constants
+context.go(AppRoute.studentJoinClassPath);
+
+// ❌ Never use
+context.go('/teacher/class/$id/edit');
+Navigator.push(context, MaterialPageRoute(...));
+```
+
+**File Updates (Completed 2026-01-21):**
+- ✅ route_constants.dart - Refactored with all 20+ routes, path helpers, RBAC
+- ✅ app_router.dart - ShellRoute + RBAC redirect integrated
+- ✅ route_guards.dart - Clean utility functions
+- ✅ 5 UI screens updated (splash, drawer, detail, profile, dashboards)
+
+**Next: Apply same pattern to remaining 20+ screens**
 
 ### 5. Auto-Save Pattern (for Workspace)
 - **Why:** Prevent student work loss; improve confidence
@@ -351,16 +447,21 @@ showDialog(
 | `sm` | 8 dp | Small padding | List item margin, form field margin |
 | `md` | 12 dp | Medium padding (1.5x) | Card margin bottom, section dividers |
 | `lg` | 16 dp | **STANDARD** (2x) | Card padding, screen padding, button padding |
-| `xl` | 20 dp | Large padding (2.5x) | Section spacing, large gaps |
-| `xxl` | 24 dp | Extra large (3x) | Major section breaks |
-| `xxxl` | 32 dp | Triple extra (4x) | Large section separators |
-| `xxxxl` | 40 dp | Quad extra (5x) | Large component spacing |
-| `xxxxxl` | 48 dp | Five extra (6x) | Very large gaps |
-| `xxxxxxl` | 64 dp | Six extra (8x) | Maximum spacing |
+| `xl` | 18 dp | Extra large (2.25x) | Section spacing, large gaps |
+| `xxl` | 22 dp | Double extra (2.75x) | Major section breaks |
+| `xxxl` | 28 dp | Triple extra (3.5x) | Large section separators |
+| `xxxxl` | 36 dp | Quad extra (4.5x) | Large component spacing |
+| `xxxxxl` | 44 dp | Five extra (5.5x) | Very large gaps |
+| `xxxxxxl` | 56 dp | Six extra (7x) | Maximum spacing |
 
 **Formula:** `spacing = 4 * multiplier` (e.g., lg = 4 * 4 = 16dp)
 
 **Rule:** MUST use predefined tokens from `DesignSpacing`. Do NOT hardcode spacing values.
+
+**Responsive Spacing (Updated 2026-01-21):**
+- Use `context.spacing.md`, `context.spacing.lg`, etc. for responsive spacing
+- Automatically scales based on device type (mobile/tablet/desktop)
+- See "Responsive Spacing System" section in Widget Component Patterns for details
 
 ### Typography Scale
 
@@ -441,6 +542,74 @@ showDialog(
 | **Dialog** | auto | 280-560 dp | 16 dp | 16 dp | Modal dialog sizing |
 
 ## Widget Component Patterns
+
+### Widget Organization Structure (Updated 2026-01-21)
+
+**Directory Structure:**
+```
+lib/widgets/
+├── dialogs/          # Dialog widgets (error, success, warning, etc.)
+├── drawers/          # Shared drawer primitives (action tiles, toggle tiles, etc.)
+├── list/             # List container widgets
+├── list_item/        # Individual list item widgets
+├── loading/          # Loading states (shimmer, skeletons, etc.)
+├── navigation/       # Navigation handlers và utilities
+├── responsive/       # Responsive layout widgets
+├── search/           # Search-related widgets (screens, dialogs, fields)
+└── text/             # Text utilities (highlight, marquee, etc.)
+```
+
+**Quy tắc phân loại:**
+- `lib/widgets/`: **shared/reusable UI** (không chứa logic nghiệp vụ theo feature)
+- `lib/presentation/views/**/widgets/`: widget **gắn với 1 feature/screen** (đặc biệt là drawers theo role)
+
+**Key Widgets:**
+- `ClassItemWidget` (`list_item/`): Hiển thị item lớp học, hỗ trợ search highlighting
+- `SearchScreen<T>` (`search/`): Generic search screen có thể tái sử dụng cho nhiều loại dữ liệu
+- `SmartHighlightText` (`text/`): Highlight text với từ khóa tìm kiếm (hỗ trợ tiếng Việt không dấu)
+- `ResponsiveSpacing` (`core/constants/design_tokens.dart`): Responsive spacing system
+
+**Documentation:** Xem `lib/widgets/README.md` để biết chi tiết về từng widget và cách sử dụng.
+
+### Responsive Spacing System (2026-01-21)
+
+**Purpose:** Dynamic spacing adjustment based on device type (mobile/tablet/desktop)
+
+**Location:** `lib/core/constants/design_tokens.dart`
+
+**Usage:**
+```dart
+// Using extension (recommended)
+final spacing = context.spacing;
+padding: EdgeInsets.all(spacing.md),
+SizedBox(height: spacing.lg),
+
+// Or using static method
+final spacing = DesignSpacing.responsive(context);
+padding: EdgeInsets.all(spacing.md),
+```
+
+**Scaling Rules:**
+- **Mobile:** 1.0x (base values)
+- **Tablet:**
+  - Small spacing (xs, sm): 1.1x
+  - Medium spacing (md, lg): 1.15x
+  - Large spacing (xl, xxl+): 1.25x
+- **Desktop:**
+  - Small spacing (xs, sm): 1.2x
+  - Medium spacing (md, lg): 1.3x
+  - Large spacing (xl, xxl+): 1.5x
+
+**Implementation:**
+- `ResponsiveSpacing` class: Calculates spacing based on device type
+- `ResponsiveSpacingExtension` on `BuildContext`: Provides `context.spacing.*` access
+- Automatic device detection via `MediaQuery` and `DesignBreakpoints`
+
+**Benefits:**
+- No hardcoded spacing values
+- Automatic adaptation to different screen sizes
+- Consistent spacing across all devices
+- Easy to maintain and update
 
 ### DrawerToggleTile - Customizable Switch Sizing (2026-01-14)
 
@@ -574,6 +743,20 @@ DrawerToggleTile(
 - **Token Management:** Store JWT tokens securely using flutter_secure_storage
 - **Input Validation:** Validate all user input before sending to backend
 - **API Rate Limiting:** Prevent spam; implement debouncing for frequent operations
+
+### Supabase RLS Conventions (Updated 2026-01-30)
+- **auth.uid() pattern:** Trong mọi policy mới, LUÔN dùng `(select auth.uid())` thay vì `auth.uid()` trực tiếp (theo Supabase advisor) để tránh re-evaluate per-row.
+- **Core tables RLS:** Tất cả bảng `public` liên quan lớp & permission (**profiles, classes, schools, groups, class_teachers, class_members, group_members**) phải bật RLS và có policy:
+  - Admin: `role = 'admin'` → full access (`for all using... with check...`).
+  - Teacher: quyền owner dựa trên FK (`teacher_id`, hoặc join qua `classes`/`groups`).
+  - Student: chỉ xem/ghi các record có `student_id = (select auth.uid())`.
+- **Question Bank & Assignment tables:** RLS cho các bảng mới (`learning_objectives`, `questions`, `question_choices`, `question_objectives`, `assignments`, `assignment_questions`, `assignment_variants`, `assignment_distributions`) follow pattern:
+  - Admin full access.
+  - Teacher chỉ thao tác trên resource mình sở hữu (`author_id`, `teacher_id`, join ngược qua `assignments`).
+  - Student chỉ xem nội dung được phân phối qua `assignment_distributions` + membership (`class_members`, `group_members`).
+- **RPC with security definer:** Các transaction phức tạp (vd: publish assignment) phải được gói qua RPC `security definer` với:
+  - Check `auth.uid()` + role + ownership ngay đầu function.
+  - Dùng transaction để cập nhật nhiều bảng atomically (assignments + assignment_questions + assignment_distributions).
 
 ---
 

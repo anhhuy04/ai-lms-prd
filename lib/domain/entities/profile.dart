@@ -1,48 +1,61 @@
-class Profile {
-  final String id;
-  final String? fullName;
-  final String role;
-  final String? avatarUrl;
-  final String? bio;
-  final String? phone;
-  final String? gender;
-  final DateTime updatedAt;
+// ignore_for_file: invalid_annotation_target
 
-  Profile({
-    required this.id,
-    this.fullName,
-    required this.role,
-    this.avatarUrl,
-    this.bio,
-    this.phone,
-    this.gender,
-    required this.updatedAt,
-  });
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-  factory Profile.fromJson(Map<String, dynamic> json) {
-    return Profile(
-      id: json['id'] as String,
-      fullName: json['full_name'] as String?,
-      role: json['role'] as String,
-      avatarUrl: json['avatar_url'] as String?,
-      bio: json['bio'] as String?,
-      phone: json['phone'] as String?,
-      gender: json['gender'] as String?,
-      updatedAt: DateTime.parse(json['updated_at'] as String),
-    );
-  }
+part 'profile.freezed.dart';
+part 'profile.g.dart';
 
-  @override
-  String toString() {
-    return 'Profile(\n'
-        '  id: $id,\n'
-        '  fullName: $fullName,\n'
-        '  role: $role,\n'
-        '  avatarUrl: $avatarUrl,\n'
-        '  bio: $bio,\n'
-        '  phone: $phone,\n'
-        '  gender: $gender,\n'
-        '  updatedAt: ${updatedAt.toIso8601String()},\n'
-        ')';
-  }
+/// Entity đại diện cho profile người dùng trong hệ thống
+///
+/// Sử dụng Freezed để tạo immutable class với:
+/// - Automatic copyWith method
+/// - Automatic toString, ==, hashCode
+/// - JSON serialization với json_serializable
+///
+/// Cách sử dụng:
+/// ```dart
+/// // Tạo instance
+/// final profile = Profile(
+///   id: '123',
+///   fullName: 'Nguyễn Văn A',
+///   role: 'student',
+///   updatedAt: DateTime.now(),
+/// );
+///
+/// // Copy với một số fields thay đổi
+/// final updatedProfile = profile.copyWith(fullName: 'Nguyễn Văn B');
+///
+/// // JSON serialization
+/// final json = profile.toJson();
+/// final fromJson = Profile.fromJson(json);
+/// ```
+@freezed
+class Profile with _$Profile {
+  /// Factory constructor cho Profile
+  ///
+  /// [id] - ID duy nhất của người dùng (required)
+  /// [fullName] - Tên đầy đủ (optional)
+  /// [role] - Vai trò: 'student', 'teacher', 'admin' (required)
+  /// [avatarUrl] - URL avatar (optional)
+  /// [bio] - Tiểu sử (optional)
+  /// [phone] - Số điện thoại (optional)
+  /// [gender] - Giới tính (optional)
+  /// [metadata] - Metadata JSONB (optional) - có thể chứa API keys và các thông tin khác
+  /// [updatedAt] - Thời gian cập nhật cuối cùng (required)
+  const factory Profile({
+    required String id,
+    @JsonKey(name: 'full_name') String? fullName,
+    required String role,
+    @JsonKey(name: 'avatar_url') String? avatarUrl,
+    String? bio,
+    String? phone,
+    String? gender,
+    Map<String, dynamic>? metadata,
+    @JsonKey(name: 'updated_at') required DateTime updatedAt,
+  }) = _Profile;
+
+  /// Factory constructor để tạo Profile từ JSON
+  ///
+  /// Tự động convert snake_case từ database sang camelCase trong Dart
+  factory Profile.fromJson(Map<String, dynamic> json) => _$ProfileFromJson(json);
 }

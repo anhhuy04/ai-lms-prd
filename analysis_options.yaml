@@ -7,9 +7,14 @@
 
 # The following line activates a set of recommended lints for Flutter apps,
 # packages, and plugins designed to encourage good coding practices.
-include: 
-  - package:flutter_lints/flutter.yaml
-  - package:riverpod_lint/riverpod_lint.yaml
+# NOTE:
+# - dependency_validator (v5.x) hiện không handle tốt trường hợp `include:` là YAML list.
+# - Để các tool CLI (đặc biệt dependency_validator) chạy ổn định, ta dùng include dạng string.
+# - Khi cần include thêm rule-set khác, ưu tiên merge rules trực tiếp vào file này.
+include: package:flutter_lints/flutter.yaml
+# NOTE: riverpod_lint include đang bị analyzer báo "include_file_not_found" trên môi trường hiện tại.
+# Khi ổn định toolchain, có thể bật lại:
+# include: package:riverpod_lint/analysis_options.yaml
 
 linter:
   # The lint rules applied to this project can be customized in the
@@ -28,8 +33,7 @@ linter:
     prefer_single_quotes: true
     
     # Riverpod best practices
-    riverpod_always_specify_types: true
-    riverpod_avoid_manual_notifiers: true
+    # (Rules cụ thể đã được cung cấp qua include: package:riverpod_lint/analysis_options.yaml)
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

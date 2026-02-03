@@ -41,8 +41,11 @@ mixin RefreshableViewModel on ChangeNotifier {
       } finally {
         if (showLoading) {
           _isRefreshing = false;
-          if (_isDisposed) return;
-          notifyListeners();
+          // Không dùng return trong finally để tránh control_flow_in_finally.
+          // Chỉ notifyListeners nếu ViewModel chưa bị dispose.
+          if (!_isDisposed) {
+            notifyListeners();
+          }
         }
       }
     });

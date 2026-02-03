@@ -311,67 +311,67 @@ class BaseTableDataSource {
   /// 7. DELETE: Xóa dữ liệu theo ID
   Future<void> delete(String id) async {
     try {
-      print('🟢 [DATASOURCE] delete: Bắt đầu xóa $tableName với id=$id');
-      print('🟢 [DATASOURCE] delete: Table: $tableName');
-      print('🟢 [DATASOURCE] delete: ID: $id');
+      AppLogger.debug('🟢 [DATASOURCE] delete: Bắt đầu xóa $tableName với id=$id');
+      AppLogger.debug('🟢 [DATASOURCE] delete: Table: $tableName');
+      AppLogger.debug('🟢 [DATASOURCE] delete: ID: $id');
 
       // Kiểm tra authentication trước
       final user = _client.auth.currentUser;
       if (user == null) {
-        print('⚠️ [DATASOURCE] delete: User chưa đăng nhập!');
+        AppLogger.warning('⚠️ [DATASOURCE] delete: User chưa đăng nhập!');
         throw Exception('Bạn cần đăng nhập để thực hiện thao tác này');
       }
-      print('🟢 [DATASOURCE] delete: User ID: ${user.id}');
+      AppLogger.debug('🟢 [DATASOURCE] delete: User ID: ${user.id}');
 
       // Thực hiện delete và verify bằng cách select
-      print('🟢 [DATASOURCE] delete: Gửi DELETE request đến Supabase...');
+      AppLogger.debug('🟢 [DATASOURCE] delete: Gửi DELETE request đến Supabase...');
       final response = await _client
           .from(tableName)
           .delete()
           .eq('id', id)
           .select();
 
-      print('🟢 [DATASOURCE] delete: Response từ Supabase: $response');
-      print('🟢 [DATASOURCE] delete: Response type: ${response.runtimeType}');
+      AppLogger.debug('🟢 [DATASOURCE] delete: Response từ Supabase: $response');
+      AppLogger.debug('🟢 [DATASOURCE] delete: Response type: ${response.runtimeType}');
 
       // Kiểm tra xem có dòng nào bị xóa không
       final responseList = response as List;
       if (responseList.isEmpty) {
-        print(
+        AppLogger.warning(
           '⚠️ [DATASOURCE] delete: Không có dòng nào bị xóa. Có thể:',
         );
-        print('   - ID không tồn tại trong database');
-        print('   - Không có quyền DELETE (RLS policies)');
-        print('   - User không phải là owner của record');
+        AppLogger.warning('   - ID không tồn tại trong database');
+        AppLogger.warning('   - Không có quyền DELETE (RLS policies)');
+        AppLogger.warning('   - User không phải là owner của record');
         throw Exception(
           'Không thể xóa dữ liệu. Có thể bạn không có quyền hoặc dữ liệu không tồn tại.',
         );
       } else {
-        print(
+        AppLogger.info(
           '✅ [DATASOURCE] delete: Đã xóa ${responseList.length} dòng thành công',
         );
-        print('✅ [DATASOURCE] delete: Dữ liệu đã xóa: ${responseList.first}');
+        AppLogger.debug('✅ [DATASOURCE] delete: Dữ liệu đã xóa: ${responseList.first}');
       }
 
-      print('✅ [DATASOURCE] delete: Hoàn tất xóa $tableName với id=$id');
+      AppLogger.info('✅ [DATASOURCE] delete: Hoàn tất xóa $tableName với id=$id');
     } on PostgrestException catch (e) {
       String userFriendlyMessage = _getUserFriendlyError(e, 'DELETE');
 
-      print('🔴 [DATASOURCE ERROR] delete: PostgrestException');
-      print('   Code: ${e.code}');
-      print('   Message: ${e.message}');
-      print('   Details: ${e.details}');
-      print('   Hint: ${e.hint}');
-      print('   Table: $tableName');
-      print('   ID: $id');
+      AppLogger.error('🔴 [DATASOURCE ERROR] delete: PostgrestException', error: e);
+      AppLogger.error('   Code: ${e.code}');
+      AppLogger.error('   Message: ${e.message}');
+      AppLogger.error('   Details: ${e.details}');
+      AppLogger.error('   Hint: ${e.hint}');
+      AppLogger.error('   Table: $tableName');
+      AppLogger.error('   ID: $id');
 
       // Log thêm thông tin về loại lỗi
       if (e.code == '42501') {
-        print('⚠️ [DATASOURCE ERROR] delete: Lỗi permission - RLS policy chặn DELETE');
+        AppLogger.warning('⚠️ [DATASOURCE ERROR] delete: Lỗi permission - RLS policy chặn DELETE');
       } else if (e.code == 'PGRST116') {
-        print('⚠️ [DATASOURCE ERROR] delete: Không tìm thấy dữ liệu');
+        AppLogger.warning('⚠️ [DATASOURCE ERROR] delete: Không tìm thấy dữ liệu');
       } else if (e.code == '23503') {
-        print('⚠️ [DATASOURCE ERROR] delete: Lỗi foreign key constraint');
+        AppLogger.warning('⚠️ [DATASOURCE ERROR] delete: Lỗi foreign key constraint');
       }
 
       throw Exception(
@@ -383,9 +383,8 @@ class BaseTableDataSource {
         '\n- Hint: ${e.hint}',
       );
     } catch (e, stackTrace) {
-      print('🔴 [DATASOURCE ERROR] delete: Lỗi không xác định: $e');
-      print('🔴 [DATASOURCE ERROR] delete: StackTrace: $stackTrace');
-      print('🔴 [DATASOURCE ERROR] delete: Table: $tableName, ID: $id');
+      AppLogger.error('🔴 [DATASOURCE ERROR] delete: Lỗi không xác định: $e', error: e, stackTrace: stackTrace);
+      AppLogger.error('🔴 [DATASOURCE ERROR] delete: Table: $tableName, ID: $id');
       throw Exception('Lỗi không xác định tại $tableName.delete($id): $e');
     }
   }
@@ -578,12 +577,21 @@ class BaseTableDataSource {
               )
             : null,
         callback: (payload) {
-          if (payload.eventType == PostgresChangeEvent.insert.name) {
-            onInsert(payload);
-          } else if (payload.eventType == PostgresChangeEvent.update.name) {
-            onUpdate(payload);
-          } else if (payload.eventType == PostgresChangeEvent.delete.name) {
-            onDelete(payload);
+          // payload.eventType là PostgresChangeEvent.
+          // Không so sánh với String để tránh unrelated_type_equality_checks.
+          switch (payload.eventType) {
+            case PostgresChangeEvent.insert:
+              onInsert(payload);
+              break;
+            case PostgresChangeEvent.update:
+              onUpdate(payload);
+              break;
+            case PostgresChangeEvent.delete:
+              onDelete(payload);
+              break;
+            case PostgresChangeEvent.all:
+              // eventType = all thường không được gửi trong payload, nhưng thêm cho exhaustiveness.
+              break;
           }
         },
       );

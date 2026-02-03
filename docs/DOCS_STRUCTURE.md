@@ -83,6 +83,7 @@ memory-bank/                     # 🧠 AI Agent Memory (KHÔNG ĐỔI)
 | `MEMORY_MCP_PROMPT.md` | Memory MCP usage patterns | Khi cần lưu context |
 | `CURSOR_SETUP.md` | Cursor IDE và MCP setup | Khi setup môi trường |
 | `README_SUPABASE.md` | Database schema reference | Khi làm việc với database |
+| `session-notes.md` | Log tóm tắt sau mỗi phiên để agent mới nắm context | Sau mỗi phiên: append entry; đọc đầu phiên mới |
 
 **Quy tắc:**
 - ✅ Chỉ AI agents đọc
@@ -109,6 +110,15 @@ memory-bank/                     # 🧠 AI Agent Memory (KHÔNG ĐỔI)
 | `responsive-system-guide.md` | Hướng dẫn responsive system | Khi làm UI responsive |
 | `mvvm-integration-guide.md` | Hướng dẫn tích hợp MVVM | Khi tạo ViewModel mới |
 | `database-schema-summary.md` | Tóm tắt database schema | Khi làm việc với database |
+| `riverpod-migration-guide.md` | Hướng dẫn migrate sang Riverpod | Khi refactor state management |
+| `code-generation-workflow.md` | Quy trình chạy build_runner & generators | Khi làm việc với freezed/json/retrofit |
+| `code-health-tools.md` | Hướng dẫn quality_checks, dependency_validator, DCM | Khi dọn dẹp, trước PR |
+| `generic-search-screen-guide.md` | Hướng dẫn dùng GenericSearchScreen | Khi dùng/mở rộng search generic |
+| `responsive-system-guide.md` | Hệ thống responsive + ScreenUtil | Khi làm responsive UI |
+| `riverpod-migration-guide.md` | Hướng dẫn migrate từ Provider → Riverpod | Khi refactor ViewModel cũ |
+
+> **Routing note:** Toàn bộ điều hướng hiện được quản lý tập trung qua **GoRouter** trong `lib/core/routes/app_router.dart`.  
+> Các file `app_routes.dart` cũ đã được loại bỏ để tránh trùng lặp; route guards dùng `GoRouter` + `RouteGuards` (`lib/core/routes/route_guards.dart`) khi cần.
 
 **Quy tắc:**
 - ✅ Developers đọc để hiểu patterns

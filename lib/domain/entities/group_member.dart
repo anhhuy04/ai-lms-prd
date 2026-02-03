@@ -1,35 +1,42 @@
-/// Entity đại diện cho thành viên nhóm học tập.
-class GroupMember {
-  final String groupId;
-  final String studentId;
-  final DateTime? joinedAt;
+// ignore_for_file: invalid_annotation_target
 
-  GroupMember({
-    required this.groupId,
-    required this.studentId,
-    this.joinedAt,
-  });
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-  factory GroupMember.fromJson(Map<String, dynamic> json) {
-    return GroupMember(
-      groupId: json['group_id'] as String,
-      studentId: json['student_id'] as String,
-      joinedAt: json['joined_at'] != null
-          ? DateTime.parse(json['joined_at'] as String)
-          : null,
-    );
-  }
+part 'group_member.freezed.dart';
+part 'group_member.g.dart';
 
-  Map<String, dynamic> toJson() {
-    return {
-      'group_id': groupId,
-      'student_id': studentId,
-      'joined_at': joinedAt?.toIso8601String(),
-    };
-  }
+/// Entity đại diện cho thành viên nhóm học tập
+///
+/// Sử dụng Freezed để tạo immutable class với:
+/// - Automatic copyWith method
+/// - Automatic toString, ==, hashCode
+/// - JSON serialization với json_serializable
+@freezed
+class GroupMember with _$GroupMember {
+  /// Factory constructor cho GroupMember
+  ///
+  /// [groupId] - ID nhóm (required)
+  /// [studentId] - ID học sinh (required)
+  /// [joinedAt] - Thời gian tham gia (optional)
+  const factory GroupMember({
+    @JsonKey(name: 'group_id') required String groupId,
+    @JsonKey(name: 'student_id') required String studentId,
+    @JsonKey(name: 'joined_at') DateTime? joinedAt,
+  }) = _GroupMember;
 
-  /// Validate dữ liệu của GroupMember.
-  /// Ném ra Exception nếu dữ liệu không hợp lệ.
+  /// Factory constructor để tạo GroupMember từ JSON
+  factory GroupMember.fromJson(Map<String, dynamic> json) =>
+      _$GroupMemberFromJson(json);
+
+  /// Private constructor để thêm custom methods
+  const GroupMember._();
+}
+
+// Extension để thêm custom methods cho GroupMember
+extension GroupMemberExtension on GroupMember {
+  /// Validate dữ liệu của GroupMember
+  ///
+  /// Ném ra Exception nếu dữ liệu không hợp lệ
   void validate() {
     if (groupId.trim().isEmpty) {
       throw Exception('ID nhóm không hợp lệ');
@@ -37,14 +44,5 @@ class GroupMember {
     if (studentId.trim().isEmpty) {
       throw Exception('ID học sinh không hợp lệ');
     }
-  }
-
-  @override
-  String toString() {
-    return 'GroupMember(\n'
-        '  groupId: $groupId,\n'
-        '  studentId: $studentId,\n'
-        '  joinedAt: ${joinedAt?.toIso8601String()},\n'
-        ')';
   }
 }

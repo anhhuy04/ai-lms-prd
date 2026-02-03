@@ -1,3 +1,5 @@
+import 'package:ai_mls/core/utils/app_logger.dart';
+import 'package:ai_mls/core/utils/error_translation_utils.dart';
 import 'package:ai_mls/data/datasources/school_class_datasource.dart';
 import 'package:ai_mls/domain/entities/class.dart';
 import 'package:ai_mls/domain/entities/class_member.dart';
@@ -20,13 +22,16 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
   @override
   Future<Class> createClass(CreateClassParams params) async {
     try {
-      final classData = params.toJson();
+      final classData = params.toPayloadJson();
       final result = await _dataSource.createClass(classData);
       return Class.fromJson(result);
     } catch (e, stackTrace) {
-      print('🔴 [REPO ERROR] createClass: $e');
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Tạo lớp học');
+      AppLogger.error(
+        '🔴 [REPO ERROR] createClass: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Tạo lớp học');
     }
   }
 
@@ -36,9 +41,12 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
       final results = await _dataSource.getClassesByTeacher(teacherId);
       return results.map((json) => Class.fromJson(json)).toList();
     } catch (e, stackTrace) {
-      print('🔴 [REPO ERROR] getClassesByTeacher(teacherId: $teacherId): $e');
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Lấy danh sách lớp học');
+      AppLogger.error(
+        '🔴 [REPO ERROR] getClassesByTeacher(teacherId: $teacherId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách lớp học');
     }
   }
 
@@ -62,9 +70,12 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
       );
       return results.map((json) => Class.fromJson(json)).toList();
     } catch (e, stackTrace) {
-      print('🔴 [REPO ERROR] getClassesByTeacherPaginated: $e');
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Lấy danh sách lớp học');
+      AppLogger.error(
+        '🔴 [REPO ERROR] getClassesByTeacherPaginated: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách lớp học');
     }
   }
 
@@ -74,9 +85,12 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
       final results = await _dataSource.getClassesByStudent(studentId);
       return results.map((json) => Class.fromJson(json)).toList();
     } catch (e, stackTrace) {
-      print('🔴 [REPO ERROR] getClassesByStudent(studentId: $studentId): $e');
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Lấy danh sách lớp học của học sinh');
+      AppLogger.error(
+        '🔴 [REPO ERROR] getClassesByStudent(studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách lớp học của học sinh');
     }
   }
 
@@ -86,9 +100,27 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
       final result = await _dataSource.getClassById(classId);
       return result != null ? Class.fromJson(result) : null;
     } catch (e, stackTrace) {
-      print('🔴 [REPO ERROR] getClassById(classId: $classId): $e');
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Lấy thông tin lớp học');
+      AppLogger.error(
+        '🔴 [REPO ERROR] getClassById(classId: $classId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy thông tin lớp học');
+    }
+  }
+
+  @override
+  Future<Class?> getClassByJoinCode(String joinCode) async {
+    try {
+      final result = await _dataSource.getClassByJoinCode(joinCode);
+      return result != null ? Class.fromJson(result) : null;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getClassByJoinCode(joinCode: $joinCode): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Tìm lớp bằng mã tham gia');
     }
   }
 
@@ -100,65 +132,91 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
       }
 
       final updateData = params.toJson();
-      final result = await _dataSource.updateClass(classId, updateData);
+
+      // Đảm bảo chỉ gửi các field không null
+      // Loại bỏ các key có value null (nếu có)
+      final cleanUpdateData = <String, dynamic>{};
+      updateData.forEach((key, value) {
+        if (value != null) {
+          cleanUpdateData[key] = value;
+        }
+      });
+
+      if (cleanUpdateData.isEmpty) {
+        throw Exception('Không có dữ liệu hợp lệ để cập nhật');
+      }
+
+      final result = await _dataSource.updateClass(classId, cleanUpdateData);
       return Class.fromJson(result);
     } catch (e, stackTrace) {
-      print('🔴 [REPO ERROR] updateClass(classId: $classId): $e');
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Cập nhật lớp học');
+      AppLogger.error(
+        '🔴 [REPO ERROR] updateClass(classId: $classId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Cập nhật lớp học');
     }
   }
 
   @override
   Future<void> deleteClass(String classId) async {
     try {
-      print('🟢 [REPO] deleteClass: Bắt đầu xóa lớp học $classId');
-      print('🟢 [REPO] deleteClass: Gọi datasource.deleteClass()');
-      
+      AppLogger.debug('🟢 [REPO] deleteClass: Bắt đầu xóa lớp học $classId');
+      AppLogger.debug('🟢 [REPO] deleteClass: Gọi datasource.deleteClass()');
+
       await _dataSource.deleteClass(classId);
-      
-      print('✅ [REPO] deleteClass: Xóa lớp học thành công $classId');
+
+      AppLogger.info('✅ [REPO] deleteClass: Xóa lớp học thành công $classId');
     } catch (e, stackTrace) {
-      print('🔴 [REPO ERROR] deleteClass(classId: $classId): $e');
-      print('🔴 [REPO ERROR] deleteClass StackTrace: $stackTrace');
+      AppLogger.error(
+        '🔴 [REPO ERROR] deleteClass(classId: $classId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
 
       final errorString = e.toString();
-      
+
       // Log chi tiết hơn về lỗi
       if (errorString.contains('401') ||
           errorString.contains('unauthorized') ||
           errorString.contains('JWT')) {
-        print(
+        AppLogger.warning(
           '⚠️ [REPO ERROR] deleteClass: Lỗi 401 - Có thể do RLS hoặc authentication',
         );
-        print('⚠️ [REPO ERROR] deleteClass: Kiểm tra:');
-        print('   - User đã đăng nhập chưa?');
-        print('   - JWT token có hợp lệ không?');
-        print('   - RLS policies có cho phép DELETE không?');
-      } else if (errorString.contains('403') || 
-                 errorString.contains('forbidden')) {
-        print('⚠️ [REPO ERROR] deleteClass: Lỗi 403 - Không có quyền xóa');
-        print('⚠️ [REPO ERROR] deleteClass: Kiểm tra:');
-        print('   - User có phải là teacher của lớp không?');
-        print('   - RLS policies có cho phép user này DELETE không?');
+        AppLogger.warning('⚠️ [REPO ERROR] deleteClass: Kiểm tra:');
+        AppLogger.warning('   - User đã đăng nhập chưa?');
+        AppLogger.warning('   - JWT token có hợp lệ không?');
+        AppLogger.warning('   - RLS policies có cho phép DELETE không?');
+      } else if (errorString.contains('403') ||
+          errorString.contains('forbidden')) {
+        AppLogger.warning(
+          '⚠️ [REPO ERROR] deleteClass: Lỗi 403 - Không có quyền xóa',
+        );
+        AppLogger.warning('⚠️ [REPO ERROR] deleteClass: Kiểm tra:');
+        AppLogger.warning('   - User có phải là teacher của lớp không?');
+        AppLogger.warning(
+          '   - RLS policies có cho phép user này DELETE không?',
+        );
       } else if (errorString.contains('foreign key') ||
-                 errorString.contains('23503')) {
-        print(
+          errorString.contains('23503')) {
+        AppLogger.warning(
           '⚠️ [REPO ERROR] deleteClass: Lỗi foreign key - Có dữ liệu liên quan',
         );
-        print('⚠️ [REPO ERROR] deleteClass: Kiểm tra:');
-        print('   - Có class_members nào còn tồn tại không?');
-        print('   - Có groups nào còn tồn tại không?');
-        print('   - Foreign key constraints có đúng không?');
+        AppLogger.warning('⚠️ [REPO ERROR] deleteClass: Kiểm tra:');
+        AppLogger.warning('   - Có class_members nào còn tồn tại không?');
+        AppLogger.warning('   - Có groups nào còn tồn tại không?');
+        AppLogger.warning('   - Foreign key constraints có đúng không?');
       } else if (errorString.contains('not found') ||
-                 errorString.contains('PGRST116')) {
-        print('⚠️ [REPO ERROR] deleteClass: Lớp học không tồn tại');
+          errorString.contains('PGRST116')) {
+        AppLogger.warning('⚠️ [REPO ERROR] deleteClass: Lớp học không tồn tại');
       } else {
-        print('⚠️ [REPO ERROR] deleteClass: Lỗi không xác định - $errorString');
+        AppLogger.warning(
+          '⚠️ [REPO ERROR] deleteClass: Lỗi không xác định - $errorString',
+        );
       }
 
       // Re-throw với error đã được translate
-      throw _translateError(e, 'Xóa lớp học');
+      throw ErrorTranslationUtils.translateError(e, 'Xóa lớp học');
     }
   }
 
@@ -177,20 +235,32 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
         throw Exception('Bạn đã tham gia lớp học này rồi');
       }
 
+      // Lấy thông tin class để quyết định có cần duyệt hay không
+      final currentClass = await getClassById(classId);
+      final classSettings =
+          currentClass?.classSettings ?? Class.defaultClassSettings();
+      final enrollment =
+          classSettings['enrollment'] as Map<String, dynamic>? ?? {};
+      final qrCode =
+          enrollment['qr_code'] as Map<String, dynamic>? ?? <String, dynamic>{};
+      final requireApproval = qrCode['require_approval'] as bool? ?? true;
+
       final memberData = {
         'class_id': classId,
         'student_id': studentId,
-        'status': 'pending',
+        // Nếu lớp không yêu cầu duyệt học sinh thì cho vào thẳng với status = approved
+        'status': requireApproval ? 'pending' : 'approved',
       };
 
       final result = await _dataSource.createClassMember(memberData);
       return ClassMember.fromJson(result);
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [REPO ERROR] requestJoinClass(classId: $classId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Yêu cầu tham gia lớp học');
+      throw ErrorTranslationUtils.translateError(e, 'Yêu cầu tham gia lớp học');
     }
   }
 
@@ -199,11 +269,12 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
     try {
       await _dataSource.updateClassMemberStatus(classId, studentId, 'approved');
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [REPO ERROR] approveStudent(classId: $classId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Duyệt học sinh');
+      throw ErrorTranslationUtils.translateError(e, 'Duyệt học sinh');
     }
   }
 
@@ -212,11 +283,26 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
     try {
       await _dataSource.updateClassMemberStatus(classId, studentId, 'rejected');
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [REPO ERROR] rejectStudent(classId: $classId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Từ chối học sinh');
+      throw ErrorTranslationUtils.translateError(e, 'Từ chối học sinh');
+    }
+  }
+
+  @override
+  Future<void> leaveClass(String classId, String studentId) async {
+    try {
+      await _dataSource.leaveClass(classId, studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] leaveClass(classId: $classId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Rời lớp học');
     }
   }
 
@@ -232,11 +318,12 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
       );
       return results.map((json) => ClassMember.fromJson(json)).toList();
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [REPO ERROR] getClassMembers(classId: $classId, status: $status): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Lấy danh sách thành viên');
+      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách thành viên');
     }
   }
 
@@ -249,9 +336,12 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
       final result = await _dataSource.createGroup(groupData);
       return Group.fromJson(result);
     } catch (e, stackTrace) {
-      print('🔴 [REPO ERROR] createGroup: $e');
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Tạo nhóm học tập');
+      AppLogger.error(
+        '🔴 [REPO ERROR] createGroup: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Tạo nhóm học tập');
     }
   }
 
@@ -261,9 +351,12 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
       final results = await _dataSource.getGroupsByClass(classId);
       return results.map((json) => Group.fromJson(json)).toList();
     } catch (e, stackTrace) {
-      print('🔴 [REPO ERROR] getGroupsByClass(classId: $classId): $e');
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Lấy danh sách nhóm học tập');
+      AppLogger.error(
+        '🔴 [REPO ERROR] getGroupsByClass(classId: $classId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách nhóm học tập');
     }
   }
 
@@ -282,11 +375,12 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
 
       await _dataSource.addStudentToGroup(groupId, studentId);
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [REPO ERROR] addStudentToGroup(groupId: $groupId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Thêm học sinh vào nhóm');
+      throw ErrorTranslationUtils.translateError(e, 'Thêm học sinh vào nhóm');
     }
   }
 
@@ -295,11 +389,12 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
     try {
       await _dataSource.removeStudentFromGroup(groupId, studentId);
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [REPO ERROR] removeStudentFromGroup(groupId: $groupId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Xóa học sinh khỏi nhóm');
+      throw ErrorTranslationUtils.translateError(e, 'Xóa học sinh khỏi nhóm');
     }
   }
 
@@ -309,9 +404,12 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
       final results = await _dataSource.getGroupMembers(groupId);
       return results.map((json) => GroupMember.fromJson(json)).toList();
     } catch (e, stackTrace) {
-      print('🔴 [REPO ERROR] getGroupMembers(groupId: $groupId): $e');
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Lấy danh sách thành viên nhóm');
+      AppLogger.error(
+        '🔴 [REPO ERROR] getGroupMembers(groupId: $groupId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách thành viên nhóm');
     }
   }
 
@@ -331,7 +429,7 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
 
       // Merge settings mới với settings cũ
       final mergedSettings = _mergeNestedMap(
-        currentClass.classSettings,
+        currentClass.classSettings ?? Class.defaultClassSettings(),
         settings,
       );
 
@@ -340,9 +438,12 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
       final result = await _dataSource.updateClass(classId, updateData);
       return Class.fromJson(result);
     } catch (e, stackTrace) {
-      print('🔴 [REPO ERROR] updateClassSettings(classId: $classId): $e');
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Cập nhật cài đặt lớp học');
+      AppLogger.error(
+        '🔴 [REPO ERROR] updateClassSettings(classId: $classId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Cập nhật cài đặt lớp học');
     }
   }
 
@@ -364,7 +465,7 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
 
       // Merge với settings hiện tại
       final mergedSettings = _mergeNestedMap(
-        currentClass.classSettings,
+        currentClass.classSettings ?? Class.defaultClassSettings(),
         settingsToUpdate,
       );
 
@@ -373,11 +474,33 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
       final result = await _dataSource.updateClass(classId, updateData);
       return Class.fromJson(result);
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [REPO ERROR] updateClassSetting(classId: $classId, path: $path): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [REPO ERROR] StackTrace: $stackTrace');
-      throw _translateError(e, 'Cập nhật cài đặt lớp học');
+      throw ErrorTranslationUtils.translateError(e, 'Cập nhật cài đặt lớp học');
+    }
+  }
+
+  @override
+  Future<bool> checkJoinCodeExists(
+    String joinCode, {
+    String? excludeClassId,
+  }) async {
+    try {
+      return await _dataSource.checkJoinCodeExists(
+        joinCode,
+        excludeClassId: excludeClassId,
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] checkJoinCodeExists(joinCode: $joinCode, excludeClassId: $excludeClassId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      // Nếu có lỗi, trả về false để không block user
+      return false;
     }
   }
 
@@ -423,48 +546,4 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
     return current as Map<String, dynamic>;
   }
 
-  // ==================== Error Translation ====================
-
-  /// Translate error messages sang tiếng Việt
-  Exception _translateError(dynamic error, String operation) {
-    final errorMessage = error.toString();
-
-    // Kiểm tra các lỗi phổ biến
-    if (errorMessage.contains('duplicate') ||
-        errorMessage.contains('already exists') ||
-        errorMessage.contains('23505')) {
-      return Exception('$operation: Dữ liệu đã tồn tại trong hệ thống');
-    }
-
-    if (errorMessage.contains('not found') ||
-        errorMessage.contains('PGRST116') ||
-        errorMessage.contains('does not exist')) {
-      return Exception('$operation: Không tìm thấy dữ liệu');
-    }
-
-    if (errorMessage.contains('permission') ||
-        errorMessage.contains('42501') ||
-        errorMessage.contains('unauthorized')) {
-      return Exception('$operation: Bạn không có quyền thực hiện thao tác này');
-    }
-
-    if (errorMessage.contains('foreign key') ||
-        errorMessage.contains('23503')) {
-      return Exception('$operation: Dữ liệu liên quan không tồn tại');
-    }
-
-    if (errorMessage.contains('null') || errorMessage.contains('23502')) {
-      return Exception('$operation: Thiếu dữ liệu bắt buộc');
-    }
-
-    // Nếu error đã là Exception với message tiếng Việt, giữ nguyên
-    if (error is Exception) {
-      return error;
-    }
-
-    // Mặc định: trả về message gốc với prefix
-    return Exception(
-      '$operation: ${errorMessage.replaceAll('Exception: ', '')}',
-    );
-  }
 }

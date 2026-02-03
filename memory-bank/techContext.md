@@ -21,20 +21,64 @@
     - Edge Functions (optional - for AI grading API calls)
 
 ### State Management
-- **Riverpod** (v2.5.1) - Primary state management solution
+- **Riverpod** (v2.5.1) - Primary state management solution (MIGRATED - 2026-01-20)
   - Reactive state management with providers
-  - Code generation via `riverpod_generator` (v2.3.0)
+  - Code generation via `riverpod_generator` (v2.3.0) with `@riverpod` annotation
   - Provider-based dependency injection
-- **Provider** (v6.0.0+) - Legacy support for ViewModels (ChangeNotifier pattern)
-  - Used alongside Riverpod for backward compatibility
-  - Will gradually migrate to pure Riverpod
+  - **Migration Status:** Hầu hết screens đã migrate sang Riverpod (`ConsumerWidget`/`ConsumerStatefulWidget`)
+  - **Notifiers:** `AuthNotifier`, `ClassNotifier`, `StudentDashboardNotifier`, `TeacherDashboardNotifier` (sử dụng `AsyncNotifier`)
+  - **Pattern:** Dùng `ref.watch()` cho reactive state, `ref.read()` cho one-time access
+  - **Dashboard Refresh Pattern (2026-01-21):**
+    - Refresh methods chỉ refresh data providers, không touch auth state
+    - Không gọi `checkCurrentUser()` trong refresh để tránh reset auth state
+    - Không set state về `loading` trong refresh để tránh router redirect
+- **Provider** (v6.0.0) - Legacy support (còn một số screens đơn giản chưa migrate)
+  - Chỉ còn dùng trong một số screens/ widgets cũ (sẽ migrate dần)
+  - ViewModels cũ (`ChangeNotifier`) vẫn tồn tại để tương thích ngược
 
-### Routing & Navigation
+#### Class Settings & Optimistic Update Pattern (2026-01-27)
+- **ClassNotifier.updateClassSettingOptimistic**
+  - Pattern for updating `classes.class_settings` without blocking UI or conflicting with AsyncNotifier futures.
+  - Steps:
+    1. Deep copy current `classSettings` and update nested value via `OptimisticUpdateUtils.updateNestedValue`.
+    2. Update `_selectedClass` and list state locally (no loading state).
+    3. Sync to Supabase in background via `_syncClassSettingToBackend` (calls `_repo.updateClass` directly).
+    4. Rollback `_selectedClass` and list state on error.
+  - Used by:
+    - `ClassSettingsDrawer` toggles (lock class, group controls, student permissions).
+    - `AddStudentByCodeScreen` QR/enrollment settings (update `enrollment` branch).
+- **ClassNotifier.updateClass**
+  - Protected by `_isUpdating` guard to prevent concurrent mutations of Riverpod `AsyncValue` state, which previously caused `Bad state: Future already completed`.
+  - Reserved for more “full” updates; most per-field settings should go through `updateClassSettingOptimistic`.
+
+### Routing & Navigation (v2.0 - Production Ready)
 - **GoRouter** (v14.0.0+) - Declarative routing solution
-  - Type-safe routing
+  - Type-safe routing with named routes
   - Deep linking support
   - Web routing support
   - Integration with Riverpod for auth guards
+  - **Architecture: Tứ Trụ (Four Pillars)**
+    1. GoRouter - Navigation framework
+    2. Riverpod - State management (auth, role checks)
+    3. RBAC - 3-step redirect logic (public → auth → role)
+    4. ShellRoute - Preserve bottom nav during navigation
+  - **Core Files:**
+    - `lib/core/routes/route_constants.dart` - ALL route names, paths, helpers (SoT)
+    - `lib/core/routes/app_router.dart` - GoRouter config + ShellRoute + RBAC redirect
+    - `lib/core/routes/route_guards.dart` - Auth/role utility functions
+  - **Pattern: Named Routes + Path Helpers**
+    - Use `context.goNamed(AppRoute.teacherEditClass, pathParameters: {...})`
+    - Use static helpers: `AppRoute.teacherEditClassPath(classId)`
+    - NO Navigator.push(), NO hardcoded paths
+  - **RBAC Redirect (Automatic):**
+    - Public routes → Allow (splash, login, register, deep links)
+    - Not authenticated → Redirect to /login
+    - Role mismatch → Redirect to role's dashboard
+  - **ShellRoute for Bottom Nav:**
+    - Student shell `/student-dashboard` preserves bottom nav
+    - Teacher shell `/teacher-dashboard` preserves bottom nav
+    - Admin shell `/admin-dashboard` preserves bottom nav
+  - **Status:** v2.0 completed 2026-01-21 (route_constants, app_router, route_guards refactored; 5 UI screens updated)
 
 ### Networking
 - **Dio** (v5.4.0) - HTTP client with interceptors
@@ -42,17 +86,37 @@
   - Retry logic and timeout control
   - Form data and file uploads
   - Cancel tokens for request cancellation
+  - **Status:** Added to pubspec.yaml, ready for use when external API integration is needed
 - **Retrofit** (v4.0.0) - Interface-based API client
   - Type-safe API definitions
-  - Code generation via `retrofit_generator` (v8.0.0)
+  - Code generation via `retrofit_generator` (v9.7.0)
   - Works seamlessly with Dio
+  - **Status:** Added to pubspec.yaml, ready for use when external API integration is needed
+  - **Note:** Currently only using Supabase client. Retrofit/Dio will be used for external API calls in the future.
+
+### QR Code & Image Processing
+- **mobile_scanner** (v6.0.2) - QR/Barcode scanner with camera support
+  - Camera-based QR scanning
+  - Image file analysis (`analyzeImage()`)
+  - Flash/torch control via `MobileScannerController`
+  - **Status:** ✅ Actively used in `QRScanScreen`
+- **image_picker** (v1.0.7) - Image selection from gallery/camera
+  - Pick images from gallery
+  - Camera capture support
+  - **Status:** ✅ Added for QR scan from image feature
+- **pretty_qr_code** (v3.5.0) - QR code generation
+  - Generate QR codes for class join codes
+  - Wrapped in `QrHelper` utility class
+  - **Status:** ✅ Actively used for class QR generation
 
 ### Local Database & Storage
-- **Drift** (v2.30.0) - Relational database (SQLite wrapper)
+- **Drift** (v2.30.1) - Relational database (SQLite wrapper)
   - Type-safe Dart queries
   - Reactive streams
   - Robust migration system
   - Cross-platform support (mobile, web, desktop)
+  - **Status:** Added to pubspec.yaml, ready for use when offline-first features are needed
+  - **Note:** `drift_dev` is commented out due to conflict with `retrofit_generator`. Will be enabled when implementing offline-first features.
 - **flutter_secure_storage** (v9.0.0) - Secure token storage
   - Platform-native encryption (Keychain/Keystore)
   - Perfect for JWT tokens and API keys
@@ -70,19 +134,36 @@
   - Union types for state management
   - JSON serialization support
   - Reduces boilerplate code
-- **json_serializable** (v6.7.0) - JSON serialization
+  - **Status:** ✅ **ACTIVELY USED** in domain entities (Class, Profile, ClassMember, Group, etc.)
+  - **Usage:** All domain entities use `@freezed` annotation for immutable classes
+- **json_serializable** (v6.9.5) - JSON serialization
   - Compile-time type-safe serialization
   - Works with freezed for complete model generation
+  - **Status:** ✅ **ACTIVELY USED** with Freezed for JSON serialization
 
 ### UI & Utilities
 - **Cupertino Icons** (v1.0.8) - iOS-style icon set
 - **Marquee** (v2.2.0) - Scrolling text widget (for long labels)
 - **Shimmer** (v3.0.0) - Loading skeleton animations
-- **flutter_screenutil** (v5.9.0) - Responsive design utilities
+  - Shared shimmer widgets: `ShimmerLoading` (cards), `ShimmerListTileLoading` (list tiles), `ShimmerDashboardLoading` (dashboard)
+- **Async List & Skeleton Pattern** (Custom - 2026-01-29)
+  - Generic `AsyncListPage<T>` in `lib/widgets/async/async_list_page.dart`
+  - Accepts `Future<List<T>>` + `itemBuilder` and uses shimmer while loading
+  - Standardized empty/error states using DesignTokens
+  - Heavy JSON parsing should run in background (Dart Isolate via `compute`) in data layer, UI only consumes ready `Future<List<T>>`
+- **Responsive Spacing System** (Custom - 2026-01-21) - Dynamic spacing based on device type
+  - `ResponsiveSpacing` class in `lib/core/constants/design_tokens.dart`
+  - `ResponsiveSpacingExtension` on `BuildContext` for easy access
+  - Automatic scaling: Mobile (1.0x), Tablet (1.1x-1.25x), Desktop (1.2x-1.5x)
+  - Usage: `context.spacing.md`, `context.spacing.lg`, etc.
+  - Replaces hardcoded spacing values for better responsive design
+- **flutter_screenutil** (v5.9.0) - Responsive design utilities (legacy, being phased out in favor of custom responsive spacing)
   - Screen size adaptation
   - Font scaling
   - Widget sizing utilities
 - **pretty_qr_code** (v3.5.0) - Beautiful QR code generation
+  - Wrapped in `QrHelper` utility class
+  - **Status:** ✅ Actively used for class QR generation
   - Custom shapes and themes
   - Embedded logos/images
   - Gradient support
@@ -109,8 +190,19 @@
 - **build_runner** (v2.4.0) - Code generation runner
 - **mocktail** (v1.0.0) - Mocking library for tests (null-safe, no code generation)
 
+### QR Code & Image Processing (NEW - 2026-01-29)
+- **mobile_scanner** (v6.0.2) - QR/Barcode scanner with camera support
+  - Camera-based QR scanning
+  - Image file analysis (`analyzeImage()`)
+  - Flash/torch control via `MobileScannerController`
+  - **Status:** ✅ Actively used in `QRScanScreen`
+- **image_picker** (v1.0.7) - Image selection from gallery/camera
+  - Pick images from gallery
+  - Camera capture support
+  - **Status:** ✅ Added for QR scan from image feature
+  - **Note:** Moved from "Optional/Future Dependencies" to active dependencies
+
 ### Optional/Future Dependencies
-- **image_picker** - Photo/document selection (for assignment submissions)
 - **intl** - Internationalization & date formatting (for Vietnamese localization)
 - **charts_flutter** - Charts library for analytics dashboards
 - **uuid** - Generate unique IDs for records
@@ -175,6 +267,12 @@ flutter run -d <device-id>   # Specific device
 ### RLS Policies (Row-Level Security)
 - Students can only see their own submissions
 - Teachers can only see submissions for their classes
+- Admins có full access để hỗ trợ vận hành, debug.
+- MỌI bảng `public` expose qua API (bao gồm core: `profiles`, `classes`, `schools`, `groups`, `class_teachers`, `class_members`, `group_members`) phải **bật RLS** và có policy rõ ràng cho admin/teacher/student.
+- Khi viết policy mới, LUÔN dùng `(select auth.uid())` thay vì `auth.uid()` trực tiếp để tối ưu kế hoạch thực thi (theo Supabase Database Advisor).
+- Các bảng Question Bank & Assignment (learning_objectives, questions, question_choices, question_objectives, assignments, assignment_questions, assignment_variants, assignment_distributions) đã được chuẩn hóa RLS theo pattern:
+  - Admin full access.
+  - Teacher owner/author-only cho CRUD, students chỉ được SELECT khi assignment đã được phân phối cho lớp/nhóm/cá nhân thông qua `assignment_distributions` + membership (`class_members`, `group_members`).
 - Admins can see all data
 - (To be implemented as tables are created)
 
@@ -217,7 +315,8 @@ lib/
 │   ├── theme/
 │   │   └── app_theme.dart            # Material Design theme
 │   ├── routes/
-│   │   └── app_routes.dart           # Route definitions (will migrate to GoRouter)
+│   │   ├── app_router.dart           # GoRouter configuration (appRouterProvider)
+│   │   └── route_guards.dart         # Route guard helpers (auth/role-based)
 │   └── utils/                        # Utility functions
 │       ├── qr_helper.dart            # QR code generation helper
 │       └── ...                       # Other utilities

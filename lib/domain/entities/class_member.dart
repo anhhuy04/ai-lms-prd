@@ -1,49 +1,70 @@
-/// Entity đại diện cho thành viên lớp học (học sinh trong lớp).
-class ClassMember {
-  final String classId;
-  final String studentId;
-  final String status; // 'pending', 'approved', 'rejected'
-  final String? role;
-  final DateTime? joinedAt;
-  final DateTime? createdAt;
+// ignore_for_file: invalid_annotation_target
 
-  ClassMember({
-    required this.classId,
-    required this.studentId,
-    required this.status,
-    this.role,
-    this.joinedAt,
-    this.createdAt,
-  });
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-  factory ClassMember.fromJson(Map<String, dynamic> json) {
-    return ClassMember(
-      classId: json['class_id'] as String,
-      studentId: json['student_id'] as String,
-      status: json['status'] as String? ?? 'pending',
-      role: json['role'] as String?,
-      joinedAt: json['joined_at'] != null
-          ? DateTime.parse(json['joined_at'] as String)
-          : null,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
-          : null,
-    );
-  }
+part 'class_member.freezed.dart';
+part 'class_member.g.dart';
 
-  Map<String, dynamic> toJson() {
-    return {
-      'class_id': classId,
-      'student_id': studentId,
-      'status': status,
-      'role': role,
-      'joined_at': joinedAt?.toIso8601String(),
-      'created_at': createdAt?.toIso8601String(),
-    };
-  }
+/// Entity đại diện cho thành viên lớp học (học sinh trong lớp)
+///
+/// Sử dụng Freezed để tạo immutable class với:
+/// - Automatic copyWith method
+/// - Automatic toString, ==, hashCode
+/// - JSON serialization với json_serializable
+///
+/// Cách sử dụng:
+/// ```dart
+/// // Tạo instance
+/// final member = ClassMember(
+///   classId: 'class-1',
+///   studentId: 'student-1',
+///   status: 'pending',
+/// );
+///
+/// // Copy với một số fields thay đổi
+/// final approvedMember = member.copyWith(status: 'approved');
+///
+/// // JSON serialization
+/// final json = member.toJson();
+/// final fromJson = ClassMember.fromJson(json);
+///
+/// // Check status
+/// if (member.isPending) { ... }
+/// ```
+@freezed
+class ClassMember with _$ClassMember {
+  /// Factory constructor cho ClassMember
+  ///
+  /// [classId] - ID lớp học (required)
+  /// [studentId] - ID học sinh (required)
+  /// [status] - Trạng thái: 'pending', 'approved', 'rejected' (required, default: 'pending')
+  /// [role] - Vai trò trong lớp (optional)
+  /// [joinedAt] - Thời gian tham gia (optional)
+  /// [createdAt] - Thời gian tạo (optional)
+  const factory ClassMember({
+    @JsonKey(name: 'class_id') required String classId,
+    @JsonKey(name: 'student_id') required String studentId,
+    @Default('pending') String status,
+    String? role,
+    @JsonKey(name: 'joined_at') DateTime? joinedAt,
+    @JsonKey(name: 'created_at') DateTime? createdAt,
+  }) = _ClassMember;
 
-  /// Validate dữ liệu của ClassMember.
-  /// Ném ra Exception nếu dữ liệu không hợp lệ.
+  /// Factory constructor để tạo ClassMember từ JSON
+  ///
+  /// Tự động convert snake_case từ database sang camelCase trong Dart
+  factory ClassMember.fromJson(Map<String, dynamic> json) =>
+      _$ClassMemberFromJson(json);
+
+  /// Private constructor để thêm custom methods
+  const ClassMember._();
+}
+
+// Extension để thêm custom methods cho ClassMember
+extension ClassMemberExtension on ClassMember {
+  /// Validate dữ liệu của ClassMember
+  ///
+  /// Ném ra Exception nếu dữ liệu không hợp lệ
   void validate() {
     if (classId.trim().isEmpty) {
       throw Exception('ID lớp học không hợp lệ');
@@ -58,19 +79,12 @@ class ClassMember {
     }
   }
 
+  /// Kiểm tra xem thành viên có đang chờ duyệt không
   bool get isPending => status == 'pending';
-  bool get isApproved => status == 'approved';
-  bool get isRejected => status == 'rejected';
 
-  @override
-  String toString() {
-    return 'ClassMember(\n'
-        '  classId: $classId,\n'
-        '  studentId: $studentId,\n'
-        '  status: $status,\n'
-        '  role: $role,\n'
-        '  joinedAt: ${joinedAt?.toIso8601String()},\n'
-        '  createdAt: ${createdAt?.toIso8601String()},\n'
-        ')';
-  }
+  /// Kiểm tra xem thành viên đã được duyệt chưa
+  bool get isApproved => status == 'approved';
+
+  /// Kiểm tra xem thành viên đã bị từ chối chưa
+  bool get isRejected => status == 'rejected';
 }

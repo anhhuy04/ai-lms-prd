@@ -1,41 +1,45 @@
-/// Entity đại diện cho nhóm học tập trong lớp học.
-class Group {
-  final String id;
-  final String classId;
-  final String name;
-  final String? description;
-  final DateTime createdAt;
+// ignore_for_file: invalid_annotation_target
 
-  Group({
-    required this.id,
-    required this.classId,
-    required this.name,
-    this.description,
-    required this.createdAt,
-  });
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-  factory Group.fromJson(Map<String, dynamic> json) {
-    return Group(
-      id: json['id'] as String,
-      classId: json['class_id'] as String,
-      name: json['name'] as String,
-      description: json['description'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
-    );
-  }
+part 'group.freezed.dart';
+part 'group.g.dart';
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'class_id': classId,
-      'name': name,
-      'description': description,
-      'created_at': createdAt.toIso8601String(),
-    };
-  }
+/// Entity đại diện cho nhóm học tập trong lớp học
+///
+/// Sử dụng Freezed để tạo immutable class với:
+/// - Automatic copyWith method
+/// - Automatic toString, ==, hashCode
+/// - JSON serialization với json_serializable
+@freezed
+class Group with _$Group {
+  /// Factory constructor cho Group
+  ///
+  /// [id] - ID duy nhất của nhóm (required)
+  /// [classId] - ID lớp học (required)
+  /// [name] - Tên nhóm (required)
+  /// [description] - Mô tả nhóm (optional)
+  /// [createdAt] - Thời gian tạo (required)
+  const factory Group({
+    required String id,
+    @JsonKey(name: 'class_id') required String classId,
+    required String name,
+    String? description,
+    @JsonKey(name: 'created_at') required DateTime createdAt,
+  }) = _Group;
 
-  /// Validate dữ liệu của Group.
-  /// Ném ra Exception nếu dữ liệu không hợp lệ.
+  /// Factory constructor để tạo Group từ JSON
+  factory Group.fromJson(Map<String, dynamic> json) => _$GroupFromJson(json);
+
+  /// Private constructor để thêm custom methods
+  const Group._();
+}
+
+// Extension để thêm custom methods cho Group
+extension GroupExtension on Group {
+  /// Validate dữ liệu của Group
+  ///
+  /// Ném ra Exception nếu dữ liệu không hợp lệ
   void validate() {
     if (id.trim().isEmpty) {
       throw Exception('ID nhóm không hợp lệ');
@@ -46,16 +50,5 @@ class Group {
     if (name.trim().isEmpty) {
       throw Exception('Tên nhóm không được để trống');
     }
-  }
-
-  @override
-  String toString() {
-    return 'Group(\n'
-        '  id: $id,\n'
-        '  classId: $classId,\n'
-        '  name: $name,\n'
-        '  description: $description,\n'
-        '  createdAt: ${createdAt.toIso8601String()},\n'
-        ')';
   }
 }

@@ -22,9 +22,15 @@ Widget dialog linh hoạt hỗ trợ:
 
 - **5 loại dialog**: success, warning, error, info, confirm
 - **Responsive design**: Tự động điều chỉnh kích thước theo màn hình
-  - Mobile: 90% chiều rộng, max 340px
+  - Mobile: 80% chiều rộng (mặc định), max 560px
   - Tablet: 70% chiều rộng, max 480px
   - Desktop: 50% chiều rộng, max 560px
+- **Button Layout**: 
+  - 2 nút: Hiển thị trên cùng 1 dòng
+    - Nút đồng ý (primary): Bên trái, có màu nền
+    - Nút không đồng ý (secondary): Bên phải, không màu nền, chỉ chữ có màu
+  - Nhiều hơn 2 nút: Hiển thị dọc
+- **Barrier Dismiss**: Khi bấm ra ngoài dialog, dialog sẽ đóng và trả về `null` (hủy)
 - **Dark mode**: Tự động hỗ trợ
 - **Animation**: Hiệu ứng fade và scale mượt mà
 - **Multiple actions**: Hỗ trợ lên đến 3 nút hành động
@@ -62,11 +68,19 @@ WarningDialog.showConfirmation(
 );
 
 // Dialog cảnh báo không lưu thay đổi
-WarningDialog.showUnsavedChanges(
+// Trả về: true nếu chọn "Lưu thay đổi", false nếu chọn "Không lưu", null nếu bấm ra ngoài (hủy)
+final result = await WarningDialog.showUnsavedChanges(
   context: context,
-  onDiscard: () => navigateBack(),
-  onSave: () => saveChanges(),
 );
+if (result == true) {
+  // User chọn "Lưu thay đổi"
+  await saveChanges();
+  navigateBack();
+} else if (result == false) {
+  // User chọn "Không lưu"
+  navigateBack();
+}
+// result == null: User bấm ra ngoài (hủy) → ở lại trang
 ```
 
 #### ErrorDialog
@@ -208,8 +222,20 @@ final shouldDelete = await WarningDialog.showConfirmation(
 if (shouldDelete == true) {
   await deleteItem();
 } else {
-  // Người dùng đã hủy
+  // Người dùng đã hủy (result == false) hoặc bấm ra ngoài (result == null)
 }
+
+// Ví dụ xử lý dialog không lưu thay đổi
+final result = await WarningDialog.showUnsavedChanges(context: context);
+if (result == true) {
+  // User chọn "Lưu thay đổi" → lưu rồi mới back
+  await saveChanges();
+  Navigator.pop(context);
+} else if (result == false) {
+  // User chọn "Không lưu" → back ngay
+  Navigator.pop(context);
+}
+// result == null: User bấm ra ngoài (hủy) → ở lại trang, không làm gì
 ```
 
 ## Ví dụ thực tế

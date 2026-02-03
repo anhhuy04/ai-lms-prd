@@ -1,20 +1,21 @@
-import 'package:ai_mls/presentation/viewmodels/auth_viewmodel.dart';
-import 'package:ai_mls/routes/app_routes.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   final String? initialEmail;
 
   const LoginScreen({super.key, this.initialEmail});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   late final TextEditingController _emailController;
   final _passwordController = TextEditingController();
   bool _rememberMe = true; // Giá trị mặc định cho checkbox
@@ -36,118 +37,118 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Sử dụng Consumer để lắng nghe AuthViewModel
+    final authState = ref.watch(authNotifierProvider);
+
+    // Hiển thị lỗi nếu có
+    ref.listen<AsyncValue>(authNotifierProvider, (previous, next) {
+      next.whenOrNull(
+        error: (err, _) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(err.toString())));
+        },
+      );
+    });
+
     return Scaffold(
       body: Center(
         child: Padding(
           padding: EdgeInsets.all(DesignSpacing.xxl),
-          child: Consumer<AuthViewModel>(
-            builder: (context, authViewModel, child) {
-              // Kiểm tra null safety cho authViewModel
-              if (authViewModel.errorMessage != null) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(authViewModel.errorMessage!)),
-                  );
-                  authViewModel.clearErrorMessage(); // Xóa lỗi sau khi hiển thị
-                });
-              }
-
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Icon(
-                    Icons.school,
-                    size: DesignIcons.lgSize,
-                    color: DesignColors.primary,
-                  ),
-                  SizedBox(height: DesignSpacing.lg),
-                  Text(
-                    'Chào mừng trở lại',
-                    style: DesignTypography.headlineMedium,
-                  ),
-                  SizedBox(height: DesignSpacing.xxl),
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.email),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Icon(
+                Icons.school,
+                size: DesignIcons.lgSize,
+                color: DesignColors.primary,
+              ),
+              SizedBox(height: DesignSpacing.lg),
+              Text('Chào mừng trở lại', style: DesignTypography.headlineMedium),
+              SizedBox(height: DesignSpacing.xxl),
+              TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              SizedBox(height: DesignSpacing.lg),
+              TextFormField(
+                controller: _passwordController,
+                decoration: InputDecoration(
+                  labelText: 'Mật khẩu',
+                  prefixIcon: const Icon(Icons.lock),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      color: DesignColors.textSecondary,
                     ),
-                    keyboardType: TextInputType.emailAddress,
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
                   ),
-                  SizedBox(height: DesignSpacing.lg),
-                  TextFormField(
-                    controller: _passwordController,
-                    decoration: InputDecoration(
-                      labelText: 'Mật khẩu',
-                      prefixIcon: const Icon(Icons.lock),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                          color: DesignColors.textSecondary,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                    ),
-                    obscureText: _obscurePassword,
+                ),
+                obscureText: _obscurePassword,
+              ),
+              Row(
+                children: [
+                  Checkbox(
+                    value: _rememberMe,
+                    onChanged: (value) => setState(() => _rememberMe = value!),
                   ),
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: _rememberMe,
-                        onChanged: (value) =>
-                            setState(() => _rememberMe = value!),
-                      ),
-                      const Text('Ghi nhớ đăng nhập'),
-                    ],
-                  ),
-                  SizedBox(height: DesignSpacing.lg),
-                  SizedBox(
-                    width: double.infinity,
-                    child: authViewModel.isLoading ?? false
-                        ? const Center(child: CircularProgressIndicator())
-                        : ElevatedButton(
-                            onPressed: () => _login(authViewModel),
-                            child: const Text('Đăng nhập'),
-                          ),
-                  ),
-                  SizedBox(height: DesignSpacing.md),
-                  TextButton(
-                    onPressed: () =>
-                        Navigator.pushNamed(context, AppRoutes.register),
-                    child: const Text('Chưa có tài khoản? Đăng ký'),
-                  ),
+                  const Text('Ghi nhớ đăng nhập'),
                 ],
-              );
-            },
+              ),
+              SizedBox(height: DesignSpacing.lg),
+              SizedBox(
+                width: double.infinity,
+                child: authState.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ElevatedButton(
+                        onPressed: _login,
+                        child: const Text('Đăng nhập'),
+                      ),
+              ),
+              SizedBox(height: DesignSpacing.md),
+              TextButton(
+                onPressed: () => context.pushNamed(AppRoute.register),
+                child: const Text('Chưa có tài khoản? Đăng ký'),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Future<void> _login(AuthViewModel authViewModel) async {
-    final success = await authViewModel.signInWithEmailAndPassword(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
-    );
+  Future<void> _login() async {
+    final success = await ref
+        .read(authNotifierProvider.notifier)
+        .signIn(_emailController.text.trim(), _passwordController.text.trim());
 
     if (success && mounted) {
       // Lưu lựa chọn "Ghi nhớ"
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('rememberMe', _rememberMe);
+      if (!mounted) return;
 
-      final userProfile = authViewModel.userProfile;
-      if (userProfile != null) {
-        Navigator.pushReplacementNamed(
-          context,
-          AppRoutes.home,
-          arguments: userProfile,
-        );
+      // Handle redirect after login
+      final redirect = GoRouterState.of(
+        context,
+      ).uri.queryParameters['redirect'];
+
+      if (redirect != null && redirect.isNotEmpty) {
+        // Redirect to the saved URL after login
+        context.go(Uri.decodeComponent(redirect));
+      } else {
+        // Default: go to home (will be redirected to appropriate dashboard)
+        context.go(AppRoute.homePath);
       }
     }
   }

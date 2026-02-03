@@ -12,44 +12,44 @@ import 'design_tokens.dart';
 // Single Source of Truth: lib/core/constants/design_tokens.dart
 // ============================================================================
 
-@deprecated
+@Deprecated('Legacy constants. Dùng DesignColors trong design_tokens.dart.')
 class AppColors {
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignColors.primary trong design_tokens.dart.')
   static const Color primary = DesignColors.primary;
 
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignColors.primaryDark trong design_tokens.dart.')
   static const Color secondary = DesignColors.primaryDark;
 
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignColors.moonLight trong design_tokens.dart.')
   static const Color background = DesignColors.moonLight;
 
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignColors.error trong design_tokens.dart.')
   static const Color error = DesignColors.error;
 
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignColors.primary/tealPrimary trong design_tokens.dart.')
   static const Color teal = DesignColors.primary;
 }
 
-@deprecated
+@Deprecated('Legacy constants. Dùng DesignSpacing trong design_tokens.dart.')
 class AppSizes {
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignSpacing.xs trong design_tokens.dart.')
   static const double p4 = DesignSpacing.xs;
 
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignSpacing.sm trong design_tokens.dart.')
   static const double p8 = DesignSpacing.sm;
 
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignSpacing.md trong design_tokens.dart.')
   static const double p12 = DesignSpacing.md;
 
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignSpacing.lg trong design_tokens.dart.')
   static const double p16 = DesignSpacing.lg;
 
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignSpacing.xl trong design_tokens.dart.')
   static const double p20 = DesignSpacing.xl;
 
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignSpacing.xxl trong design_tokens.dart.')
   static const double p24 = DesignSpacing.xxl;
 
-  @deprecated
+  @Deprecated('Legacy constants. Dùng DesignSpacing.xxxl trong design_tokens.dart.')
   static const double p32 = DesignSpacing.xxxl;
 }

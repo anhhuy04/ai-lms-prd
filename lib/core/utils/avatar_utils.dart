@@ -7,9 +7,9 @@ class AvatarUtils {
   AvatarUtils._(); // Prevent instantiation
 
   /// Xây dựng avatar với chữ cái đầu nếu không có hình nền
-  /// 
+  ///
   /// Sử dụng cùng styling như dashboard:
-  /// - Background: DesignColors.primary.withOpacity(0.1)
+  /// - Background: DesignColors.primary.withValues(alpha: 0.1)
   /// - Text color: DesignColors.primary
   /// - Font size: 14, bold
   static Widget buildAvatar({
@@ -21,7 +21,9 @@ class AvatarUtils {
     final hasAvatar =
         profile?.avatarUrl != null && (profile!.avatarUrl?.isNotEmpty ?? false);
     final fullName = profile?.fullName ?? '';
-    final initials = fullName.isNotEmpty ? fullName[0].toUpperCase() : '?';
+    // Lấy chữ đầu của tên (từ cuối chuỗi, sau dấu cách cuối cùng)
+    // Ví dụ: "Nguyễn Văn A" -> "A", "Trần Thị B" -> "B"
+    final initials = _getFirstNameInitial(fullName);
     final avatarUrl = profile?.avatarUrl;
 
     return Container(
@@ -29,10 +31,7 @@ class AvatarUtils {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: borderColor ?? Colors.grey[300]!,
-          width: 1,
-        ),
+        border: Border.all(color: borderColor ?? Colors.grey[300]!, width: 1),
       ),
       child: ClipOval(
         child: hasAvatar && avatarUrl != null
@@ -50,6 +49,24 @@ class AvatarUtils {
     );
   }
 
+  /// Lấy chữ đầu của tên (từ cuối chuỗi)
+  /// Ví dụ: "Nguyễn Văn A" -> "A", "Trần Thị B" -> "B"
+  static String _getFirstNameInitial(String fullName) {
+    if (fullName.isEmpty) return '?';
+
+    // Trim và tách các từ
+    final trimmed = fullName.trim();
+    if (trimmed.isEmpty) return '?';
+
+    // Lấy từ cuối cùng (tên)
+    final parts = trimmed.split(' ').where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+
+    // Lấy chữ đầu của từ cuối cùng
+    final firstName = parts.last;
+    return firstName[0].toUpperCase();
+  }
+
   /// Xây dựng avatar với chữ cái đầu (giống dashboard)
   static Widget _buildInitialAvatar(String initials, double size) {
     return Container(
@@ -57,7 +74,7 @@ class AvatarUtils {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: DesignColors.primary.withOpacity(0.1),
+        color: DesignColors.primary.withValues(alpha: 0.1),
       ),
       child: Center(
         child: Text(

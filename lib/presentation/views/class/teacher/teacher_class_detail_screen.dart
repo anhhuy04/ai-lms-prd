@@ -1,19 +1,21 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/widgets/assignment_list.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/presentation/providers/class_notifier.dart';
+import 'package:ai_mls/presentation/views/class/teacher/widgets/drawers/class_settings_drawer.dart';
 import 'package:ai_mls/widgets/drawers/action_end_drawer.dart';
-import 'package:ai_mls/widgets/drawers/class_settings_drawer.dart';
-import 'package:ai_mls/widgets/search/smart_search_dialog_v2.dart';
-import 'package:ai_mls/presentation/views/assignment/assignment_list_screen.dart';
-import 'package:ai_mls/presentation/viewmodels/class_viewmodel.dart';
+import 'package:ai_mls/widgets/list/class_detail_assignment_list.dart';
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/widgets/search/dialogs/quick_search_dialog.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Màn hình chi tiết lớp học dành cho giáo viên
 /// Thiết kế theo chuẩn Design System với đầy đủ thông tin lớp học
-class TeacherClassDetailScreen extends StatefulWidget {
+class TeacherClassDetailScreen extends ConsumerStatefulWidget {
   final String classId;
   final String className;
   final String semesterInfo;
@@ -26,11 +28,12 @@ class TeacherClassDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<TeacherClassDetailScreen> createState() =>
+  ConsumerState<TeacherClassDetailScreen> createState() =>
       _TeacherClassDetailScreenState();
 }
 
-class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
+class _TeacherClassDetailScreenState
+    extends ConsumerState<TeacherClassDetailScreen> {
   // State cho tìm kiếm
   final String _searchQuery = '';
 
@@ -38,91 +41,128 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
   void initState() {
     super.initState();
     // #region agent log
-    try {
-      final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
-      logFile.writeAsStringSync(
-        '${jsonEncode({
-          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-          "timestamp": DateTime.now().millisecondsSinceEpoch,
-          "location": "teacher_class_detail_screen.dart:35",
-          "message": "TeacherClassDetailScreen initState",
-          "data": {"classId": widget.classId, "className": widget.className, "semesterInfo": widget.semesterInfo},
-          "sessionId": "debug-session",
-          "runId": "run1",
-          "hypothesisId": "F",
-        })}\n',
-        mode: FileMode.append,
-      );
-    } catch (_) {}
-    // #endregion
-    // Load class details khi màn hình khởi tạo
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // #region agent log
+    if (kDebugMode && Platform.isWindows) {
       try {
-        final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
-        logFile.writeAsStringSync(
-          '${jsonEncode({
-            "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-            "timestamp": DateTime.now().millisecondsSinceEpoch,
-            "location": "teacher_class_detail_screen.dart:39",
-            "message": "About to load class details",
-            "data": {"classId": widget.classId, "mounted": mounted},
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "F",
-          })}\n',
-          mode: FileMode.append,
+        final logFile = File(
+          'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
         );
-      } catch (_) {}
-      // #endregion
-      if (mounted) {
-        try {
-          context.read<ClassViewModel>().loadClassDetails(widget.classId).catchError((error, stackTrace) {
-            // #region agent log
-            try {
-              final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
-              logFile.writeAsStringSync(
-                '${jsonEncode({
-                  "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-                  "timestamp": DateTime.now().millisecondsSinceEpoch,
-                  "location": "teacher_class_detail_screen.dart:50",
-                  "message": "Error loading class details",
-                  "data": {"classId": widget.classId, "error": error.toString(), "stackTrace": stackTrace.toString()},
-                  "sessionId": "debug-session",
-                  "runId": "run1",
-                  "hypothesisId": "F",
-                })}\n',
-                mode: FileMode.append,
-              );
-            } catch (_) {}
-            // #endregion
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Lỗi khi tải thông tin lớp học: ${error.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          });
-        } catch (e, stackTrace) {
-          // #region agent log
-          try {
-            final logFile = File('d:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log');
-            logFile.writeAsStringSync(
+        // ignore: discarded_futures
+        logFile
+            .writeAsString(
               '${jsonEncode({
                 "id": "log_${DateTime.now().millisecondsSinceEpoch}",
                 "timestamp": DateTime.now().millisecondsSinceEpoch,
-                "location": "teacher_class_detail_screen.dart:65",
-                "message": "Exception in loadClassDetails call",
-                "data": {"classId": widget.classId, "error": e.toString(), "stackTrace": stackTrace.toString()},
+                "location": "teacher_class_detail_screen.dart:35",
+                "message": "TeacherClassDetailScreen initState",
+                "data": {"classId": widget.classId, "className": widget.className, "semesterInfo": widget.semesterInfo},
                 "sessionId": "debug-session",
                 "runId": "run1",
                 "hypothesisId": "F",
               })}\n',
               mode: FileMode.append,
-            );
-          } catch (_) {}
+              flush: false,
+            )
+            .catchError((_) => logFile);
+      } catch (_) {}
+    }
+    // #endregion
+    // Load class details khi màn hình khởi tạo
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // #region agent log
+      if (kDebugMode && Platform.isWindows) {
+        try {
+          final logFile = File(
+            'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+          );
+          // ignore: discarded_futures
+          logFile
+              .writeAsString(
+                '${jsonEncode({
+                  "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                  "timestamp": DateTime.now().millisecondsSinceEpoch,
+                  "location": "teacher_class_detail_screen.dart:39",
+                  "message": "About to load class details",
+                  "data": {"classId": widget.classId, "mounted": mounted},
+                  "sessionId": "debug-session",
+                  "runId": "run1",
+                  "hypothesisId": "F",
+                })}\n',
+                mode: FileMode.append,
+                flush: false,
+              )
+              .catchError((_) => logFile);
+        } catch (_) {}
+      }
+      // #endregion
+      if (mounted) {
+        try {
+          ref
+              .read(classNotifierProvider.notifier)
+              .loadClassDetails(widget.classId)
+              .catchError((error, stackTrace) {
+                // #region agent log
+                if (kDebugMode && Platform.isWindows) {
+                  try {
+                    final logFile = File(
+                      'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+                    );
+                    // ignore: discarded_futures
+                    logFile
+                        .writeAsString(
+                          '${jsonEncode({
+                            "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                            "timestamp": DateTime.now().millisecondsSinceEpoch,
+                            "location": "teacher_class_detail_screen.dart:50",
+                            "message": "Error loading class details",
+                            "data": {"classId": widget.classId, "error": error.toString(), "stackTrace": stackTrace.toString()},
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "F",
+                          })}\n',
+                          mode: FileMode.append,
+                          flush: false,
+                        )
+                        .catchError((_) => logFile);
+                  } catch (_) {}
+                }
+                // #endregion
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Lỗi khi tải thông tin lớp học: ${error.toString()}',
+                      ),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              });
+        } catch (e, stackTrace) {
+          // #region agent log
+          if (kDebugMode && Platform.isWindows) {
+            try {
+              final logFile = File(
+                'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+              );
+              // ignore: discarded_futures
+              logFile
+                  .writeAsString(
+                    '${jsonEncode({
+                      "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                      "timestamp": DateTime.now().millisecondsSinceEpoch,
+                      "location": "teacher_class_detail_screen.dart:65",
+                      "message": "Exception in loadClassDetails call",
+                      "data": {"classId": widget.classId, "error": e.toString(), "stackTrace": stackTrace.toString()},
+                      "sessionId": "debug-session",
+                      "runId": "run1",
+                      "hypothesisId": "F",
+                    })}\n',
+                    mode: FileMode.append,
+                    flush: false,
+                  )
+                  .catchError((_) => logFile);
+            } catch (_) {}
+          }
           // #endregion
         }
       }
@@ -130,41 +170,42 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
   }
 
   Future<void> _onRefresh() async {
-    await context.read<ClassViewModel>().loadClassDetails(widget.classId);
+    await ref
+        .read(classNotifierProvider.notifier)
+        .loadClassDetails(widget.classId);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: DesignColors.moonLight,
-      endDrawer: Consumer<ClassViewModel>(
-        builder: (context, viewModel, _) {
-          final classItem = viewModel.selectedClass;
-          if (classItem == null) return const SizedBox.shrink();
+    // Watch ClassNotifier state để rebuild khi state thay đổi
+    // Khi loadClassDetails() gọi state = state, nó sẽ trigger rebuild
+    ref.watch(classNotifierProvider);
 
-          return ActionEndDrawer(
-            title: 'Tùy chọn Lớp học',
-            subtitle: classItem.name,
-            child: ClassSettingsDrawer(
-              viewModel: viewModel,
-              classItem: classItem,
+    // Lấy notifier và các giá trị hiện tại
+    final classNotifier = ref.read(classNotifierProvider.notifier);
+    final selectedClass = classNotifier.selectedClass;
+    final isDetailLoading = classNotifier.isDetailLoading;
+    final detailErrorMessage = classNotifier.detailErrorMessage;
+
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      endDrawer: selectedClass == null
+          ? null
+          : ActionEndDrawer(
+              title: 'Tùy chọn Lớp học',
+              child: ClassSettingsDrawer(classItem: selectedClass),
             ),
-          );
-        },
-      ),
-      body: Consumer<ClassViewModel>(
-        builder: (context, viewModel, _) {
+      body: Builder(
+        builder: (context) {
           // Loading state
-          if (viewModel.isLoading && viewModel.selectedClass == null) {
-            return SafeArea(
-              child: Center(
-                child: CircularProgressIndicator(color: DesignColors.primary),
-              ),
-            );
+          if (isDetailLoading && selectedClass == null) {
+            return SafeArea(child: const ShimmerDashboardLoading());
           }
 
           // Error state
-          if (viewModel.hasError && viewModel.selectedClass == null) {
+          if (detailErrorMessage != null && selectedClass == null) {
             return SafeArea(
               child: Center(
                 child: Column(
@@ -173,15 +214,15 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
                     Icon(
                       Icons.error_outline,
                       size: 64,
-                      color: DesignColors.error,
+                      color: colorScheme.error,
                     ),
-                    SizedBox(height: DesignSpacing.md),
+                    const SizedBox(height: 12),
                     Text(
-                      viewModel.errorMessage ?? 'Có lỗi xảy ra',
-                      style: DesignTypography.bodyMedium,
+                      detailErrorMessage,
+                      style: textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
-                    SizedBox(height: DesignSpacing.lg),
+                    const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () => _onRefresh(),
                       child: const Text('Thử lại'),
@@ -192,13 +233,35 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
             );
           }
 
-          final classItem = viewModel.selectedClass;
-          if (classItem == null) {
+          if (selectedClass == null) {
             return SafeArea(
               child: Center(
-                child: Text(
-                  'Không tìm thấy lớp học',
-                  style: DesignTypography.bodyMedium,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.school_outlined,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 12),
+                    Text('Không tìm thấy lớp học', style: textTheme.bodyMedium),
+                    if (detailErrorMessage != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        detailErrorMessage,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.error,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => _onRefresh(),
+                      child: const Text('Thử lại'),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -210,14 +273,14 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
               child: Column(
                 children: [
                   // Top App Bar
-                  _buildAppBar(context, classItem),
+                  _buildAppBar(context, selectedClass),
                   // Main Content
                   Expanded(
                     child: SingleChildScrollView(
                       child: Column(
                         children: [
                           // Quick Stats & Actions
-                          _buildQuickStatsSection(context, viewModel),
+                          _buildQuickStatsSection(context),
                           const SizedBox(height: 16),
                           // Assignment List Section
                           _buildAssignmentListSection(context),
@@ -236,54 +299,54 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
 
   /// App Bar với nút quay lại và thông tin lớp
   Widget _buildAppBar(BuildContext context, dynamic classItem) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: DesignSpacing.lg,
-        vertical: DesignSpacing.md,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        border: Border(
-          bottom: BorderSide(color: Theme.of(context).dividerColor, width: 1),
-        ),
+        color: theme.scaffoldBackgroundColor,
+        border: Border(bottom: BorderSide(color: theme.dividerColor, width: 1)),
       ),
       child: Row(
         children: [
           GestureDetector(
             onTap: () {
-              Navigator.of(context).pop();
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                // Fallback: navigate về class list nếu không thể pop
+                context.goNamed(AppRoute.teacherClassList);
+              }
             },
             child: Container(
-              padding: EdgeInsets.all(DesignSpacing.sm),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.transparent,
-              ),
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(shape: BoxShape.circle),
               child: Icon(
                 Icons.arrow_back_ios_new,
-                size: DesignIcons.mdSize,
-                color: Theme.of(context).iconTheme.color,
+                size: 22,
+                color: theme.iconTheme.color,
               ),
             ),
           ),
-          SizedBox(width: DesignSpacing.md),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   classItem.name,
-                  style: DesignTypography.titleLarge.copyWith(
+                  style: textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: DesignSpacing.xs),
+                const SizedBox(height: 4),
                 Text(
                   classItem.subject ?? classItem.academicYear ?? '',
-                  style: DesignTypography.bodySmall.copyWith(
-                    color: DesignColors.textSecondary,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.7),
                   ),
                 ),
               ],
@@ -294,8 +357,8 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
               IconButton(
                 icon: Icon(
                   Icons.search,
-                  size: DesignIcons.mdSize,
-                  color: Theme.of(context).iconTheme.color,
+                  size: 22,
+                  color: theme.iconTheme.color,
                 ),
                 onPressed: () {
                   _showSmartSearchDialog(context);
@@ -305,8 +368,8 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
                 builder: (context) => IconButton(
                   icon: Icon(
                     Icons.more_vert,
-                    size: DesignIcons.mdSize,
-                    color: Theme.of(context).iconTheme.color,
+                    size: 22,
+                    color: theme.iconTheme.color,
                   ),
                   onPressed: () {
                     Scaffold.of(context).openEndDrawer();
@@ -321,18 +384,15 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
   }
 
   /// Phần thống kê nhanh và hành động
-  Widget _buildQuickStatsSection(
-    BuildContext context,
-    ClassViewModel viewModel,
-  ) {
+  Widget _buildQuickStatsSection(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(DesignSpacing.lg),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Quick Stats Row
-          _buildQuickStatsRow(context, viewModel),
-          SizedBox(height: DesignSpacing.lg),
+          _buildQuickStatsRow(context),
+          const SizedBox(height: 16),
           // Create New Action
           _buildCreateAssignmentCard(context),
         ],
@@ -341,30 +401,30 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
   }
 
   /// Hàng thống kê nhanh
-  Widget _buildQuickStatsRow(BuildContext context, ClassViewModel viewModel) {
+  Widget _buildQuickStatsRow(BuildContext context) {
+    // TODO: Tính approvedCount từ getClassMembers khi cần
+    // Tạm thời dùng 0, sẽ tính sau khi có cache members trong ClassNotifier
+    final approvedCount = 0;
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             context: context,
             icon: Icons.groups,
-            iconColor: DesignColors.primary,
-            value: '${viewModel.approvedCount}',
+            iconColor: Theme.of(context).colorScheme.primary,
+            value: '$approvedCount',
             label: 'Học sinh',
             onTap: () {
-              // Navigate to student list
-              Navigator.pushNamed(
-                context,
-                '/student-list',
-                arguments: {
-                  'classId': widget.classId,
-                  'className': viewModel.selectedClass?.name ?? '',
-                },
+              // Navigate to student list using GoRouter
+              context.goNamed(
+                AppRoute.teacherStudentList,
+                pathParameters: {'classId': widget.classId},
+                extra: widget.className,
               );
             },
           ),
         ),
-        SizedBox(width: DesignSpacing.md),
+        const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
             context: context,
@@ -373,17 +433,12 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
             value: '0', // Tạm thời hiển thị 0 (chưa có bảng assignments)
             label: 'Bài tập đang mở',
             onTap: () {
-              // Navigate to assignment list
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AssignmentListScreen(),
-                ),
-              );
+              // Navigate to assignment list using GoRouter
+              context.go(AppRoute.teacherAssignmentListPath);
             },
           ),
         ),
-        SizedBox(width: DesignSpacing.md),
+        const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
             context: context,
@@ -396,7 +451,9 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
               // Màn hình thống kê nộp bài chưa được implement
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Chức năng thống kê nộp bài đang được phát triển'),
+                  content: Text(
+                    'Chức năng thống kê nộp bài đang được phát triển',
+                  ),
                 ),
               );
             },
@@ -415,15 +472,24 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
     required String label,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.all(DesignSpacing.lg),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: DesignColors.white,
-          borderRadius: BorderRadius.circular(DesignRadius.md),
-          border: Border.all(color: Theme.of(context).dividerColor, width: 1),
-          boxShadow: [DesignElevation.level1],
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.dividerColor, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -431,26 +497,26 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(icon, size: DesignIcons.lgSize, color: iconColor),
+                Icon(icon, size: 28, color: iconColor),
                 Icon(
                   Icons.chevron_right,
-                  size: DesignIcons.smSize,
-                  color: DesignColors.textTertiary,
+                  size: 18,
+                  color: colorScheme.onSurface.withOpacity(0.4),
                 ),
               ],
             ),
-            SizedBox(height: DesignSpacing.md),
+            const SizedBox(height: 12),
             Text(
               value,
-              style: DesignTypography.headlineLarge.copyWith(
+              style: textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(height: DesignSpacing.xs),
+            const SizedBox(height: 4),
             Text(
               label,
-              style: DesignTypography.bodySmall.copyWith(
-                color: DesignColors.textSecondary,
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
           ],
@@ -461,20 +527,28 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
 
   /// Card tạo bài tập mới
   Widget _buildCreateAssignmentCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Container(
-      padding: EdgeInsets.all(DesignSpacing.lg),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [DesignColors.primary.withOpacity(0.1), DesignColors.white],
+          colors: [colorScheme.primary.withOpacity(0.1), colorScheme.surface],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
-        borderRadius: BorderRadius.circular(DesignRadius.md),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: DesignColors.primary.withOpacity(0.2),
+          color: colorScheme.primary.withOpacity(0.2),
           width: 1,
         ),
-        boxShadow: [DesignElevation.level1],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -483,58 +557,48 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
             height: 28,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: DesignColors.primary.withOpacity(0.2),
+              color: colorScheme.primary.withOpacity(0.2),
             ),
-            child: Icon(
-              Icons.add_task,
-              size: DesignIcons.mdSize,
-              color: DesignColors.primary,
-            ),
+            child: Icon(Icons.add_task, size: 22, color: colorScheme.primary),
           ),
-          SizedBox(width: DesignSpacing.md),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Tạo bài tập mới',
-                  style: DesignTypography.titleMedium.copyWith(
+                  style: textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(height: DesignSpacing.xs),
+                const SizedBox(height: 4),
                 Text(
                   'Giao bài về nhà hoặc bài kiểm tra',
-                  style: DesignTypography.bodySmall.copyWith(
-                    color: DesignColors.textSecondary,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.7),
                   ),
                 ),
               ],
             ),
           ),
-          SizedBox(width: DesignSpacing.md),
+          const SizedBox(width: 12),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: DesignColors.primary,
+              backgroundColor: colorScheme.primary,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(DesignRadius.sm),
+                borderRadius: BorderRadius.circular(8),
               ),
-              padding: EdgeInsets.symmetric(
-                horizontal: DesignSpacing.md,
-                vertical: DesignSpacing.sm,
-              ),
-              textStyle: DesignTypography.labelMedium.copyWith(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              textStyle: textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.bold,
+                color: colorScheme.onPrimary,
               ),
             ),
             onPressed: () {
-              // Navigate to create assignment screen
-              Navigator.pushNamed(
-                context,
-                '/create-assignment',
-                arguments: {'classId': widget.classId},
-              );
+              // Navigate to assignment list (placeholder for create flow)
+              context.pushNamed(AppRoute.teacherAssignmentList);
             },
             child: const Text('Tạo ngay'),
           ),
@@ -546,13 +610,13 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
   /// Phần danh sách bài tập
   Widget _buildAssignmentListSection(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: DesignSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header danh sách
           _buildAssignmentListHeader(),
-          SizedBox(height: DesignSpacing.md),
+          const SizedBox(height: 12),
           // Danh sách bài tập
           _buildAssignmentList(context),
         ],
@@ -562,30 +626,23 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
 
   /// Header danh sách bài tập
   Widget _buildAssignmentListHeader() {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           'Danh sách bài tập',
-          style: DesignTypography.titleLarge.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         TextButton(
           onPressed: () {
             // Navigate to all assignments
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AssignmentListScreen(),
-              ),
-            );
+            context.pushNamed(AppRoute.teacherAssignmentList);
           },
           child: Text(
             'Xem tất cả',
-            style: DesignTypography.labelMedium.copyWith(
-              color: DesignColors.primary,
-            ),
+            style: textTheme.labelMedium?.copyWith(color: colorScheme.primary),
           ),
         ),
       ],
@@ -634,7 +691,7 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
       },
     ];
 
-    return AssignmentList(
+    return ClassDetailAssignmentList(
       assignments: sampleAssignments,
       viewMode: AssignmentViewMode.teacher,
       onItemTap: (assignment) {
@@ -642,7 +699,9 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
         // Màn hình chi tiết bài tập chưa được implement
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Chi tiết bài tập "${assignment['title']}" đang được phát triển'),
+            content: Text(
+              'Chi tiết bài tập "${assignment['title']}" đang được phát triển',
+            ),
           ),
         );
       },
@@ -699,14 +758,16 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.6),
-      builder: (context) => SmartSearchDialogV2(
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (context) => QuickSearchDialog(
         initialQuery: _searchQuery,
         assignments: assignments,
         students: students,
         classes: classes,
         onItemSelected: (item) {
-          Navigator.pop(context);
+          if (context.canPop()) {
+            context.pop();
+          }
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('Đã chọn: ${item['title']}')));

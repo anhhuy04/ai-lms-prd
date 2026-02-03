@@ -17,6 +17,7 @@ Hãy phản hồi lại tôi bằng tiếng Việt.
 - `docs/ai/AI_INSTRUCTIONS.md` → Core instructions cho AI agents
 - `docs/DOCS_STRUCTURE.md` → Cấu trúc documentation
 - `memory-bank/` → Context và memory cho AI agents
+- `.cursor/skills/cusrurrulers/SKILL.md` → Entry point skills handbook (rules/patterns/playbooks)
 
 **Quy tắc:**
 - ✅ Tất cả quy tắc chính nằm trong `.clinerules`
@@ -29,39 +30,51 @@ Hãy phản hồi lại tôi bằng tiếng Việt.
 # QUY TẮC CỐT LÕI
 Cho phép tự động sử dụng các MCP Fetch, Context7
 
+## Quick Index (đọc nhanh, tránh loạn)
+- **Context reading (bắt buộc)**: xem `## Mandatory Context Reading Protocol`
+- **UI & DesignTokens**: xem `## UI/Interface Rules`
+- **Data/MCP**: xem `## Database & MCP` + `## Quy tắc sử dụng MCP Servers`
+- **Docs**: xem `## Docs & Memory Prompt`
+- **Architecture**: xem `## Flutter Architecture (MVVM & Clean Architecture)`
+- **Routing**: xem `## Router & Navigation (GoRouter) - v2.0`
+- **Code quality**: xem `## Code Quality`
+- **Performance UX**: xem `## Performance UX (Loading / Tab / Parallel)`
+- **Widget organization**: xem `## Widget Organization & Structure`
+- **Git**: xem `## Git Workflow`
+- **HTML → Dart** (chỉ khi cần): xem `## HTML → Dart Conversion`
+- **Memory Bank**: xem `## Memory Bank File Operations`
+
 ## Mandatory Context Reading Protocol
 
 ### Quy tắc BẮT BUỘC đọc tài liệu trước khi hành động:
 - **KHI NÀO:** Mỗi khi nhận lệnh từ người dùng, PHẢI đọc lại các tài liệu liên quan TRƯỚC KHI thực hiện
-- **PHÂN LOẠI TASK:** Xác định category của task để đọc đúng tài liệu:
-  - **UI/Giao diện** → Đọc `memory-bank/DESIGN_SYSTEM_GUIDE.md` + `memory-bank/systemPatterns.md` (Design System section)
-  - **Database/Repository** → Đọc `memory-bank/systemPatterns.md` (Data Layer) + `docs/ai/README_SUPABASE.md`
-  - **State Management** → Đọc `memory-bank/systemPatterns.md` (State Management) + `.cursor/.cursorrules` (Tech Stack)
-  - **Architecture** → Đọc `docs/ai/AI_INSTRUCTIONS.md` (Section 2) + `memory-bank/systemPatterns.md` (Architecture)
-  - **Thư viện mới** → Sử dụng MCP Fetch để đọc documentation từ pub.dev
+- **THỨ TỰ ƯU TIÊN (sách giáo khoa → custom → memory-bank):**
+  1. **Bộ skill “sách giáo khoa” (standard từ `agent-skills-standard`)**:
+     - **UI/Giao diện** → Đọc các skill trong `.cursor/skills/flutter/**` + `.cursor/skills/common/**` (ví dụ: `common/system-design/SKILL.md`)
+     - **Dart/Ngôn ngữ** → Đọc `.cursor/skills/dart/language/SKILL.md` (Dart 3 patterns, null-safety, sealed, records, …)
+     - **System Design / Best Practices chung** → Đọc các skill trong `.cursor/skills/common/**`
+  2. **Skill custom cho project AI_LMS_PRD**:
+     - Đọc index `.cursor/skills/cusrurrulers/SKILL.md` để nhảy tới module phù hợp:
+       - UI → `40_ui_design_system_tokens.md` + `70_code_quality_and_lints.md`
+       - State/Riverpod → `20_state_riverpod_asyncnotifier.md` + `critical_asyncnotifier_concurrency_guards.md`
+       - Supabase/Data → `50_data_supabase_rls_storage.md` + `playbook_add_new_supabase_table_and_rls.md`
+       - End-to-end feature → `playbook_add_new_feature_end_to_end.md`
+  3. **Memory-bank & docs dự án** (Single Source of Truth về quyết định cuối cùng):
+     - **UI/Giao diện** → `memory-bank/DESIGN_SYSTEM_GUIDE.md` + `memory-bank/systemPatterns.md` (Design System section)
+     - **Database/Repository** → `memory-bank/systemPatterns.md` (Data Layer) + `docs/ai/README_SUPABASE.md`
+     - **State Management** → `memory-bank/systemPatterns.md` (State Management) + `.cursor/.cursorrules` (Tech Stack)
+     - **Architecture** → `docs/ai/AI_INSTRUCTIONS.md` (Section 2) + `memory-bank/systemPatterns.md` (Architecture)
+     - **MCP Workflow** → `.cursor/skills/60_mcp_workflow.md`
+  4. **Thư viện/API mới hoặc có nguy cơ out-of-date**:
+     - Sử dụng **Context7 MCP** (hoặc MCP Fetch nếu Context7 không áp dụng) để đọc documentation & examples MỚI NHẤT (pub.dev, docs chính thức) cho thư viện/API liên quan.
 - **WORKFLOW:**
-  1. Nhận lệnh từ người dùng
-  2. Phân tích và xác định category (UI/Database/State/Architecture/Library)
-  3. Đọc tài liệu liên quan từ memory-bank hoặc docs (sử dụng `read_file` tool)
-  4. Kiểm tra patterns hiện tại trong codebase (sử dụng `codebase_search` hoặc `grep`)
-  5. Thực hiện task theo đúng patterns và standards đã đọc
-  6. Cập nhật memory-bank nếu có thay đổi quan trọng
-
-### Quy tắc BẮT BUỘC tuân thủ nguyên tắc giao diện:
-- **KHI NÀO:** Khi sửa bất kỳ file nào liên quan đến UI/giao diện (files trong `lib/presentation/views/`, `lib/widgets/`)
-- **BẮT BUỘC:**
-  1. Đọc `memory-bank/DESIGN_SYSTEM_GUIDE.md` trước khi sửa
-  2. Đọc `lib/core/constants/design_tokens.dart` để xem tokens có sẵn
-  3. Tuân thủ Design Tokens (màu sắc, spacing, typography, icons, radius, shadows)
-  4. Tuân thủ Component Standards (button heights, input heights, card sizes, etc.)
-  5. Sử dụng `flutter_screenutil` cho responsive design
-  6. Đảm bảo accessibility (contrast, touch targets)
-  7. Sử dụng `keyboardDismissBehavior` cho ScrollView
-- **KHÔNG ĐƯỢC:**
-  - Hardcode màu sắc, spacing, font sizes
-  - Bỏ qua Design Tokens
-  - Tạo custom sizes không tuân thủ standards
-  - Bỏ qua responsive design
+-  1. Nhận lệnh từ người dùng
+-  2. Phân tích và xác định category (UI/Database/State/Architecture/Library)
+-  3. Đọc **bộ skill standard** tương ứng → sau đó đọc **skill custom** → cuối cùng đọc **memory-bank + docs dự án**
+-  4. Với thư viện/API: dùng Context7 MCP / Fetch để lấy docs mới nhất trước khi code
+-  5. Kiểm tra patterns hiện tại trong codebase (sử dụng `codebase_search` hoặc `grep`)
+-  6. Thực hiện task theo đúng patterns và standards đã đọc; nếu có mâu thuẫn: **ưu tiên `.clinerules` + `memory-bank` > skill custom > skill standard**
+-  7. Cập nhật memory-bank nếu có thay đổi quan trọng
 
 ### Quy tắc BẮT BUỘC sử dụng MCP khi được yêu cầu:
 - **KHI NÀO:** Khi người dùng yêu cầu sử dụng MCP (ví dụ: "dùng MCP Fetch", "sử dụng MCP", "check bằng MCP", "đọc documentation bằng MCP")
@@ -79,6 +92,8 @@ Cho phép tự động sử dụng các MCP Fetch, Context7
 - **BẮT BUỘC:** PHẢI sử dụng thư viện đã được định nghĩa trong `.cursor/.cursorrules` (Tech Stack Standards)
 - **THƯ VIỆN BẮT BUỘC:**
   - **QR Code:** `QrHelper` từ `lib/core/utils/qr_helper.dart` (wraps `pretty_qr_code`)
+  - **QR Scanner:** `mobile_scanner` (v6.0.2) với `MobileScannerController` cho camera và flash control
+  - **Image Picker:** `image_picker` (v1.0.7) để chọn ảnh từ thư viện cho QR scan
   - **Routing:** `go_router` cho routing mới
   - **State Management:** Riverpod với `@riverpod` generator
   - **Models:** `freezed` + `json_serializable`
@@ -96,6 +111,9 @@ Cho phép tự động sử dụng các MCP Fetch, Context7
 - Không tự ý giả định tên cột (ví dụ: không mặc định có cột 'created_at' trừ khi đã kiểm tra).
 - Khi người dùng yêu cầu "xem" hoặc "lấy" dữ liệu, hãy dùng `execute_query` để hiển thị trực tiếp, không tạo file mới trừ khi được yêu cầu.
 - Khi cần ghi note hay dữ liệu cần thiết thì ghi vào file README_SUPABASE.md
+- Khi viết RLS mới cho Supabase, LUÔN dùng `(select auth.uid())` thay vì `auth.uid()` trực tiếp, và đảm bảo mọi bảng `public` liên quan tới lớp/học sinh/giáo viên (profiles, classes, schools, groups, class_teachers, class_members, group_members, question/assignment tables) đều bật RLS với policy rõ ràng cho admin/teacher/student.
+- Khi cần tài liệu thư viện/API (Flutter/Dart/Supabase/3rd party), LUÔN ưu tiên dùng **Context7 MCP** (hoặc MCP Fetch nếu Context7 không áp dụng) để đọc documentation & examples MỚI NHẤT trước khi viết hoặc chỉnh sửa code.
+> **Xem thêm:** Chi tiết về MCP usage trong `## Quy tắc sử dụng MCP Servers` bên dưới.
 
 ## Docs & Memory Prompt
 
@@ -117,13 +135,51 @@ Cho phép tự động sử dụng các MCP Fetch, Context7
   - Cập nhật thống kê nếu cần
 - **Cập nhật index (nếu là feature doc):** Nếu tạo file trong `docs/guides/features/{feature-name}/`, cập nhật `index.md` trong folder đó
 
-### Quy tắc sử dụng MCP Servers:
-- **Supabase MCP**: Sử dụng để query database, kiểm tra schema, apply migrations, xem logs, và quản lý edge functions. Luôn kiểm tra schema trước khi tạo model hoặc repository.
-- **Fetch MCP**: Sử dụng để fetch documentation, examples từ web khi cần tìm hiểu về thư viện mới hoặc best practices.
-- **Context7 MCP**: Sử dụng để quản lý context và tìm kiếm thông tin trong codebase.
-- **GitHub MCP**: Sử dụng để quản lý Git operations như tạo commits, xem branches, tạo PRs. Chỉ sử dụng khi được yêu cầu rõ ràng.
-- **Filesystem MCP**: Sử dụng để đọc/ghi files, navigate codebase khi cần truy cập nhiều files cùng lúc hoặc tìm kiếm patterns.
-- **Dart MCP**: Sử dụng để phân tích code Dart/Flutter, format code, kiểm tra linter errors, và các operations liên quan đến Dart tooling.
+### Quy tắc LƯU NOTE phiên làm việc (giữ ngữ cảnh cho agent mới):
+- **BẮT BUỘC sau mỗi phiên**: Ghi tóm tắt phiên vào file chung `docs/ai/session-notes.md` (append, không overwrite).
+- **Nội dung mỗi entry** (dạng bullet, ngắn gọn):
+  - Ngày/giờ (ISO, ví dụ `2026-01-20T15:30Z`)
+  - Context chính đã làm (feature/task, file chạm)
+  - Quyết định/kết luận quan trọng
+  - Việc còn dang dở / TODO ngắn
+  - Links/paths tham chiếu (nếu có)
+- **Khi tạo file lần đầu**: tuân thủ quy tắc đặt tên markdown, và cập nhật `docs/DOCS_STRUCTURE.md` để liệt kê file này trong mục docs AI.
+- **Dọn dẹp nội dung cũ**: Chỉ xóa/clean các entry cũ đã được thay thế/sửa khi quy trình ghi-log đã ổn định và có entry mới thay thế rõ ràng.
+
+## Quy tắc sử dụng MCP Servers
+
+### Tổng quan MCP Servers
+- **KHI NÀO:** Khi người dùng yêu cầu sử dụng MCP (ví dụ: "dùng MCP Fetch", "sử dụng MCP", "check bằng MCP", "đọc documentation bằng MCP")
+- **BẮT BUỘC:** PHẢI sử dụng MCP tools ngay lập tức, không được bỏ qua
+- **ƯU TIÊN:** Luôn ưu tiên MCP khi người dùng yêu cầu rõ ràng, không được tự ý bỏ qua
+
+### Các loại MCP Servers
+
+#### Supabase MCP
+- **Mục đích:** Query database, kiểm tra schema, apply migrations, xem logs, quản lý edge functions
+- **Khi nào dùng:** Trước khi tạo model/repository, khi cần check schema, khi apply migration
+- **Best practice:** Luôn kiểm tra schema trước khi tạo model hoặc repository
+
+#### Fetch MCP
+- **Mục đích:** Fetch documentation, examples từ web
+- **Khi nào dùng:** Khi cần tìm hiểu về thư viện mới hoặc best practices từ pub.dev/web
+
+#### Context7 MCP
+- **Mục đích:** Quản lý context và tìm kiếm thông tin trong codebase
+- **Khi nào dùng:** Khi cần tìm patterns trong codebase
+
+#### Dart MCP
+- **Mục đích:** Phân tích code Dart/Flutter, format code, kiểm tra linter errors
+- **Khi nào dùng:** Sau khi viết code để đảm bảo code quality, format code, analyze linter
+- **Khi nào KHÔNG dùng:** Đọc file đơn giản (dùng `read_file`), tìm text (dùng `grep`), semantic search (dùng `codebase_search`)
+
+#### GitHub MCP
+- **Mục đích:** Quản lý Git operations (commits, branches, PRs)
+- **Khi nào dùng:** Chỉ khi được yêu cầu rõ ràng
+
+#### Filesystem MCP
+- **Mục đích:** Đọc/ghi files, navigate codebase
+- **Khi nào dùng:** Khi cần truy cập nhiều files cùng lúc hoặc tìm kiếm patterns
 
 #### Quy tắc sử dụng Dart MCP:
 
@@ -192,43 +248,6 @@ Cho phép tự động sử dụng các MCP Fetch, Context7
 
 > **Xem thêm:** Chi tiết về MCP Usage Patterns trong `docs/ai/AI_INSTRUCTIONS.md` (Section 10) và `memory-bank/techContext.md` (MCP Setup section)
 
-## Context Reading & Documentation Protocol
-
-### Quy tắc đọc tài liệu trước khi hành động:
-- **BẮT BUỘC:** Khi nhận bất kỳ lệnh nào từ người dùng, PHẢI đọc lại các tài liệu liên quan trước khi thực hiện:
-  - Nếu liên quan đến **UI/Giao diện**: Đọc `memory-bank/DESIGN_SYSTEM_GUIDE.md` và `memory-bank/systemPatterns.md` (Design System section)
-  - Nếu liên quan đến **Database/Repository**: Đọc `memory-bank/systemPatterns.md` (Data Layer section) và `docs/ai/README_SUPABASE.md`
-  - Nếu liên quan đến **State Management**: Đọc `memory-bank/systemPatterns.md` (State Management section) và `.cursor/.cursorrules` (Tech Stack section)
-  - Nếu liên quan đến **Architecture**: Đọc `docs/ai/AI_INSTRUCTIONS.md` (Section 2) và `memory-bank/systemPatterns.md` (Overall Architecture section)
-  - Nếu liên quan đến **Thư viện mới**: Sử dụng MCP Fetch để đọc documentation từ pub.dev trước khi implement
-- **Workflow chuẩn:**
-  1. Phân tích lệnh của người dùng → Xác định category (UI/Database/State/Architecture)
-  2. Đọc tài liệu liên quan từ memory-bank hoặc docs
-  3. Kiểm tra patterns hiện tại trong codebase
-  4. Thực hiện task theo đúng patterns và standards
-  5. Cập nhật memory-bank nếu có thay đổi quan trọng
-
-### Quy tắc sử dụng MCP khi được yêu cầu:
-- **BẮT BUỘC:** Khi người dùng yêu cầu sử dụng MCP (ví dụ: "dùng MCP Fetch", "sử dụng MCP", "check bằng MCP"), PHẢI sử dụng MCP tools ngay lập tức
-- **MCP Fetch:** Sử dụng khi cần đọc documentation của thư viện mới hoặc best practices từ web
-- **Supabase MCP:** Sử dụng khi cần kiểm tra schema, query data, apply migrations
-- **Context7 MCP:** Sử dụng khi cần tìm patterns trong codebase
-- **Dart MCP:** Sử dụng khi cần format code, analyze linter errors, kiểm tra code quality
-- **Luôn ưu tiên MCP** khi người dùng yêu cầu rõ ràng, không được bỏ qua
-
-### Quy tắc sử dụng thư viện phù hợp:
-- **BẮT BUỘC:** Khi người dùng yêu cầu implement feature, PHẢI sử dụng thư viện đã được định nghĩa trong `.cursor/.cursorrules` (Tech Stack Standards)
-- **QR Code:** Luôn sử dụng `QrHelper` từ `lib/core/utils/qr_helper.dart` (wraps `pretty_qr_code`)
-- **Routing:** Sử dụng `go_router` cho routing mới (migration từ AppRoutes đang trong tiến trình)
-- **State Management:** Ưu tiên Riverpod với `@riverpod` generator cho features mới
-- **Models:** Sử dụng `freezed` + `json_serializable` cho tất cả domain entities
-- **Networking:** Sử dụng `dio` + `retrofit` cho external API calls
-- **Local Storage:** Sử dụng `drift` cho relational data, `flutter_secure_storage` cho tokens
-- **Responsive UI:** Sử dụng `flutter_screenutil` cho responsive design
-- **Logging:** Sử dụng `logger` package (sẽ có `AppLogger` wrapper)
-- **Error Reporting:** Tích hợp `sentry_flutter` cho error tracking
-- **Nếu thư viện chưa có trong tech stack:** Hỏi người dùng trước khi thêm, hoặc đề xuất thư viện phù hợp từ tech stack
-
 ## Flutter Architecture (MVVM & Clean Architecture)
 
 ### Quy tắc Flutter:
@@ -242,7 +261,336 @@ Cho phép tự động sử dụng các MCP Fetch, Context7
 
 > **Xem thêm:** Chi tiết về Clean Architecture và MVVM patterns trong `docs/ai/AI_INSTRUCTIONS.md` (Section 2) và `memory-bank/systemPatterns.md` (Overall Architecture section)
 
+## Router & Navigation (GoRouter) - v2.0 (Production Ready)
+
+### ⚠️ CRITICAL: Route Ordering Rule
+**Vấn đề đã gặp:** Route có parameter `/student/class/:classId` match trước route cụ thể `/student/class/search`.
+
+**Quy tắc BẮT BUỘC:**
+- ✅ **Route cụ thể PHẢI đứng TRƯỚC route có parameter**
+- ✅ Khi thêm route mới, kiểm tra xem có route nào có parameter có thể match path của route mới không
+- ✅ Sắp xếp routes trong `app_router.dart` theo thứ tự: specific routes → parameterized routes → catch-all routes
+
+**Ví dụ:**
+```dart
+// ✅ ĐÚNG: Route cụ thể đứng trước
+GoRoute(path: '/student/class/search', ...),
+GoRoute(path: '/student/class/:classId', ...),
+
+// ❌ SAI: Route có parameter đứng trước (sẽ match '/student/class/search' trước!)
+GoRoute(path: '/student/class/:classId', ...),
+GoRoute(path: '/student/class/search', ...),
+```
+
+**Xem thêm:** `.cursor/rules/error-prevention-rules.md` (Section 1)
+
+### 1. Router Architecture (Tứ Trụ: GoRouter + Riverpod + RBAC + ShellRoute)
+
+Router tuân theo chuẩn **Tứ Trụ** - kết hợp 4 thành phần:
+- **GoRouter**: Navigation framework (type-safe, deep linking)
+- **Riverpod**: State management (auth state, role checks)
+- **RBAC (Role-Based Access Control)**: 3-step redirect logic (public → auth → role)
+- **ShellRoute**: Preserve bottom nav during navigation
+
+**Nguyên tắc cốt lõi:**
+- ✅ Named routes duy nhất (`context.goNamed()` KHÔNG hardcode paths)
+- ✅ RBAC guards automatic (tự chuyển dashboard khi role không match)
+- ✅ Bottom nav stable (ShellRoute giữ nguyên state)
+- ✅ Path helpers tích hợp (tránh /teacher/class/123 → AppRoute.teacherClassDetailPath(123))
+- ❌ NO `Navigator.push*` cho **screen/app navigation** (GoRouter xử lý tất cả stack)
+- ❌ NO hardcoded paths (dùng AppRoute constants)
+- ❌ NO helper static class (dùng context.goNamed() directly)
+
+**Navigator vs GoRouter – Quy tắc phân bổ:**
+- **GoRouter (context.go/goNamed/push/pushNamed)** → Dùng cho:
+  - Chuyển màn hình chính (screen-level, route-level)
+  - Back stack chính (đi giữa các route)
+  - Deep link / web / auth flows / dashboard / detail screens
+- **Navigator.pop** → Chỉ dùng cho:
+  - Đóng **dialog** (`showDialog`)
+  - Đóng **bottom sheet** (`showModalBottomSheet`)
+  - Đóng/hoàn tất các **flow tạm trong overlay** (wizard nhỏ trong modal, không cần deep link)
+- ❌ Không dùng `Navigator.pop` để “quay về màn chính” nếu đó là route → dùng GoRouter.
+
+### 2. File Router & Constants (Single Source of Truth)
+
+**Core Files:**
+- `lib/core/routes/route_constants.dart`:
+  - ✅ **ALL route names & paths** tập trung ở đây
+  - ✅ Static path helpers (ví dụ: `studentClassDetailPath(classId)`)
+  - ✅ RBAC helpers (`canAccessRoute(role, routeName)`)
+  - ✅ Dashboard mapping helpers (`getDashboardPathForRole(role)`)
+  - Organized by domain: Public, Student, Teacher, Admin, Shared
+
+- `lib/core/routes/app_router.dart`:
+  - ✅ **GoRouter config** (routes, nested routes, ShellRoute)
+  - ✅ RBAC redirect logic (3-step: public → auth → role)
+  - ✅ Provider `appRouterProvider` (Riverpod integration)
+  - ✅ ShellRoute for Student/Teacher/Admin shells
+  - Imports from `route_constants.dart`
+
+- `lib/core/routes/route_guards.dart`:
+  - ✅ Utility functions: `isAuthenticated()`, `getCurrentUserRole()`, `canAccessRoute()`
+  - ✅ Redirect callback: `appRouterRedirect(context, state, ref)`
+  - ✅ KHÔNG chứa UI, KHÔNG chứa business logic
+
+**Cấm tuyệt đối:**
+- ❌ Tạo `app_routes.dart`, `routes_v2.dart`, `navigation_helper.dart`
+- ❌ Tạo static method navigation helper (ví dụ: `NavigationHelper.goToQuiz()`)
+- ❌ Scatter route definitions ở nhiều files
+
+### 3. Navigation Pattern (Cách Dùng Chuẩn)
+
+**UI Navigation (BuildContext available):**
+```dart
+import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:go_router/go_router.dart';
+
+// ✅ ĐÚNG - Named routes
+context.goNamed(
+  AppRoute.teacherEditClass,
+  pathParameters: {'classId': classId},
+  extra: classItem,  // Nếu cần pass object
+);
+
+// ✅ ĐÚNG - Simple paths
+context.go(AppRoute.loginPath);
+
+// ✅ ĐÚNG - Use constants
+context.go(AppRoute.studentJoinClassPath);
+
+// ❌ SAI - Hardcode paths
+context.go('/teacher/class/$classId/edit');
+
+// ❌ SAI - Navigator.push()
+Navigator.push(context, MaterialPageRoute(...));
+```
+
+**Logic Navigation (Riverpod Notifier - NO BuildContext):**
+```dart
+// ✅ ĐÚNG - Use ref.read(routerProvider)
+ref.read(routerProvider).goNamed(AppRoute.studentDashboard);
+
+// ❌ SAI - Trying to use context
+// (không có context trong logic layer)
+```
+
+**Dashboard Screens (ShellRoute Support):**
+```dart
+// ✅ ĐÚNG - Accept child + child parameter
+class StudentDashboardScreen extends ConsumerStatefulWidget {
+  final Profile userProfile;
+  final Widget? child;  // For ShellRoute
+
+  const StudentDashboardScreen({
+    required this.userProfile,
+    this.child,
+  });
+  
+  // Build method:
+  // if (widget.child != null) return shell layout with child
+  // else return legacy IndexedStack mode
+}
+
+// ❌ SAI - Hardcode routes inside dashboard
+GoRoute(path: '/student/classes', ...) // Belongs in app_router.dart!
+```
+
+### 4. RBAC Redirect Logic (Automatic Access Control)
+
+**3-Step Check (trong `RouteGuards.appRouterRedirect()`):**
+```
+Step 1: Public Route?
+  ✅ Yes → Allow (splash, login, register, reset-password, verify-email)
+  ❌ No → Go to Step 2
+
+Step 2: Authenticated?
+  ✅ Yes → Go to Step 3
+  ❌ No → Redirect to /login?redirect={current_path}
+
+Step 3: Role Match?
+  ✅ Yes (student accessing student route, teacher accessing teacher route) → Allow
+  ❌ No (student trying teacher route) → Redirect to /student-dashboard
+```
+
+**Ví dụ:**
+- User (Student) tries `/teacher/classes` → Blocked → Redirect `/student-dashboard`
+- User (Teacher) tries `/student/classes` → Blocked → Redirect `/teacher-dashboard`
+- Not logged in tries `/student/classes` → Blocked → Redirect `/login?redirect=/student/classes`
+- Already logged in tries `/login` → Blocked → Redirect `/student-dashboard` (or teacher/admin dashboard)
+
+### 5. Routes Organization by Role
+
+**Public Routes (No Auth Required):**
+- `/splash` → SplashScreen
+- `/login` → LoginScreen
+- `/register` → RegisterScreen
+- `/reset-password` → ResetPasswordScreen (deep link)
+- `/verify-email` → EmailVerificationScreen (deep link)
+
+**Student Routes (with ShellRoute):**
+- Shell: `/student-dashboard` (preserves bottom nav)
+  - `/student/classes` → StudentClassListScreen
+  - `/student/class/:classId` → StudentClassDetailScreen
+  - `/student/scores` → ScoresScreen
+- Standalone (no shell):
+  - `/student/join-class` → JoinClassScreen
+  - `/student/qr-scan` → QrScanScreen
+
+**Teacher Routes (with ShellRoute):**
+- Shell: `/teacher-dashboard` (preserves bottom nav)
+  - `/teacher/classes` → TeacherClassListScreen
+  - `/teacher/class/:classId` → TeacherClassDetailScreen
+- Standalone (no shell):
+  - `/teacher/class/create` → CreateClassScreen
+  - `/teacher/class/:classId/edit` → EditClassScreen
+  - `/teacher/class/:classId/add-student` → AddStudentByCodeScreen
+  - `/teacher/class/:classId/students` → StudentListScreen
+
+**Admin Routes (with ShellRoute):**
+- Shell: `/admin-dashboard`
+  - (Expandable for admin pages)
+
+**Shared Routes (all authenticated users):**
+- `/profile` → ProfileScreen
+- `/edit-profile` → EditProfileScreen
+- `/settings` → SettingsScreen
+- `/403` → ForbiddenScreen (access denied)
+
+### 6. Handling Path Parameters (Cách Truyền ID)
+
+**Pattern:**
+```dart
+// route_constants.dart
+static const String teacherEditClass = 'teacher-edit-class';
+static String teacherEditClassPath(String classId) => '/teacher/class/$classId/edit';
+
+// app_router.dart
+GoRoute(
+  path: '/teacher/class/:classId/edit',
+  name: AppRoute.teacherEditClass,
+  builder: (context, state) {
+    final classId = state.pathParameters['classId']!;
+    return EditClassScreen(classId: classId);
+  },
+),
+
+// UI usage
+context.goNamed(
+  AppRoute.teacherEditClass,
+  pathParameters: {'classId': 'class-123'},
+);
+```
+
+**🧭 Quy tắc vàng:**
+- **Resource ID** → ✅ Path parameter (persists in URL, supports deep linking)
+- **Optional filter/mode** → ✅ Query parameter (`?mode=edit`)
+- **Complex object, no deep link needed** → ⚠️ Extra (mobile only, risky)
+
+### 7. Adding New Routes (Quy Trình Chuẩn)
+
+**Step 1:** Add route constants to `route_constants.dart`
+```dart
+static const String myNewRoute = 'my-new-route';
+static const String myNewRoutePath = '/my/new/route';
+static String myNewRouteWithIdPath(String id) => '/my/new/route/$id';
+```
+
+**Step 2:** Add route to `app_router.dart` (GoRoute or ShellRoute child)
+```dart
+GoRoute(
+  path: '/my/new/route/:id',
+  name: AppRoute.myNewRoute,
+  builder: (context, state) {
+    final id = state.pathParameters['id']!;
+    return MyNewScreen(id: id);
+  },
+),
+```
+
+**Step 3:** Update RBAC if role-restricted
+```dart
+// In route_constants.dart canAccessRoute() method
+static bool canAccessRoute(String role, String routeName) {
+  if (routeName == myNewRoute && role == 'teacher') return true;
+  // ...
+}
+```
+
+**Step 4:** Use in UI
+```dart
+context.goNamed(
+  AppRoute.myNewRoute,
+  pathParameters: {'id': '123'},
+);
+```
+
+### 8. Migration Path (Updating Existing Screens)
+
+**OLD (Navigator.push):**
+```dart
+Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (context) => EditClassScreen(classItem: classItem),
+  ),
+);
+```
+
+**NEW (GoRouter):**
+```dart
+context.goNamed(
+  AppRoute.teacherEditClass,
+  pathParameters: {'classId': classItem.id},
+  extra: classItem,
+);
+```
+
+**Files Already Updated:**
+- ✅ route_constants.dart (fully refactored)
+- ✅ route_guards.dart (rewritten)
+- ✅ app_router.dart (ShellRoute + RBAC)
+- ✅ splash_screen.dart
+- ✅ class_settings_drawer.dart (3 Navigator.push() → goNamed)
+- ✅ teacher_class_detail_screen.dart
+- ✅ profile_screen.dart
+- ✅ student_dashboard_screen.dart (ShellRoute support)
+- ✅ teacher_dashboard_screen.dart (ShellRoute support)
+
+**Files to Update (Apply Same Pattern):**
+- Remaining 20+ screens (follow demo pattern from files above)
+  name: AppRoute.quizResult,
+  builder: (context, state) {
+    final quizId = state.pathParameters['quizId']!;
+    return QuizResultPage(quizId: quizId);
+  },
+),
+```
+
+#### Những lỗi cần cấm rõ
+
+- ❌ Dùng `extra` cho ID.
+- ❌ Hardcode URL string thay vì `goNamed + pathParameters`.
+- ❌ Parse ID trong widget từ `ModalRoute` thay vì lấy từ `state.pathParameters`.
+- ❌ Để UI quyết định logic fetch dữ liệu: router chỉ pass ID, screen dùng provider/use-case để fetch.
+
+> **Ghi chú đồng bộ docs:** Phần Routing cũ trong `docs/ai/AI_INSTRUCTIONS.md` (AppRoutes/Navigator) được coi là legacy. Khi chỉnh docs, hãy trỏ về section `Router & Navigation (GoRouter)` trong `.clinerules` và cập nhật wording trong `memory-bank/systemPatterns.md` cho khớp với quyết định sử dụng GoRouter + `app_router.dart` + `route_guards.dart`.
+
 ## Code Quality
+
+### Error Prevention Checklist (MANDATORY - Learn from Mistakes)
+**TRƯỚC KHI implement feature mới, PHẢI:**
+1. ✅ **Requirement**: Hỏi rõ requirement về behavior (đặc biệt với delete/update operations)
+2. ✅ **Dependencies**: Thêm vào `pubspec.yaml` và chạy `flutter pub get` TRƯỚC KHI import
+3. ✅ **Existing Code**: Grep để kiểm tra không duplicate (providers, functions, etc.)
+4. ✅ **Route Order**: Kiểm tra route order trong `app_router.dart` (specific → parameterized)
+5. ✅ **Null Safety**: Plan null checks và error handling cho tất cả API calls
+6. ✅ **API Docs**: Đọc documentation của API/package mới để biết return types
+7. ✅ **Code Generation**: Chạy build_runner nếu thay đổi Freezed/JsonSerializable classes
+8. ✅ **Linter**: Chạy `read_lints` và fix tất cả errors
+9. ✅ **Testing**: Test happy path, error cases, và edge cases
+
+**Xem chi tiết:** `.cursor/rules/error-prevention-rules.md`
 
 ### Quy tắc Code Quality:
 - Tuân thủ nghiêm ngặt Dart/Flutter style guide và các rules trong `analysis_options.yaml`.
@@ -255,6 +603,47 @@ Cho phép tự động sử dụng các MCP Fetch, Context7
 - Error handling phải rõ ràng, không được bỏ qua exceptions mà không xử lý.
 
 > **Xem thêm:** Chi tiết về code conventions trong `memory-bank/activeContext.md` (Active Preferences & Standards section)
+
+---
+
+## Performance UX (Loading / Tab / Parallel)
+
+### Quy tắc Loading UI (bắt buộc đồng bộ toàn app)
+- **Không để màn hình “trống” hoặc chỉ spinner full-screen** khi load list/page (trừ các thao tác ngắn kiểu submit button).
+- **Ưu tiên skeleton shimmer** để giữ layout ổn định và giảm cảm giác giật:
+  - List lớp học: dùng `ShimmerLoading` (`lib/widgets/loading/shimmer_loading.dart`)
+  - List dạng avatar + 2 dòng (vd: danh sách học sinh): dùng `ShimmerListTileLoading`
+  - Dashboard/page tổng hợp: dùng `ShimmerDashboardLoading`
+- **Nút submit / action nhỏ** (login, join class, save settings): dùng `CircularProgressIndicator(strokeWidth: 2)` *trong nút* như hiện có.
+
+### Quy tắc Chuyển tab mượt (ShellRoute / BottomNav)
+- Tab screens phải **preserve state** (không recreate) khi đổi tab:
+  - Nếu dùng ShellRoute: dashboard layout chỉ wrap `widget.child`, không tự build lại full pages.
+  - Nếu legacy IndexedStack: pages list nên là `static final` + widget con `const` khi có thể.
+- Tránh chạy logic nặng trong `build()` (đặc biệt: log, json encode, file IO, parse lớn).
+
+### Parallel fetching (chuyên nghiệp & rõ ràng)
+- Khi một screen cần nhiều dữ liệu độc lập (vd: class detail + members + assignments):
+  - Dùng `Future.wait([...])` trong notifier/repository để chạy song song.
+  - Chuẩn hoá theo “bundle loader”:
+    - Tạo method ở notifier: `loadXxxBundle(...)` (hoặc `refreshXxxBundle(...)`) để gom toàn bộ fetch của screen.
+    - Chỉ **commit state 1 lần** sau khi đủ data bắt buộc (giảm rebuild).
+    - Secondary data có thể load riêng (không set loading toàn trang), hiển thị shimmer/placeholder theo section.
+    - Thêm guard chống race (vd: `_isUpdating`, requestId, hoặc cancel token) nếu người dùng có thể trigger nhiều lần liên tiếp.
+  - UI hiển thị shimmer theo “nhóm”: page shimmer trước, phần nhỏ shimmer/placeholder sau.
+  - **Không block UI thread** bằng các thao tác sync hoặc vòng lặp lớn trong `build()`.
+
+### Async list pattern (màn danh sách lớn)
+- Với các màn mới hiển thị danh sách lớn (lớp học, khóa học, bài tập):
+  - Data layer: parse JSON nặng trong Isolate (`compute`) ở datasource; repository chỉ expose `Future<List<Entity>>`.
+  - UI layer: ưu tiên dùng `AsyncListPage<T>` (`lib/widgets/async/async_list_page.dart`):
+    - Nhận `Future<List<T>>` + `itemBuilder`.
+    - Tự dùng `ShimmerListTileLoading` khi loading.
+    - Chuẩn hóa empty/error state theo DesignTokens.
+
+### Logging & I/O (cấm gây jank)
+- **Cấm** ghi file sync (`writeAsStringSync`) hoặc network log trong runtime UI loop.
+- Nếu có debug log file: chỉ chạy khi `kDebugMode && Platform.isWindows` và luôn `.catchError`.
 
 ---
 
@@ -684,18 +1073,39 @@ Khi tạo hoặc chỉnh sửa giao diện (UI), bạn PHẢI tuân thủ các q
 - Trước khi viết code, hãy tóm tắt ngắn gọn danh sách các hàm/component bạn định tách ra.
 - Sau khi viết code, giải thích lý do tại sao cấu trúc này dễ quản lý hơn.
 
-## Drawer System
+## Widget Organization & Structure
 
-### Cấu trúc thư mục mới cho Drawer System
+### Cấu trúc thư mục widgets (Updated 2026-01-21)
+```
+lib/widgets/
+├── dialogs/          # Dialog widgets (error, success, warning, etc.)
+├── drawers/          # Shared drawer primitives (action tiles, toggle tiles, etc.)
+├── list/             # List container widgets
+├── list_item/        # Individual list item widgets
+├── loading/          # Loading states (shimmer, skeletons, etc.)
+├── navigation/       # Navigation handlers và utilities
+├── responsive/       # Responsive layout widgets
+├── search/           # Search-related widgets (screens, dialogs, fields)
+└── text/             # Text utilities (highlight, marquee, etc.)
+```
+
+### Quy tắc phân loại widgets
+- `lib/widgets/`: **shared/reusable UI** (không chứa logic nghiệp vụ theo feature)
+- `lib/presentation/views/**/widgets/`: widget **gắn với 1 feature/screen** (đặc biệt là drawers theo role)
+
+### Drawer System
 ```
 lib/widgets/
 ├── drawers/
 │   ├── action_end_drawer.dart        # Khung chung cho drawer
-│   ├── class_settings_drawer.dart    # Nội dung cụ thể cho lớp học
 │   ├── drawer_section_header.dart    # Header cho các section
 │   ├── drawer_action_tile.dart       # Tile hành động
 │   └── drawer_toggle_tile.dart      # Tile toggle (switch)
 ```
+
+Feature-specific drawers nằm trong:
+- `lib/presentation/views/class/teacher/widgets/drawers/class_settings_drawer.dart`
+- `lib/presentation/views/class/teacher/widgets/drawers/class_create_class_setting_drawer.dart`
 
 ### Cách sử dụng Drawer System
 1. **Tạo drawer mới**: Tạo file trong `lib/widgets/drawers/` với nội dung cụ thể
@@ -733,8 +1143,6 @@ Scaffold(
 > **Xem thêm:** Chi tiết về Drawer System trong `memory-bank/systemPatterns.md` (Widget Component Patterns section)
 
 ---
-
-# MEMORY BANK FILE OPERATIONS
 
 ## Memory Bank File Operations
 
@@ -774,11 +1182,7 @@ Memory Bank là các **FILE THỰC TẾ** trong folder `memory-bank/`, KHÔNG ph
 - **KHÔNG** sử dụng MCP Memory tool cho Memory Bank
 - Tất cả operations đều thông qua file tools (`read_file`, `write`, `edit_file`, `search_replace`)
 
----
-
-# MEMORY BANK WORKFLOW
-
-## Cline's Memory Bank
+### Cline's Memory Bank Workflow
 
 I am Cline, an expert software engineer with a unique characteristic: my memory resets completely between sessions. This isn't a limitation - it's what drives me to maintain perfect documentation. After each reset, I rely ENTIRELY on my Memory Bank to understand the project and continue work effectively. I MUST read ALL memory bank files at the start of EVERY task - this is not optional.
 

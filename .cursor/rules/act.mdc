@@ -1,0 +1,30 @@
+{"globs":["lib/**/*.dart","test/**/*.dart","analysis_options.*"],"description":"act mode: implementation with Read-Write-Reread discipline (RIPER-5.E) + Default-to-Action","alwaysApply":false}
+Goal: implement the agreed plan safely, in small, verifiable slices, defaulting to action.
+Core loop (Read-Write-Reread):
+- Read: re-open plan+activeContext; locate exact insertion points; re-check constraints/tests.
+- Write: smallest viable change; keep diffs tight; align với patterns+skills hiện có.
+- Reread: re-scan edits; verify invariants, formatting, naming, edge cases.
+Default-to-Action:
+- Sau khi đã có đủ ngữ cảnh (research/plan), mặc định tự thực thi bước tiếp theo mà không hỏi cho các thay đổi nhỏ/low-risk.
+- Áp dụng quy tắc `Complete Everything`: nếu task A sinh lỗi B → xử lý trọn chuỗi (A,B,phụ thuộc gần) trước khi report hoàn thành.
+- Chỉ defer sang @audit/@retro khi chuỗi task hiện tại đã khép (hoặc bị chặn bởi Clarification Threshold).
+Clarification Threshold:
+- Chỉ dừng lại để hỏi khi: (1) hoàn thành 1 Milestone lớn trong TodoLedger; (2) yêu cầu mơ hồ hoặc có nhiều hướng kiến trúc hợp lý; (3) nghi ngờ rủi ro bảo mật/mất dữ liệu đáng kể.
+- Nếu phải hỏi, tóm tắt: tiến độ, các option chính, rủi ro, và đề xuất khuyến nghị mặc định.
+TodoLedger:
+- Keep live ledger {🚧, ✅, ⚠️}. Min entries: wiring, logic, tests (if in scope), cleanup.
+- Đánh dấu ✅ cho 1 task chain chỉ khi tất cả sub-issues trong chuỗi đã xử lý xong (theo `Complete Everything`).
+- Duy trì ≤5 active items; merge/collapse các việc nhỏ liên quan cùng chain.
+Safety & quality:
+- Tuân thủ rules từ `.cursor/skills/**/*.md` (clean layers, Riverpod, routing, v.v.).
+- Ưu tiên patterns sẵn có; nếu lệch, nêu lý do 1 dòng.
+- Tránh refactor rộng nếu không được yêu cầu; nếu phát hiện nhu cầu refactor hệ thống, log ⚠️ follow-up thay vì tự ý mở rộng scope.
+MemoryBank:
+- Sau mỗi batch code xong (trước khi hỏi user), tự cập nhật trạng thái vào `activeContext.md`+`progress.md` (nếu tồn tại) dưới dạng tóm tắt: files touched, feature/slice, trạng thái tests chính.
+- Đồng thời đề xuất snippet ngắn cho `decisions.md` nếu có quy ước mới/local convention.
+- Drafts phải ngắn: list file+1 dòng purpose; tránh lặp lại code.
+Interaction pattern:
+- Cấu trúc trả lời: `Target`, `Micro-steps`, `Changes (hi-level)`, `TodoLedger`, `MemoryBank Draft`.
+- Ưu tiên code references; tránh dump full file trừ khi thực sự cần.
+
+

@@ -1,3 +1,4 @@
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/domain/repositories/school_class_repository.dart';
 
 /// Use case để xóa lớp học
@@ -10,13 +11,13 @@ class DeleteClassUseCase {
   /// Xóa lớp học theo ID
   /// Throw exception nếu xóa thất bại
   Future<void> call(String classId) async {
-    print('🟢 [UseCase] DeleteClassUseCase: Bắt đầu xóa lớp $classId');
+    AppLogger.debug('🟢 [UseCase] DeleteClassUseCase: Bắt đầu xóa lớp $classId');
 
     try {
       await repository.deleteClass(classId);
-      print('✅ [UseCase] DeleteClassUseCase: Xóa thành công');
+      AppLogger.info('✅ [UseCase] DeleteClassUseCase: Xóa thành công');
     } catch (e) {
-      print('🔴 [UseCase] DeleteClassUseCase: Lỗi - $e');
+      AppLogger.error('🔴 [UseCase] DeleteClassUseCase: Lỗi - $e', error: e);
       rethrow;
     }
   }

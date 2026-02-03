@@ -40,6 +40,11 @@ abstract class SchoolClassRepository {
   /// Trả về Class nếu tìm thấy, null nếu không tồn tại.
   Future<Class?> getClassById(String classId);
 
+  /// Tìm lớp học theo join_code (mã tham gia lớp).
+  /// Trả về Class nếu tìm thấy và mã còn hiệu lực, null nếu không tồn tại.
+  /// Ném ra Exception nếu mã đã hết hạn, lớp bị khóa hoặc vi phạm giới hạn tham gia.
+  Future<Class?> getClassByJoinCode(String joinCode);
+
   /// Cập nhật thông tin lớp học.
   /// Trả về Class đã được cập nhật.
   /// Ném ra Exception nếu lớp không tồn tại hoặc thất bại.
@@ -66,6 +71,11 @@ abstract class SchoolClassRepository {
   /// Cập nhật status của ClassMember thành 'rejected'.
   /// Ném ra Exception nếu không tìm thấy hoặc thất bại.
   Future<void> rejectStudent(String classId, String studentId);
+
+  /// Học sinh rời lớp học.
+  /// Xóa hoàn toàn record khỏi class_members.
+  /// Ném ra Exception nếu không tìm thấy hoặc thất bại.
+  Future<void> leaveClass(String classId, String studentId);
 
   /// Lấy danh sách thành viên lớp học.
   /// [status] là optional filter: 'pending', 'approved', 'rejected'.
@@ -109,9 +119,11 @@ abstract class SchoolClassRepository {
   /// Cập nhật một setting cụ thể theo path (ví dụ: 'defaults.lock_class').
   /// Merge nested settings, không ghi đè toàn bộ.
   /// Trả về Class đã được cập nhật.
-  Future<Class> updateClassSetting(
-    String classId,
-    String path,
-    dynamic value,
-  );
+  Future<Class> updateClassSetting(String classId, String path, dynamic value);
+
+  /// Kiểm tra xem join code đã tồn tại trong database chưa.
+  /// [joinCode] - Mã join cần kiểm tra.
+  /// [excludeClassId] - Class ID cần loại trừ khỏi việc kiểm tra (class hiện tại).
+  /// Trả về true nếu code đã tồn tại, false nếu chưa.
+  Future<bool> checkJoinCodeExists(String joinCode, {String? excludeClassId});
 }

@@ -1,20 +1,30 @@
-/// Parameters để tạo nhóm học tập mới.
-class CreateGroupParams {
-  final String classId;
-  final String name;
-  final String? description;
+// ignore_for_file: invalid_annotation_target
 
-  CreateGroupParams({
-    required this.classId,
-    required this.name,
-    this.description,
-  });
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-  Map<String, dynamic> toJson() {
-    return {
-      'class_id': classId,
-      'name': name,
-      'description': description,
-    };
-  }
+part 'create_group_params.freezed.dart';
+part 'create_group_params.g.dart';
+
+/// Parameters để tạo nhóm học tập mới
+///
+/// Sử dụng Freezed để tạo immutable class với:
+/// - Automatic copyWith method
+/// - Automatic toString, ==, hashCode
+/// - JSON serialization với json_serializable
+@freezed
+class CreateGroupParams with _$CreateGroupParams {
+  /// Factory constructor cho CreateGroupParams
+  ///
+  /// [classId] - ID lớp học (required)
+  /// [name] - Tên nhóm (required)
+  /// [description] - Mô tả (optional)
+  const factory CreateGroupParams({
+    @JsonKey(name: 'class_id') required String classId,
+    required String name,
+    String? description,
+  }) = _CreateGroupParams;
+
+  /// Factory constructor để tạo CreateGroupParams từ JSON
+  factory CreateGroupParams.fromJson(Map<String, dynamic> json) =>
+      _$CreateGroupParamsFromJson(json);
 }

@@ -45,9 +45,24 @@ abstract class Env {
   )
   static final String supabaseAnonKey = _Env.supabaseAnonKey;
 
-  /// Supabase service role key (secret, should only be used server-side)
-  /// Note: This should NOT be used in client-side code for security reasons.
-  /// Only included here for completeness - use server-side only.
-  @EnviedField(varName: 'SUPABASE_SERVICE_ROLE_KEY', obfuscate: true)
-  static final String supabaseServiceRoleKey = _Env.supabaseServiceRoleKey;
+  /// Sentry DSN for error reporting
+  /// Get your DSN from https://sentry.io/settings/YOUR_ORG/projects/YOUR_PROJECT/keys/
+  /// Nếu chưa cấu hình (dev/local), để trống vẫn cho phép build_runner generate.
+  @EnviedField(varName: 'SENTRY_DSN', obfuscate: true, defaultValue: '')
+  static final String sentryDsn = _Env.sentryDsn;
+
+  /// AI API base URL for question generation
+  /// Example: https://api.example.com/v1
+  @EnviedField(varName: 'AI_API_BASE_URL', defaultValue: '')
+  static final String aiApiBaseUrl = _Env.aiApiBaseUrl;
+
+  /// AI API key for authentication
+  /// Obfuscate để bảo mật API key
+  @EnviedField(varName: 'AI_API_KEY', obfuscate: true, defaultValue: '')
+  static final String aiApiKey = _Env.aiApiKey;
+
+  /// Gemini API key for Google Gemini API
+  /// Obfuscate để bảo mật API key
+  @EnviedField(varName: 'GEMINI_API_KEY', obfuscate: true, defaultValue: '')
+  static final String geminiApiKey = _Env.geminiApiKey;
 }

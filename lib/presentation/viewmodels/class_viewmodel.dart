@@ -1,3 +1,4 @@
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/domain/entities/class.dart';
 import 'package:ai_mls/domain/entities/class_member.dart';
 import 'package:ai_mls/domain/entities/create_class_params.dart';
@@ -130,8 +131,7 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       _setLoading(false);
       notifyListeners();
     } catch (e, stackTrace) {
-      print('🔴 [VIEWMODEL ERROR] fetchData: $e');
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
+      AppLogger.error('🔴 [VIEWMODEL ERROR] fetchData: $e', error: e, stackTrace: stackTrace);
       _setError(e.toString());
       _setLoading(false);
       notifyListeners();
@@ -153,8 +153,7 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       _setLoading(false);
       notifyListeners();
     } catch (e, stackTrace) {
-      print('🔴 [VIEWMODEL ERROR] loadClasses(teacherId: $teacherId): $e');
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
+      AppLogger.error('🔴 [VIEWMODEL ERROR] loadClasses(teacherId: $teacherId): $e', error: e, stackTrace: stackTrace);
       _setError(e.toString());
       _setLoading(false);
       notifyListeners();
@@ -176,10 +175,11 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       _setLoading(false);
       notifyListeners();
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [VIEWMODEL ERROR] loadStudentClasses(studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
       _setError(e.toString());
       _setLoading(false);
       notifyListeners();
@@ -201,8 +201,7 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       _setLoading(false);
       notifyListeners();
     } catch (e, stackTrace) {
-      print('🔴 [VIEWMODEL ERROR] loadClassDetails(classId: $classId): $e');
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
+      AppLogger.error('🔴 [VIEWMODEL ERROR] loadClassDetails(classId: $classId): $e', error: e, stackTrace: stackTrace);
       _setError(e.toString());
       _setLoading(false);
       notifyListeners();
@@ -224,10 +223,11 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       _setLoading(false);
       notifyListeners();
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [VIEWMODEL ERROR] loadClassMembers(classId: $classId, status: $status): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
       _setError(e.toString());
       _setLoading(false);
       notifyListeners();
@@ -247,8 +247,7 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       notifyListeners();
       return newClass;
     } catch (e, stackTrace) {
-      print('🔴 [VIEWMODEL ERROR] createClass: $e');
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
+      AppLogger.error('🔴 [VIEWMODEL ERROR] createClass: $e', error: e, stackTrace: stackTrace);
       _setError(e.toString());
       _setCreating(false);
       notifyListeners();
@@ -279,8 +278,7 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       notifyListeners();
       return true;
     } catch (e, stackTrace) {
-      print('🔴 [VIEWMODEL ERROR] updateClass(classId: $classId): $e');
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
+      AppLogger.error('🔴 [VIEWMODEL ERROR] updateClass(classId: $classId): $e', error: e, stackTrace: stackTrace);
       _setError(e.toString());
       _setUpdating(false);
       notifyListeners();
@@ -291,7 +289,7 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
   /// Xóa lớp học
   Future<bool> deleteClass(String classId) async {
     if (_isDeleting) {
-      print('⚠️ [VIEWMODEL] deleteClass: Đang xóa lớp khác, bỏ qua request');
+      AppLogger.warning('⚠️ [VIEWMODEL] deleteClass: Đang xóa lớp khác, bỏ qua request');
       return false;
     }
 
@@ -299,17 +297,17 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
     _setError(null);
 
     try {
-      print('🟢 [VIEWMODEL] deleteClass: Bắt đầu xóa lớp học $classId');
+      AppLogger.debug('🟢 [VIEWMODEL] deleteClass: Bắt đầu xóa lớp học $classId');
       
       // Kiểm tra xem lớp có tồn tại trong danh sách không
       final classExists = _classes.any((c) => c.id == classId) || 
                          _selectedClass?.id == classId;
       if (!classExists) {
-        print('⚠️ [VIEWMODEL] deleteClass: Lớp học không tồn tại trong local state');
+        AppLogger.warning('⚠️ [VIEWMODEL] deleteClass: Lớp học không tồn tại trong local state');
       }
 
       await _repository.deleteClass(classId);
-      print(
+      AppLogger.info(
         '✅ [VIEWMODEL] deleteClass: Repository xóa thành công, cập nhật local state',
       );
 
@@ -317,24 +315,23 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       final beforeCount = _classes.length;
       _classes.removeWhere((c) => c.id == classId);
       final afterCount = _classes.length;
-      print(
+      AppLogger.debug(
         '🟢 [VIEWMODEL] deleteClass: Đã xóa ${beforeCount - afterCount} lớp khỏi danh sách (trước: $beforeCount, sau: $afterCount)',
       );
 
       // Xóa selected class nếu đang được chọn
       if (_selectedClass?.id == classId) {
         _selectedClass = null;
-        print('🟢 [VIEWMODEL] deleteClass: Đã clear selected class');
+        AppLogger.debug('🟢 [VIEWMODEL] deleteClass: Đã clear selected class');
       }
 
       _setDeleting(false);
       _setError(null); // Clear error khi thành công
       notifyListeners();
-      print('✅ [VIEWMODEL] deleteClass: Hoàn tất xóa lớp học $classId');
+      AppLogger.info('✅ [VIEWMODEL] deleteClass: Hoàn tất xóa lớp học $classId');
       return true;
     } catch (e, stackTrace) {
-      print('🔴 [VIEWMODEL ERROR] deleteClass(classId: $classId): $e');
-      print('🔴 [VIEWMODEL ERROR] deleteClass StackTrace: $stackTrace');
+      AppLogger.error('🔴 [VIEWMODEL ERROR] deleteClass(classId: $classId): $e', error: e, stackTrace: stackTrace);
 
       // Lưu error message chi tiết hơn
       String errorMsg;
@@ -350,7 +347,7 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       if (errorMsg.contains('401') || 
           errorMsg.contains('unauthorized') ||
           errorMsg.contains('JWT')) {
-        print(
+        AppLogger.warning(
           '⚠️ [VIEWMODEL ERROR] deleteClass: Lỗi 401 - Kiểm tra authentication và RLS policies',
         );
         _setError('Lỗi xác thực: Bạn cần đăng nhập lại để thực hiện thao tác này');
@@ -358,25 +355,25 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
                  errorMsg.contains('forbidden') ||
                  errorMsg.contains('permission') ||
                  errorMsg.contains('42501')) {
-        print(
+        AppLogger.warning(
           '⚠️ [VIEWMODEL ERROR] deleteClass: Lỗi 403 - User không có quyền xóa lớp này',
         );
         _setError('Bạn không có quyền xóa lớp học này. Chỉ giáo viên chủ nhiệm mới có thể xóa.');
       } else if (errorMsg.contains('foreign key') ||
                  errorMsg.contains('23503')) {
-        print(
+        AppLogger.warning(
           '⚠️ [VIEWMODEL ERROR] deleteClass: Lỗi foreign key - Có dữ liệu liên quan chưa được xóa',
         );
         _setError('Không thể xóa lớp học vì còn dữ liệu liên quan. Vui lòng liên hệ quản trị viên.');
       } else if (errorMsg.contains('not found') ||
                  errorMsg.contains('PGRST116')) {
-        print(
+        AppLogger.warning(
           '⚠️ [VIEWMODEL ERROR] deleteClass: Lớp học không tồn tại',
         );
         _setError('Lớp học không tồn tại hoặc đã bị xóa.');
       } else {
         // Giữ nguyên error message từ repository
-        print('⚠️ [VIEWMODEL ERROR] deleteClass: Lỗi không xác định');
+        AppLogger.warning('⚠️ [VIEWMODEL ERROR] deleteClass: Lỗi không xác định');
       }
 
       _setDeleting(false);
@@ -398,10 +395,11 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       notifyListeners();
       return true;
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [VIEWMODEL ERROR] requestJoinClass(classId: $classId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
       _setError(e.toString());
       _setLoading(false);
       notifyListeners();
@@ -422,10 +420,11 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       notifyListeners();
       return true;
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [VIEWMODEL ERROR] approveStudent(classId: $classId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
       _setError(e.toString());
       _setLoading(false);
       notifyListeners();
@@ -446,10 +445,11 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       notifyListeners();
       return true;
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [VIEWMODEL ERROR] rejectStudent(classId: $classId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
       _setError(e.toString());
       _setLoading(false);
       notifyListeners();
@@ -488,8 +488,7 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       notifyListeners();
       return true;
     } catch (e, stackTrace) {
-      print('🔴 [VIEWMODEL ERROR] updateClassSettings(classId: $classId): $e');
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
+      AppLogger.error('🔴 [VIEWMODEL ERROR] updateClassSettings(classId: $classId): $e', error: e, stackTrace: stackTrace);
       _setError(e.toString());
       _setUpdating(false);
       notifyListeners();
@@ -529,10 +528,11 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       notifyListeners();
       return true;
     } catch (e, stackTrace) {
-      print(
+      AppLogger.error(
         '🔴 [VIEWMODEL ERROR] updateClassSetting(classId: $classId, path: $path): $e',
+        error: e,
+        stackTrace: stackTrace,
       );
-      print('🔴 [VIEWMODEL ERROR] StackTrace: $stackTrace');
       _setError(e.toString());
       _setUpdating(false);
       notifyListeners();

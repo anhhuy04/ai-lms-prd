@@ -1,21 +1,21 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/core/utils/avatar_utils.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/sorting_utils.dart';
 import 'package:ai_mls/domain/entities/class.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/class_providers.dart';
-import 'package:ai_mls/widgets/class_item_widget.dart';
-import 'package:ai_mls/widgets/shimmer_loading.dart';
+import 'package:ai_mls/presentation/views/class/widgets/class_primary_action_card.dart';
+import 'package:ai_mls/presentation/views/class/widgets/class_screen_header.dart';
+import 'package:ai_mls/widgets/dialogs/class_sort_bottom_sheet.dart';
+import 'package:ai_mls/widgets/list_item/class/class_item_widget.dart';
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
-
-import 'create_class_screen.dart';
-import 'teacher_class_detail_screen.dart';
-import 'teacher_class_search_screen.dart';
 
 /// Màn hình danh sách lớp học dành cho giáo viên
 /// Sử dụng Riverpod + Infinite Scroll Pagination + Shimmer
@@ -46,36 +46,30 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
   }
 
   @override
+  void deactivate() {
+    // Lưu scroll position trước khi widget bị deactivate
+    // Delay việc modify provider để tránh lỗi "modify provider while building"
+    Future(() {
+      if (mounted) {
+        _saveScrollPosition();
+      }
+    });
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
-    _saveScrollPosition();
     _scrollController.dispose();
     super.dispose();
   }
 
   /// Lưu scroll position vào provider
   void _saveScrollPosition() {
+    // Kiểm tra mounted và scroll controller trước khi sử dụng ref
+    if (!mounted || !_scrollController.hasClients) return;
+
     final teacherId = ref.read(currentUserIdProvider);
-    // #region agent log
-    try {
-      final logFile = File(
-        'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-      );
-      logFile.writeAsStringSync(
-        '${jsonEncode({
-          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-          "timestamp": DateTime.now().millisecondsSinceEpoch,
-          "location": "teacher_class_list_screen.dart:73",
-          "message": "Saving scroll position",
-          "data": {"teacherId": teacherId, "hasClients": _scrollController.hasClients, "offset": _scrollController.hasClients ? _scrollController.offset : 0},
-          "sessionId": "debug-session",
-          "runId": "run1",
-          "hypothesisId": "D",
-        })}\n',
-        mode: FileMode.append,
-      );
-    } catch (_) {}
-    // #endregion
-    if (teacherId != null && _scrollController.hasClients) {
+    if (mounted && teacherId != null && _scrollController.hasClients) {
       ref.read(scrollPositionProvider(teacherId).notifier).state =
           _scrollController.offset;
     }
@@ -85,46 +79,58 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
   void _restoreScrollPosition() {
     final teacherId = ref.read(currentUserIdProvider);
     // #region agent log
-    try {
-      final logFile = File(
-        'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-      );
-      logFile.writeAsStringSync(
-        '${jsonEncode({
-          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-          "timestamp": DateTime.now().millisecondsSinceEpoch,
-          "location": "teacher_class_list_screen.dart:82",
-          "message": "Attempting to restore scroll position",
-          "data": {"teacherId": teacherId, "hasClients": _scrollController.hasClients},
-          "sessionId": "debug-session",
-          "runId": "run1",
-          "hypothesisId": "D",
-        })}\n',
-        mode: FileMode.append,
-      );
-    } catch (_) {}
-    // #endregion
-    if (teacherId != null && _scrollController.hasClients) {
-      final savedPosition = ref.read(scrollPositionProvider(teacherId));
-      // #region agent log
+    if (kDebugMode && Platform.isWindows) {
       try {
         final logFile = File(
           'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
         );
-        logFile.writeAsStringSync(
-          '${jsonEncode({
-            "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-            "timestamp": DateTime.now().millisecondsSinceEpoch,
-            "location": "teacher_class_list_screen.dart:86",
-            "message": "Restoring scroll position",
-            "data": {"teacherId": teacherId, "savedPosition": savedPosition, "hasClients": _scrollController.hasClients},
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "D",
-          })}\n',
-          mode: FileMode.append,
-        );
+        // ignore: discarded_futures
+        logFile
+            .writeAsString(
+              '${jsonEncode({
+                "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                "timestamp": DateTime.now().millisecondsSinceEpoch,
+                "location": "teacher_class_list_screen.dart:82",
+                "message": "Attempting to restore scroll position",
+                "data": {"teacherId": teacherId, "hasClients": _scrollController.hasClients},
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "D",
+              })}\n',
+              mode: FileMode.append,
+              flush: false,
+            )
+            .catchError((_) => logFile);
       } catch (_) {}
+    }
+    // #endregion
+    if (teacherId != null && _scrollController.hasClients) {
+      final savedPosition = ref.read(scrollPositionProvider(teacherId));
+      // #region agent log
+      if (kDebugMode && Platform.isWindows) {
+        try {
+          final logFile = File(
+            'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+          );
+          // ignore: discarded_futures
+          logFile
+              .writeAsString(
+                '${jsonEncode({
+                  "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                  "timestamp": DateTime.now().millisecondsSinceEpoch,
+                  "location": "teacher_class_list_screen.dart:86",
+                  "message": "Restoring scroll position",
+                  "data": {"teacherId": teacherId, "savedPosition": savedPosition, "hasClients": _scrollController.hasClients},
+                  "sessionId": "debug-session",
+                  "runId": "run1",
+                  "hypothesisId": "D",
+                })}\n',
+                mode: FileMode.append,
+                flush: false,
+              )
+              .catchError((_) => logFile);
+        } catch (_) {}
+      }
       // #endregion
       if (savedPosition > 0) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -144,29 +150,35 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
     final currentUserAsync = ref.watch(currentUserProvider);
 
     // #region agent log
-    try {
-      final logFile = File(
-        'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-      );
-      logFile.writeAsStringSync(
-        '${jsonEncode({
-          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-          "timestamp": DateTime.now().millisecondsSinceEpoch,
-          "location": "teacher_class_list_screen.dart:200",
-          "message": "Build method - checking user state",
-          "data": {"isLoading": currentUserAsync.isLoading, "hasError": currentUserAsync.hasError, "error": currentUserAsync.hasError ? currentUserAsync.error.toString() : null, "hasValue": currentUserAsync.hasValue, "valueIsNull": currentUserAsync.value == null, "teacherId": teacherId, "userIdFromValue": currentUserAsync.value?.id},
-          "sessionId": "debug-session",
-          "runId": "run1",
-          "hypothesisId": "E",
-        })}\n',
-        mode: FileMode.append,
-      );
-    } catch (_) {}
+    if (kDebugMode && Platform.isWindows) {
+      try {
+        final logFile = File(
+          'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+        );
+        // ignore: discarded_futures
+        logFile
+            .writeAsString(
+              '${jsonEncode({
+                "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                "timestamp": DateTime.now().millisecondsSinceEpoch,
+                "location": "teacher_class_list_screen.dart:200",
+                "message": "Build method - checking user state",
+                "data": {"isLoading": currentUserAsync.isLoading, "hasError": currentUserAsync.hasError, "error": currentUserAsync.hasError ? currentUserAsync.error.toString() : null, "hasValue": currentUserAsync.hasValue, "valueIsNull": currentUserAsync.value == null, "teacherId": teacherId, "userIdFromValue": currentUserAsync.value?.id},
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "E",
+              })}\n',
+              mode: FileMode.append,
+              flush: false,
+            )
+            .catchError((_) => logFile);
+      } catch (_) {}
+    }
     // #endregion
 
     // Loading state khi đang lấy user info
     if (currentUserAsync.isLoading) {
-      return Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: ShimmerLoading());
     }
 
     // Error state khi không lấy được user info
@@ -195,54 +207,65 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
 
     // Watch providers
     // #region agent log
-    try {
-      final logFile = File(
-        'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-      );
-      logFile.writeAsStringSync(
-        '${jsonEncode({
-          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-          "timestamp": DateTime.now().millisecondsSinceEpoch,
-          "location": "teacher_class_list_screen.dart:256",
-          "message": "Watching providers",
-          "data": {"teacherId": teacherId},
-          "sessionId": "debug-session",
-          "runId": "run1",
-          "hypothesisId": "G",
-        })}\n',
-        mode: FileMode.append,
-      );
-    } catch (_) {}
+    if (kDebugMode && Platform.isWindows) {
+      try {
+        final logFile = File(
+          'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+        );
+        // ignore: discarded_futures
+        logFile
+            .writeAsString(
+              '${jsonEncode({
+                "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                "timestamp": DateTime.now().millisecondsSinceEpoch,
+                "location": "teacher_class_list_screen.dart:256",
+                "message": "Watching providers",
+                "data": {"teacherId": teacherId},
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "G",
+              })}\n',
+              mode: FileMode.append,
+              flush: false,
+            )
+            .catchError((_) => logFile);
+      } catch (_) {}
+    }
 
     final pagingController = ref.watch(pagingControllerProvider(teacherId));
     final sortOption = ref.watch(sortOptionProvider);
     final searchQuery = ref.watch(searchQueryProvider);
 
     // #region agent log
-    try {
-      final logFile = File(
-        'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-      );
-      logFile.writeAsStringSync(
-        '${jsonEncode({
-          "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-          "timestamp": DateTime.now().millisecondsSinceEpoch,
-          "location": "teacher_class_list_screen.dart:275",
-          "message": "Providers watched successfully",
-          "data": {"hasItemList": pagingController.itemList != null, "itemListLength": pagingController.itemList?.length ?? 0},
-          "sessionId": "debug-session",
-          "runId": "run1",
-          "hypothesisId": "G",
-        })}\n',
-        mode: FileMode.append,
-      );
-    } catch (_) {}
+    if (kDebugMode && Platform.isWindows) {
+      try {
+        final logFile = File(
+          'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+        );
+        // ignore: discarded_futures
+        logFile
+            .writeAsString(
+              '${jsonEncode({
+                "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                "timestamp": DateTime.now().millisecondsSinceEpoch,
+                "location": "teacher_class_list_screen.dart:275",
+                "message": "Providers watched successfully",
+                "data": {"hasItemList": pagingController.itemList != null, "itemListLength": pagingController.itemList?.length ?? 0},
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "G",
+              })}\n',
+              mode: FileMode.append,
+              flush: false,
+            )
+            .catchError((_) => logFile);
+      } catch (_) {}
+    }
     // #endregion
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: SafeArea(
-        child: Column(
+      backgroundColor: Colors.transparent,
+      body: Column(
           children: [
             // Header
             _buildHeader(context, currentUserAsync.value),
@@ -260,148 +283,37 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
               ),
             ),
           ],
-        ),
       ),
     );
   }
 
   /// Header với tiêu đề và avatar
   Widget _buildHeader(BuildContext context, profile) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Lớp học của tôi',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).textTheme.titleLarge?.color,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Năm học 2023 - 2024',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          ),
-          Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.search, size: 20),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const TeacherClassSearchScreen(),
-                    ),
-                  );
-                },
-              ),
-              IconButton(
-                icon: Icon(Icons.notifications, size: 20),
-                onPressed: () {
-                  // TODO: Implement notifications
-                },
-              ),
-              const SizedBox(width: 6),
-              AvatarUtils.buildAvatar(profile: profile),
-            ],
-          ),
-        ],
-      ),
+    return ClassScreenHeader(
+      onSearch: () {
+        context.pushNamed(AppRoute.teacherClassSearch);
+      },
+      onNotifications: () {
+        // TODO: Implement notifications
+      },
+      profile: profile,
     );
   }
 
   /// Card tạo lớp học mới
   Widget _buildCreateClassCard(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue[100]!, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.blue[50],
-            ),
-            child: Icon(Icons.domain_add, size: 18, color: Colors.blue[800]),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Thêm Lớp học mới',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).textTheme.titleMedium?.color,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Tạo không gian lớp học để quản lý',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue[800],
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              textStyle: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            onPressed: () {
-              Navigator.of(context)
-                  .push(
-                    MaterialPageRoute(
-                      builder: (context) => const CreateClassScreen(),
-                    ),
-                  )
-                  .then((newClass) {
-                    // Reload danh sách khi tạo lớp mới
-                    if (newClass != null && mounted) {
-                      final teacherId = ref.read(currentUserIdProvider);
-                      if (teacherId != null) {
-                        ref.read(pagingControllerProvider(teacherId)).refresh();
-                      }
-                    }
-                  });
-            },
-            child: const Text('Tạo ngay'),
-          ),
-        ],
-      ),
+    return ClassPrimaryActionCard.forTeacher(
+      onPressed: () {
+        context.pushNamed(AppRoute.teacherCreateClass).then((newClass) {
+          // Reload danh sách khi tạo lớp mới
+          if (newClass != null && mounted) {
+            final teacherId = ref.read(currentUserIdProvider);
+            if (teacherId != null) {
+              ref.read(pagingControllerProvider(teacherId)).refresh();
+            }
+          }
+        });
+      },
     );
   }
 
@@ -460,24 +372,30 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
                 pagingController.refresh();
               } catch (e) {
                 // #region agent log
-                try {
-                  final logFile = File(
-                    'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-                  );
-                  logFile.writeAsStringSync(
-                    '${jsonEncode({
-                      "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-                      "timestamp": DateTime.now().millisecondsSinceEpoch,
-                      "location": "teacher_class_list_screen.dart:540",
-                      "message": "Error refreshing pagingController",
-                      "data": {"error": e.toString()},
-                      "sessionId": "debug-session",
-                      "runId": "run1",
-                      "hypothesisId": "G",
-                    })}\n',
-                    mode: FileMode.append,
-                  );
-                } catch (_) {}
+                if (kDebugMode && Platform.isWindows) {
+                  try {
+                    final logFile = File(
+                      'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+                    );
+                    // ignore: discarded_futures
+                    logFile
+                        .writeAsString(
+                          '${jsonEncode({
+                            "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                            "timestamp": DateTime.now().millisecondsSinceEpoch,
+                            "location": "teacher_class_list_screen.dart:540",
+                            "message": "Error refreshing pagingController",
+                            "data": {"error": e.toString()},
+                            "sessionId": "debug-session",
+                            "runId": "run1",
+                            "hypothesisId": "G",
+                          })}\n',
+                          mode: FileMode.append,
+                          flush: false,
+                        )
+                        .catchError((_) => logFile);
+                  } catch (_) {}
+                }
                 // #endregion
               }
             }),
@@ -487,24 +405,30 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
               builderDelegate: PagedChildBuilderDelegate<Class>(
                 itemBuilder: (context, classItem, index) {
                   // #region agent log
-                  try {
-                    final logFile = File(
-                      'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-                    );
-                    logFile.writeAsStringSync(
-                      '${jsonEncode({
-                        "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-                        "timestamp": DateTime.now().millisecondsSinceEpoch,
-                        "location": "teacher_class_list_screen.dart:582",
-                        "message": "Building class item",
-                        "data": {"index": index, "classId": classItem.id, "className": classItem.name},
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "G",
-                      })}\n',
-                      mode: FileMode.append,
-                    );
-                  } catch (_) {}
+                  if (kDebugMode && Platform.isWindows) {
+                    try {
+                      final logFile = File(
+                        'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
+                      );
+                      // ignore: discarded_futures
+                      logFile
+                          .writeAsString(
+                            '${jsonEncode({
+                              "id": "log_${DateTime.now().millisecondsSinceEpoch}",
+                              "timestamp": DateTime.now().millisecondsSinceEpoch,
+                              "location": "teacher_class_list_screen.dart:582",
+                              "message": "Building class item",
+                              "data": {"index": index, "classId": classItem.id, "className": classItem.name},
+                              "sessionId": "debug-session",
+                              "runId": "run1",
+                              "hypothesisId": "G",
+                            })}\n',
+                            mode: FileMode.append,
+                            flush: false,
+                          )
+                          .catchError((_) => logFile);
+                    } catch (_) {}
+                  }
                   // #endregion
 
                   return Padding(
@@ -513,69 +437,46 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
                       className: classItem.name,
                       roomInfo: classItem.subject ?? 'Chưa có môn học',
                       schedule: classItem.academicYear ?? 'Chưa có năm học',
-                      studentCount: 0, // TODO: Load từ class members
+                      // Với giáo viên, teacherName không cần hiển thị (giáo viên hiện tại),
+                      // nên để null để ClassItemWidget bỏ qua dòng GV.
+                      teacherName: null,
+                      memberStatus: null,
+                      studentCount: classItem.studentCount ?? 0,
                       ungradedCount: 0, // TODO: Load từ class members
                       iconName: 'school',
                       iconColor: Colors.blue,
                       hasAssignments: true,
                       onTap: () {
-                        // #region agent log
-                        try {
-                          final logFile = File(
-                            'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-                          );
-                          logFile.writeAsStringSync(
-                            '${jsonEncode({
-                              "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-                              "timestamp": DateTime.now().millisecondsSinceEpoch,
-                              "location": "teacher_class_list_screen.dart:522",
-                              "message": "Navigating to class detail",
-                              "data": {"classId": classItem.id, "className": classItem.name, "mounted": mounted},
-                              "sessionId": "debug-session",
-                              "runId": "run1",
-                              "hypothesisId": "F",
-                            })}\n',
-                            mode: FileMode.append,
-                          );
-                        } catch (_) {}
-                        // #endregion
-                        if (mounted) {
-                          Navigator.of(context)
-                              .push(
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      TeacherClassDetailScreen(
-                                        classId: classItem.id,
-                                        className: classItem.name,
-                                        semesterInfo:
-                                            classItem.academicYear ??
-                                            'Chưa có năm học',
-                                      ),
+                        if (!mounted) return;
+
+                        // Navigate to class detail screen
+                        // Sử dụng context.push() với path thay vì pushNamed() để đảm bảo route match đúng
+                        final classDetailPath = AppRoute.teacherClassDetailPath(
+                          classItem.id,
+                        );
+
+                        context
+                            .push(
+                              classDetailPath,
+                              extra: {
+                                'className': classItem.name,
+                                'semesterInfo':
+                                    classItem.academicYear ?? 'Chưa có năm học',
+                              },
+                            )
+                            .catchError((error) {
+                              // Log error nếu có
+                              if (!context.mounted) return null;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Không thể mở chi tiết lớp học: ${error.toString()}',
+                                  ),
+                                  backgroundColor: Colors.red,
                                 ),
-                              )
-                              .catchError((error) {
-                                // #region agent log
-                                try {
-                                  final logFile = File(
-                                    'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-                                  );
-                                  logFile.writeAsStringSync(
-                                    '${jsonEncode({
-                                      "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-                                      "timestamp": DateTime.now().millisecondsSinceEpoch,
-                                      "location": "teacher_class_list_screen.dart:540",
-                                      "message": "Navigation error",
-                                      "data": {"error": error.toString()},
-                                      "sessionId": "debug-session",
-                                      "runId": "run1",
-                                      "hypothesisId": "F",
-                                    })}\n',
-                                    mode: FileMode.append,
-                                  );
-                                } catch (_) {}
-                                // #endregion
-                              });
-                        }
+                              );
+                              return null; // Return null để satisfy linter
+                            });
                       },
                     ),
                   );
@@ -584,7 +485,7 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
                     const ShimmerLoading(),
                 newPageProgressIndicatorBuilder: (context) => const Padding(
                   padding: EdgeInsets.all(16.0),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: ShimmerLoading(),
                 ),
                 firstPageErrorIndicatorBuilder: (context) =>
                     _buildErrorWidget(context, pagingController),
@@ -713,116 +614,12 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
   /// Sort dialog
   void _showSortDialog(BuildContext context) {
     final currentSortOption = ref.read(sortOptionProvider);
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // Title
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                'Sắp xếp lớp học',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).textTheme.titleLarge?.color,
-                ),
-              ),
-            ),
-            const Divider(),
-            // Sort options
-            _buildSortOption(
-              context,
-              'Tên lớp (A-Z)',
-              ClassSortOption.nameAscending,
-              Icons.sort_by_alpha,
-              currentSortOption,
-            ),
-            _buildSortOption(
-              context,
-              'Tên lớp (Z-A)',
-              ClassSortOption.nameDescending,
-              Icons.sort_by_alpha,
-              currentSortOption,
-            ),
-            _buildSortOption(
-              context,
-              'Mới nhất',
-              ClassSortOption.dateNewest,
-              Icons.access_time,
-              currentSortOption,
-            ),
-            _buildSortOption(
-              context,
-              'Cũ nhất',
-              ClassSortOption.dateOldest,
-              Icons.access_time,
-              currentSortOption,
-            ),
-            _buildSortOption(
-              context,
-              'Môn học (A-Z)',
-              ClassSortOption.subjectAscending,
-              Icons.subject,
-              currentSortOption,
-            ),
-            _buildSortOption(
-              context,
-              'Môn học (Z-A)',
-              ClassSortOption.subjectDescending,
-              Icons.subject,
-              currentSortOption,
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSortOption(
-    BuildContext context,
-    String title,
-    ClassSortOption option,
-    IconData icon,
-    ClassSortOption currentOption,
-  ) {
-    final isSelected = currentOption == option;
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: isSelected ? DesignColors.primary : Colors.grey[600],
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          color: isSelected ? DesignColors.primary : Colors.black87,
-        ),
-      ),
-      trailing: isSelected
-          ? Icon(Icons.check, color: DesignColors.primary)
-          : null,
-      onTap: () {
+    ClassSortBottomSheet.show(
+      context,
+      currentSortOption: currentSortOption,
+      onSortOptionSelected: (option) {
+        if (!mounted) return;
         ref.read(sortOptionProvider.notifier).state = option;
-        Navigator.pop(context);
       },
     );
   }

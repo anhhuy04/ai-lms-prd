@@ -1,38 +1,51 @@
-import 'package:flutter/material.dart';
-import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'dart:ui';
+import 'dart:io';
 
-class QRScanScreen extends StatefulWidget {
+import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/presentation/providers/auth_notifier.dart';
+import 'package:ai_mls/presentation/providers/class_notifier.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+
+class QRScanScreen extends ConsumerStatefulWidget {
   const QRScanScreen({super.key});
 
   @override
-  State<QRScanScreen> createState() => _QRScanScreenState();
+  ConsumerState<QRScanScreen> createState() => _QRScanScreenState();
 }
 
-class _QRScanScreenState extends State<QRScanScreen>
+class _QRScanScreenState extends ConsumerState<QRScanScreen>
     with SingleTickerProviderStateMixin {
+  late MobileScannerController _scannerController;
   late AnimationController _scanLineController;
   late Animation<double> _scanLineAnimation;
+  bool _isProcessing = false;
+  bool _isFlashOn = false;
 
   @override
   void initState() {
     super.initState();
+    _scannerController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
+
     _scanLineController = AnimationController(
-      duration: DesignAnimations.durationSlow,
+      duration: const Duration(milliseconds: 2000),
       vsync: this,
     )..repeat();
 
-    _scanLineAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _scanLineController,
-      curve: Curves.easeInOut,
-    ));
+    _scanLineAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _scanLineController, curve: Curves.easeInOut),
+    );
   }
 
   @override
   void dispose() {
+    _scannerController.dispose();
     _scanLineController.dispose();
     super.dispose();
   }
@@ -40,63 +53,167 @@ class _QRScanScreenState extends State<QRScanScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: DesignColors.textPrimary,
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Stack(
           children: [
-            _buildBackground(),
-            _buildOverlay(),
+            _buildCameraView(),
+            _buildOverlayWithCutout(),
             _buildContent(context),
+            if (_isProcessing) _buildProcessingOverlay(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBackground() {
+  Widget _buildCameraView() {
     return Positioned.fill(
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              DesignColors.textPrimary,
-              DesignColors.textPrimary.withOpacity(0.95),
-              DesignColors.textPrimary,
-            ],
-          ),
-          image: DecorationImage(
-            image: NetworkImage(
-              'https://lh3.googleusercontent.com/aida-public/AB6AXuB_DBV7KMe-5WaC9ZfGFHrMWkQ3gSuhqG_UKwesP7D2qZu2zQov1O527tkRNLkGIANIYYNpCtvU9ZHa_kMOMvElesXHUwPJmu-60PMNVcX7OjbT-CGCDyUFWY71aqz_qYlTv-a-pG3jjS2EdAifSYNQgnQ4FO6zm73_mjUJU7gTPYyu6m4UFHeihDiAOYMlvoWSVjF38YSh3yuJIwFrlHPW7O5ZJIWhd3DQR2FJQ9qSWo6mzobrxXOoQ6MVO0tLQAXH1R52vBaZTA',
-            ),
-            fit: BoxFit.cover,
-            opacity: 0.5,
-          ),
-        ),
-      ),
+      child: MobileScanner(controller: _scannerController, onDetect: _onDetect),
     );
   }
 
-  Widget _buildOverlay() {
-    return Positioned.fill(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                DesignColors.textPrimary.withOpacity(0.7),
-                DesignColors.textPrimary.withOpacity(0.8),
-                DesignColors.textPrimary.withOpacity(0.75),
-              ],
-            ),
-          ),
+  Future<void> _onDetect(BarcodeCapture capture) async {
+    if (_isProcessing) return;
+
+    Barcode? firstValid;
+    for (final barcode in capture.barcodes) {
+      final value = barcode.rawValue;
+      if (value != null && value.isNotEmpty) {
+        firstValid = barcode;
+        break;
+      }
+    }
+
+    if (firstValid == null) return;
+
+    _isProcessing = true;
+    final rawValue = firstValid.rawValue!;
+    final joinCode = _extractJoinCode(rawValue);
+
+    if (!mounted) return;
+
+    final auth = ref.read(authNotifierProvider);
+    final studentId = auth.value?.id;
+    if (studentId == null) {
+      _isProcessing = false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Không tìm thấy thông tin học sinh'),
+          backgroundColor: DesignColors.error,
         ),
-      ),
-    );
+      );
+      return;
+    }
+
+    try {
+      final classNotifier = ref.read(classNotifierProvider.notifier);
+      final targetClass = await classNotifier.resolveClassByJoinCode(
+        joinCode.toUpperCase(),
+      );
+
+      if (!mounted) return;
+
+      if (targetClass == null) {
+        _isProcessing = false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Mã QR không hợp lệ hoặc lớp không tồn tại'),
+            backgroundColor: DesignColors.error,
+          ),
+        );
+        return;
+      }
+
+      // Hỏi xác nhận trước khi tham gia lớp qua QR
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(DesignRadius.lg),
+          ),
+          title: const Text('Xác nhận tham gia lớp'),
+          content: Text('Bạn có chắc muốn tham gia lớp "${targetClass.name}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: DesignColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Đồng ý'),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted) return;
+
+      if (confirmed != true) {
+        _isProcessing = false;
+        return;
+      }
+
+      final member = await classNotifier.requestJoinClass(
+        targetClass.id,
+        studentId,
+      );
+
+      if (!mounted) return;
+      _isProcessing = false;
+
+      if (member != null) {
+        // Trả result về JoinClassScreen để propagate tiếp về StudentClassListScreen
+        context.pop({
+          'status': member.status,
+          'classId': targetClass.id,
+          'className': targetClass.name,
+          'academicYear': targetClass.academicYear,
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Không thể tham gia lớp học từ mã QR này'),
+            backgroundColor: DesignColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _isProcessing = false;
+      final message = e.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message.isEmpty
+                ? 'Không thể tham gia lớp học từ mã QR này'
+                : message,
+          ),
+          backgroundColor: DesignColors.error,
+        ),
+      );
+    }
+  }
+
+  String _extractJoinCode(String data) {
+    // Định dạng hiện tại từ phía giáo viên: '<classId>:<joinCode>'
+    if (data.contains(':')) {
+      final parts = data.split(':');
+      if (parts.length >= 2 && parts.last.trim().isNotEmpty) {
+        return parts.last.trim();
+      }
+    }
+    // Fallback: dùng toàn bộ string làm joinCode
+    return data.trim();
+  }
+
+  /// Overlay với cutout (khoét lỗ) ở giữa - phong cách app ngân hàng
+  Widget _buildOverlayWithCutout() {
+    return Positioned.fill(child: CustomPaint(painter: QRScanOverlayPainter()));
   }
 
   Widget _buildContent(BuildContext context) {
@@ -111,7 +228,7 @@ class _QRScanScreenState extends State<QRScanScreen>
               SizedBox(height: DesignSpacing.xxl),
               _buildInstructionText(),
               const Spacer(),
-              _buildUploadButton(context),
+              _buildActionButtons(context),
               SizedBox(height: DesignSpacing.xxxxxl),
             ],
           ),
@@ -129,23 +246,34 @@ class _QRScanScreenState extends State<QRScanScreen>
       child: Row(
         children: [
           _buildAppBarButton(
-            icon: Icons.arrow_back,
-            onPressed: () => Navigator.of(context).pop(),
+            icon: Icons.arrow_back_ios_new,
+            onPressed: () => context.pop(),
           ),
           Expanded(
             child: Center(
-              child: _buildAppBarTitle(),
+              child: Text(
+                'Quét mã QR',
+                style: DesignTypography.titleMedium.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
           _buildAppBarButton(
-            icon: Icons.flash_on,
-            onPressed: () {
-              // TODO: Toggle flashlight
-            },
+            icon: _isFlashOn ? Icons.flash_on : Icons.flash_off,
+            onPressed: _toggleFlash,
           ),
         ],
       ),
     );
+  }
+
+  void _toggleFlash() {
+    setState(() {
+      _isFlashOn = !_isFlashOn;
+      _scannerController.toggleTorch();
+    });
   }
 
   Widget _buildAppBarButton({
@@ -153,66 +281,19 @@ class _QRScanScreenState extends State<QRScanScreen>
     required VoidCallback onPressed,
   }) {
     return Container(
-      width: DesignComponents.buttonHeightLarge,
-      height: DesignComponents.buttonHeightLarge,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
-        color: DesignColors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(DesignRadius.full),
-        border: Border.all(
-          color: DesignColors.white.withOpacity(0.2),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: DesignColors.textPrimary.withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: Colors.black.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(DesignRadius.full),
-          child: Icon(
-            icon,
-            color: DesignColors.white,
-            size: DesignIcons.mdSize,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAppBarTitle() {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: DesignSpacing.lg,
-        vertical: DesignSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: DesignColors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(DesignRadius.full),
-        border: Border.all(
-          color: DesignColors.white.withOpacity(0.2),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: DesignColors.textPrimary.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Text(
-        'Quét mã QR',
-        style: DesignTypography.labelMedium.copyWith(
-          color: DesignColors.white,
-          fontWeight: DesignTypography.semiBold,
-          letterSpacing: DesignTypography.letterSpacingLoose,
-          fontSize: DesignTypography.labelLargeSize,
+          borderRadius: BorderRadius.circular(22),
+          child: Icon(icon, color: Colors.white, size: 22),
         ),
       ),
     );
@@ -220,8 +301,8 @@ class _QRScanScreenState extends State<QRScanScreen>
 
   Widget _buildScanFrame() {
     const double frameSize = 280.0;
-    const double cornerSize = 48.0;
-    const double cornerThickness = 4.0;
+    const double cornerSize = 32.0;
+    const double cornerThickness = 3.0;
 
     return Center(
       child: SizedBox(
@@ -229,42 +310,10 @@ class _QRScanScreenState extends State<QRScanScreen>
         height: frameSize,
         child: Stack(
           children: [
-            // Outer glow effect
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(DesignRadius.lg),
-                  border: Border.all(
-                    color: DesignColors.tealPrimary.withOpacity(0.3),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: DesignColors.tealPrimary.withOpacity(0.2),
-                      blurRadius: 24,
-                      spreadRadius: 4,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Scan frame corners
-            _buildScanCorner(
-              Alignment.topLeft,
-              cornerSize,
-              cornerThickness,
-            ),
-            _buildScanCorner(
-              Alignment.topRight,
-              cornerSize,
-              cornerThickness,
-            ),
-            _buildScanCorner(
-              Alignment.bottomLeft,
-              cornerSize,
-              cornerThickness,
-            ),
+            // Scan frame corners với style app ngân hàng
+            _buildScanCorner(Alignment.topLeft, cornerSize, cornerThickness),
+            _buildScanCorner(Alignment.topRight, cornerSize, cornerThickness),
+            _buildScanCorner(Alignment.bottomLeft, cornerSize, cornerThickness),
             _buildScanCorner(
               Alignment.bottomRight,
               cornerSize,
@@ -279,65 +328,79 @@ class _QRScanScreenState extends State<QRScanScreen>
     );
   }
 
-  Widget _buildScanCorner(
-    Alignment alignment,
-    double size,
-    double thickness,
-  ) {
-    final isTop = alignment == Alignment.topLeft ||
-        alignment == Alignment.topRight;
-    final isLeft = alignment == Alignment.topLeft ||
-        alignment == Alignment.bottomLeft;
+  Widget _buildScanCorner(Alignment alignment, double size, double thickness) {
+    final isTop =
+        alignment == Alignment.topLeft || alignment == Alignment.topRight;
+    final isLeft =
+        alignment == Alignment.topLeft || alignment == Alignment.bottomLeft;
 
     return Positioned(
       top: isTop ? 0 : null,
       bottom: isTop ? null : 0,
       left: isLeft ? 0 : null,
       right: isLeft ? null : 0,
-      child: Container(
+      child: SizedBox(
         width: size,
         height: size,
-        decoration: BoxDecoration(
-          border: Border(
-            top: isTop
-                ? BorderSide(
-                    color: DesignColors.tealPrimary,
-                    width: thickness,
-                  )
-                : BorderSide.none,
-            bottom: isTop
-                ? BorderSide.none
-                : BorderSide(
-                    color: DesignColors.tealPrimary,
-                    width: thickness,
+        child: Stack(
+          children: [
+            // Corner line - horizontal
+            Positioned(
+              left: isLeft ? 0 : null,
+              right: isLeft ? null : 0,
+              top: isTop ? 0 : null,
+              bottom: isTop ? null : 0,
+              width: size,
+              height: thickness,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: DesignColors.primary,
+                  borderRadius: BorderRadius.only(
+                    topLeft: isTop && isLeft
+                        ? const Radius.circular(2)
+                        : Radius.zero,
+                    topRight: isTop && !isLeft
+                        ? const Radius.circular(2)
+                        : Radius.zero,
+                    bottomLeft: !isTop && isLeft
+                        ? const Radius.circular(2)
+                        : Radius.zero,
+                    bottomRight: !isTop && !isLeft
+                        ? const Radius.circular(2)
+                        : Radius.zero,
                   ),
-            left: isLeft
-                ? BorderSide(
-                    color: DesignColors.tealPrimary,
-                    width: thickness,
-                  )
-                : BorderSide.none,
-            right: isLeft
-                ? BorderSide.none
-                : BorderSide(
-                    color: DesignColors.tealPrimary,
-                    width: thickness,
+                ),
+              ),
+            ),
+            // Corner line - vertical
+            Positioned(
+              left: isLeft ? 0 : null,
+              right: isLeft ? null : 0,
+              top: isTop ? 0 : null,
+              bottom: isTop ? null : 0,
+              width: thickness,
+              height: size,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: DesignColors.primary,
+                  borderRadius: BorderRadius.only(
+                    topLeft: isTop && isLeft
+                        ? const Radius.circular(2)
+                        : Radius.zero,
+                    topRight: isTop && !isLeft
+                        ? const Radius.circular(2)
+                        : Radius.zero,
+                    bottomLeft: !isTop && isLeft
+                        ? const Radius.circular(2)
+                        : Radius.zero,
+                    bottomRight: !isTop && !isLeft
+                        ? const Radius.circular(2)
+                        : Radius.zero,
                   ),
-          ),
-          borderRadius: BorderRadius.only(
-            topLeft: isTop && isLeft
-                ? Radius.circular(DesignRadius.lg)
-                : Radius.zero,
-            topRight: isTop && !isLeft
-                ? Radius.circular(DesignRadius.lg)
-                : Radius.zero,
-            bottomLeft: !isTop && isLeft
-                ? Radius.circular(DesignRadius.lg)
-                : Radius.zero,
-            bottomRight: !isTop && !isLeft
-                ? Radius.circular(DesignRadius.lg)
-                : Radius.zero,
-          ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -347,28 +410,28 @@ class _QRScanScreenState extends State<QRScanScreen>
     return AnimatedBuilder(
       animation: _scanLineAnimation,
       builder: (context, child) {
-        final scanLinePosition = _scanLineAnimation.value *
-            (frameSize - cornerSize * 2 - DesignSpacing.lg);
+        final scanLinePosition =
+            _scanLineAnimation.value * (frameSize - cornerSize * 2);
         return Positioned(
-          left: DesignSpacing.lg,
-          right: DesignSpacing.lg,
+          left: cornerSize,
+          right: cornerSize,
           top: cornerSize + scanLinePosition,
           child: Container(
-            height: 3,
+            height: 2,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  DesignColors.tealPrimary.withOpacity(0.0),
-                  DesignColors.tealPrimary,
-                  DesignColors.tealPrimary.withOpacity(0.0),
+                  Colors.transparent,
+                  DesignColors.primary,
+                  Colors.transparent,
                 ],
+                stops: const [0.0, 0.5, 1.0],
               ),
-              borderRadius: BorderRadius.circular(DesignRadius.full),
               boxShadow: [
                 BoxShadow(
-                  color: DesignColors.tealPrimary.withOpacity(0.8),
-                  blurRadius: 16,
-                  spreadRadius: 2,
+                  color: DesignColors.primary.withOpacity(0.8),
+                  blurRadius: 8,
+                  spreadRadius: 1,
                 ),
               ],
             ),
@@ -381,76 +444,273 @@ class _QRScanScreenState extends State<QRScanScreen>
   Widget _buildInstructionText() {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: DesignSpacing.xxxxl),
-      child: Text(
-        'Căn chỉnh mã QR vào bên trong khung hình để quét',
-        textAlign: TextAlign.center,
-        style: DesignTypography.bodyMedium.copyWith(
-          color: DesignColors.white,
-          fontWeight: DesignTypography.medium,
-          letterSpacing: DesignTypography.letterSpacingLoose,
-          shadows: [
-            Shadow(
-              blurRadius: 8,
-              color: DesignColors.textPrimary.withOpacity(0.6),
-              offset: const Offset(0, 2),
+      child: Column(
+        children: [
+          Text(
+            'Đặt mã QR vào khung hình',
+            textAlign: TextAlign.center,
+            style: DesignTypography.bodyLarge.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              shadows: [
+                Shadow(
+                  blurRadius: 8,
+                  color: Colors.black.withOpacity(0.5),
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          SizedBox(height: DesignSpacing.sm),
+          Text(
+            'Đảm bảo mã QR nằm trong khung và đủ ánh sáng',
+            textAlign: TextAlign.center,
+            style: DesignTypography.bodySmall.copyWith(
+              color: Colors.white.withOpacity(0.8),
+              shadows: [
+                Shadow(
+                  blurRadius: 6,
+                  color: Colors.black.withOpacity(0.4),
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildUploadButton(BuildContext context) {
+  Widget _buildActionButtons(BuildContext context) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: DesignSpacing.xxxxl),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(DesignRadius.lg),
-          boxShadow: [
-            BoxShadow(
-              color: DesignColors.tealPrimary.withOpacity(0.4),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ElevatedButton(
-          onPressed: () {
-            // TODO: Implement image upload functionality
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: DesignColors.tealPrimary,
-            foregroundColor: DesignColors.white,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(DesignRadius.lg),
-            ),
-            padding: EdgeInsets.symmetric(
-              vertical: DesignSpacing.lg,
-              horizontal: DesignSpacing.xl,
-            ),
-            minimumSize: Size(
-              double.infinity,
-              DesignComponents.buttonHeightLarge,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
+      child: Column(
+        children: [
+          // Nút tải ảnh từ thư viện
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isProcessing ? null : () => _pickImageFromGallery(),
+              icon: Icon(
                 Icons.photo_library_outlined,
                 size: DesignIcons.mdSize,
               ),
-              SizedBox(width: DesignSpacing.md),
-              Text(
-                'Tải ảnh lên từ thư viện',
+              label: Text(
+                'Chọn ảnh từ thư viện',
                 style: DesignTypography.labelMedium.copyWith(
-                  color: DesignColors.white,
-                  fontWeight: DesignTypography.semiBold,
-                  fontSize: DesignTypography.labelLargeSize,
+                  fontWeight: FontWeight.w600,
                 ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: DesignColors.primary,
+                elevation: 4,
+                shadowColor: Colors.black.withOpacity(0.3),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(DesignRadius.lg),
+                ),
+                padding: EdgeInsets.symmetric(
+                  vertical: DesignSpacing.lg,
+                  horizontal: DesignSpacing.xl,
+                ),
+                minimumSize: Size(
+                  double.infinity,
+                  DesignComponents.buttonHeightLarge,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    if (_isProcessing) return;
+
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 100,
+      );
+
+      if (image == null || !mounted) return;
+
+      _isProcessing = true;
+      if (mounted) {
+        setState(() {});
+      }
+
+      // Scan QR từ file ảnh
+      final file = File(image.path);
+      final capture = await _scannerController.analyzeImage(file.path);
+
+      if (!mounted) {
+        _isProcessing = false;
+        return;
+      }
+
+      if (capture == null || capture.barcodes.isEmpty) {
+        _isProcessing = false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Không tìm thấy mã QR trong ảnh'),
+            backgroundColor: DesignColors.error,
+          ),
+        );
+        return;
+      }
+
+      // Tìm barcode hợp lệ đầu tiên
+      Barcode? firstValid;
+      for (final barcode in capture.barcodes) {
+        final value = barcode.rawValue;
+        if (value != null && value.isNotEmpty) {
+          firstValid = barcode;
+          break;
+        }
+      }
+
+      if (firstValid == null) {
+        _isProcessing = false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Không tìm thấy mã QR trong ảnh'),
+            backgroundColor: DesignColors.error,
+          ),
+        );
+        return;
+      }
+
+      // Xử lý QR code tìm được
+      final rawValue = firstValid.rawValue!;
+      final joinCode = _extractJoinCode(rawValue);
+
+      final auth = ref.read(authNotifierProvider);
+      final studentId = auth.value?.id;
+      if (studentId == null) {
+        _isProcessing = false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Không tìm thấy thông tin học sinh'),
+            backgroundColor: DesignColors.error,
+          ),
+        );
+        return;
+      }
+
+      final classNotifier = ref.read(classNotifierProvider.notifier);
+      final targetClass = await classNotifier.resolveClassByJoinCode(
+        joinCode.toUpperCase(),
+      );
+
+      if (!mounted) {
+        _isProcessing = false;
+        return;
+      }
+
+      if (targetClass == null) {
+        _isProcessing = false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Mã QR không hợp lệ hoặc lớp không tồn tại'),
+            backgroundColor: DesignColors.error,
+          ),
+        );
+        return;
+      }
+
+      // Hỏi xác nhận
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(DesignRadius.lg),
+          ),
+          title: const Text('Xác nhận tham gia lớp'),
+          content: Text('Bạn có chắc muốn tham gia lớp "${targetClass.name}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: DesignColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Đồng ý'),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted) {
+        _isProcessing = false;
+        return;
+      }
+
+      if (confirmed != true) {
+        _isProcessing = false;
+        return;
+      }
+
+      final member = await classNotifier.requestJoinClass(
+        targetClass.id,
+        studentId,
+      );
+
+      if (!mounted) {
+        _isProcessing = false;
+        return;
+      }
+
+      _isProcessing = false;
+
+      if (member != null) {
+        context.pop({
+          'status': member.status,
+          'classId': targetClass.id,
+          'className': targetClass.name,
+          'academicYear': targetClass.academicYear,
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Không thể tham gia lớp học từ mã QR này'),
+            backgroundColor: DesignColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _isProcessing = false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi: ${e.toString()}'),
+          backgroundColor: DesignColors.error,
+        ),
+      );
+    }
+  }
+
+  Widget _buildProcessingOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.7),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(DesignColors.primary),
+              ),
+              SizedBox(height: DesignSpacing.lg),
+              Text(
+                'Đang xử lý...',
+                style: DesignTypography.bodyLarge.copyWith(color: Colors.white),
               ),
             ],
           ),
@@ -458,4 +718,40 @@ class _QRScanScreenState extends State<QRScanScreen>
       ),
     );
   }
+}
+
+/// Custom Painter để vẽ overlay với cutout ở giữa
+class QRScanOverlayPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black.withOpacity(0.6)
+      ..style = PaintingStyle.fill;
+
+    final path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    // Cutout ở giữa màn hình (khu vực scan)
+    const double frameSize = 280.0;
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+    final cutoutRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(centerX, centerY),
+        width: frameSize,
+        height: frameSize,
+      ),
+      const Radius.circular(DesignRadius.lg),
+    );
+
+    // Tạo path với cutout
+    final cutoutPath = Path()
+      ..addRRect(cutoutRect)
+      ..fillType = PathFillType.evenOdd;
+
+    path.addPath(cutoutPath, Offset.zero);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

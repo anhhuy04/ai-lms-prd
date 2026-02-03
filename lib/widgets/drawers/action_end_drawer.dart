@@ -17,74 +17,57 @@ class ActionEndDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Bọc nội dung drawer trong RepaintBoundary để tránh vẽ lại toàn màn khi mở
     return Drawer(
-      width: MediaQuery.of(context).size.width * 0.85, // 3/4 màn hình
+      width: MediaQuery.of(context).size.width * 0.85, // ~85% màn hình
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       elevation: DesignElevation.level3.blurRadius,
-      child: SafeArea(
-        child: Column(
-          children: [
-            // HEADER với title, subtitle và nút đóng
-            _buildHeader(context),
-            const Divider(height: 1, color: DesignColors.dividerLight),
+      child: RepaintBoundary(
+        child: SafeArea(
+          child: Column(
+            children: [
+              // HEADER với title, subtitle và nút đóng
+              _buildHeader(context),
+              const Divider(height: 1, color: DesignColors.dividerLight),
 
-            // BODY - nội dung chính
-            Expanded(child: child),
-          ],
+              // BODY - nội dung chính
+              Expanded(child: child),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// Header drawer với thông tin và nút đóng
+  /// Header drawer với thông tin
   Widget _buildHeader(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
         DesignSpacing.lg,
         DesignSpacing.md,
-        DesignSpacing.md,
-        DesignSpacing.md,
+        DesignSpacing.lg,
+        DesignSpacing.sm, // Giảm padding bottom cho hợp lý hơn
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Thông tin drawer
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: DesignTypography.titleLarge.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (subtitle != null) ...[
-                  SizedBox(height: DesignSpacing.xs),
-                  Text(
-                    subtitle!,
-                    style: DesignTypography.bodySmall.copyWith(
-                      color: DesignColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ],
+          Text(
+            title,
+            style: DesignTypography.titleLarge.copyWith(
+              fontWeight: FontWeight.bold,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          // Nút đóng drawer
-          IconButton(
-            icon: Icon(
-              Icons.close,
-              size: DesignIcons.mdSize,
-              color: Theme.of(context).iconTheme.color,
+          if (subtitle != null) ...[
+            SizedBox(height: DesignSpacing.xs),
+            Text(
+              subtitle!,
+              style: DesignTypography.bodySmall.copyWith(
+                color: DesignColors.textSecondary,
+              ),
             ),
-            onPressed: () => Navigator.pop(context),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            splashRadius: 24,
-          )
+          ],
         ],
       ),
     );

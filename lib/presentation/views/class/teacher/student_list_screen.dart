@@ -1,9 +1,17 @@
-import 'package:flutter/material.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/domain/entities/class_member.dart';
+import 'package:ai_mls/domain/entities/profile.dart';
+import 'package:ai_mls/presentation/providers/class_notifier.dart';
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Màn hình danh sách học sinh cho giáo viên
 /// Hiển thị danh sách học sinh trong lớp với chức năng duyệt
-class StudentListScreen extends StatefulWidget {
+class StudentListScreen extends ConsumerStatefulWidget {
   final String classId;
   final String className;
 
@@ -14,67 +22,92 @@ class StudentListScreen extends StatefulWidget {
   });
 
   @override
-  State<StudentListScreen> createState() => _StudentListScreenState();
+  ConsumerState<StudentListScreen> createState() => _StudentListScreenState();
 }
 
-class _StudentListScreenState extends State<StudentListScreen> {
+class _StudentListScreenState extends ConsumerState<StudentListScreen> {
   // Trạng thái lọc
   String _currentFilter = 'all'; // 'all', 'approved', 'pending'
 
-  // Dữ liệu mẫu học sinh
-  final List<Map<String, dynamic>> _students = [
-    {
-      'id': '1',
-      'name': 'Nguyễn Văn An',
-      'studentId': '2023001',
-      'avatarUrl': 'https://lh3.googleusercontent.com/aida-public/AB6AXuBuHHscKTaW0cxtzzi6_qeFAvpa0gGkcz36l-kTNg6bjqiuvcNbrUOPqDwhsixuV99CKM4VOqTq7LnqHsaxp8Vj8Hc3pu4Ukjzh0b_fWu_KGj4BAryL3qbn4pocjkT8zGQRLjf180BLGxmJlEHE3iDlFbPQiGJ2OHdzY3mTDq8dBuC_Rk4iQkzieCE_GHLHT1-_dSP3EJCz0SRJeEXSHVFV54KZBYHQYw1huE2L5mmxHNh2_hf-qWrLWT9cCFCuYahsgCPkwnNbTA',
-      'status': 'approved',
-    },
-    {
-      'id': '2',
-      'name': 'Hoàng Văn Hải',
-      'studentId': '2023005',
-      'avatarUrl': '',
-      'status': 'pending',
-    },
-    {
-      'id': '3',
-      'name': 'Trần Thị Lan',
-      'studentId': '2023003',
-      'avatarUrl': 'https://randomuser.me/api/portraits/women/44.jpg',
-      'status': 'approved',
-    },
-    {
-      'id': '4',
-      'name': 'Phạm Minh Tuấn',
-      'studentId': '2023004',
-      'avatarUrl': 'https://randomuser.me/api/portraits/men/32.jpg',
-      'status': 'pending',
-    },
-    {
-      'id': '5',
-      'name': 'Lê Thị Hồng',
-      'studentId': '2023002',
-      'avatarUrl': 'https://randomuser.me/api/portraits/women/68.jpg',
-      'status': 'approved',
-    },
-  ];
+  // State dữ liệu members từ backend
+  AsyncValue<List<ClassMember>> _membersState =
+      const AsyncValue<List<ClassMember>>.loading();
 
-  // Lọc danh sách học sinh
-  List<Map<String, dynamic>> get _filteredStudents {
+  // Cache profile theo studentId để hiển thị tên/sđt/giới tính & avatar
+  final Map<String, Profile> _profilesByStudentId = {};
+
+  List<ClassMember> get _students {
+    return _membersState.value ?? const <ClassMember>[];
+  }
+
+  // Lọc danh sách học sinh theo trạng thái
+  List<ClassMember> get _filteredStudents {
     if (_currentFilter == 'all') {
       return _students;
     } else if (_currentFilter == 'approved') {
-      return _students.where((student) => student['status'] == 'approved').toList();
+      return _students
+          .where((student) => student.status == 'approved')
+          .toList();
     } else {
-      return _students.where((student) => student['status'] == 'pending').toList();
+      return _students.where((student) => student.status == 'pending').toList();
     }
   }
 
   // Đếm số lượng học sinh cho mỗi trạng thái
   int get _totalCount => _students.length;
-  int get _approvedCount => _students.where((s) => s['status'] == 'approved').length;
-  int get _pendingCount => _students.where((s) => s['status'] == 'pending').length;
+  int get _approvedCount =>
+      _students.where((s) => s.status == 'approved').length;
+  int get _pendingCount => _students.where((s) => s.status == 'pending').length;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMembers();
+  }
+
+  Future<void> _loadMembers() async {
+    setState(() {
+      _membersState = const AsyncValue.loading();
+    });
+
+    try {
+      final notifier = ref.read(classNotifierProvider.notifier);
+      final members = await notifier.getClassMembers(widget.classId);
+      await _loadProfilesForMembers(members);
+      if (!mounted) return;
+      setState(() {
+        _membersState = AsyncValue.data(members);
+      });
+    } catch (e, stackTrace) {
+      setState(() {
+        _membersState = AsyncValue.error(e, stackTrace);
+      });
+    }
+  }
+
+  Future<void> _loadProfilesForMembers(List<ClassMember> members) async {
+    try {
+      final ids = members.map((m) => m.studentId).toSet().toList();
+      if (ids.isEmpty) {
+        _profilesByStudentId.clear();
+        return;
+      }
+
+      final client = Supabase.instance.client;
+      final response =
+          await client.from('profiles').select().inFilter('id', ids)
+              as List<dynamic>;
+
+      _profilesByStudentId.clear();
+      for (final item in response) {
+        final json = Map<String, dynamic>.from(item as Map);
+        final profile = Profile.fromJson(json);
+        _profilesByStudentId[profile.id] = profile;
+      }
+    } catch (_) {
+      // Nếu lỗi, bỏ qua để không chặn luồng chính; UI sẽ chỉ hiển thị ID
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,9 +123,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
           _buildFilterChips(),
 
           // Danh sách học sinh
-          Expanded(
-            child: _buildStudentList(),
-          ),
+          Expanded(child: _buildStudentList()),
         ],
       ),
     );
@@ -107,7 +138,17 @@ class _StudentListScreenState extends State<StudentListScreen> {
           size: DesignIcons.mdSize,
           color: Theme.of(context).iconTheme.color,
         ),
-        onPressed: () => Navigator.pop(context),
+        onPressed: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            // Fallback: navigate về class detail nếu không thể pop
+            context.goNamed(
+              AppRoute.teacherClassDetail,
+              pathParameters: {'classId': widget.classId},
+            );
+          }
+        },
       ),
       title: Text(
         widget.className,
@@ -172,10 +213,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
         border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).dividerColor,
-            width: 1,
-          ),
+          bottom: BorderSide(color: Theme.of(context).dividerColor, width: 1),
         ),
       ),
       child: Row(
@@ -205,7 +243,9 @@ class _StudentListScreenState extends State<StudentListScreen> {
             Text(
               label,
               style: DesignTypography.labelMedium.copyWith(
-                color: isSelected ? DesignColors.primary : DesignColors.textSecondary,
+                color: isSelected
+                    ? DesignColors.primary
+                    : DesignColors.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -234,17 +274,68 @@ class _StudentListScreenState extends State<StudentListScreen> {
 
   /// Danh sách học sinh
   Widget _buildStudentList() {
-    return ListView.builder(
+    return _membersState.when(
+      data: (members) {
+        if (members.isEmpty) {
+          return Center(
+            child: Text(
+              'Chưa có học sinh nào trong lớp này.',
+              style: DesignTypography.bodyMedium.copyWith(
+                color: DesignColors.textSecondary,
+              ),
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: _loadMembers,
+          child: ListView.builder(
       itemCount: _filteredStudents.length,
       itemBuilder: (context, index) {
         final student = _filteredStudents[index];
         return _buildStudentItem(student);
       },
+          ),
+        );
+      },
+      loading: () => const ShimmerListTileLoading(),
+      error: (error, _) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Lỗi khi tải danh sách học sinh',
+              style: DesignTypography.bodyMedium.copyWith(
+                color: DesignColors.error,
+              ),
+            ),
+            SizedBox(height: DesignSpacing.sm),
+            Text(
+              error.toString(),
+              style: DesignTypography.bodySmall.copyWith(
+                color: DesignColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: DesignSpacing.md),
+            ElevatedButton(
+              onPressed: _loadMembers,
+              child: const Text('Thử lại'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   /// Một mục học sinh trong danh sách
-  Widget _buildStudentItem(Map<String, dynamic> student) {
+  Widget _buildStudentItem(ClassMember student) {
+    final profile = _profilesByStudentId[student.studentId];
+    final fullName = profile?.fullName ?? 'Học sinh chưa cập nhật tên';
+    final phone = profile?.phone?.isNotEmpty == true
+        ? profile!.phone!
+        : 'Chưa có';
+    final genderLabel = _mapGender(profile?.gender);
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: DesignSpacing.lg,
@@ -252,16 +343,13 @@ class _StudentListScreenState extends State<StudentListScreen> {
       ),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).dividerColor,
-            width: 1,
-          ),
+          bottom: BorderSide(color: Theme.of(context).dividerColor, width: 1),
         ),
       ),
       child: Row(
         children: [
           // Avatar học sinh
-          _buildStudentAvatar(student['avatarUrl']),
+          _buildStudentAvatar(student),
           SizedBox(width: DesignSpacing.md),
 
           // Thông tin học sinh
@@ -270,7 +358,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  student['name'],
+                  fullName,
                   style: DesignTypography.bodyMedium.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -279,7 +367,14 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 ),
                 SizedBox(height: DesignSpacing.xs),
                 Text(
-                  'MSSV: ${student['studentId']}',
+                  'SĐT: $phone',
+                  style: DesignTypography.bodySmall.copyWith(
+                    color: DesignColors.textSecondary,
+                  ),
+                ),
+                SizedBox(height: DesignSpacing.xs),
+                Text(
+                  'Giới tính: $genderLabel',
                   style: DesignTypography.bodySmall.copyWith(
                     color: DesignColors.textSecondary,
                   ),
@@ -298,43 +393,77 @@ class _StudentListScreenState extends State<StudentListScreen> {
   }
 
   /// Avatar học sinh
-  Widget _buildStudentAvatar(String avatarUrl) {
-    if (avatarUrl.isNotEmpty) {
-      return CircleAvatar(
-        radius: DesignComponents.avatarMedium / 2,
-        backgroundImage: NetworkImage(avatarUrl),
-        backgroundColor: DesignColors.moonMedium,
-      );
-    } else {
-      // Avatar mặc định với chữ cái đầu tiên
-      final firstLetter = _filteredStudents.isNotEmpty
-          ? _filteredStudents[0]['name'][0].toUpperCase()
-          : 'H';
+  Widget _buildStudentAvatar(ClassMember student) {
+    final profile = _profilesByStudentId[student.studentId];
+    final size = DesignComponents.avatarMedium;
+    final avatarUrl = profile?.avatarUrl;
+    final fullName = profile?.fullName ?? '';
+    final initials = _buildInitialsFromFullName(fullName);
 
-      return CircleAvatar(
-        radius: DesignComponents.avatarMedium / 2,
-        backgroundColor: DesignColors.moonMedium,
-        child: Text(
-          firstLetter,
-          style: DesignTypography.titleLarge.copyWith(
-            color: DesignColors.textPrimary,
-            fontWeight: FontWeight.bold,
+    Widget buildInitialAvatar() {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: DesignColors.primary.withValues(alpha: 0.1),
+        ),
+        child: Center(
+          child: Text(
+            initials,
+            style: TextStyle(
+              fontSize: size * 0.5,
+              color: DesignColors.primary,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       );
     }
+
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.grey[300]!, width: 1),
+        ),
+        child: ClipOval(
+          child: Image.network(
+            avatarUrl,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return buildInitialAvatar();
+            },
+          ),
+        ),
+      );
+    }
+
+    return buildInitialAvatar();
+  }
+
+  String _buildInitialsFromFullName(String fullName) {
+    final trimmed = fullName.trim();
+    if (trimmed.isEmpty) return '?';
+    final parts = trimmed.split(RegExp(r'\s+'));
+    final last = parts.isNotEmpty ? parts.last : trimmed;
+    return last.isNotEmpty ? last[0].toUpperCase() : '?';
   }
 
   /// Trạng thái và hành động của học sinh
-  Widget _buildStudentStatus(Map<String, dynamic> student) {
-    if (student['status'] == 'approved') {
+  Widget _buildStudentStatus(ClassMember student) {
+    if (student.status == 'approved') {
       return Container(
         padding: EdgeInsets.symmetric(
           horizontal: DesignSpacing.md,
           vertical: DesignSpacing.xs,
         ),
         decoration: BoxDecoration(
-          color: DesignColors.primary.withOpacity(0.1),
+          color: DesignColors.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(DesignRadius.full),
         ),
         child: Text(
@@ -355,7 +484,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
               vertical: DesignSpacing.xs,
             ),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
+              color: Colors.orange.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(DesignRadius.full),
             ),
             child: Text(
@@ -377,7 +506,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                   color: DesignColors.primary,
                 ),
                 onPressed: () {
-                  _approveStudent(student['id']);
+                  _approveStudent(student);
                 },
                 padding: EdgeInsets.zero,
                 constraints: BoxConstraints(),
@@ -392,7 +521,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                   color: DesignColors.error,
                 ),
                 onPressed: () {
-                  _rejectStudent(student['id']);
+                  _rejectStudent(student);
                 },
                 padding: EdgeInsets.zero,
                 constraints: BoxConstraints(),
@@ -405,23 +534,31 @@ class _StudentListScreenState extends State<StudentListScreen> {
   }
 
   /// Duyệt học sinh
-  void _approveStudent(String studentId) {
-    setState(() {
-      final index = _students.indexWhere((s) => s['id'] == studentId);
-      if (index != -1) {
-        _students[index]['status'] = 'approved';
+  Future<void> _approveStudent(ClassMember student) async {
+    try {
+      final notifier = ref.read(classNotifierProvider.notifier);
+      await notifier.approveStudent(student.classId, student.studentId);
+      await _loadMembers();
+      if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Đã duyệt học sinh'),
+          content: const Text('Đã duyệt học sinh'),
             backgroundColor: DesignColors.success,
           ),
         );
-      }
-    });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: DesignColors.error,
+        ),
+      );
+    }
   }
 
   /// Từ chối học sinh
-  void _rejectStudent(String studentId) {
+  void _rejectStudent(ClassMember student) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -439,16 +576,8 @@ class _StudentListScreenState extends State<StudentListScreen> {
           ),
           TextButton(
             onPressed: () {
-              setState(() {
-                _students.removeWhere((s) => s['id'] == studentId);
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Đã từ chối học sinh'),
-                    backgroundColor: DesignColors.error,
-                  ),
-                );
-              });
+              _confirmRejectStudent(student);
             },
             child: Text(
               'Từ chối',
@@ -460,5 +589,44 @@ class _StudentListScreenState extends State<StudentListScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmRejectStudent(ClassMember student) async {
+    try {
+      final notifier = ref.read(classNotifierProvider.notifier);
+      await notifier.rejectStudent(student.classId, student.studentId);
+      await _loadMembers();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Đã từ chối học sinh'),
+          backgroundColor: DesignColors.error,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: DesignColors.error,
+        ),
+      );
+    }
+  }
+
+  String _mapGender(String? gender) {
+    switch (gender?.toLowerCase()) {
+      case 'male':
+      case 'nam':
+        return 'Nam';
+      case 'female':
+      case 'nu':
+      case 'nữ':
+        return 'Nữ';
+      case 'other':
+        return 'Khác';
+      default:
+        return 'Chưa rõ';
+    }
   }
 }
