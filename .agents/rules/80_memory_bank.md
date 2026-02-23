@@ -1,0 +1,61 @@
+# 80 — Memory Bank Workflow
+
+## Memory Bank = REAL FILES in `memory-bank/`
+**NOT an MCP tool.** Use file tools (`read_file`, `write_file`, `edit_file`) to interact.
+
+## File Hierarchy
+```
+memory-bank/
+  projectbrief.md      ← project scope, requirements, goals
+  productContext.md    ← why project exists, UX goals
+  systemPatterns.md    ← architecture, design patterns, component relations
+  techContext.md       ← tech stack, dependencies, dev setup
+  activeContext.md     ← current sprint focus, recent changes, decisions
+  progress.md          ← what works, what's left, known issues
+  DESIGN_SYSTEM_GUIDE.md ← design tokens, component standards
+```
+
+## Session Start (MANDATORY — read ALL before any task)
+```
+memory-bank/projectbrief.md
+memory-bank/productContext.md
+memory-bank/activeContext.md
+memory-bank/systemPatterns.md
+memory-bank/techContext.md
+memory-bank/progress.md
+```
+Read in parallel to save time.
+
+## Session End / After Significant Change (MANDATORY)
+Update these files:
+- `activeContext.md` → "Recently Completed" + "Current Sprint Focus"
+- `progress.md` → "What works" + current status
+- `systemPatterns.md` → add new patterns if any
+- `techContext.md` → update if dependencies/setup changed
+
+## Session Notes (`memory-bank/activeContext.md`)
+Append (never overwrite) after each session:
+```markdown
+## YYYY-MM-DDTHH:MMZ
+- Context: [feature/task, files touched]
+- Decisions: [key decisions made]
+- TODO: [remaining work]
+- Refs: [file paths]
+```
+
+## Update Triggers
+Update memory bank when:
+1. New project pattern discovered
+2. Significant code changes completed
+3. User requests "update memory bank"
+4. Context needs clarification for next session
+
+## New Markdown Files
+Before creating any `.md` in repo:
+1. Read `docs/DOCS_STRUCTURE.md` for naming/location rules
+2. Use kebab-case filenames
+3. Update `docs/DOCS_STRUCTURE.md` to register the new file
+4. Location:
+   - AI agent doc → `memory-bank/`
+   - Dev guide → `docs/guides/development/`
+   - Feature doc → `docs/guides/features/{feature}/`

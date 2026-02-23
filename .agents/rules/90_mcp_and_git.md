@@ -1,0 +1,73 @@
+# 90 — MCP Servers & Git Workflow
+
+## MCP Auto-Permission
+All MCP tools are auto-allowed: Fetch, Context7, Supabase, Dart, GitHub, Filesystem.
+
+## MCP Usage Guide
+
+| MCP | Use For | Don't Use For |
+|---|---|---|
+| **Supabase** | Query schema, apply migrations, check logs, manage edge functions | — |
+| **Context7** | Latest library/API docs (pub.dev) | Old cached knowledge |
+| **Fetch** | Docs/examples from web when Context7 not applicable | — |
+| **Dart** | Format code, analyze lint errors, code quality | Reading files (`view_file`), text search (`grep`) |
+| **GitHub** | Git ops (commits, branches, PRs) | Only when explicitly requested |
+| **Filesystem** | Read/write files, navigate codebase | — |
+
+## Supabase MCP
+Always use BEFORE:
+- Creating model/repository
+- Writing new RLS policy
+- Checking schema assumptions
+```sql
+-- schema check
+SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'target_table';
+```
+
+## Context7 / Fetch MCP
+Trigger conditions:
+- Library internal knowledge may be outdated (pre-2025)
+- Implementing new feature with unfamiliar API
+- User says "dùng MCP Fetch", "check bằng MCP", etc.
+
+Priority:
+1. Context7 MCP for known pub.dev packages
+2. Fetch MCP for specific URLs (pub.dev, riverpod.dev, official docs)
+
+## Dart MCP
+```bash
+# Format
+dart_format paths: ['lib/feature/file.dart']
+
+# Analyze
+dart_analyze_files paths: ['lib/feature/']
+```
+Run after writing code to verify quality.
+
+## Git Workflow
+
+### Commit Message Format
+```
+[type] brief description
+
+Types: feat | fix | refactor | perf | docs | test | chore
+```
+
+Examples:
+- `[feat] Add assignment builder screen`
+- `[fix] Fix auth state on tab refresh`
+- `[refactor] Extract drawer components`
+
+### Rules
+- One commit = one complete logical change
+- Run `flutter analyze` before commit, no critical errors
+- Don't commit: temp files, build artifacts, personal configs
+- Branch naming: `feat/feature-name`, `fix/bug-description`
+
+## Debug Workflow (Real-time Fix)
+1. Read `logs.txt` at root (latest runtime errors)
+2. Monitor terminal for: `Exception`, `Null check operator`, `RenderFlex overflowed`
+3. Stack trace → identify exact file + line
+4. Root cause: State management / UI constraint / Logic
+5. Fix aligned with project patterns (no breaking changes)
+6. Notify: "Hot Reload" or "Hot Restart" after fix

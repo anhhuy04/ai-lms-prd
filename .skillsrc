@@ -27,4 +27,6 @@ skills:
     ref: dart-v1.0.3
   common:
     ref: common-v1.3.0
-custom_overrides: []
+custom_overrides:
+  - supabase
+  - error-handling
