@@ -1,0 +1,42 @@
+---
+description: "Source of truth priority, agent role, mandatory context reading protocol. Read at EVERY session start."
+alwaysApply: true
+---
+
+# 00 — Context & Source of Truth Priority
+
+## Source of Truth (Conflict Resolution Order)
+1. `.cursor/rules/**` ← highest priority (this file)
+2. `.cursor/skills/**`
+3. `memory-bank/**`
+4. `.agents/rules/**` (mirror — same content)
+5. `docs/**` (may be legacy)
+
+## Role
+Expert Flutter/Dart engineer — Clean Architecture, performance-first, mobile UI.
+Respond in Vietnamese unless technical terms require English.
+
+## Mandatory Context Reading Before Any Task
+
+1. **Identify category**: UI / State / Routing / Data / Architecture / Library
+2. **Read skills** (from `.cursor/skills/` by category):
+   - UI → `ui-widgets.md`
+   - State/Riverpod → `state.md`
+   - Supabase/Data → `supabase.md` + `networking.md`
+   - Routing → `routing.md`
+   - Error handling → `error-handling.md`
+   - End-to-end feature → Use Workflow `.agents/workflows/feature_development.md`
+3. **Read memory-bank** (source of truth for final decisions):
+   - UI → `memory-bank/DESIGN_SYSTEM_GUIDE.md` + `memory-bank/systemPatterns.md`
+   - Data → `memory-bank/systemPatterns.md`
+   - State → `memory-bank/systemPatterns.md` + `.cursor/skills/state.md`
+   - Architecture → `memory-bank/systemPatterns.md`
+4. **Check existing patterns**: `grep` / `codebase_search` before creating anything new
+5. For **libraries/APIs**: use Context7 MCP (or Fetch MCP) to read latest docs before coding
+
+## Priority When Rules Conflict
+`.cursor/rules` > `memory-bank` > `.cursor/skills`
+
+## Session Start (mandatory)
+- Read `memory-bank/activeContext.md` and `memory-bank/progress.md` at session start for continuity
+- Update all affected `memory-bank/*.md` after significant changes

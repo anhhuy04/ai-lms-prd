@@ -1,0 +1,57 @@
+---
+description: "Index of all Cursor rules and skills. Read this to navigate the full rule system."
+alwaysApply: true
+---
+
+# Cursor Rules Index — AI LMS PRD
+
+## Source of Truth Priority
+1. `.cursor/rules/**` ← highest priority
+2. `.cursor/skills/**`
+3. `memory-bank/**`
+4. `.agents/rules/**` (mirror)
+
+## Rules Quick Navigation
+
+| File | Category | When to Read | Notes |
+|---|---|---|---|
+| `00_context_and_priority.mdc` | Context Protocol | Every session start | |
+| `10_tech_stack.mdc` | Libraries | Before any feature/library use | |
+| `20_architecture.mdc` | Clean Arch, MVVM | Before structural changes | |
+| `30_routing.mdc` | GoRouter, RBAC | Before any navigation work | |
+| `40_state.mdc` | Riverpod, AsyncNotifier | Before any state changes | |
+| `50_data_supabase.mdc` | Supabase, RLS, Data | Before DB/Data work | → xem thêm skill `supabase` + `error-handling` |
+| `60_ui_design.mdc` | Design Tokens, UI/UX | Before any UI work | |
+| `70_code_quality.mdc` | Error Prevention, Lint | Before every implementation | |
+| `80_memory_bank.mdc` | Memory Bank Workflow | Every session start/end | |
+| `90_mcp_and_git.mdc` | MCP, Git | For MCP usage + commits | |
+
+## Skills Quick Navigation
+
+| File | Trigger |
+|---|---|
+| `skills/architecture.md` | Thiết kế module mới, Clean Architecture |
+| `skills/state.md` | Riverpod, AsyncNotifier, providers |
+| `skills/routing.md` | GoRouter, navigation, RBAC |
+| `skills/networking.md` | Dio, Retrofit, interceptors |
+| `skills/supabase.md` | Supabase queries, RLS, Storage |
+| `skills/error-handling.md` | Exceptions, Sentry, error UI |
+| `skills/ui-widgets.md` | UI, layout, Design Tokens, performance |
+| `skills/dart-language.md` | Dart 3, Records, Sealed classes |
+| `skills/dependency-injection.md` | Riverpod DI, provider registration |
+| `skills/testing.md` | TDD, Mocktail, Robot Pattern |
+| `skills/cicd.md` | GitHub Actions, Fastlane, build/deploy |
+
+## Scenario → Rule Mapping
+
+- **Add new screen + route** → `30_routing.mdc` + `20_architecture.mdc` + `40_state.mdc`
+- **Supabase table/RLS** → `50_data_supabase.mdc` + `skills/supabase.md`
+- **UI component** → `60_ui_design.mdc` + `skills/ui-widgets.md`
+- **State/provider** → `40_state.mdc` + `skills/state.md`
+- **Error handling** → `skills/error-handling.md` + `90_mcp_and_git.mdc`
+- **New library** → `10_tech_stack.mdc` + `90_mcp_and_git.mdc`
+- **Debug/fix bug** → `70_code_quality.mdc` + `90_mcp_and_git.mdc`
+- **Refactor** → `20_architecture.mdc` + `70_code_quality.mdc`
+- **Splash/auth loop** → `30_routing.mdc` + `40_state.mdc`
+- **Tab refresh reset auth** → `40_state.mdc` (dashboard refresh guard)
+- **AsyncNotifier concurrency** → `40_state.mdc` (concurrency guards)

@@ -1,0 +1,75 @@
+---
+description: "Clean Architecture layer structure, naming conventions, widget modularization rules, composition pattern, error handling, drawer system."
+globs: ["lib/**/*.dart"]
+---
+
+# 20 — Architecture & Clean Code
+
+## Layer Structure (Clean Architecture)
+```
+domain/          ← entities, repository interfaces, use-cases
+data/            ← models (Freezed), repositories impl, datasources
+presentation/    ← views/, providers/ (Riverpod)
+core/            ← constants, routes, utils, widgets
+```
+- Repository interfaces: `domain/repositories/`
+- Implementations: `data/repositories/`
+- Read `memory-bank/systemPatterns.md` before any architectural change
+
+## Naming Conventions
+| Type | Convention | Example |
+|---|---|---|
+| Provider | `[feature]Provider` / `[feature]NotifierProvider` | `classListProvider` |
+| Screen | `[Feature]Screen` | `TeacherClassDetailScreen` |
+| Widget | `[Feature]Widget` | `ClassItemWidget` |
+| Utility | `[Feature]Helper` / `[Feature]Utils` | `QrHelper`, `DateUtils` |
+| Private builders | `_build[Name]()` | `_buildHeader()` |
+
+## Widget Modularization Rules
+- `build()` max **50 lines** → split into `_buildXxx()` private methods
+- Reused 2+ times → extract to standalone `StatelessWidget` in own file
+- Classes max **300 lines** → refactor or split
+- Always use `const` constructors when possible
+- Widget location:
+  - Shared/reusable: `lib/widgets/`
+  - Feature-specific: `lib/presentation/views/[feature]/widgets/`
+
+## Layer Boundaries (CRITICAL)
+- **Presentation** chỉ gọi tới **Domain** (interface Repo hoặc UseCase)
+- **Data** implement **Domain**, phụ thuộc Domain
+- **TUYỆT ĐỐI CẤM** Presentation import file từ Data layer
+- **TUYỆT ĐỐI CẤM** Data models chứa UI logic (Colors, TextStyles)
+
+## DTO vs Entity
+- API response rác → DTO (Data Layer) với `fromJson()`
+- DTO có hàm `toDomain()` → map thành Entity sạch (Domain Layer)
+
+## Widget Composition Pattern
+For 2+ similar list screens (>70% shared code), use Composition Pattern:
+```dart
+AssignmentListView(
+  assignments: filteredAssignments,
+  badgeConfig: AssignmentBadgeConfig.draft,
+  actionBuilder: (a) => AssignmentActionConfig(...),
+  emptyState: AssignmentEmptyState.draft(),
+  onRefresh: () => refresh(),
+)
+```
+
+## Error Handling
+- Never `print()` → use `AppLogger` (structured logging)
+- Wrap all critical flows with Sentry
+- `CancelToken` in Dio for search/fast-switching UI (race condition prevention)
+- Use `QrHelper` from `lib/core/utils/qr_helper.dart` for all QR generation
+
+## Drawer System
+```
+lib/widgets/drawers/
+  action_end_drawer.dart    ← base frame (always use as wrapper)
+  drawer_action_tile.dart
+  drawer_toggle_tile.dart
+  drawer_section_header.dart
+```
+Feature-specific drawers: `lib/presentation/views/[feature]/widgets/drawers/`
+- Drawer width: 340px
+- Use `DesignTokens` for all colors/spacing/typography
