@@ -64,3 +64,17 @@ Before creating any `.md` in repo:
    - AI agent doc → `memory-bank/`
    - Dev guide → `docs/guides/development/`
    - Feature doc → `docs/guides/features/{feature}/`
+
+## Session Notes (BẮT BUỘC sau mỗi phiên)
+Ghi tóm tắt phiên vào `docs/ai/session-notes.md` (append, không overwrite):
+
+```markdown
+## YYYY-MM-DDTHH:MMZ
+- Context: [feature/task, files touched]
+- Decisions: [key decisions made]
+- TODO: [remaining work]
+- Refs: [file paths]
+```
+
+- Khi tạo file lần đầu: tuân thủ quy tắc đặt tên markdown, cập nhật `docs/DOCS_STRUCTURE.md`
+- Chỉ xóa entry cũ khi có entry mới thay thế rõ ràng

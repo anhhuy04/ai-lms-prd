@@ -75,3 +75,24 @@ class TeacherDashboardScreen extends ConsumerStatefulWidget {
   const TeacherDashboardScreen({this.child, super.key});
 }
 ```
+
+## Migration: Navigator.push → GoRouter
+```dart
+// ❌ OLD
+Navigator.push(context, MaterialPageRoute(
+  builder: (context) => EditClassScreen(classItem: classItem),
+));
+
+// ✅ NEW
+context.goNamed(
+  AppRoute.teacherEditClass,
+  pathParameters: {'classId': classItem.id},
+  extra: classItem,
+);
+```
+
+## Những lỗi cần cấm rõ
+- ❌ Dùng `extra` cho ID (dùng `pathParameters` thay thế)
+- ❌ Hardcode URL string thay vì `goNamed + pathParameters`
+- ❌ Parse ID trong widget từ `ModalRoute` thay vì `state.pathParameters`
+- ❌ Để UI quyết định logic fetch: router chỉ pass ID, screen dùng provider để fetch

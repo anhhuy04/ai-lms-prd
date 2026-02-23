@@ -18,6 +18,7 @@ alwaysApply: true
 | `00_context_and_priority.mdc` | Context Protocol | Every session start | |
 | `10_tech_stack.mdc` | Libraries | Before any feature/library use | |
 | `20_architecture.mdc` | Clean Arch, MVVM | Before structural changes | |
+| `25_widget_organization.mdc` | Widgets, Drawer, HTML→Dart | Before UI/widget work | |
 | `30_routing.mdc` | GoRouter, RBAC | Before any navigation work | |
 | `40_state.mdc` | Riverpod, AsyncNotifier | Before any state changes | |
 | `50_data_supabase.mdc` | Supabase, RLS, Data | Before DB/Data work | → xem thêm skill `supabase` + `error-handling` |
@@ -46,7 +47,7 @@ alwaysApply: true
 
 - **Add new screen + route** → `30_routing.mdc` + `20_architecture.mdc` + `40_state.mdc`
 - **Supabase table/RLS** → `50_data_supabase.mdc` + `skills/supabase.md`
-- **UI component** → `60_ui_design.mdc` + `skills/ui-widgets.md`
+- **UI component** → `60_ui_design.mdc` + `25_widget_organization.mdc` + `skills/ui-widgets.md`
 - **State/provider** → `40_state.mdc` + `skills/state.md`
 - **Error handling** → `skills/error-handling.md` + `90_mcp_and_git.mdc`
 - **New library** → `10_tech_stack.mdc` + `90_mcp_and_git.mdc`

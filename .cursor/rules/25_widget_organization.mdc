@@ -1,0 +1,139 @@
+---
+description: "Cấu trúc thư mục lib/widgets/, drawer system, widget organization, HTML→Dart conversion mapping, Flutter refactoring rules."
+globs: ["lib/widgets/**/*.dart", "lib/presentation/views/**/*.dart"]
+---
+
+# 25 — Widget Organization, Drawer System & HTML→Dart
+
+## Cấu trúc thư mục widgets
+
+```
+lib/widgets/
+├── dialogs/          # Dialog widgets (error, success, warning, etc.)
+├── drawers/          # Shared drawer primitives
+├── list/             # List container widgets
+├── list_item/        # Individual list item widgets
+├── loading/          # Loading states (shimmer, skeletons)
+├── navigation/       # Navigation handlers và utilities
+├── responsive/       # Responsive layout widgets
+├── search/           # Search-related widgets
+└── text/             # Text utilities (highlight, marquee)
+```
+
+**Phân loại:**
+- `lib/widgets/` → shared/reusable UI (không chứa logic nghiệp vụ theo feature)
+- `lib/presentation/views/**/widgets/` → widget gắn với 1 feature/screen
+
+## Drawer System
+
+```
+lib/widgets/drawers/
+  action_end_drawer.dart        ← khung chung (LUÔN dùng làm wrapper)
+  drawer_section_header.dart    ← header cho các section
+  drawer_action_tile.dart       ← tile hành động
+  drawer_toggle_tile.dart       ← tile toggle (switch)
+```
+
+Feature-specific drawers:
+- `lib/presentation/views/class/teacher/widgets/drawers/class_settings_drawer.dart`
+- `lib/presentation/views/class/teacher/widgets/drawers/class_create_class_setting_drawer.dart`
+
+```dart
+// Cách dùng chuẩn
+Scaffold(
+  endDrawer: ActionEndDrawer(
+    title: 'Tùy chọn Lớp học',
+    subtitle: className,
+    child: ClassSettingsDrawer(
+      className: className,
+      semesterInfo: semesterInfo,
+      pendingStudentRequests: 3,
+    ),
+  ),
+  body: Builder(
+    builder: (context) => IconButton(
+      icon: const Icon(Icons.more_vert),
+      onPressed: () => Scaffold.of(context).openEndDrawer(),
+    ),
+  ),
+)
+```
+
+**Quy tắc Drawer:**
+- Luôn dùng `ActionEndDrawer` làm khung chung
+- Mỗi drawer nội dung phải là `StatelessWidget` riêng biệt
+- Drawer width: 340px
+- Dùng `DesignTokens` cho màu sắc, spacing, typography
+
+## Flutter Refactoring Rules
+
+### Modularization (NGUYÊN TẮC TÁCH NHỎ)
+- `build()` max **50 dòng** → tách thành `_buildXxx()` private methods
+- Widget tái sử dụng 2+ lần → tách thành file Component riêng
+- Class max **300 dòng** → refactor hoặc split
+
+### Naming Convention
+- Private builders: `_buildHeader()`, `_buildSubmitButton()`, `_buildInputField()`
+- Tên biến rõ ràng, tránh `data`, `container`, `item` chung chung
+- Widget riêng biệt: `CustomHeader`, `UserProfileCard`, `ClassItemWidget`
+
+### Cấu trúc chuẩn
+```dart
+// Widget đơn giản (< 50 dòng) → private method
+Widget _buildHeader(BuildContext context) {
+  return Container(...);
+}
+
+// Widget phức tạp hoặc tái sử dụng → class riêng
+class CustomHeader extends StatelessWidget {
+  const CustomHeader({required this.title, super.key});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => ...;
+}
+```
+
+## HTML → Dart Conversion Mapping
+
+Chỉ áp dụng khi được yêu cầu chuyển đổi HTML sang Flutter.
+
+### Thành phần cơ bản
+| HTML | Flutter Widget |
+|---|---|
+| `<div>` | `Container` hoặc `Column`/`Row` |
+| `<span>` | `Text` hoặc `RichText` |
+| `<button>` | `ElevatedButton`, `TextButton`, `IconButton` |
+| `<input>` | `TextField` hoặc `TextFormField` |
+| `<img>` | `Image.network`, `Image.asset`, `CircleAvatar` |
+| `<a>` | `TextButton` hoặc `InkWell` với `onTap` |
+| `<ul>/<ol>` | `ListView` hoặc `Column` với `ListTile` |
+| `<table>` | `DataTable` hoặc `Column`/`Row` lồng nhau |
+| `<form>` | `Form` với `GlobalKey<FormState>` |
+
+### Layout
+| HTML | Flutter |
+|---|---|
+| `class="row"` | `Row` với `mainAxisAlignment` |
+| `class="column"` | `Column` với `mainAxisAlignment` |
+| `class="grid"` | `GridView.count` hoặc `GridView.builder` |
+
+### Form & Input
+| HTML | Flutter |
+|---|---|
+| `<input type="text">` | `TextFormField` với `validator` |
+| `<input type="password">` | `TextFormField(obscureText: true)` |
+| `<input type="checkbox">` | `Checkbox` hoặc `CheckboxListTile` |
+| `<select>` | `DropdownButton` hoặc `DropdownButtonFormField` |
+| `<textarea>` | `TextFormField(maxLines: null)` |
+
+### Style
+| CSS | Flutter |
+|---|---|
+| `color: #ff0000` | `TextStyle(color: DesignColors.*)` |
+| `font-size: 16px` | `DesignTypography.*` |
+| `font-weight: bold` | `TextStyle(fontWeight: FontWeight.bold)` |
+| `padding: 16px` | `Padding(padding: EdgeInsets.all(DesignSpacing.md))` |
+| `display: none` | `Visibility(visible: false, child: ...)` |
+
+**Lưu ý khi convert:** Luôn dùng `DesignTokens` thay vì hardcode giá trị CSS.
