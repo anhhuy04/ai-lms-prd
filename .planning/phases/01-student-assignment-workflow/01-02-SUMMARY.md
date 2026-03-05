@@ -9,6 +9,7 @@ dependency-graph:
   provides:
     - workspace-screen
     - submission-history
+    - submission-repository
   affects:
     - student_assignment_providers
     - route_constants
@@ -21,25 +22,30 @@ tech-stack:
     - Optimistic UI updates
     - Concurrency guard pattern
     - Custom radio buttons (deprecated Flutter Radio widget)
+    - Clean Architecture separation (SubmissionRepository)
 key-files:
   created:
     - lib/presentation/providers/workspace_provider.dart
     - lib/presentation/views/assignment/student/student_assignment_workspace_screen.dart
     - lib/presentation/views/assignment/student/student_submission_confirm_screen.dart
     - lib/presentation/views/assignment/student/student_submission_history_screen.dart
+    - lib/domain/repositories/submission_repository.dart (NEW - 2026-03-05)
+    - lib/data/datasources/submission_datasource.dart (NEW - 2026-03-05)
+    - lib/data/repositories/submission_repository_impl.dart (NEW - 2026-03-05)
   modified:
     - lib/core/routes/route_constants.dart (add workspace and history routes)
     - lib/core/routes/app_router.dart (register new routes)
     - lib/presentation/views/assignment/student/student_assignment_detail_screen.dart (navigate to workspace)
 decisions:
-  - Use existing submission methods in AssignmentRepository (no new datasource needed)
   - Use easy_debounce for auto-save (already in pubspec.yaml)
   - Use custom radio buttons instead of deprecated Flutter Radio widget
   - Use go_router context.goNamed for navigation (not Navigator.push)
+  - Extract SubmissionRepository from AssignmentRepository for better separation of concerns
+  - SubmissionRepository provides dedicated methods for submission lifecycle management
 metrics:
   duration: N/A
   completed-date: 2026-03-05
-  files-created: 4
+  files-created: 7 (4 original + 3 new repository layer)
   files-modified: 3
 ---
 
