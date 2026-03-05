@@ -3,10 +3,13 @@ import 'package:ai_mls/domain/entities/class.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/assignment_list_screen.dart';
-import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_hub_screen.dart';
-import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_assignment_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/student/student_assignment_detail_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_ai_generate_question_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_hub_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_selection_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_assignment_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_question_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_distribute_assignment_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_draft_assignments_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_published_assignments_screen.dart';
 import 'package:ai_mls/presentation/views/auth/login_screen.dart';
@@ -20,6 +23,7 @@ import 'package:ai_mls/presentation/views/class/teacher/add_student_by_code_scre
 import 'package:ai_mls/presentation/views/class/teacher/create_class_screen.dart';
 import 'package:ai_mls/presentation/views/class/teacher/edit_class_screen.dart';
 import 'package:ai_mls/presentation/views/class/teacher/student_list_screen.dart';
+import 'package:ai_mls/presentation/views/class/teacher/teacher_assignment_detail_screen.dart';
 import 'package:ai_mls/presentation/views/class/teacher/teacher_class_detail_screen.dart';
 import 'package:ai_mls/presentation/views/class/teacher/teacher_class_list_screen.dart';
 import 'package:ai_mls/presentation/views/class/teacher/widgets/search/teacher_class_search_screen.dart';
@@ -50,12 +54,17 @@ import 'package:go_router/go_router.dart';
 /// - UI: context.goNamed('route-name', pathParameters: {...})
 /// - Logic: ref.read(routerProvider).goNamed(...)
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // Watch auth state to trigger router rebuild on auth changes
-  final currentUserAsync = ref.watch(currentUserProvider);
+  // Tạo Listenable để GoRouter biết khi nào cần re-evaluate redirect.
+  // KHÔNG dùng ref.watch vì nó sẽ tái tạo TOÀN BỘ GoRouter (reset về splash).
+  final authChangeNotifier = ValueNotifier<int>(0);
+  ref.listen(currentUserProvider, (_, __) {
+    authChangeNotifier.value++;
+  });
 
   return GoRouter(
     initialLocation: AppRoute.splashPath,
     debugLogDiagnostics: false,
+    refreshListenable: authChangeNotifier,
     redirect: (context, state) {
       final currentPath = state.matchedLocation;
 
@@ -64,6 +73,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           currentPath == AppRoute.noInternetPath) {
         return null;
       }
+
+      // Đọc auth state MỖI LẦN redirect chạy (không capture từ closure)
+      final currentUserAsync = ref.read(currentUserProvider);
 
       final profile = currentUserAsync.value;
       final isAuth = profile != null;
@@ -169,27 +181,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoute.studentDashboardPath,
             name: AppRoute.studentDashboard,
-            builder: (context, state) => const StudentHomeContentScreen(),
+            pageBuilder: (context, state) => FadeTransitionPage(
+              key: state.pageKey,
+              child: StudentHomeContentScreen(),
+            ),
           ),
           GoRoute(
             path: AppRoute.studentClassListPath,
             name: AppRoute.studentClassList,
-            builder: (context, state) => const StudentClassListScreen(),
+            pageBuilder: (context, state) => FadeTransitionPage(
+              key: state.pageKey,
+              child: StudentClassListScreen(),
+            ),
           ),
           GoRoute(
             path: AppRoute.studentScoresPath,
             name: AppRoute.studentScores,
-            builder: (context, state) => const ScoresScreen(),
+            pageBuilder: (context, state) =>
+                FadeTransitionPage(key: state.pageKey, child: ScoresScreen()),
           ),
           GoRoute(
             path: AppRoute.studentAssignmentListPath,
             name: AppRoute.studentAssignmentList,
-            builder: (context, state) => const AssignmentListScreen(),
+            pageBuilder: (context, state) => FadeTransitionPage(
+              key: state.pageKey,
+              child: AssignmentListScreen(),
+            ),
           ),
           GoRoute(
             path: AppRoute.studentProfilePath,
             name: AppRoute.studentProfile,
-            builder: (context, state) => const ProfileScreen(),
+            pageBuilder: (context, state) =>
+                FadeTransitionPage(key: state.pageKey, child: ProfileScreen()),
           ),
         ],
       ),
@@ -206,27 +229,40 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoute.teacherDashboardPath,
             name: AppRoute.teacherDashboard,
-            builder: (context, state) => const TeacherHomeContentScreen(),
+            pageBuilder: (context, state) => FadeTransitionPage(
+              key: state.pageKey,
+              child: TeacherHomeContentScreen(),
+            ),
           ),
           GoRoute(
             path: AppRoute.teacherClassListPath,
             name: AppRoute.teacherClassList,
-            builder: (context, state) => const TeacherClassListScreen(),
+            pageBuilder: (context, state) => FadeTransitionPage(
+              key: state.pageKey,
+              child: TeacherClassListScreen(),
+            ),
           ),
           GoRoute(
             path: AppRoute.teacherAssignmentHubPath,
             name: AppRoute.teacherAssignmentHub,
-            builder: (context, state) => const TeacherAssignmentHubScreen(),
+            pageBuilder: (context, state) => FadeTransitionPage(
+              key: state.pageKey,
+              child: TeacherAssignmentHubScreen(),
+            ),
           ),
           GoRoute(
             path: AppRoute.teacherAssignmentListPath,
             name: AppRoute.teacherAssignmentList,
-            builder: (context, state) => const AssignmentListScreen(),
+            pageBuilder: (context, state) => FadeTransitionPage(
+              key: state.pageKey,
+              child: AssignmentListScreen(),
+            ),
           ),
           GoRoute(
             path: AppRoute.teacherProfilePath,
             name: AppRoute.teacherProfile,
-            builder: (context, state) => const ProfileScreen(),
+            pageBuilder: (context, state) =>
+                FadeTransitionPage(key: state.pageKey, child: ProfileScreen()),
           ),
         ],
       ),
@@ -243,8 +279,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoute.adminDashboardPath,
             name: AppRoute.adminDashboard,
-            builder: (context, state) =>
-                const SizedBox.shrink(), // Shell handles it
+            pageBuilder: (context, state) => FadeTransitionPage(
+              key: state.pageKey,
+              child: SizedBox.shrink(), // Shell handles it
+            ),
           ),
         ],
       ),
@@ -299,6 +337,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      // Route assignment detail (standalone - no bottom nav)
+      GoRoute(
+        path: AppRoute.studentAssignmentDetailPath(':assignmentId'),
+        name: AppRoute.studentAssignmentDetail,
+        builder: (context, state) {
+          final assignmentId = state.pathParameters['assignmentId']!;
+          if (assignmentId.isEmpty) {
+            return const AssignmentListScreen();
+          }
+          return StudentAssignmentDetailScreen(assignmentId: assignmentId);
+        },
+      ),
+
       // ==================== TEACHER STANDALONE ROUTES ====================
       // Routes outside of teacher shell (no bottom nav)
       // Route create assignment (standalone - no bottom nav)
@@ -308,6 +359,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
           final assignmentId = extra?['assignmentId'] as String?;
+          return TeacherCreateAssignmentScreen(assignmentId: assignmentId);
+        },
+      ),
+      // Route edit assignment (standalone - no bottom nav)
+      GoRoute(
+        path: AppRoute.teacherEditAssignmentPath(':assignmentId'),
+        name: AppRoute.teacherEditAssignment,
+        builder: (context, state) {
+          final assignmentId = state.pathParameters['assignmentId'];
           return TeacherCreateAssignmentScreen(assignmentId: assignmentId);
         },
       ),
@@ -323,6 +383,37 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.teacherPublishedAssignments,
         builder: (context, state) => const TeacherPublishedAssignmentsScreen(),
       ),
+      // Route assignment selection (chọn nhiều bài tập để giao)
+      GoRoute(
+        path: AppRoute.teacherAssignmentSelectionPath,
+        name: AppRoute.teacherAssignmentSelection,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final isSelectionOnly = extra?['isSelectionOnly'] as bool? ?? false;
+          final initialSelectedIds =
+              extra?['initialSelectedIds'] as List<String>? ?? const [];
+          final selectedClassId = extra?['selectedClassId'] as String?;
+          return TeacherAssignmentSelectionScreen(
+            isSelectionOnly: isSelectionOnly,
+            initialSelectedIds: initialSelectedIds,
+            selectedClassId: selectedClassId,
+          );
+        },
+      ),
+      // Route distribute assignment (phân phối bài tập)
+      GoRoute(
+        path: AppRoute.teacherDistributeAssignmentPath,
+        name: AppRoute.teacherDistributeAssignment,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final assignmentId = extra?['assignmentId'] as String?;
+          final selectedClassId = extra?['selectedClassId'] as String?;
+          return TeacherDistributeAssignmentScreen(
+            assignmentId: assignmentId,
+            selectedClassId: selectedClassId,
+          );
+        },
+      ),
       // Route AI generate questions (standalone - no bottom nav)
       GoRoute(
         path: AppRoute.teacherAiGenerateQuestionPath,
@@ -330,9 +421,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
           final questions = extra?['questions'] as List<Map<String, dynamic>>?;
-          return TeacherAiGenerateQuestionScreen(
-            questions: questions,
-          );
+          return TeacherAiGenerateQuestionScreen(questions: questions);
         },
       ),
       // Route create question (standalone - no bottom nav)
@@ -414,6 +503,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      // Route assignment detail (standalone - no bottom nav)
+      GoRoute(
+        path: AppRoute.teacherAssignmentDetailPath(
+          ':classId',
+          ':distributionId',
+        ),
+        name: AppRoute.teacherAssignmentDetail,
+        builder: (context, state) {
+          final classId = state.pathParameters['classId']!;
+          final distributionId = state.pathParameters['distributionId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          return TeacherAssignmentDetailScreen(
+            classId: classId,
+            distributionId: distributionId,
+            assignmentTitle: extra?['assignmentTitle'] as String? ?? '',
+            className: extra?['className'] as String? ?? '',
+          );
+        },
+      ),
       // Note: teacherClassSearch is now inside ShellRoute, so this standalone route is removed
       // GoRoute(
       //   path: AppRoute.teacherClassSearchPath,
@@ -514,3 +622,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         Scaffold(body: Center(child: Text('Error: ${state.error}'))),
   );
 });
+
+/// Custom Page cho tab switches trong ShellRoute.
+/// Fade crossfade mượt 200ms — giống Instagram, Shopee, YouTube.
+/// Trang mới mờ dần hiện lên, trang cũ mờ dần biến mất.
+class FadeTransitionPage extends CustomTransitionPage<void> {
+  const FadeTransitionPage({super.key, required super.child})
+    : super(
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: const Duration(milliseconds: 200),
+        transitionsBuilder: _fadeTransition,
+      );
+
+  static Widget _fadeTransition(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: animation, curve: Curves.easeInOut),
+      child: child,
+    );
+  }
+}

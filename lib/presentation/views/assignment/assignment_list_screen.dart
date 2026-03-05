@@ -3,6 +3,9 @@ import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/assignment.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/assignment_providers.dart';
+import 'package:ai_mls/presentation/providers/student_assignment_providers.dart'
+    hide assignmentRepositoryProvider;
+import 'package:ai_mls/widgets/list_item/assignment/class_detail_assignment_list_item.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -185,45 +188,96 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
 
   /// Xây dựng view cho học sinh
   Widget _buildStudentView(String studentId) {
-    // TODO: Implement student assignment list
-    // Students get assignments through their classes
-    // For now, show a placeholder
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.assignment_outlined,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Danh sách bài tập',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
+    // Sử dụng studentAssignmentListProvider để lấy danh sách bài tập
+    final assignmentsAsync = ref.watch(studentAssignmentListProvider);
+
+    return assignmentsAsync.when(
+      loading: () => const ShimmerLoading(),
+      error: (error, _) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            Text(
+              'Lỗi khi tải danh sách bài tập',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Xem bài tập trong từng lớp học',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: () => ref.refresh(studentAssignmentListProvider),
+              child: const Text('Thử lại'),
             ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              context.goNamed(AppRoute.studentClassList);
-            },
-            icon: const Icon(Icons.class_outlined),
-            label: const Text('Xem lớp học'),
-          ),
-        ],
+          ],
+        ),
       ),
+      data: (assignments) {
+        if (assignments.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.assignment_outlined,
+                  size: 64,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Chưa có bài tập nào',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Bài tập sẽ hiển thị khi được giao',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    context.goNamed(AppRoute.studentClassList);
+                  },
+                  icon: const Icon(Icons.class_outlined),
+                  label: const Text('Xem lớp học'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(studentAssignmentListProvider);
+          },
+          child: ListView.builder(
+            padding: const EdgeInsets.all(DesignSpacing.md),
+            itemCount: assignments.length,
+            itemBuilder: (context, index) {
+              final assignment = assignments[index];
+              return ClassDetailAssignmentListItem(
+                assignment: assignment,
+                viewMode: AssignmentViewMode.student,
+                onTap: () {
+                  final distributionId = assignment['id']?.toString();
+                  if (distributionId != null) {
+                    context.pushNamed(
+                      AppRoute.studentAssignmentDetail,
+                      pathParameters: {'assignmentId': distributionId},
+                    );
+                  }
+                },
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -236,7 +290,7 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
         borderRadius: BorderRadius.circular(DesignRadius.md),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
