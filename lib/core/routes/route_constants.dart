@@ -92,6 +92,15 @@ class AppRoute {
   static String studentAssignmentDetailPath(String assignmentId) =>
       '/student/assignment/$assignmentId';
 
+  /// Student - Assignment workspace (làm bài tập)
+  static const String studentAssignmentWorkspace = 'student-assignment-workspace';
+  static String studentAssignmentWorkspacePath(String distributionId) =>
+      '/student/assignment/$distributionId/workspace';
+
+  /// Student - Submission history
+  static const String studentSubmissionHistory = 'student-submission-history';
+  static const String studentSubmissionHistoryPath = '/student/submissions/history';
+
   /// Student - Profile screen (within shell)
   static const String studentProfile = 'student-profile';
   static const String studentProfilePath = '/student/profile';
@@ -163,6 +172,20 @@ class AppRoute {
   static const String teacherPublishedAssignmentsPath =
       '/teacher/assignments/published';
 
+  /// Teacher - Select multiple assignments
+  static const String teacherAssignmentSelection =
+      'teacher-assignment-selection';
+  static const String teacherAssignmentSelectionPath =
+      '/teacher/assignment/select';
+
+  /// Teacher - Distribute assignment (phân phối bài tập)
+  static const String teacherDistributeAssignment =
+      'teacher-distribute-assignment';
+  static const String teacherDistributeAssignmentPath =
+      '/teacher/assignment/distribute';
+  static String teacherDistributeAssignmentWithIdPath(String assignmentId) =>
+      '/teacher/assignment/$assignmentId/distribute';
+
   /// Teacher - Create question
   static const String teacherCreateQuestion = 'teacher-create-question';
   static const String teacherCreateQuestionPath =
@@ -187,6 +210,13 @@ class AppRoute {
   static const String teacherGradeSubmission = 'teacher-grade-submission';
   static String teacherGradeSubmissionPath(String submissionId) =>
       '/teacher/submission/$submissionId/grade';
+
+  /// Teacher - Assignment Detail (distribution view cho 1 lớp cụ thể)
+  static const String teacherAssignmentDetail = 'teacher-assignment-detail';
+  static String teacherAssignmentDetailPath(
+    String classId,
+    String distributionId,
+  ) => '/teacher/class/$classId/assignment/$distributionId';
 
   // ==================== ADMIN ROUTES ====================
   // Routes specific to admin role (if needed)
@@ -296,6 +326,8 @@ class AppRoute {
       studentQrScan,
       studentAssignmentList,
       studentAssignmentDetail,
+      studentAssignmentWorkspace,
+      studentSubmissionHistory,
       studentScores,
       studentDashboard,
       profile,
@@ -321,10 +353,13 @@ class AppRoute {
       teacherCreateAssignment,
       teacherDraftAssignments,
       teacherPublishedAssignments,
+      teacherDistributeAssignment,
       teacherCreateQuestion,
       teacherEditAssignment,
       teacherGrading,
       teacherGradeSubmission,
+      teacherAssignmentDetail,
+      studentAssignmentDetail, // Allow teachers to preview assignment detail
       teacherDashboard,
       profile,
       editProfile,

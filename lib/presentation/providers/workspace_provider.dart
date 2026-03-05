@@ -1,0 +1,433 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:ai_mls/core/services/supabase_service.dart';
+import 'package:ai_mls/core/utils/app_logger.dart';
+import 'package:ai_mls/presentation/providers/auth_notifier.dart';
+import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
+import 'package:easy_debounce/easy_debounce.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+part 'workspace_provider.g.dart';
+
+/// Trạng thái lưu trữ
+enum SavingStatus {
+  /// Chưa lưu
+  idle,
+
+  /// Đang lưu
+  saving,
+
+  /// Đã lưu
+  saved,
+
+  /// Lỗi khi lưu
+  error,
+}
+
+/// Trạng thái nộp bài
+enum WorkspaceSubmissionStatus {
+  /// Đang làm bài (draft)
+  inProgress,
+
+  /// Đang nộp
+  submitting,
+
+  /// Đã nộp thành công
+  submitted,
+
+  /// Lỗi khi nộp
+  error,
+}
+
+/// State cho workspace
+@riverpod
+class WorkspaceNotifier extends _$WorkspaceNotifier {
+  @override
+  AsyncValue<WorkspaceState> build(String distributionId) {
+    return const AsyncLoading();
+  }
+
+  /// Concurrency guard
+  bool _isUpdating = false;
+
+  /// Debounce timer cho auto-save
+  Timer? _debounceTimer;
+
+  /// Khởi tạo workspace - load assignment và submission
+  Future<void> initialize() async {
+    if (_isUpdating) return;
+    _isUpdating = true;
+
+    try {
+      state = const AsyncLoading();
+
+      final repo = ref.read(assignmentRepositoryProvider);
+      final auth = ref.read(authNotifierProvider);
+      final studentId = auth.value?.id;
+
+      if (studentId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Load distribution detail và submission
+      final detail = await repo.getDistributionDetail(distributionId);
+      final submission = await repo.getOrCreateSubmission(distributionId, studentId);
+
+      // Extract questions from detail
+      final assignment = detail['assignments'] as Map<String, dynamic>? ?? {};
+      final questions = assignment['assignment_questions'] as List<dynamic>? ?? [];
+
+      // Extract existing answers
+      final existingAnswers = submission?['answers'] as Map<String, dynamic>? ?? {};
+      final uploadedFiles = submission?['uploaded_files'] as List<dynamic>? ?? [];
+
+      final wsState = WorkspaceState(
+        distributionId: distributionId,
+        assignmentTitle: assignment['title'] as String? ?? 'Bài tập',
+        totalPoints: (assignment['total_points'] as num?)?.toDouble(),
+        dueAt: detail['due_at'] != null
+            ? DateTime.tryParse(detail['due_at'] as String)
+            : null,
+        questions: questions.map((q) => QuestionState.fromJson(q as Map<String, dynamic>)).toList(),
+        answers: Map<String, dynamic>.from(existingAnswers),
+        uploadedFiles: List<String>.from(uploadedFiles),
+        submissionStatus: submission?['status'] == 'submitted'
+            ? WorkspaceSubmissionStatus.submitted
+            : WorkspaceSubmissionStatus.inProgress,
+        savingStatus: SavingStatus.idle,
+      );
+
+      state = AsyncData(wsState);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [WORKSPACE ERROR] initialize: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      state = AsyncError(e, stackTrace);
+    } finally {
+      _isUpdating = false;
+    }
+  }
+
+  /// Cập nhật câu trả lời cho một câu hỏi
+  void updateAnswer(String questionId, dynamic answer) {
+    final currentState = state.valueOrNull;
+    if (currentState == null) return;
+
+    // Optimistic update
+    final newAnswers = Map<String, dynamic>.from(currentState.answers);
+    newAnswers[questionId] = answer;
+
+    state = AsyncData(currentState.copyWith(
+      answers: newAnswers,
+      savingStatus: SavingStatus.idle,
+    ));
+
+    // Auto-save after 2 seconds
+    _debounceTimer?.cancel();
+    EasyDebounce.debounce(
+      'workspace-autosave',
+      const Duration(seconds: 2),
+      () => _saveDraft(),
+    );
+  }
+
+  /// Lưu bản nháp (auto-save hoặc manual)
+  Future<void> _saveDraft() async {
+    final currentState = state.valueOrNull;
+    if (currentState == null) return;
+    if (currentState.submissionStatus != WorkspaceSubmissionStatus.inProgress) return;
+
+    state = AsyncData(currentState.copyWith(savingStatus: SavingStatus.saving));
+
+    try {
+      final repo = ref.read(assignmentRepositoryProvider);
+      final auth = ref.read(authNotifierProvider);
+      final studentId = auth.value?.id;
+
+      if (studentId == null) return;
+
+      await repo.saveSubmissionDraft(
+        distributionId,
+        studentId,
+        currentState.answers,
+        currentState.uploadedFiles,
+      );
+
+      final savedState = state.valueOrNull;
+      if (savedState != null) {
+        state = AsyncData(savedState.copyWith(savingStatus: SavingStatus.saved));
+
+        // Reset to idle after 2 seconds
+        Future.delayed(const Duration(seconds: 2), () {
+          final s = state.valueOrNull;
+          if (s != null) {
+            state = AsyncData(s.copyWith(savingStatus: SavingStatus.idle));
+          }
+        });
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [WORKSPACE ERROR] _saveDraft: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      final errorState = state.valueOrNull;
+      if (errorState != null) {
+        state = AsyncData(errorState.copyWith(savingStatus: SavingStatus.error));
+      }
+    }
+  }
+
+  /// Upload file lên Supabase Storage
+  Future<String?> uploadFile(File file, {void Function(double progress)? onProgress}) async {
+    final currentState = state.valueOrNull;
+    if (currentState == null) return null;
+
+    try {
+      final client = SupabaseService.client;
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) throw Exception('User not authenticated');
+
+      // Generate unique file name
+      final fileName = '${userId}_${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
+
+      // Upload with progress tracking
+      await client.storage.from('submissions').uploadBinary(
+        fileName,
+        await file.readAsBytes(),
+        fileOptions: FileOptions(
+          contentType: _getContentType(file.path),
+          upsert: false,
+        ),
+      );
+
+      // Get public URL
+      final publicUrl = client.storage.from('submissions').getPublicUrl(fileName);
+
+      // Update state with new file
+      final newFiles = List<String>.from(currentState.uploadedFiles)..add(publicUrl);
+      state = AsyncData(currentState.copyWith(uploadedFiles: newFiles));
+
+      // Save draft with new file
+      await _saveDraft();
+
+      return publicUrl;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [WORKSPACE ERROR] uploadFile: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
+  }
+
+  /// Xóa file đã upload
+  void removeFile(String fileUrl) {
+    final currentState = state.valueOrNull;
+    if (currentState == null) return;
+
+    final newFiles = currentState.uploadedFiles.where((f) => f != fileUrl).toList();
+    state = AsyncData(currentState.copyWith(uploadedFiles: newFiles));
+
+    // Save draft
+    _saveDraft();
+  }
+
+  /// Nộp bài tập
+  Future<bool> submit() async {
+    final currentState = state.valueOrNull;
+    if (currentState == null) return false;
+    if (currentState.submissionStatus != WorkspaceSubmissionStatus.inProgress) return false;
+
+    _debounceTimer?.cancel();
+
+    // Force save draft before submitting
+    state = AsyncData(currentState.copyWith(savingStatus: SavingStatus.saving));
+
+    try {
+      state = AsyncData(currentState.copyWith(
+        submissionStatus: WorkspaceSubmissionStatus.submitting,
+      ));
+
+      final repo = ref.read(assignmentRepositoryProvider);
+      final auth = ref.read(authNotifierProvider);
+      final studentId = auth.value?.id;
+
+      if (studentId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await repo.submitAssignment(distributionId, studentId);
+
+      state = AsyncData(currentState.copyWith(
+        submissionStatus: WorkspaceSubmissionStatus.submitted,
+        savingStatus: SavingStatus.saved,
+      ));
+
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [WORKSPACE ERROR] submit: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      state = AsyncData(currentState.copyWith(
+        submissionStatus: WorkspaceSubmissionStatus.error,
+        savingStatus: SavingStatus.error,
+      ));
+      return false;
+    }
+  }
+
+  String _getContentType(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+}
+
+/// State cho workspace
+class WorkspaceState {
+  final String distributionId;
+  final String assignmentTitle;
+  final double? totalPoints;
+  final DateTime? dueAt;
+  final List<QuestionState> questions;
+  final Map<String, dynamic> answers;
+  final List<String> uploadedFiles;
+  final WorkspaceSubmissionStatus submissionStatus;
+  final SavingStatus savingStatus;
+
+  const WorkspaceState({
+    required this.distributionId,
+    required this.assignmentTitle,
+    this.totalPoints,
+    this.dueAt,
+    required this.questions,
+    required this.answers,
+    required this.uploadedFiles,
+    required this.submissionStatus,
+    required this.savingStatus,
+  });
+
+  WorkspaceState copyWith({
+    String? distributionId,
+    String? assignmentTitle,
+    double? totalPoints,
+    DateTime? dueAt,
+    List<QuestionState>? questions,
+    Map<String, dynamic>? answers,
+    List<String>? uploadedFiles,
+    WorkspaceSubmissionStatus? submissionStatus,
+    SavingStatus? savingStatus,
+  }) {
+    return WorkspaceState(
+      distributionId: distributionId ?? this.distributionId,
+      assignmentTitle: assignmentTitle ?? this.assignmentTitle,
+      totalPoints: totalPoints ?? this.totalPoints,
+      dueAt: dueAt ?? this.dueAt,
+      questions: questions ?? this.questions,
+      answers: answers ?? this.answers,
+      uploadedFiles: uploadedFiles ?? this.uploadedFiles,
+      submissionStatus: submissionStatus ?? this.submissionStatus,
+      savingStatus: savingStatus ?? this.savingStatus,
+    );
+  }
+
+  /// Số câu hỏi đã trả lời
+  int get answeredCount {
+    int count = 0;
+    for (final question in questions) {
+      final answer = answers[question.id];
+      if (answer != null) {
+        if (answer is String && answer.isNotEmpty) {
+          count++;
+        } else if (answer is List && answer.isNotEmpty) {
+          count++;
+        } else if (answer is! String) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  /// Tổng số câu hỏi
+  int get totalQuestions => questions.length;
+}
+
+/// State cho một câu hỏi
+class QuestionState {
+  final String id;
+  final String content;
+  final String type;
+  final double points;
+  final List<QuestionChoiceState> choices;
+
+  const QuestionState({
+    required this.id,
+    required this.content,
+    required this.type,
+    required this.points,
+    required this.choices,
+  });
+
+  factory QuestionState.fromJson(Map<String, dynamic> json) {
+    final question = json['questions'] as Map<String, dynamic>? ?? json;
+
+    return QuestionState(
+      id: question['id'] as String? ?? '',
+      content: question['content'] as String? ?? '',
+      type: question['type'] as String? ?? 'multiple_choice',
+      points: (question['points'] as num?)?.toDouble() ?? 1.0,
+      choices: (question['question_choices'] as List<dynamic>? ?? [])
+          .map((c) => QuestionChoiceState.fromJson(c as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
+/// State cho một lựa chọn trong câu hỏi trắc nghiệm
+class QuestionChoiceState {
+  final String id;
+  final String content;
+  final bool isCorrect;
+
+  const QuestionChoiceState({
+    required this.id,
+    required this.content,
+    required this.isCorrect,
+  });
+
+  factory QuestionChoiceState.fromJson(Map<String, dynamic> json) {
+    return QuestionChoiceState(
+      id: json['id'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+      isCorrect: json['is_correct'] as bool? ?? false,
+    );
+  }
+}

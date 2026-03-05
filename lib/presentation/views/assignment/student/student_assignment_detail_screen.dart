@@ -1,8 +1,10 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Màn hình chi tiết bài tập dành cho học sinh.
 /// Hiển thị thông tin bài tập, danh sách câu hỏi, và nút bắt đầu làm bài.
@@ -592,11 +594,10 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
             onPressed: isSubmitted
                 ? null
                 : () {
-                    // TODO: Navigate to workspace
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Đang chuyển đến workspace...'),
-                      ),
+                    // Navigate to workspace with distributionId
+                    context.goNamed(
+                      AppRoute.studentAssignmentWorkspace,
+                      pathParameters: {'distributionId': assignmentId},
                     );
                   },
             style: ElevatedButton.styleFrom(

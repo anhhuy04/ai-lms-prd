@@ -4,6 +4,8 @@ import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/assignment_list_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/student/student_assignment_detail_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/student/student_assignment_workspace_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/student/student_submission_history_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_ai_generate_question_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_hub_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_selection_screen.dart';
@@ -347,6 +349,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return const AssignmentListScreen();
           }
           return StudentAssignmentDetailScreen(assignmentId: assignmentId);
+        },
+      ),
+
+      // Route assignment workspace (làm bài tập)
+      GoRoute(
+        path: AppRoute.studentAssignmentWorkspacePath(':distributionId'),
+        name: AppRoute.studentAssignmentWorkspace,
+        builder: (context, state) {
+          final distributionId = state.pathParameters['distributionId']!;
+          return StudentAssignmentWorkspaceScreen(distributionId: distributionId);
+        },
+      ),
+
+      // Route submission history
+      GoRoute(
+        path: AppRoute.studentSubmissionHistoryPath,
+        name: AppRoute.studentSubmissionHistory,
+        builder: (context, state) {
+          return const StudentSubmissionHistoryScreen();
         },
       ),
 
