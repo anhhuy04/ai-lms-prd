@@ -79,7 +79,7 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
   void _restoreScrollPosition() {
     final teacherId = ref.read(currentUserIdProvider);
     // #region agent log
-    if (kDebugMode && Platform.isWindows) {
+    if (kDebugMode && !kIsWeb && Platform.isWindows) {
       try {
         final logFile = File(
           'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
@@ -107,7 +107,7 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
     if (teacherId != null && _scrollController.hasClients) {
       final savedPosition = ref.read(scrollPositionProvider(teacherId));
       // #region agent log
-      if (kDebugMode && Platform.isWindows) {
+      if (kDebugMode && !kIsWeb && Platform.isWindows) {
         try {
           final logFile = File(
             'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
@@ -150,7 +150,7 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
     final currentUserAsync = ref.watch(currentUserProvider);
 
     // #region agent log
-    if (kDebugMode && Platform.isWindows) {
+    if (kDebugMode && !kIsWeb && Platform.isWindows) {
       try {
         final logFile = File(
           'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
@@ -207,7 +207,7 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
 
     // Watch providers
     // #region agent log
-    if (kDebugMode && Platform.isWindows) {
+    if (kDebugMode && !kIsWeb && Platform.isWindows) {
       try {
         final logFile = File(
           'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
@@ -237,7 +237,7 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
     final searchQuery = ref.watch(searchQueryProvider);
 
     // #region agent log
-    if (kDebugMode && Platform.isWindows) {
+    if (kDebugMode && !kIsWeb && Platform.isWindows) {
       try {
         final logFile = File(
           'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
@@ -372,7 +372,7 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
                 pagingController.refresh();
               } catch (e) {
                 // #region agent log
-                if (kDebugMode && Platform.isWindows) {
+                if (kDebugMode && !kIsWeb && Platform.isWindows) {
                   try {
                     final logFile = File(
                       'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
@@ -405,7 +405,7 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
               builderDelegate: PagedChildBuilderDelegate<Class>(
                 itemBuilder: (context, classItem, index) {
                   // #region agent log
-                  if (kDebugMode && Platform.isWindows) {
+                  if (kDebugMode && !kIsWeb && Platform.isWindows) {
                     try {
                       final logFile = File(
                         'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',

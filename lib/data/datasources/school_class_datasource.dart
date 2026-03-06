@@ -292,7 +292,11 @@ class SchoolClassDataSource {
               .eq('status', 'approved');
 
           // OR filter cho nhiều class_id
-          membersQuery = _applyOrFilter(membersQuery, 'class_id', uniqueClassIds);
+          membersQuery = _applyOrFilter(
+            membersQuery,
+            'class_id',
+            uniqueClassIds,
+          );
 
           final membersResponse = await membersQuery;
 
@@ -347,7 +351,26 @@ class SchoolClassDataSource {
 
   /// Lấy thông tin lớp học theo ID
   Future<Map<String, dynamic>?> getClassById(String classId) async {
-    return await _classesDataSource.getById(classId);
+    final classData = await _classesDataSource.getById(classId);
+    if (classData == null) return null;
+
+    try {
+      final countResponse = await _client
+          .from('class_members')
+          .select('class_id')
+          .eq('class_id', classId)
+          .eq('status', 'approved');
+
+      classData['student_count'] = (countResponse as List).length;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] getClassById: Lỗi khi đếm số học sinh: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      classData['student_count'] = 0;
+    }
+    return classData;
   }
 
   /// Cập nhật lớp học

@@ -17,6 +17,8 @@ Future<void> routeGuardLog({
   // Logging này chỉ phục vụ debug; tuyệt đối không chạy trong release/profile
   // vì gây I/O + network => dễ jank khi chuyển route/tab.
   if (!kDebugMode) return;
+   // On web, dart:io Platform APIs throw, so skip host file logging.
+  if (kIsWeb) return;
 
   final logEntry = {
     'sessionId': 'debug-session',

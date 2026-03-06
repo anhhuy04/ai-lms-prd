@@ -284,9 +284,9 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen>
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
+        color: Colors.black.withValues(alpha:0.3),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+        border: Border.all(color: Colors.white.withValues(alpha:0.2), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -429,7 +429,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: DesignColors.primary.withOpacity(0.8),
+                  color: DesignColors.primary.withValues(alpha: 0.8),
                   blurRadius: 8,
                   spreadRadius: 1,
                 ),
@@ -455,7 +455,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen>
               shadows: [
                 Shadow(
                   blurRadius: 8,
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha:0.5),
                   offset: const Offset(0, 2),
                 ),
               ],
@@ -466,11 +466,11 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen>
             'Đảm bảo mã QR nằm trong khung và đủ ánh sáng',
             textAlign: TextAlign.center,
             style: DesignTypography.bodySmall.copyWith(
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha:0.8),
               shadows: [
                 Shadow(
                   blurRadius: 6,
-                  color: Colors.black.withOpacity(0.4),
+                  color: Colors.black.withValues(alpha:0.4),
                   offset: const Offset(0, 1),
                 ),
               ],
@@ -505,7 +505,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen>
                 backgroundColor: Colors.white,
                 foregroundColor: DesignColors.primary,
                 elevation: 4,
-                shadowColor: Colors.black.withOpacity(0.3),
+                shadowColor: Colors.black.withValues(alpha:0.3),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(DesignRadius.lg),
                 ),
@@ -699,7 +699,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen>
   Widget _buildProcessingOverlay() {
     return Positioned.fill(
       child: Container(
-        color: Colors.black.withOpacity(0.7),
+        color: Colors.black.withValues(alpha:0.7),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -725,7 +725,7 @@ class QRScanOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black.withOpacity(0.6)
+      ..color = Colors.black.withValues(alpha:0.6)
       ..style = PaintingStyle.fill;
 
     final path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));

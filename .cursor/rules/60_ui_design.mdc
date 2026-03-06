@@ -34,6 +34,9 @@ Khoảng cách dùng `Gap(16)`, không dùng `SizedBox(height: 16)` hay `Padding
 - Device type checks: `DesignBreakpoints.*`
 
 ## Loading States (Mandatory UX)
+
+### 3.1 Shimmer Loading - When to use
+
 No blank/spinner-only screens for list/page loads:
 ```dart
 // ✅ List với avatars + text
@@ -49,6 +52,73 @@ ShimmerDashboardLoading()
 CircularProgressIndicator(strokeWidth: 2)
 ```
 All shimmer widgets: `lib/widgets/loading/shimmer_loading.dart`
+
+### 3.2 Separate Loading Section - IMPORTANT
+
+**PRINCIPLE:** When creating a new screen with data loading:
+- Header, title, search bar, filters → NOT loaded together
+- Only the content/list section should be loaded
+
+**How to implement:**
+
+```dart
+// ❌ WRONG - Entire screen loads together
+Scaffold(
+  body: FutureBuilder(
+    future: apiCall(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return ShimmerLoading(); // Loads header too!
+      }
+      return Column(children: [
+        Header(), // Gets loaded together
+        ListView(), // Gets loaded together
+      ]);
+    }
+  )
+)
+
+// ✅ CORRECT - Separate loading section
+Scaffold(
+  body: Column(
+    children: [
+      // Header - SHOWS IMMEDIATELY, no loading
+      _buildHeader(),
+
+      // Only the list/content is loaded
+      Expanded(
+        child: _ContentSection() // Separate widget with FutureBuilder
+      ),
+    ]
+  )
+)
+
+// Separate widget for loading section
+class _ContentSection extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder(
+      future: ref.read(repoProvider).getData(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Padding(
+            padding: EdgeInsets.all(DesignSpacing.lg),
+            child: ShimmerLoading(), // Only shimmer content
+          );
+        }
+        return ListView(...);
+      }
+    );
+  }
+}
+```
+
+### 3.3 Important Rules
+
+1. **Separate widget** for data loading section (usually named `_XxxListSection`)
+2. Use `ConsumerWidget` or `ConsumerStatefulWidget` to access providers
+3. **Shimmer only wraps** the list/content, not header/search
+4. Use **Design tokens** for both header and content (consistent colors/spacing)
 
 ## Search Highlighting
 ```dart

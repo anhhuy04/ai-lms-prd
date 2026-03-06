@@ -120,17 +120,17 @@ class _TeacherDashboardScreenState
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-      backgroundColor: DesignColors.moonLight,
+        backgroundColor: DesignColors.moonLight,
         extendBody: true, // Cho phép body extend lên status bar
         body: SafeArea(
           top: true,
           bottom: false,
-          minimum: EdgeInsets.zero, // Không có minimum padding
+          minimum: EdgeInsets.zero,
           child: isShellRoute
-          ? widget.child!
-          : IndexedStack(index: _selectedIndex, children: _pages),
+              ? widget.child!
+              : IndexedStack(index: _selectedIndex, children: _pages),
         ),
-      bottomNavigationBar: _buildBottomBar(currentSelectedIndex),
+        bottomNavigationBar: _buildBottomBar(currentSelectedIndex),
       ),
     );
   }

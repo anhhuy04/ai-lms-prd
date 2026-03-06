@@ -1,0 +1,407 @@
+```
+---
+description: "Tech Vision Workflow - Biến ý tưởng thành tech stack, phát hiện xung đột hệ thống, tự động cập nhật memory-bank"
+alwaysApply: true
+---
+
+# /ag/plan — Tech Vision Workflow
+
+> **Role:** Tech Architect - Biến ý tưởng thành công nghệ, đánh giá compatibility, phát hiện xung đột
+
+---
+
+## CORE CONCEPT
+
+### Điều KHÁC BIỆT với kế hoạch truyền thống:
+- **KHÔNG phải:** 6-12 tháng roadmap, feature list, timeline
+- **LÀ:** Tầm nhìn công nghệ - các hệ thống có xung đột không? Công nghệ có compatible không? Cần gì để build?
+
+### Mục tiêu:
+1. **Input:** Ý tưởng/tính năng từ user
+2. **Process:** AI phân tích → đề xuất tech stack → kiểm tra conflicts → đánh giá compatibility
+3. **Output:** Tech decisions được bổ sung vào memory-bank
+
+---
+
+## STAGE 1: Load Memory Bank (BẮT BUỘC)
+
+### 1.1 Đọc các files quan trọng:
+
+| File | Mục đích |
+|------|----------|
+| `memory-bank/techContext.md` | Tech stack hiện tại, dependencies |
+| `memory-bank/systemPatterns.md` | Architecture patterns, design system |
+| `memory-bank/progress.md` | Trạng thái project, features đã có |
+| `memory-bank/activeContext.md` | Focus hiện tại |
+
+### 1.2 Extract Current State:
+
+```markdown
+## Current Tech Stack
+- Flutter + Dart: [versions]
+- State: [Riverpod/Provider]
+- Backend: [Supabase]
+- Key packages: [list]
+
+## Architecture
+- Clean Architecture layers: [Domain/Data/Presentation]
+- Pattern: [Repository, Datasource]
+
+## What's Built
+- [Feature 1] → [Status]
+- [Feature 2] → [Status]
+```
+
+---
+
+## STAGE 2: Interactive Idea Refinement (VÒNG LẶP)
+
+### 2.1 Prompt User for Ideas
+
+User cung cấp ý tưởng. Có thể:
+- Tính năng mới ("tôi muốn thêm AI grading")
+- Vấn đề ("app chậm khi có nhiều students")
+- Yêu cầu ("cần offline mode")
+- Cải tiến ("muốn cải thiện performance")
+
+### 2.2 AI Analysis & Expansion (TỰ ĐỘNG)
+
+Với mỗi ý tưởng, AI TỰ SUY NGHĨ để bổ sung:
+
+```markdown
+## 💡 Idea: [User's Idea]
+
+### 🔍 AI Analysis - TỰ ĐỘNG
+
+#### Tech Requirements (AI tự suy nghĩ)
+- Cần gì để implement: [packages, services, patterns]
+- Alternative solutions: [options với pros/cons]
+- Dependencies: [packages cần thêm]
+
+#### Compatibility Check
+- ✅ Compatible với: [existing tech]
+- ⚠️ Potential conflicts: [what might conflict]
+- ❌ Not recommended: [reasons]
+
+#### Missing from Memory-Bank
+- [ ] [Tech/pattern] - cần thêm vào techContext.md
+- [ ] [Pattern] - cần thêm vào systemPatterns.md
+
+#### Risk Assessment
+- [Risk]: [Mitigation]
+```
+
+### 2.3 Ask User for Decision
+
+```markdown
+## 🤝 Decision Needed
+
+### Options for "[Idea]"
+1. **Option A:** [Tech choice] - [reason]
+2. **Option B:** [Tech choice] - [reason]
+
+### Questions:
+- [ ] [Question 1]
+- [ ] [Question 2]
+
+→ **CHỜ USER TRẢ LỜI**
+```
+
+### 2.4 Loop Until Clear
+
+Lặp lại 2.1-2.3 cho đến khi user nói "đủ rồi" hoặc "tiếp tục"
+
+---
+
+## STAGE 3: System Conflict Detection
+
+### 3.1 Technology Conflicts
+
+Với các tech đã chọn, kiểm tra:
+
+```markdown
+## 🚨 Tech Conflicts
+
+| Tech A | Tech B | Conflict | Solution |
+|--------|--------|----------|----------|
+| [Riverpod] | [GetX] | Both state management | Stick with Riverpod |
+| [Supabase] | [Firebase] | Both backend | Choose one |
+| [Drift] | [Hive] | Both local DB | Use Drift (SQL) |
+```
+
+### 3.2 Architecture Conflicts
+
+```markdown
+## 🏗️ Architecture Conflicts
+
+- [Pattern 1] vs [Pattern 2]: [issue] → [resolution]
+- [Layer] responsibility: [ambiguous] → [clarify]
+```
+
+### 3.3 Data Flow Conflicts
+
+```markdown
+## 🔄 Data Flow Conflicts
+
+- [Flow A] → [Flow B]: [circular dependency?]
+- State sharing: [how to share between features]
+```
+
+### 3.4 Future Compatibility
+
+```markdown
+## 🔮 Future Compatibility
+
+### With Planned Features
+- [Feature A] + [This Feature]: [compatible/not compatible]
+- [Feature B] + [This Feature]: [issues]
+
+### Scalability
+- Will this scale with: [users/data/features]
+- Bottlenecks: [what could be issues]
+```
+
+---
+
+## STAGE 4: Generate Tech Vision Document
+
+### 4.1 Create/Update Document
+
+Lưu vào `memory-bank/tech-vision/`:
+- Tên file: `[feature]-vision.md`
+- Hoặc cập nhật `memory-bank/techContext.md` nếu là core tech
+
+### 4.2 Document Template
+
+```markdown
+# Tech Vision: [Feature/Idea Name]
+Date: [YYYY-MM-DD]
+Status: [Draft/Approved]
+
+## 🎯 Goal
+[What user wants to achieve]
+
+## 🏗️ Proposed Architecture
+
+### Technology Stack
+| Component | Choice | Reason |
+|-----------|--------|--------|
+| Frontend | [Flutter] | [reasons] |
+| State | [Riverpod] | [reasons] |
+| Backend | [Supabase] | [reasons] |
+| [Component] | [Choice] | [reason] |
+
+### Data Flow
+```
+[User Action] → [Provider] → [Repository] → [DataSource] → [Backend]
+```
+
+### Key Patterns
+- [Pattern 1]: [how it works]
+- [Pattern 2]: [how it works]
+
+## ⚔️ Conflicts Resolved
+
+| Issue | Resolution |
+|-------|------------|
+| [Conflict 1] | [How resolved] |
+| [Conflict 2] | [How resolved] |
+
+## 🔮 Future Compatibility
+- With [Feature A]: [status]
+- With [Feature B]: [status]
+- Scalability: [assessment]
+
+## 📦 Dependencies Needed
+
+### New Packages
+```yaml
+dependencies:
+  - [package]: ^version  # [reason]
+dev_dependencies:
+  - [package]: ^version  # [reason]
+```
+
+### Backend Changes
+- [ ] [Table/API/Function needed]
+
+## 🔄 Integration Points
+
+| With Feature | Integration | Notes |
+|--------------|-------------|-------|
+| [Feature A] | [how] | [notes] |
+| [Feature B] | [how] | [notes] |
+
+## ⚠️ Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| [Risk] | [Low/Med/High] | [Low/Med/High] | [How to mitigate] |
+
+## ✅ Next Steps (Optional)
+- [ ] Research [tech]
+- [ ] Create prototype
+- [ ] Add to [memory-bank file]
+- [ ] Run /ag/setupplan for implementation
+
+## 🔗 Related Memory-Bank Files
+- [techContext.md] - Updated
+- [systemPatterns.md] - Updated
+- [progress.md] - Updated
+```
+
+---
+
+## STAGE 5: Auto-Update Memory-Bank
+
+### 5.1 Update techContext.md
+
+Nếu có tech mới, thêm vào section phù hợp:
+
+```markdown
+### [Feature] Tech Stack (Added: [Date])
+- **[Package]:** [version] - [purpose]
+```
+
+### 5.2 Update systemPatterns.md
+
+Nếu có pattern mới:
+
+```markdown
+## [Pattern Name] (Added: [Date])
+- **When to use:** [scenarios]
+- **Implementation:** [link to example]
+```
+
+### 5.3 Update progress.md
+
+```markdown
+## Tech Vision: [Feature]
+- Status: [Draft/Approved]
+- Proposed by: [user/date]
+- Tech decisions: [summary]
+```
+
+### 5.4 Update activeContext.md
+
+Nếu cần:
+
+```markdown
+## Planning
+- [Feature]: Tech vision [draft/approved]
+```
+
+---
+
+## OUTPUT FORMAT
+
+```markdown
+# 🎯 TECH VISION COMPLETE
+
+## Input
+- **Idea:** [User's original idea]
+- **Goal:** [What they want to achieve]
+
+## 🏗️ Tech Stack Proposed
+| Component | Choice | Reason |
+|-----------|--------|--------|
+| [Component] | [Choice] | [Reason] |
+
+## ⚔️ Conflicts Resolved
+- [ ] [Conflict] → [Solution]
+
+## 🔮 Future Compatibility
+- With [Feature A]: [compatible/issues]
+- Scalability: [assessment]
+
+## 📦 Dependencies to Add
+```yaml
+dependencies:
+  - [package]: ^version
+```
+
+## 💾 Memory-Bank Updates
+- [ ] `techContext.md`: Added [tech]
+- [ ] `systemPatterns.md`: Added [pattern]
+- [ ] `tech-vision/[name].md`: Created
+- [ ] `progress.md`: Updated
+
+## ⚠️ Risks
+- [Risk]: [Mitigation]
+
+## ✅ Ready for Next Step
+- [ ] Review tech vision
+- [ ] Approve to proceed
+- [ ] Run /ag/setupplan (optional - for implementation)
+```
+
+---
+
+## EXAMPLE
+
+### Input
+User: "Tôi muốn thêm tính năng chat realtime giữa teacher và student"
+
+### AI Analysis (Auto)
+```markdown
+## 💡 Idea: Real-time Chat
+
+### 🔍 AI Analysis - TỰ ĐỘNG
+
+#### Tech Requirements
+- Real-time communication: Supabase Realtime hoặc WebSocket
+- Chat database: messages table, conversations table
+- State management: Riverpod stream provider
+
+#### Tech Options
+1. **Supabase Realtime** - Native, no extra cost, works with existing backend
+2. **Custom WebSocket** - More control, needs Edge Function + separate server
+3. **Firebase Cloud Messaging** - Extra service, not recommended
+
+#### Compatibility
+- ✅ Works with: Riverpod, Supabase Auth
+- ✅ Works with existing: GoRouter, Clean Architecture
+- ⚠️ Need: New RLS policies for messages table
+
+#### Conflicts
+- None detected with current stack
+
+#### Missing from Memory-Bank
+- [ ] Realtime subscription pattern - need to add to systemPatterns.md
+- [ ] Chat database schema - need to document in techContext.md
+- [ ] Stream provider pattern - need to add examples
+
+→ Ask user: "Supabase Realtime (free, native) hay custom WebSocket?"
+```
+
+---
+
+## SENIOR ARCHITECT CHECKLIST
+
+Before completion:
+- [ ] Đã load memory-bank files?
+- [ ] Đã phân tích tech requirements?
+- [ ] Đã đề xuất options với pros/cons?
+- [ ] Đã kiểm tra compatibility với existing stack?
+- [ ] Đã kiểm tra future compatibility với planned features?
+- [ ] Đã phát hiện conflicts?
+- [ ] Đã tạo vision document?
+- [ ] Đã update memory-bank files?
+- [ ] Đã ask user for decision trên critical choices?
+
+---
+
+## QUICK REFERENCE
+
+| Step | Action |
+|------|--------|
+| 1 | Load memory-bank files (techContext, systemPatterns, progress) |
+| 2 | User provides idea |
+| 3 | AI analyzes and expands (TỰ ĐỘNG) |
+| 4 | Ask user for decisions |
+| 5 | Loop until clear |
+| 6 | Detect conflicts (tech, architecture, data flow) |
+| 7 | Check future compatibility |
+| 8 | Generate vision doc in memory-bank/tech-vision/ |
+| 9 | Auto-update memory-bank files |
+| 10 | Report completion |

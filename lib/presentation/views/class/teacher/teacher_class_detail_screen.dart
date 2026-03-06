@@ -1,17 +1,26 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/presentation/providers/assignment_providers.dart';
 import 'package:ai_mls/presentation/providers/class_notifier.dart';
 import 'package:ai_mls/presentation/views/class/teacher/widgets/drawers/class_settings_drawer.dart';
 import 'package:ai_mls/widgets/drawers/action_end_drawer.dart';
 import 'package:ai_mls/widgets/list/class_detail_assignment_list.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/search/dialogs/quick_search_dialog.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+/// Filter bài tập theo loại phân phối
+enum AssignmentDistributionFilter {
+  all('Tất cả', Icons.list_alt),
+  byClass('Cả lớp', Icons.class_),
+  byGroup('Theo nhóm', Icons.group),
+  byIndividual('Cá nhân', Icons.person);
+
+  final String label;
+  final IconData icon;
+  const AssignmentDistributionFilter(this.label, this.icon);
+}
 
 /// Màn hình chi tiết lớp học dành cho giáo viên
 /// Thiết kế theo chuẩn Design System với đầy đủ thông tin lớp học
@@ -34,98 +43,21 @@ class TeacherClassDetailScreen extends ConsumerStatefulWidget {
 
 class _TeacherClassDetailScreenState
     extends ConsumerState<TeacherClassDetailScreen> {
-  // State cho tìm kiếm
-  final String _searchQuery = '';
+  // State cho filter bài tập
+  AssignmentDistributionFilter _selectedFilter =
+      AssignmentDistributionFilter.all;
 
   @override
   void initState() {
     super.initState();
-    // #region agent log
-    if (kDebugMode && Platform.isWindows) {
-      try {
-        final logFile = File(
-          'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-        );
-        // ignore: discarded_futures
-        logFile
-            .writeAsString(
-              '${jsonEncode({
-                "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-                "timestamp": DateTime.now().millisecondsSinceEpoch,
-                "location": "teacher_class_detail_screen.dart:35",
-                "message": "TeacherClassDetailScreen initState",
-                "data": {"classId": widget.classId, "className": widget.className, "semesterInfo": widget.semesterInfo},
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "F",
-              })}\n',
-              mode: FileMode.append,
-              flush: false,
-            )
-            .catchError((_) => logFile);
-      } catch (_) {}
-    }
-    // #endregion
     // Load class details khi màn hình khởi tạo
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // #region agent log
-      if (kDebugMode && Platform.isWindows) {
-        try {
-          final logFile = File(
-            'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-          );
-          // ignore: discarded_futures
-          logFile
-              .writeAsString(
-                '${jsonEncode({
-                  "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-                  "timestamp": DateTime.now().millisecondsSinceEpoch,
-                  "location": "teacher_class_detail_screen.dart:39",
-                  "message": "About to load class details",
-                  "data": {"classId": widget.classId, "mounted": mounted},
-                  "sessionId": "debug-session",
-                  "runId": "run1",
-                  "hypothesisId": "F",
-                })}\n',
-                mode: FileMode.append,
-                flush: false,
-              )
-              .catchError((_) => logFile);
-        } catch (_) {}
-      }
-      // #endregion
       if (mounted) {
         try {
           ref
               .read(classNotifierProvider.notifier)
               .loadClassDetails(widget.classId)
               .catchError((error, stackTrace) {
-                // #region agent log
-                if (kDebugMode && Platform.isWindows) {
-                  try {
-                    final logFile = File(
-                      'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-                    );
-                    // ignore: discarded_futures
-                    logFile
-                        .writeAsString(
-                          '${jsonEncode({
-                            "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-                            "timestamp": DateTime.now().millisecondsSinceEpoch,
-                            "location": "teacher_class_detail_screen.dart:50",
-                            "message": "Error loading class details",
-                            "data": {"classId": widget.classId, "error": error.toString(), "stackTrace": stackTrace.toString()},
-                            "sessionId": "debug-session",
-                            "runId": "run1",
-                            "hypothesisId": "F",
-                          })}\n',
-                          mode: FileMode.append,
-                          flush: false,
-                        )
-                        .catchError((_) => logFile);
-                  } catch (_) {}
-                }
-                // #endregion
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -137,34 +69,7 @@ class _TeacherClassDetailScreenState
                   );
                 }
               });
-        } catch (e, stackTrace) {
-          // #region agent log
-          if (kDebugMode && Platform.isWindows) {
-            try {
-              final logFile = File(
-                'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
-              );
-              // ignore: discarded_futures
-              logFile
-                  .writeAsString(
-                    '${jsonEncode({
-                      "id": "log_${DateTime.now().millisecondsSinceEpoch}",
-                      "timestamp": DateTime.now().millisecondsSinceEpoch,
-                      "location": "teacher_class_detail_screen.dart:65",
-                      "message": "Exception in loadClassDetails call",
-                      "data": {"classId": widget.classId, "error": e.toString(), "stackTrace": stackTrace.toString()},
-                      "sessionId": "debug-session",
-                      "runId": "run1",
-                      "hypothesisId": "F",
-                    })}\n',
-                    mode: FileMode.append,
-                    flush: false,
-                  )
-                  .catchError((_) => logFile);
-            } catch (_) {}
-          }
-          // #endregion
-        }
+        } catch (_) {}
       }
     });
   }
@@ -201,7 +106,7 @@ class _TeacherClassDetailScreenState
         builder: (context) {
           // Loading state
           if (isDetailLoading && selectedClass == null) {
-            return SafeArea(child: const ShimmerDashboardLoading());
+            return SafeArea(child: const ShimmerClassDetailLoading());
           }
 
           // Error state
@@ -306,7 +211,13 @@ class _TeacherClassDetailScreenState
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
-        border: Border(bottom: BorderSide(color: theme.dividerColor, width: 1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            offset: const Offset(0, 2),
+            blurRadius: 4,
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -346,7 +257,7 @@ class _TeacherClassDetailScreenState
                 Text(
                   classItem.subject ?? classItem.academicYear ?? '',
                   style: textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurface.withOpacity(0.7),
+                    color: colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -402,9 +313,27 @@ class _TeacherClassDetailScreenState
 
   /// Hàng thống kê nhanh
   Widget _buildQuickStatsRow(BuildContext context) {
-    // TODO: Tính approvedCount từ getClassMembers khi cần
-    // Tạm thời dùng 0, sẽ tính sau khi có cache members trong ClassNotifier
-    final approvedCount = 0;
+    // Watch assignments provider để tính stats
+    final assignmentsAsync = ref.watch(
+      classDistributedAssignmentsProvider(widget.classId),
+    );
+    final approvedCount = 0; // TODO: từ getClassMembers
+
+    // Tính số bài tập đang mở từ real data
+    final openCount =
+        assignmentsAsync.whenOrNull(
+          data: (assignments) {
+            final now = DateTime.now();
+            return assignments.where((a) {
+              final dueAt = a['distribution_due_at'] as String?;
+              if (dueAt == null) return true; // Không có hạn → đang mở
+              final due = DateTime.tryParse(dueAt);
+              return due == null || due.isAfter(now);
+            }).length;
+          },
+        ) ??
+        0;
+
     return Row(
       children: [
         Expanded(
@@ -415,7 +344,6 @@ class _TeacherClassDetailScreenState
             value: '$approvedCount',
             label: 'Học sinh',
             onTap: () {
-              // Navigate to student list using GoRouter
               context.goNamed(
                 AppRoute.teacherStudentList,
                 pathParameters: {'classId': widget.classId},
@@ -430,10 +358,9 @@ class _TeacherClassDetailScreenState
             context: context,
             icon: Icons.assignment,
             iconColor: Colors.orange,
-            value: '0', // Tạm thời hiển thị 0 (chưa có bảng assignments)
+            value: '$openCount',
             label: 'Bài tập đang mở',
             onTap: () {
-              // Navigate to assignment list using GoRouter
               context.go(AppRoute.teacherAssignmentListPath);
             },
           ),
@@ -444,11 +371,9 @@ class _TeacherClassDetailScreenState
             context: context,
             icon: Icons.check_circle,
             iconColor: Colors.green,
-            value: '0%', // Tạm thời hiển thị 0% (chưa có bảng submissions)
+            value: '0%',
             label: 'Tỷ lệ nộp bài',
             onTap: () {
-              // TODO: Navigate to submission stats - Future work
-              // Màn hình thống kê nộp bài chưa được implement
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
@@ -482,10 +407,9 @@ class _TeacherClassDetailScreenState
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: theme.dividerColor, width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -501,7 +425,7 @@ class _TeacherClassDetailScreenState
                 Icon(
                   Icons.chevron_right,
                   size: 18,
-                  color: colorScheme.onSurface.withOpacity(0.4),
+                  color: colorScheme.onSurface.withValues(alpha: 0.4),
                 ),
               ],
             ),
@@ -516,7 +440,7 @@ class _TeacherClassDetailScreenState
             Text(
               label,
               style: textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurface.withOpacity(0.7),
+                color: colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
           ],
@@ -533,18 +457,14 @@ class _TeacherClassDetailScreenState
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [colorScheme.primary.withOpacity(0.1), colorScheme.surface],
+          colors: [colorScheme.primary.withValues(alpha: 0.1), colorScheme.surface],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.primary.withOpacity(0.2),
-          width: 1,
-        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -557,7 +477,7 @@ class _TeacherClassDetailScreenState
             height: 28,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: colorScheme.primary.withOpacity(0.2),
+              color: colorScheme.primary.withValues(alpha: 0.2),
             ),
             child: Icon(Icons.add_task, size: 22, color: colorScheme.primary),
           ),
@@ -576,7 +496,7 @@ class _TeacherClassDetailScreenState
                 Text(
                   'Giao bài về nhà hoặc bài kiểm tra',
                   style: textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurface.withOpacity(0.7),
+                    color: colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -597,8 +517,11 @@ class _TeacherClassDetailScreenState
               ),
             ),
             onPressed: () {
-              // Navigate to assignment list (placeholder for create flow)
-              context.pushNamed(AppRoute.teacherAssignmentList);
+              // Navigate to assignment selection for distribution
+              context.pushNamed(
+                AppRoute.teacherAssignmentSelection,
+                extra: {'selectedClassId': widget.classId},
+              );
             },
             child: const Text('Tạo ngay'),
           ),
@@ -616,6 +539,9 @@ class _TeacherClassDetailScreenState
         children: [
           // Header danh sách
           _buildAssignmentListHeader(),
+          const SizedBox(height: 8),
+          // Filter chips
+          _buildFilterChipBar(),
           const SizedBox(height: 12),
           // Danh sách bài tập
           _buildAssignmentList(context),
@@ -637,8 +563,7 @@ class _TeacherClassDetailScreenState
         ),
         TextButton(
           onPressed: () {
-            // Navigate to all assignments
-            context.pushNamed(AppRoute.teacherAssignmentList);
+            context.goNamed(AppRoute.teacherAssignmentList);
           },
           child: Text(
             'Xem tất cả',
@@ -649,124 +574,180 @@ class _TeacherClassDetailScreenState
     );
   }
 
-  /// Danh sách bài tập
-  Widget _buildAssignmentList(BuildContext context) {
-    // Dữ liệu mẫu cho danh sách bài tập
-    final List<Map<String, dynamic>> sampleAssignments = [
-      {
-        'id': '1',
-        'title': 'Toán Đại Số - Chương 1: Hàm Số',
-        'dueDate': 'Hôm nay, 23:59',
-        'status': 'active',
-        'submitted': 25,
-        'totalStudents': 45,
-        'graded': 10,
-        'ungraded': 15,
-        'icon': 'calculate',
-        'classInfo': 'Lớp 10A1',
-      },
-      {
-        'id': '2',
-        'title': 'Ngữ Văn - Phân tích tác phẩm',
-        'dueDate': '15/10/2023',
-        'status': 'new',
-        'submitted': 12,
-        'totalStudents': 38,
-        'graded': 0,
-        'ungraded': 12,
-        'icon': 'menu_book',
-        'classInfo': 'Lớp 11B2',
-      },
-      {
-        'id': '3',
-        'title': 'Vật Lý - Bài tập Quang học',
-        'dueDate': '15/10/2023',
-        'status': 'closed',
-        'submitted': 40,
-        'totalStudents': 40,
-        'graded': 40,
-        'ungraded': 0,
-        'icon': 'science',
-        'classInfo': 'Lớp 12A5',
-      },
-    ];
-
-    return ClassDetailAssignmentList(
-      assignments: sampleAssignments,
-      viewMode: AssignmentViewMode.teacher,
-      onItemTap: (assignment) {
-        // TODO: Navigate to assignment detail - Future work
-        // Màn hình chi tiết bài tập chưa được implement
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Chi tiết bài tập "${assignment['title']}" đang được phát triển',
+  /// Filter chip bar cho loại phân phối bài tập
+  Widget _buildFilterChipBar() {
+    final colorScheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: AssignmentDistributionFilter.values.map((filter) {
+          final isSelected = _selectedFilter == filter;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              selected: isSelected,
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    filter.icon,
+                    size: 16,
+                    color: isSelected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(filter.label),
+                ],
+              ),
+              labelStyle: TextStyle(
+                fontSize: 12,
+                color: isSelected
+                    ? colorScheme.onPrimary
+                    : colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+              selectedColor: colorScheme.primary,
+              checkmarkColor: colorScheme.onPrimary,
+              backgroundColor: colorScheme.surface,
+              side: BorderSide(
+                color: isSelected
+                    ? colorScheme.primary
+                    : colorScheme.outline.withValues(alpha: 0.3),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              showCheckmark: false,
+              onSelected: (_) {
+                setState(() => _selectedFilter = filter);
+              },
             ),
-          ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  /// Danh sách bài tập — real data từ Supabase với shimmer loading
+  Widget _buildAssignmentList(BuildContext context) {
+    final assignmentsAsync = ref.watch(
+      classDistributedAssignmentsProvider(widget.classId),
+    );
+
+    return assignmentsAsync.when(
+      loading: () => const ShimmerAssignmentListLoading(),
+      error: (error, _) => _buildAssignmentErrorState(context, error),
+      data: (rawAssignments) {
+        // Apply filter
+        final assignments = _applyDistributionFilter(rawAssignments);
+
+        return ClassDetailAssignmentList(
+          assignments: assignments,
+          viewMode: AssignmentViewMode.teacher,
+          onItemTap: (assignment) {
+            final distributionId = assignment['distribution_id'] as String?;
+            if (distributionId == null) return;
+            context.pushNamed(
+              AppRoute.teacherAssignmentDetail,
+              pathParameters: {
+                'classId': widget.classId,
+                'distributionId': distributionId,
+              },
+              extra: {
+                'assignmentTitle': assignment['title'] as String? ?? '',
+                'className': widget.className,
+              },
+            );
+          },
         );
       },
     );
   }
 
-  /// Hiển thị Smart Search Dialog V2 - Thiết kế mới
+  /// Filter assignments theo distribution_type
+  List<Map<String, dynamic>> _applyDistributionFilter(
+    List<Map<String, dynamic>> assignments,
+  ) {
+    if (_selectedFilter == AssignmentDistributionFilter.all) {
+      return assignments;
+    }
+    final typeMap = {
+      AssignmentDistributionFilter.byClass: 'class',
+      AssignmentDistributionFilter.byGroup: 'group',
+      AssignmentDistributionFilter.byIndividual: 'individual',
+    };
+    final targetType = typeMap[_selectedFilter];
+    return assignments
+        .where((a) => a['distribution_type'] == targetType)
+        .toList();
+  }
+
+  /// Error state cho danh sách bài tập
+  Widget _buildAssignmentErrorState(BuildContext context, Object error) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: colorScheme.error),
+            const SizedBox(height: 12),
+            Text(
+              'Không thể tải danh sách bài tập',
+              style: TextStyle(fontSize: 14, color: colorScheme.error),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: () {
+                ref.invalidate(
+                  classDistributedAssignmentsProvider(widget.classId),
+                );
+              },
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Thử lại'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Hiển thị Smart Search Dialog V2 — dùng real data từ provider
   void _showSmartSearchDialog(BuildContext context) {
-    // Dữ liệu bài tập từ danh sách hiện có
-    final List<Map<String, dynamic>> assignments = [
-      {
-        'id': '1',
-        'title': 'Toán Đại Số - Chương 1: Hàm Số',
-        'subtitle': 'Lớp 10A1 • Hôm nay, 23:59',
-      },
-      {
-        'id': '2',
-        'title': 'Ngữ Văn - Phân tích tác phẩm',
-        'subtitle': 'Lớp 11B2 • 15/10/2023',
-      },
-      {
-        'id': '3',
-        'title': 'Vật Lý - Bài tập Quang học',
-        'subtitle': 'Lớp 12A5 • 15/10/2023',
-      },
-    ];
-
-    // Dữ liệu học sinh
-    final List<Map<String, dynamic>> students = [
-      {'id': '1', 'title': 'Nguyễn Văn An', 'subtitle': 'Lớp 12A1'},
-      {'id': '2', 'title': 'Trần Thị Bích', 'subtitle': 'Lớp 11A3'},
-      {'id': '3', 'title': 'Lê Minh Cường', 'subtitle': 'Lớp 9A1'},
-    ];
-
-    // Dữ liệu lớp học
-    final List<Map<String, dynamic>> classes = [
-      {
-        'id': '1',
-        'title': 'Lớp 10A1 - Toán',
-        'subtitle': 'Giáo viên: Nguyễn Văn A',
-      },
-      {
-        'id': '2',
-        'title': 'Lớp 11B2 - Ngữ Văn',
-        'subtitle': 'Giáo viên: Trần Thị B',
-      },
-      {
-        'id': '3',
-        'title': 'Lớp 12A5 - Vật Lý',
-        'subtitle': 'Giáo viên: Lê Minh C',
-      },
-    ];
+    // Lấy real assignments data (nếu đã load)
+    final assignmentsAsync = ref.read(
+      classDistributedAssignmentsProvider(widget.classId),
+    );
+    final searchAssignments =
+        assignmentsAsync.whenOrNull(
+          data: (list) => list
+              .map(
+                (a) => <String, dynamic>{
+                  'id': a['id'],
+                  'title': a['title'] ?? 'Không có tiêu đề',
+                  'subtitle':
+                      '${widget.className} • ${a['distribution_due_at'] ?? 'Không hạn'}',
+                },
+              )
+              .toList(),
+        ) ??
+        <Map<String, dynamic>>[];
 
     showDialog(
       context: context,
       barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.6),
-      builder: (context) => QuickSearchDialog(
-        initialQuery: _searchQuery,
-        assignments: assignments,
-        students: students,
-        classes: classes,
+      builder: (dialogContext) => QuickSearchDialog(
+        initialQuery: '',
+        assignments: searchAssignments,
+        students: const [], // TODO: kết nối student data sau
+        classes: const [], // Đang ở trong chi tiết 1 lớp, không cần search lớp
         onItemSelected: (item) {
-          if (context.canPop()) {
-            context.pop();
+          if (dialogContext.canPop()) {
+            dialogContext.pop();
           }
           ScaffoldMessenger.of(
             context,

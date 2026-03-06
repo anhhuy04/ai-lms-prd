@@ -1,0 +1,89 @@
+```
+---
+description: "QUICK REFERENCE - Router đến đúng file, tránh đọc trùng lặp"
+alwaysApply: true
+---
+
+# QUICK REFERENCE - Tránh Đọc Trùng
+
+## Mapping: Need → Right File
+
+| Bạn cần | → Đọc file này | KHÔNG cần đọc |
+|---------|---------------|----------------|
+| **Riverpod/State** | `40_state.mdc` | skills/state.md (trùng) |
+| **UI/Layout** | `60_ui_design.mdc` | skills/ui-widgets.md (trùng) |
+| **Routing** | `30_routing.mdc` | skills/routing.md (trùng) |
+| **Architecture** | `20_architecture.mdc` | skills/architecture.md (trùng) |
+| **Supabase** | `50_data_supabase.mdc` | skills/supabase.md (trùng) |
+| **MCP/Git** | `90_mcp_and_git.mdc` | - |
+| **Code Quality** | `70_code_quality.mdc` | - |
+| **Memory Bank** | `80_memory_bank.mdc` | - |
+| **Tech Stack** | `10_tech_stack.mdc` | - |
+| **Widget Org** | `25_widget_organization.mdc` | - |
+
+---
+
+## Quy Tắc Đọc
+
+### ✅ Rules files (`.cursor/rules/`) = PRIMARY
+- Chi tiết, cụ thể cho project này
+- Luôn ưu tiên đọc trước
+
+### ❌ Skills files (`.cursor/skills/`) = REFERENCE ONLY
+- Chỉ đọc khi KHÔNG tìm thấy trong rules
+- Hoặc đọc thêm để hiểu sâu hơn
+
+---
+
+## Đọc Theo Workflow
+
+### Autonomy Path A (Bug Fix):
+```
+CORE_ROLE → 90_mcp_and_git.mdc → logs.txt → root cause → fix
+```
+
+### Autonomy Path B (Vague):
+```
+CORE_ROLE → memory-bank/* → hỏi user
+```
+
+### Autonomy Path C (Well-Defined):
+```
+CORE_ROLE → this file → Xác định files cần đọc → tasks/todo.md
+```
+
+### /ag/plan (Tech Vision - Plugin):
+```
+CORE_ROLE → .claude/plugins/plan-workflow/workflows/tech_vision.md
+→ Đọc memory-bank → User provides idea
+→ AI analyzes & expands → Ask decisions
+→ Detect conflicts → Generate tech vision
+→ Auto-update memory-bank
+```
+
+**Plugin:** plan-workflow v1.0.0
+**Output:** `memory-bank/tech-vision/[name].md`
+
+### /ag/setupplan (Screen Planning - Plugin):
+```
+CORE_ROLE → .claude/plugins/plan-workflow/workflows/setup_plan.md
+→ Đọc 6 memory-bank + DB Schema
+→ DB Analysis + Logic Analysis
+→ Design System Sync + UI Template Transformer
+→ Cross-Reference + Generate Spec
+→ Update memory-bank
+```
+
+**Plugin:** plan-workflow v1.0.0
+**Features:** DB Analysis, Logic Analysis, Design Sync, UI Transformer
+**Output:** `memory-bank/plan/[screen].md` + `lib/widgets/generated/`
+
+---
+
+## Files Ít Đọc Nhất (Generic)
+- `skills/networking.md` - Chỉ khi cần Dio/Retrofit custom
+- `skills/dart-language.md` - Chỉ khi dùng Dart 3 features lạ
+- `skills/dependency-injection.md` - Đã có trong rules
+- `skills/error-handling.md` - Đã có trong rules
+- `skills/testing.md` - Chỉ khi viết tests
+- `skills/cicd.md` - Chỉ khi setup CI/CD

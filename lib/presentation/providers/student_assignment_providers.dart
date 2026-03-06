@@ -1,15 +1,9 @@
-import 'package:ai_mls/domain/repositories/assignment_repository.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
+import 'package:ai_mls/presentation/providers/assignment_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'student_assignment_providers.g.dart';
-
-/// Provider cho AssignmentRepository (dùng @riverpod để codegen)
-@riverpod
-AssignmentRepository assignmentRepository(Ref ref) {
-  throw UnimplementedError('Must override assignmentRepositoryProvider');
-}
 
 /// Danh sách bài tập của học sinh hiện tại (từ tất cả các lớp)
 @riverpod

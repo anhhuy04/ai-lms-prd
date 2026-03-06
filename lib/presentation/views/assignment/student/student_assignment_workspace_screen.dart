@@ -1,7 +1,9 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/presentation/providers/workspace_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Màn hình workspace để học sinh làm bài tập
 class StudentAssignmentWorkspaceScreen extends ConsumerStatefulWidget {
@@ -56,7 +58,7 @@ class _StudentAssignmentWorkspaceScreenState
       elevation: 0,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new, size: DesignIcons.smSize),
-        onPressed: () => Navigator.of(context).pop(),
+        onPressed: () => context.pop(),
       ),
       title: workspaceAsync.maybeWhen(
         data: (workspace) => Column(
@@ -377,13 +379,16 @@ class _StudentAssignmentWorkspaceScreenState
 
   Widget _buildMultipleChoice(QuestionState question, dynamic answer) {
     return Column(
-      children: question.choices.map((choice) {
-        final isSelected = answer == choice.id;
+      children: question.choices.asMap().entries.map((entry) {
+        final index = entry.key;
+        final choice = entry.value;
+        // Use index for comparison since choice.id may be empty
+        final isSelected = answer == index.toString() || answer == choice.id;
         return InkWell(
           onTap: () {
             ref
                 .read(workspaceNotifierProvider(widget.distributionId).notifier)
-                .updateAnswer(question.id, choice.id);
+                .updateAnswer(question.id, index.toString());
           },
           child: Container(
             margin: const EdgeInsets.only(bottom: DesignSpacing.sm),
@@ -784,7 +789,8 @@ class _StudentAssignmentWorkspaceScreenState
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.of(context).pop();
+        // Navigate back to assignment list
+        context.goNamed(AppRoute.studentAssignmentList);
       } else if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

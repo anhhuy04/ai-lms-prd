@@ -1,0 +1,63 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze:*)",
+      "Bash(wc:*)",
+      "Bash(chmod:*)",
+      "Bash(.claude/skills/cleanup/scripts/validate.sh:*)",
+      "Bash(.claude/skills/memory-bank/scripts/validate.sh:*)",
+      "Bash(head:*)",
+      "Bash(where claude:*)",
+      "Bash(claude mcp:*)",
+      "mcp__dart__list_devices",
+      "mcp__dart__get_runtime_errors",
+      "mcp__dart__launch_app",
+      "mcp__dart__analyze_files",
+      "mcp__filesystem__read_file",
+      "mcp__filesystem__read_multiple_files",
+      "mcp__filesystem__list_directory",
+      "mcp__filesystem__get_file_info",
+      "mcp__filesystem__directory_tree",
+      "WebSearch",
+      "Skill(gsd:discuss-phase)",
+      "Skill(gsd:plan-phase)",
+      "Skill(gsd:execute-phase)",
+      "Bash(cc-vietnamese install:*)",
+      "Bash(npm root:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(wsl:*)",
+      "Bash(tmux source-file:*)",
+      "mcp__dart__add_roots",
+      "Bash(git status:*)",
+      "Bash(cd /d/code/Flutter_Android/Flutter_Android/AI_LMS_PRD && dart run build_runner build --delete-conflicting-outputs -- lib/presentation/providers/workspace_provider.dart 2>&1)",
+      "Bash(cd /d/code/Flutter_Android/Flutter_Android/AI_LMS_PRD && dart run build_runner build --delete-conflicting-outputs 2>&1)",
+      "Bash(cd /d/code/Flutter_Android/Flutter_Android/AI_LMS_PRD && git add lib/presentation/providers/workspace_provider.dart lib/presentation/views/assignment/student/student_assignment_workspace_screen.dart lib/presentation/views/assignment/student/student_submission_confirm_screen.dart lib/presentation/views/assignment/student/student_submission_history_screen.dart lib/core/routes/app_router.dart lib/core/routes/route_constants.dart lib/presentation/views/assignment/student/student_assignment_detail_screen.dart 2>&1)",
+      "Bash(cd /d/code/Flutter_Android/Flutter_Android/AI_LMS_PRD && git commit -m \"$\\(cat <<'EOF'\nfeat\\(01-02\\): Add student assignment workspace with auto-save\n\n- Create workspace provider with auto-save using easy_debounce \\(2 second delay\\)\n- Create assignment workspace screen with question types support:\n  - Multiple choice with custom radio buttons\n  - True/False with toggle buttons\n  - Essay with multi-line text field\n  - Fill-in-blank with text fields per blank\n- Add submission confirmation and history screens\n- Add routes for workspace and submission history\n- Integrate workspace navigation from assignment detail screen\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\" 2>&1)",
+      "Bash(cd /d/code/Flutter_Android/Flutter_Android/AI_LMS_PRD && git add .planning/phases/01-student-assignment-workflow/01-02-SUMMARY.md 2>&1)",
+      "Bash(cd /d/code/Flutter_Android/Flutter_Android/AI_LMS_PRD && git commit -m \"$\\(cat <<'EOF'\ndocs\\(01-02\\): Create summary for student workspace plan\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\" 2>&1)",
+      "Bash(cd /d/code/Flutter_Android/Flutter_Android/AI_LMS_PRD && node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" state advance-plan 2>&1)",
+      "Bash(cd /d/code/Flutter_Android/Flutter_Android/AI_LMS_PRD && node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" state advance-plan --dangerously-skip-permissions 2>&1)",
+      "mcp__filesystem__read_text_file",
+      "Bash(cd /d/code/Flutter_Android/Flutter_Android/AI_LMS_PRD && node \"$HOME/.claude/get-shit-done/bin/gsd-tools.cjs\" state --help 2>&1)",
+      "Bash(cd /d/code/Flutter_Android/Flutter_Android/AI_LMS_PRD && git add .planning/STATE.md && git commit -m \"$\\(cat <<'EOF'\nchore: update STATE.md with plan progress\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\" 2>&1)",
+      "Bash(cd:*)",
+      "Bash(cd D:\\\\code\\\\Flutter_Android\\\\Flutter_Android\\\\AI_LMS_PRD:*)",
+      "Bash(claude:*)"
+    ],
+    "mcp": {
+      "allow": [
+        "supabase-official:*",
+        "supabase:*",
+        "context7:*",
+        "fetch:*",
+        "github:*",
+        "filesystem:*",
+        "dart:*",
+        "duckduckgo:*",
+        "Brave-Search:*",
+        "tavily:*",
+        "puppeteer:*"
+      ]
+    }
+  }
+}

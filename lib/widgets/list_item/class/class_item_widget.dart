@@ -52,7 +52,6 @@ class ClassItemWidget extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(DesignRadius.md),
-          border: Border.all(color: Theme.of(context).dividerColor, width: 1),
           boxShadow: [DesignElevation.level2],
         ),
         child: Column(

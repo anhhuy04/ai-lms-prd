@@ -1,3 +1,4 @@
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/data/datasources/supabase_datasource.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -367,45 +368,136 @@ class AssignmentDataSource {
   Future<Map<String, dynamic>> getDistributionDetail(
     String distributionId,
   ) async {
-    // Lấy distribution kèm assignment và câu hỏi
-    final res = await _client
-        .from('assignment_distributions')
-        .select('*, assignments(*, assignment_questions(*, questions(*)))')
-        .eq('id', distributionId)
-        .single();
+    try {
+      AppLogger.debug('🔵 [Datasource] getDistributionDetail: $distributionId');
 
-    final rawData = Map<String, dynamic>.from(res);
+      // Bước 1: Lấy distribution và assignment
+      final distRes = await _client
+          .from('assignment_distributions')
+          .select('*, assignments(id, title, description, total_points, is_published)')
+          .eq('id', distributionId)
+          .maybeSingle();
 
-    // Transform dữ liệu về cấu trúc flat để UI dễ sử dụng
-    final assignments = rawData['assignments'] as Map<String, dynamic>?;
-    final assignmentQuestions = assignments?['assignment_questions'] as List<dynamic>? ?? [];
+      if (distRes == null) {
+        return {
+          'assignment': {'title': 'Không tìm thấy', 'description': null, 'total_points': 0},
+          'questions': <Map<String, dynamic>>[],
+          'distribution': <String, dynamic>{},
+        };
+      }
 
-    // Extract questions từ nested structure
-    final questions = assignmentQuestions.map((aq) {
-      final q = aq['questions'] as Map<String, dynamic>?;
-      if (q == null) return null;
+      final rawData = Map<String, dynamic>.from(distRes);
+      final assignments = rawData['assignments'] as Map<String, dynamic>?;
+      final assignmentId = assignments?['id'] as String?;
+
+      AppLogger.debug('🔵 [Datasource] assignmentId: $assignmentId');
+
+      // Bước 2: Lấy câu hỏi của bài tập (nếu có assignment_id)
+      List<Map<String, dynamic>> questions = [];
+      if (assignmentId != null) {
+        // Thử query trực tiếp bảng questions trước
+        final questionsRes = await _client
+            .from('questions')
+            .select('id, type, content, default_points')
+            .limit(5);
+        AppLogger.debug('🔵 [Datasource] questions table sample: $questionsRes');
+
+        // Lấy assignment_questions đơn giản trước
+        final aqRes = await _client
+            .from('assignment_questions')
+            .select('id, assignment_id, question_id, points, order_idx, custom_content')
+            .eq('assignment_id', assignmentId)
+            .order('order_idx');
+
+        AppLogger.debug('🔵 [Datasource] assignment_questions simple: $aqRes');
+
+        // Nếu có assignment_questions, lấy chi tiết questions
+        if ((aqRes as List).isNotEmpty) {
+          final questionIds = (aqRes as List).map((e) => e['question_id'] as String?).whereType<String>().toList();
+          AppLogger.debug('🔵 [Datasource] question_ids: $questionIds');
+
+          // Lấy tất cả question_ids từ question bank (đã được lọc ở trên)
+          final validQuestionIds = questionIds;
+
+          Map<String, Map<String, dynamic>> questionBankData = {};
+          if (validQuestionIds.isNotEmpty) {
+            // Query từng question một từ question bank
+            for (final qId in validQuestionIds) {
+              try {
+                final qDetail = await _client
+                    .from('questions')
+                    .select('id, type, content, default_points, question_choices(id, content, is_correct)')
+                    .eq('id', qId)
+                    .maybeSingle();
+
+                if (qDetail != null) {
+                  questionBankData[qId] = qDetail;
+                }
+              } catch (e) {
+                AppLogger.debug('🔵 [Datasource] Error fetching question $qId: $e');
+              }
+            }
+          }
+
+          // Xử lý từng assignment_question
+          for (final aq in aqRes) {
+            final qId = aq['question_id'] as String?;
+            final customContent = aq['custom_content']; // JSON content khi tạo mới
+
+            if (qId != null && questionBankData.containsKey(qId)) {
+              // Case 1: Câu hỏi từ question bank
+              final qDetail = questionBankData[qId]!;
+              questions.add({
+                'id': aq['id'],
+                'question_id': qId,
+                'content': qDetail['content'],
+                'type': qDetail['type'],
+                'points': aq['points'],
+                'order_idx': aq['order_idx'],
+                'question_choices': qDetail['question_choices'] ?? [],
+              });
+            } else if (customContent != null) {
+              // Case 2: Câu hỏi tạo mới (custom_content)
+              questions.add({
+                'id': aq['id'],
+                'question_id': null,
+                'content': customContent,
+                'type': customContent['type'] ?? 'multiple_choice',
+                'points': aq['points'],
+                'order_idx': aq['order_idx'],
+                'question_choices': customContent['choices'] ?? [],
+              });
+            }
+          }
+        }
+
+        AppLogger.debug('🔵 [Datasource] final questions extracted: ${questions.length}');
+      }
+
+      // Build response với cấu trúc expected bởi UI
       return {
-        'content': q['content'],
-        'type': q['type'],
-        'points': q['points'],
+        'assignment': {
+          'title': assignments?['title'] ?? 'Bài tập',
+          'description': assignments?['description'],
+          'total_points': assignments?['total_points'] ?? 0,
+        },
+        'questions': questions,
+        'distribution': {
+          'due_at': rawData['due_at'],
+          'status': rawData['status'],
+          'available_from': rawData['available_from'],
+          'time_limit_minutes': rawData['time_limit_minutes'],
+        },
       };
-    }).whereType<Map<String, dynamic>>().toList();
-
-    // Build response với cấu trúc expected bởi UI
-    return {
-      'assignment': {
-        'title': assignments?['title'] ?? 'Bài tập',
-        'description': assignments?['description'],
-        'total_points': assignments?['total_points'] ?? 0,
-      },
-      'questions': questions,
-      'distribution': {
-        'due_at': rawData['due_at'],
-        'status': rawData['status'],
-        'available_from': rawData['available_from'],
-        'time_limit_minutes': rawData['time_limit_minutes'],
-      },
-    };
+    } catch (e, st) {
+      AppLogger.error('🔴 [Datasource] getDistributionDetail error: $e', error: e, stackTrace: st);
+      // Return safe fallback on error
+      return {
+        'assignment': {'title': 'Lỗi tải dữ liệu', 'description': null, 'total_points': 0},
+        'questions': <Map<String, dynamic>>[],
+        'distribution': <String, dynamic>{},
+      };
+    }
   }
 
   /// Lấy danh sách submissions cho 1 distribution.
@@ -422,7 +514,7 @@ class AssignmentDataSource {
     final assignmentId = dist['assignment_id'] as String;
 
     final res = await _client
-        .from('submissions')
+        .from('work_sessions')
         .select('*, profiles:student_id(id, full_name, avatar_url)')
         .eq('assignment_id', assignmentId)
         .order('submitted_at', ascending: true);
@@ -436,14 +528,14 @@ class AssignmentDataSource {
   ) async {
     // Lấy tất cả submissions của student để biết họ được giao bài tập nào
     final submissionsRes = await _client
-        .from('submissions')
-        .select('distribution_id, status, score, submitted_at')
+        .from('work_sessions')
+        .select('assignment_distribution_id, status, submitted_at')
         .eq('student_id', studentId);
     final submissions = List<Map<String, dynamic>>.from(submissionsRes);
 
     // Lấy danh sách distribution_id đã có submission (dùng để merge submission status)
     final submissionsByDistId = {
-      for (final s in submissions) s['distribution_id'] as String: s,
+      for (final s in submissions) s['assignment_distribution_id'] as String: s,
     };
 
     // Query class_members để lấy danh sách lớp của student
@@ -477,7 +569,7 @@ class AssignmentDataSource {
 
       return <String, dynamic>{
         ...assignment,
-        'distribution_id': distributionId,
+        'assignment_distribution_id': distributionId,
         'distribution_type': dist['distribution_type'],
         'distribution_due_at': dist['due_at'],
         'distribution_available_from': dist['available_from'],
@@ -507,21 +599,40 @@ class AssignmentDataSource {
 
     // Kiểm tra đã có submission chưa
     final existingRes = await _client
-        .from('submissions')
+        .from('work_sessions')
         .select()
-        .eq('distribution_id', distributionId)
+        .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
         .maybeSingle();
 
     if (existingRes != null) {
-      return Map<String, dynamic>.from(existingRes);
+      // Fetch answers from autosave_answers table
+      final autosaveAnswers = await _client
+          .from('autosave_answers')
+          .select()
+          .eq('session_id', existingRes['id']);
+
+      // Convert to answers map
+      final Map<String, dynamic> answersMap = {};
+      for (final aa in autosaveAnswers) {
+        final qId = aa['assignment_question_id'] as String?;
+        if (qId != null) {
+          answersMap[qId] = aa['answer_content'];
+        }
+      }
+
+      // Add answers to the result
+      final result = Map<String, dynamic>.from(existingRes);
+      result['answers'] = answersMap;
+      result['uploaded_files'] = <String>[];
+      return result;
     }
 
     // Tạo mới submission draft
     final newSubmission = await _client
-        .from('submissions')
+        .from('work_sessions')
         .insert({
-          'distribution_id': distributionId,
+          'assignment_distribution_id': distributionId,
           'assignment_id': assignmentId,
           'student_id': studentId,
           'status': 'draft',
@@ -539,15 +650,57 @@ class AssignmentDataSource {
     Map<String, dynamic> answers,
     List<String> uploadedFiles,
   ) async {
-    // Update hoặc insert submission
-    await _client.from('submissions').upsert({
-      'distribution_id': distributionId,
+    // Get session ID first
+    final session = await _client
+        .from('work_sessions')
+        .select('id')
+        .eq('assignment_distribution_id', distributionId)
+        .eq('student_id', studentId)
+        .maybeSingle();
+
+    if (session == null) {
+      throw Exception('Session not found');
+    }
+
+    final sessionId = session['id'] as String;
+
+    // Save each answer to autosave_answers table
+    for (final entry in answers.entries) {
+      final questionId = entry.key;
+      final answerValue = entry.value;
+
+      // Check if exists first, then update or insert
+      final existing = await _client
+          .from('autosave_answers')
+          .select('id')
+          .eq('session_id', sessionId)
+          .eq('assignment_question_id', questionId)
+          .maybeSingle();
+
+      if (existing != null) {
+        // Update existing
+        await _client.from('autosave_answers').update({
+          'answer_content': answerValue,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', existing['id']);
+      } else {
+        // Insert new
+        await _client.from('autosave_answers').insert({
+          'session_id': sessionId,
+          'assignment_question_id': questionId,
+          'answer_content': answerValue,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      }
+    }
+
+    // Update work_sessions status
+    await _client.from('work_sessions').upsert({
+      'assignment_distribution_id': distributionId,
       'student_id': studentId,
       'status': 'draft',
-      'answers': answers,
-      'uploaded_files': uploadedFiles,
       'updated_at': DateTime.now().toIso8601String(),
-    }, onConflict: 'distribution_id,student_id');
+    }, onConflict: 'assignment_distribution_id,student_id');
   }
 
   /// Nộp bài tập
@@ -555,15 +708,47 @@ class AssignmentDataSource {
     String distributionId,
     String studentId,
   ) async {
+    // Get session
+    final session = await _client
+        .from('work_sessions')
+        .select()
+        .eq('assignment_distribution_id', distributionId)
+        .eq('student_id', studentId)
+        .maybeSingle();
+
+    if (session == null) {
+      throw Exception('Session not found');
+    }
+
+    final sessionId = session['id'] as String;
+
+    // Get answers from autosave_answers
+    final autosaveAnswers = await _client
+        .from('autosave_answers')
+        .select()
+        .eq('session_id', sessionId);
+
+    // Save each answer to submission_answers
+    for (final aa in autosaveAnswers) {
+      final questionId = aa['assignment_question_id'] as String?;
+      if (questionId != null) {
+        await _client.from('submission_answers').insert({
+          'session_id': sessionId,
+          'assignment_question_id': questionId,
+          'answer': aa['answer_content'],
+        });
+      }
+    }
+
     // Update submission status
     final result = await _client
-        .from('submissions')
+        .from('work_sessions')
         .update({
           'status': 'submitted',
           'submitted_at': DateTime.now().toIso8601String(),
           'updated_at': DateTime.now().toIso8601String(),
         })
-        .eq('distribution_id', distributionId)
+        .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
         .select()
         .single();
@@ -577,7 +762,7 @@ class AssignmentDataSource {
   ) async {
     // Lấy tất cả submissions của student
     final submissionsRes = await _client
-        .from('submissions')
+        .from('work_sessions')
         .select('*, assignment_distributions!inner(*, assignments(*))')
         .eq('student_id', studentId)
         .order('submitted_at', ascending: false);

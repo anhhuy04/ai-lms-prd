@@ -46,6 +46,8 @@ Khoảng cách dùng `Gap(16)` từ `gap` package, không dùng `SizedBox(height
 
 ## 3. Loading States (Bắt buộc UX)
 
+### 3.1 Shimmer Loading - Khi nào dùng
+
 Không dùng màn hình trắng hay spinner đơn thuần cho list/page load:
 
 ```dart
@@ -63,6 +65,72 @@ CircularProgressIndicator(strokeWidth: 2)
 ```
 
 Tất cả shimmer widgets: `lib/widgets/loading/shimmer_loading.dart`
+
+### 3.2 Tách riêng phần Load - QUAN TRỌNG
+
+**NGUYÊN TẮC:** Khi tạo mới màn hình có load dữ liệu:
+- Header, title, search bar, filters → KHÔNG bị load cùng
+- Chỉ phần nội dung/danh sách mới bị load
+
+**Cách thực hiện:**
+
+```dart
+// ❌ SAI - Toàn bộ screen bị load
+Scaffold(
+  body: FutureBuilder(
+    future: apiCall(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return ShimmerLoading(); // Load cả header!
+      }
+      return Column(children: [
+        Header(), // Bị load cùng
+        ListView(), // Bị load cùng
+      ]);
+    }
+  )
+)
+
+// ✅ ĐÚNG - Tách riêng phần load
+Scaffold(
+  body: Column(
+    children: [
+      // Header - HIỆN NGAY, không load
+      _buildHeader(),
+
+      // Chỉ phần list bị load
+      Expanded(
+        child: _ContentSection() // Widget riêng có FutureBuilder
+      ),
+    ]
+  )
+)
+
+// Widget riêng cho phần load
+class _ContentSection extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder(
+      future: ref.read(repoProvider).getData(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Padding(
+            padding: EdgeInsets.all(DesignSpacing.lg),
+            child: ShimmerLoading(); // Chỉ shimmer phần content
+          );
+        }
+        return ListView(...);
+      }
+    );
+  }
+}
+```
+
+**Quy tắc quan trọng:**
+1. **Tách widget riêng** cho phần load data (thường là `_XxxListSection`)
+2. **Dùng `ConsumerWidget`** hoặc `ConsumerStatefulWidget` để truy cập providers
+3. **Shimmer chỉ bao quanh** phần list/content, không bao gồm header/search
+4. **Design tokens** dùng cho cả header và content (đồng bộ màu/spacing)
 
 ## 4. Responsive với flutter_screenutil
 

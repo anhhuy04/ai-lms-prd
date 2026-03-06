@@ -1,24 +1,54 @@
 # Active Context
 
 ## Current Sprint Focus
-**Goal:** Widget Organization & UI Refinement (2026-01-21) - Complete widget reorganization, responsive spacing system, and search system refactoring
+**Goal:** UI Refinements, Navigation & Scoping Logic (2026-02-25) - Fix navigation issues, perfect UI details, and secure class-scoped distribution logic.
 
 ## Project Phase
-**Phase:** Widget System Refactoring Complete (2026-01-21) - Ready for continued feature development
+**Phase:** Core Navigation & Distribution Logic Robust (2026-02-25) - Preparing for robust assignment delivery.
 
-## Session Note (2026-01-29)
-- Tiếp tục ưu tiên **hoàn thiện module Class** theo các patterns đã chuẩn hoá (GoRouter v2.0 + Riverpod + DesignTokens + shimmer).
-- **Module Câu hỏi/Assignments để sau** (chỉ bắt đầu sau khi chốt schema Supabase qua MCP).
-
-## Session Note (2026-01-29 - Latest)
-- ✅ **Student Class List Enhancements**: Thêm teacher name, student count, sorting, filtering, search screen
-- ✅ **Student Leave Class Feature**: Implement chức năng rời lớp (xóa hoàn toàn record khỏi database)
-- ✅ **QR Scan Screen Redesign**: Cải thiện giao diện theo phong cách app ngân hàng với overlay cutout, toggle flash, chọn ảnh từ thư viện
-- ✅ **Search Improvements**: Highlight teacher name thay vì academic year, bỏ search theo academic year
-- ✅ **Avatar Enhancement**: Hiển thị chữ đầu của tên thay vì họ
-- ✅ **Teacher Class List**: Hiển thị số học sinh động từ database
+## Session Note (2026-02-25 - Latest)
+- ✅ **Class-Scoped Assignment Distribution**: Protected recipient assignment distribution by enforcing strict `classId` scope.
+- ✅ **Teacher Class Detail Navigation**: Redirected "Tạo bài tập" (Create Assignment) to direct directly to `TeacherAssignmentSelectionPath`.
+- ✅ **GoRouter Page Key Duplication Fix**: Sent exact keys into `FadeTransitionPage`.
+- ✅ **UI Header Refinements**: Replaced hardcoded colored borders with `BoxShadow` for depth across AppBars.
 
 ## Recently Completed
+
+### UI Refinements, Navigation Fixes & Selection Scoping (2026-02-25)
+✅ **Fixed Cross-Class Selection Leaks**
+- Updated `RecipientSelectionResult` to use class context explicitly for grouping, preventing recipient leaks across classes when distributing assignments.
+- Implemented logic in `TeacherDistributeAssignmentScreen` to rigidly lock the selection scope when routing directly from a specific class.
+
+✅ **Navigation Target Update for "Tạo ngay"**
+- Re-routed the "Add Assignment" button in `TeacherClassDetailScreen` to point directly to `TeacherAssignmentSelection` distribution workflow rather than the general list.
+- Passed `selectedClassId` via extras correctly so the distribute assignment page is properly scoped to that initial context.
+
+✅ **Bug Fixing: Duplicate Page Keys**
+- Addressed a `HeroControllerScope` assertion error by injecting unique `state.pageKey` in `FadeTransitionPage` instances deployed across `app_router.dart`.
+
+✅ **Global Theme Borders Cleanup**
+- Removed unwanted Material 3 default borders globally using `DividerThemeData` and `SwitchThemeData`.
+- Replaced hard-coded bottom boundaries in screen app bars (student and teacher side) with soft `BoxShadow` for visual elevation.
+
+### Teacher Distribute Assignment - Performance Optimization (2026-02-24)
+✅ **Tối ưu hiển thị danh sách lớp**
+- Nguyên nhân chậm: N+1 problem - gọi API tuần tự trong vòng lặp
+- Giải pháp: Dùng `Future.wait()` để gọi song song
+- Kết quả: 5 lớp ~1000ms → ~300ms, 10 lớp ~2000ms → ~400ms
+- Files: `lib/presentation/providers/class_hierarchy_provider.dart`
+
+✅ **Pagination cho modal/drawer**
+- Load 10 dòng đầu, khi scroll gần cuối thì load thêm
+- Dùng ScrollController để detect vị trí scroll
+- Files: `lib/presentation/views/assignment/teacher/widgets/recipient_tree_selector_modal.dart`
+
+✅ **UX Improvements**
+- Nút "Thêm Lớp" luôn hiển thị (không đợi load xong)
+- Hiển thị thông báo phù hợp: loading, error, empty, selected
+
+✅ **Cleanup**
+- Xóa debug logs trong provider để tránh lag
+- Xóa shimmer loading không cần thiết ở màn hình chính
 
 ### Student Class Features & QR Scan Enhancement (NEW - 2026-01-29)
 ✅ **Student Class List Enhancements**

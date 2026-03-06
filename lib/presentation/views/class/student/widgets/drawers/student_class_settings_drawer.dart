@@ -138,7 +138,7 @@ class StudentClassSettingsDrawer extends StatelessWidget {
           onTap: () {
             _handleAction(context, onViewJoinHistory);
           },
-          iconColor: colorScheme.onSurface.withOpacity(0.7),
+          iconColor: colorScheme.onSurface.withValues(alpha: 0.7),
         ),
 
         DrawerActionTile(
@@ -268,7 +268,7 @@ class StudentClassSettingsDrawer extends StatelessWidget {
           onTap: () {
             _handleAction(context, onViewAssignmentSchedule);
           },
-          iconColor: colorScheme.onSurface.withOpacity(0.7),
+          iconColor: colorScheme.onSurface.withValues(alpha: 0.7),
         ),
       ],
     );
@@ -302,7 +302,7 @@ class StudentClassSettingsDrawer extends StatelessWidget {
           onTap: () {
             _handleAction(context, onChangeTextSize);
           },
-          iconColor: colorScheme.onSurface.withOpacity(0.7),
+          iconColor: colorScheme.onSurface.withValues(alpha: 0.7),
         ),
 
         DrawerActionTile(
@@ -312,7 +312,7 @@ class StudentClassSettingsDrawer extends StatelessWidget {
           onTap: () {
             _handleAction(context, onChangeTheme);
           },
-          iconColor: colorScheme.onSurface.withOpacity(0.7),
+          iconColor: colorScheme.onSurface.withValues(alpha: 0.7),
         ),
 
         DrawerActionTile(
@@ -322,7 +322,7 @@ class StudentClassSettingsDrawer extends StatelessWidget {
           onTap: () {
             _handleAction(context, onChangeLanguage);
           },
-          iconColor: colorScheme.onSurface.withOpacity(0.7),
+          iconColor: colorScheme.onSurface.withValues(alpha: 0.7),
         ),
       ],
     );
@@ -363,7 +363,7 @@ class StudentClassSettingsDrawer extends StatelessWidget {
           onTap: () {
             _handleAction(context, onOpenHelpCenter);
           },
-          iconColor: colorScheme.onSurface.withOpacity(0.7),
+          iconColor: colorScheme.onSurface.withValues(alpha: 0.7),
         ),
 
         DrawerActionTile(

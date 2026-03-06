@@ -13,6 +13,7 @@
 ///   onRefresh: () async {},
 /// )
 /// ```
+library;
 
 export 'assignment_card.dart';
 export 'assignment_card_config.dart';

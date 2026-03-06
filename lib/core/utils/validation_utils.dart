@@ -25,8 +25,9 @@ class ValidationUtils {
     }).join(' ');
   }
 
-  /// Validates password (minimum 6 characters)
+  /// Validates password (minimum 8 characters)
   static bool isValidPassword(String password) {
-    return password.length >= 6;
+    // Yêu cầu: mật khẩu phải có ít nhất 8 ký tự
+    return password.length >= 8;
   }
 }

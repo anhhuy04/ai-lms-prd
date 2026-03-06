@@ -1,0 +1,268 @@
+```
+---
+description: "Autonomous Development Workflow - Complete workflow for long-running development sessions without human intervention"
+alwaysApply: true
+---
+
+# AUTONOMOUS DEVELOPMENT WORKFLOW
+
+## Quick Start (Mỗi Phiên Làm Việc)
+
+### Bước 1: Đọc Context (BẮT BUỘC)
+Đọc song song 6 files sau trong memory-bank:
+
+```
+memory-bank/projectbrief.md      ← Project scope, goals
+memory-bank/productContext.md   ← Why project exists
+memory-bank/activeContext.md    ← Current sprint, recent changes
+memory-bank/systemPatterns.md   ← Architecture, patterns
+memory-bank/techContext.md      ← Tech stack, dependencies
+memory-bank/progress.md         ← What works, what's left
+```
+
+### Bước 2: Xác định Task Category
+| Category | Files cần đọc thêm |
+|---|---|
+| UI/Layout | `60_ui_design.mdc` + `25_widget_organization.mdc` + `skills/ui-widgets.md` |
+| State/Riverpod | `40_state.mdc` + `skills/state.md` |
+| Routing/GoRouter | `30_routing.mdc` + `skills/routing.md` |
+| Supabase/Data | `50_data_supabase.mdc` + `skills/supabase.md` |
+| Architecture | `20_architecture.mdc` + `skills/architecture.md` |
+| Networking | `skills/networking.md` |
+| Error Handling | `skills/error-handling.md` |
+| New Library | `10_tech_stack.mdc` (dùng Context7/Fetch MCP) |
+
+### Bước 3: Theo Workflow Tương Ứng
+
+---
+
+## WORKFLOW 1: Thêm Screen Mới + Route
+
+### Quy trình:
+1. **Đọc**: `30_routing.mdc` + `20_architecture.mdc` + `40_state.mdc`
+2. **Check duplicate**: `grep -r "ScreenName" lib/`
+3. **Thêm route** vào `route_constants.dart` + `app_router.dart`
+   - Lưu ý: specific routes ĐỨNG TRƯỚC parameterized routes
+4. **Tạo folder structure** theo Clean Architecture:
+   ```
+   lib/features/[feature]/
+   ├── domain/
+   │   ├── entities/
+   │   └── repositories/
+   ├── data/
+   │   ├── datasources/
+   │   ├── models/
+   │   └── repositories/
+   └── presentation/
+       ├── providers/
+       ├── screens/
+       └── widgets/
+   ```
+5. **Tạo Provider** với `@riverpod` annotation
+6. **Viết UI** theo `60_ui_design.mdc`:
+   - Dùng `DesignTokens` (Colors, Spacing, Typography)
+   - Tách riêng phần load data (shimmer chỉ wrap content, không header)
+   - Max 50 dòng trong `build()` → tách `_buildXxx()`
+7. **Chạy build_runner**: `dart run build_runner build -d`
+8. **Analyze**: `flutter analyze`
+9. **Test**: Hot reload/hot restart
+
+---
+
+## WORKFLOW 2: Supabase Table/RLS
+
+### Quy trình:
+1. **Đọc**: `50_data_supabase.mdc` + `skills/supabase.md`
+2. **Check schema** bằng Supabase MCP:
+   ```sql
+   SELECT column_name, data_type FROM information_schema.columns 
+   WHERE table_name = 'target_table';
+   ```
+3. **Viết migration** trong `db/migrations/`
+4. **Apply migration** bằng Supabase MCP
+5. **Bật RLS** + viết policies cho 3 roles (admin/teacher/student)
+6. **Tạo Freezed model** (DTO + Entity + `toDomain()`)
+7. **Tạo DataSource** + Repository implementation
+8. **Đăng ký Provider** trong Riverpod
+9. **Update memory-bank**: `memory-bank/README_SUPABASE.md`
+10. **Chạy build_runner** + analyze
+
+---
+
+## WORKFLOW 3: UI Component
+
+### Quy trình:
+1. **Đọc**: `60_ui_design.mdc` + `25_widget_organization.mdc` + `skills/ui-widgets.md`
+2. **Check duplicate**: `grep -r "WidgetName" lib/`
+3. **Thiết kế theo Design Tokens**:
+   - Colors: `DesignColors.*`
+   - Spacing: `DesignSpacing.xs/sm/md/lg/xl` + `Gap()`
+   - Typography: `DesignTypography.*`
+   - Icons: `DesignIcons.*`
+4. **Modularize**:
+   - `build()` max 50 dòng → `_buildXxx()`
+   - Tái sử dụng 2+ lần → tách `StatelessWidget`
+   - Class max 300 dòng
+5. **Loading State**:
+   - Shimmer cho list/page load
+   - Tách riêng phần content (header hiện ngay)
+6. **Accessibility**: Semantic labels, 48x48dp touch targets
+
+---
+
+## WORKFLOW 4: State/Provider
+
+### Quy trình:
+1. **Đọc**: `40_state.mdc` + `skills/state.md`
+2. **Check duplicate**: `grep -r "ProviderName" lib/`
+3. **Viết AsyncNotifier** với `@riverpod`:
+   ```dart
+   @riverpod
+   class FeatureNotifier extends _$FeatureNotifier {
+     @override
+     FutureOr<Data> build() async { ... }
+     
+     Future<void> refresh() async {
+       state = const AsyncLoading();
+       state = await AsyncValue.guard(() => ref.read(repo).getData());
+     }
+   }
+   ```
+4. **Thêm Concurrency Guard** nếu có mutation:
+   ```dart
+   bool _isUpdating = false;
+   Future<void> update() async {
+     if (_isUpdating) return;
+     _isUpdating = true;
+     try { ... } finally { _isUpdating = false; }
+   }
+   ```
+5. **Parallel Fetching** nếu cần nhiều data sources:
+   ```dart
+   final results = await Future.wait([repo1.get(), repo2.get()]);
+   state = AsyncData(Bundle(a: results[0], b: results[1]));
+   ```
+6. **Chạy build_runner** + analyze
+
+---
+
+## WORKFLOW 5: Debug/Fix Bug
+
+### Quy trình:
+1. **Đọc**: `90_mcp_and_git.mdc` + `70_code_quality.mdc`
+2. **Đọc logs**: `logs.txt` tại root
+3. **Identify error** từ stack trace → file + line
+4. **Root cause analysis**:
+   - State management issue?
+   - UI constraint (RenderFlex overflow)?
+   - Logic bug?
+5. **Fix theo project patterns** (không breaking changes)
+6. **Test**: Hot reload/hot restart
+7. **Update memory-bank** nếu có pattern mới
+
+---
+
+## WORKFLOW 6: Refactor
+
+### Quy trình:
+1. **Đọc**: `20_architecture.mdc` + `70_code_quality.mdc`
+2. **Check usage**: `grep -r "oldName" lib/`
+3. **Refactor theo quy tắc**:
+   - Functions max 50 lines
+   - Classes max 300 lines
+   - Presentation → chỉ gọi Domain (interface)
+   - KHÔNG import Data từ Presentation
+4. **Chạy analyze** sau mỗi bước
+5. **Update memory-bank** nếu có pattern mới
+
+---
+
+## MCP Tools Usage
+
+| MCP | Khi nào dùng |
+|---|---|
+| **Supabase** | Query schema, apply migrations, check logs, manage edge functions |
+| **Context7** | Đọc docs library/API mới (pub.dev packages) |
+| **Fetch** | Docs từ URLs cụ thể khi Context7 không applicable |
+| **Dart** | Format code, analyze, lint |
+| **GitHub** | Git operations (chỉ khi được yêu cầu) |
+
+### Quick Commands:
+```bash
+# Check schema
+mcp_supabase_execute_sql "SELECT * FROM table LIMIT 1"
+
+# Add library
+flutter pub add package_name
+dart run build_runner build -d
+flutter analyze
+
+# Format
+dart format .
+```
+
+---
+
+## Pre-Implementation Checklist (LUÔN CHẠY)
+
+- [ ] Requirement rõ ràng (đặc biệt delete/update)
+- [ ] Dependencies đã add vào `pubspec.yaml` + `flutter pub get`
+- [ ] Duplicate check: `grep` tên trước khi tạo mới
+- [ ] Route order đúng (specific → parameterized)
+- [ ] Null safety plan cho mọi API return
+- [ ] Đọc docs library (Context7/Fetch MCP) nếu cần
+- [ ] Chạy build_runner nếu dùng Freezed/JsonSerializable
+- [ ] `flutter analyze` + fix all errors
+- [ ] Test: happy path + error cases + edge cases
+
+---
+
+## Session End (BẮT BUỘC)
+
+1. **Update memory-bank**:
+   - `activeContext.md` → append session notes
+   - `progress.md` → update status
+   - `systemPatterns.md` → add new patterns
+
+2. **Git commit** (nếu cần):
+   ```
+   [feat] Add feature name
+   
+   [fix] Fix bug description
+   
+   [refactor] Extract components
+   ```
+
+3. **Thông báo user**:
+   - Đã hoàn thành gì
+   - Cần gì tiếp theo
+   - Các vấn đề gặp phải
+
+---
+
+## Quick Reference Card
+
+### Navigation:
+- `context.goNamed(AppRoute.routeName, pathParameters: {'id': value})`
+- KHÔNG dùng `Navigator.push()`
+
+### State:
+- `ref.watch()` trong UI (reactive)
+- `ref.read()` trong callbacks (one-time)
+- Dùng `@riverpod` annotation
+
+### Design:
+- `DesignColors.*` thay vì `Color(0xFF...)`
+- `DesignSpacing.*` + `Gap()` thay vì `SizedBox`
+- `DesignTypography.*` thay vì `TextStyle(fontSize: 14)`
+
+### Errors:
+- `AppLogger` thay vì `print()`
+- `AsyncValue.guard()` trong Notifier
+- Báo cáo Sentry cho critical flows
+
+### Code Quality:
+- Functions: max 50 lines
+- Classes: max 300 lines
+- `const` constructors when possible
+- `flutter analyze` + `dart format` trước commit

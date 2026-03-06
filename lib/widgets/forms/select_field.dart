@@ -285,7 +285,7 @@ class SelectField<T> extends StatelessWidget {
     );
   }
 
-  /// Generic bottom sheet hiển thị SelectFieldOption<T>
+  /// Generic bottom sheet for SelectFieldOption
   Future<T?> _showOptionBottomSheet({
     required BuildContext context,
     required bool isDark,

@@ -1,0 +1,56 @@
+{
+  "name": "plan-workflow",
+  "version": "1.0.0",
+  "description": "Tech Vision & Screen Planning Workflows - AI powered architecture planning",
+  "author": "AI LMS PRD Team",
+  "trigger": {
+    "commands": ["/ag/plan", "/ag/setupplan", "/ag/tech-vision", "/ag/screen-plan"]
+  },
+  "dependencies": [
+    "memory-bank",
+    "supabase-mcp"
+  ],
+  "features": {
+    "tech_vision": {
+      "description": "Biến ý tưởng thành tech stack, phát hiện xung đột hệ thống",
+      "stages": [
+        "load_memory_bank",
+        "idea_refinement",
+        "conflict_detection",
+        "generate_vision",
+        "auto_update_memory"
+      ]
+    },
+    "setup_plan": {
+      "description": "Phân tích memory-bank + DB + Design Sync + UI Template Transformer",
+      "stages": [
+        "load_all",
+        "database_analysis",
+        "logic_analysis",
+        "design_system_sync",
+        "ui_template_transformer",
+        "cross_reference",
+        "generate_spec"
+      ]
+    }
+  },
+  "config": {
+    "memory_bank_files": [
+      "projectbrief.md",
+      "productContext.md",
+      "activeContext.md",
+      "systemPatterns.md",
+      "techContext.md",
+      "progress.md"
+    ],
+    "output_directories": {
+      "tech_vision": "memory-bank/tech-vision",
+      "screen_plan": "memory-bank/plan"
+    },
+    "auto_mcp": [
+      "supabase",
+      "context7",
+      "fetch"
+    ]
+  }
+}

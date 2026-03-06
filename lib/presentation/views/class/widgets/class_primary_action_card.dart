@@ -32,9 +32,7 @@ class ClassPrimaryActionCard extends StatelessWidget {
   });
 
   /// Factory constructor cho teacher (tạo lớp mới)
-  factory ClassPrimaryActionCard.forTeacher({
-    required VoidCallback onPressed,
-  }) {
+  factory ClassPrimaryActionCard.forTeacher({required VoidCallback onPressed}) {
     return ClassPrimaryActionCard(
       icon: Icons.domain_add,
       color: Colors.blue[800]!,
@@ -46,9 +44,7 @@ class ClassPrimaryActionCard extends StatelessWidget {
   }
 
   /// Factory constructor cho student (tham gia lớp)
-  factory ClassPrimaryActionCard.forStudent({
-    required VoidCallback onPressed,
-  }) {
+  factory ClassPrimaryActionCard.forStudent({required VoidCallback onPressed}) {
     return ClassPrimaryActionCard(
       icon: Icons.join_inner,
       color: Colors.blue[800]!,
@@ -67,7 +63,6 @@ class ClassPrimaryActionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),

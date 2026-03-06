@@ -137,8 +137,16 @@ class _TeacherAssignmentHubScreenState
                         QuickActionButton(
                           label: 'Giao bài',
                           icon: Icons.send,
-                          onTap: () {
-                            // TODO: Navigate to assignment distribution
+                          onTap: () async {
+                            await context.pushNamed(
+                              AppRoute.teacherAssignmentSelection,
+                            );
+                            if (!mounted) return;
+                            await ref
+                                .read(
+                                  teacherAssignmentHubNotifierProvider.notifier,
+                                )
+                                .refresh();
                           },
                         ),
                         SizedBox(width: DesignSpacing.md),

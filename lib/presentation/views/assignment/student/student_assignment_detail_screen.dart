@@ -1,5 +1,6 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
@@ -18,7 +19,14 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    AppLogger.debug('🔵 [DetailScreen] building with assignmentId: $assignmentId');
     final detailAsync = ref.watch(studentAssignmentDetailProvider(assignmentId));
+
+    detailAsync.when(
+      loading: () => AppLogger.debug('🔵 [DetailScreen] loading...'),
+      error: (e, st) => AppLogger.error('🔴 [DetailScreen] error: $e', error: e, stackTrace: st),
+      data: (d) => AppLogger.debug('🔵 [DetailScreen] data: $d'),
+    );
 
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
@@ -38,7 +46,7 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
       elevation: 0,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new, size: DesignIcons.smSize),
-        onPressed: () => Navigator.of(context).pop(),
+        onPressed: () => context.pop(),
       ),
       title: Text(
         'Chi tiết bài tập',
@@ -478,8 +486,24 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
   }
 
   Widget _buildQuestionCard(Map<String, dynamic> question, int number) {
-    final content = question['content'] as String? ?? 'Câu hỏi';
-    final questionType = question['type'] as String? ?? 'multiple_choice';
+    // Handle content as either String or JSON object
+    String contentText = 'Câu hỏi';
+    dynamic contentData = question['content'];
+    if (contentData is String) {
+      contentText = contentData;
+    } else if (contentData is Map) {
+      contentText = contentData['text'] as String? ?? 'Câu hỏi';
+    }
+
+    // Handle type - could be 'multipleChoice' or 'multiple_choice'
+    String questionType = question['type'] as String? ?? 'multiple_choice';
+    if (contentData is Map) {
+      final contentType = contentData['type'] as String?;
+      if (contentType != null) {
+        questionType = contentType;
+      }
+    }
+
     final points = question['points'] as num? ?? 1;
 
     final typeIcon = _getQuestionTypeIcon(questionType);
@@ -556,7 +580,7 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: DesignSpacing.xs),
                 Text(
-                  content,
+                  contentText,
                   style: TextStyle(
                     fontSize: 14,
                     color: DesignColors.textPrimary,

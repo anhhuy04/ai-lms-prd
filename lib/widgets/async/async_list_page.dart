@@ -8,10 +8,10 @@ typedef AsyncItemWidgetBuilder<T> = Widget Function(
   int index,
 );
 
-/// Generic async list page với:
-/// - Future<List<T>> cho dữ liệu
-/// - Shimmer skeleton trong lúc load
-/// - Empty state & error state theo DesignTokens
+/// Generic async list page:
+/// - Future data loading
+/// - Shimmer skeleton during load
+/// - Empty state and error state using DesignTokens
 class AsyncListPage<T> extends StatelessWidget {
   final Future<List<T>> future;
   final AsyncItemWidgetBuilder<T> itemBuilder;

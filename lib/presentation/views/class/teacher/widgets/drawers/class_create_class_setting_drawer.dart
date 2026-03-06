@@ -101,7 +101,7 @@ class ClassCreateClassSettingDrawer extends StatelessWidget {
                   color: Theme.of(context)
                       .colorScheme
                       .onSurface
-                      .withOpacity(0.7),
+                      .withValues(alpha: 0.7),
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.3,
                 ),
@@ -114,7 +114,7 @@ class ClassCreateClassSettingDrawer extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha:0.08),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -212,7 +212,7 @@ class ClassCreateClassSettingDrawer extends StatelessWidget {
                   color: Theme.of(context)
                       .colorScheme
                       .onSurface
-                      .withOpacity(0.7),
+                      .withValues(alpha: 0.7),
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.3,
                 ),
@@ -225,7 +225,7 @@ class ClassCreateClassSettingDrawer extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha:0.08),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -302,7 +302,7 @@ class ClassCreateClassSettingDrawer extends StatelessWidget {
                   color: Theme.of(context)
                       .colorScheme
                       .onSurface
-                      .withOpacity(0.7),
+                      .withValues(alpha: 0.7),
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.3,
                 ),
@@ -315,7 +315,7 @@ class ClassCreateClassSettingDrawer extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha:0.08),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),

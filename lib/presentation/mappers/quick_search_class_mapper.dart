@@ -54,7 +54,7 @@ class QuickSearchClassMapper {
   /// [classes] - Danh sách lớp học
   /// [includeMemberStatus] - Có bao gồm trạng thái tham gia không
   ///
-  /// Trả về List<Map<String, dynamic>>
+  /// Trả về List of Map
   static List<Map<String, dynamic>> toSearchItems(
     List<Class> classes, {
     bool includeMemberStatus = false,

@@ -1,0 +1,96 @@
+-- ==============================================================================
+-- MIGRATION SCRIPT: CẬP NHẬT KIẾN TRÚC AI LMS (CHUẨN ENTERPRISE)
+-- Ngày: 2026-03-06
+-- ==============================================================================
+
+-- 1. QUẢN LÝ LỚP HỌC (Class Management)
+-- Xóa cột role (đã được quản lý ở bảng profiles), thêm audit trail
+ALTER TABLE public.class_members
+  DROP COLUMN IF EXISTS role,
+  ADD COLUMN IF NOT EXISTS enrolled_by uuid REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS join_method text DEFAULT 'manual_add';
+
+-- 2. QUẢN LÝ NHÓM (Group Management)
+-- Nhóm phải thuộc về lớp, không thuộc về giáo viên cá nhân
+ALTER TABLE public.groups
+  DROP COLUMN IF EXISTS teacher_id,
+  ALTER COLUMN class_id SET NOT NULL;
+
+ALTER TABLE public.group_members
+  ADD COLUMN IF NOT EXISTS role text DEFAULT 'member',
+  ADD COLUMN IF NOT EXISTS enrolled_by uuid REFERENCES auth.users(id);
+
+-- 3. NGÂN HÀNG BÀI TẬP (Assignments - Tách biệt Nội dung & Phân phối)
+-- Dọn dẹp bảng assignments thành một Template nguyên thủy
+ALTER TABLE public.assignments
+  DROP COLUMN IF EXISTS due_at,
+  DROP COLUMN IF EXISTS available_from,
+  DROP COLUMN IF EXISTS time_limit_minutes,
+  DROP COLUMN IF EXISTS allow_late;
+
+-- 4. PHIÊN LÀM BÀI & NỘP BÀI (Work Sessions & Submissions)
+-- Giới hạn lại trạng thái (Bỏ 'late')
+ALTER TABLE public.work_sessions
+  DROP CONSTRAINT IF EXISTS work_sessions_status_check;
+
+ALTER TABLE public.work_sessions
+  ADD CONSTRAINT work_sessions_status_check
+  CHECK (status IN ('in_progress', 'submitted', 'graded'));
+
+-- Xóa Generated Column gây lỗi Subquery, đổi thành cột Boolean tĩnh
+ALTER TABLE public.submissions
+  DROP COLUMN IF EXISTS is_late;
+
+ALTER TABLE public.submissions
+  ADD COLUMN IF NOT EXISTS is_late boolean DEFAULT false;
+
+-- 5. LƯU VẾT & XÓA MỀM (Soft Deletes)
+-- Cực kỳ quan trọng để bảo vệ dữ liệu khi tích hợp AI và Analytics
+ALTER TABLE public.questions
+  ADD COLUMN IF NOT EXISTS is_deleted boolean DEFAULT false;
+
+ALTER TABLE public.files
+  ADD COLUMN IF NOT EXISTS is_deleted boolean DEFAULT false;
+
+-- 6. GHI CHÚ GIÁO VIÊN (Teacher Notes)
+-- Thêm Context lớp học và Metadata để mở rộng cho AI
+ALTER TABLE public.teacher_notes
+  ADD COLUMN IF NOT EXISTS class_id uuid REFERENCES public.classes(id),
+  ADD COLUMN IF NOT EXISTS metadata jsonb;
+
+-- LƯU Ý: Không chạm vào bảng question_choices. Giữ nguyên id kiểu integer.
+-- Lý do: question_choices là "Weak Entity" gắn với question_id (UUID), không đứng một mình.
+-- Integer giúp tiết kiệm 12 bytes/dòng, index nhanh hơn.
+
+-- ==============================================================================
+-- PHÂN TÍCH SAU MIGRATION
+-- ==============================================================================
+
+-- Data Integrity:
+-- Cột is_late trong submissions là boolean tĩnh. Backend sẽ:
+-- 1. Query due_at từ assignment_distributions
+-- 2. So sánh với NOW() khi nộp bài
+-- 3. Insert true/false một lần duy nhất
+-- → Tránh lỗi subquery lồng nhau
+
+-- Clean & Extensible:
+-- metadata jsonb trong teacher_notes cho phép mở rộng:
+-- {
+--   "type": "parent_meeting",
+--   "meeting_date": "2023-10-20",
+--   "parent_name": "Mr. John"
+-- }
+-- → Context cho AI recommendations
+
+-- ==============================================================================
+-- INDEXES ĐỀ XUẤT
+-- ==============================================================================
+
+CREATE INDEX IF NOT EXISTS idx_class_members_enrolled_by ON public.class_members(enrolled_by);
+CREATE INDEX IF NOT EXISTS idx_class_members_join_method ON public.class_members(join_method);
+CREATE INDEX IF NOT EXISTS idx_groups_class_id ON public.groups(class_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_enrolled_by ON public.group_members(enrolled_by);
+CREATE INDEX IF NOT EXISTS idx_questions_is_deleted ON public.questions(is_deleted);
+CREATE INDEX IF NOT EXISTS idx_files_is_deleted ON public.files(is_deleted);
+CREATE INDEX IF NOT EXISTS idx_teacher_notes_class_id ON public.teacher_notes(class_id);
+CREATE INDEX IF NOT EXISTS idx_submissions_is_late ON public.submissions(is_late);

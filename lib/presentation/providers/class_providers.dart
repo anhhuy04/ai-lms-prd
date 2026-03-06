@@ -21,6 +21,8 @@ Future<void> _writeClassLog({
   required String hypothesisId,
 }) async {
   if (!kDebugMode) return;
+  // Skip host-file logging on web where dart:io Platform is unsupported.
+  if (kIsWeb) return;
   final logEntry = {
     'sessionId': 'debug-session',
     'runId': 'run1',

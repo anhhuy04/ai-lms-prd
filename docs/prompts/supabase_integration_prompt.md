@@ -209,6 +209,14 @@ create table public.question_objectives (
 ### 2.4 Assignments Table
 
 ```sql
+create table if not exists public.groups (
+  id uuid primary key default gen_random_uuid(),
+  class_id uuid references public.classes on delete cascade, -- có thể NULL (nhóm liên lớp)
+  teacher_id uuid references auth.users not null, -- chủ sở hữu nhóm
+  name text not null,
+  description text,
+  created_at timestamptz default now()
+);
 create table public.assignments (
   id uuid primary key default gen_random_uuid(),
   class_id uuid references public.classes on delete cascade,

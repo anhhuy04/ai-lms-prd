@@ -20,6 +20,11 @@ class AssignmentDistribution with _$AssignmentDistribution {
     @JsonKey(name: 'time_limit_minutes') int? timeLimitMinutes,
     @JsonKey(name: 'allow_late') @Default(true) bool allowLate,
     @JsonKey(name: 'late_policy') Map<String, dynamic>? latePolicy,
+    /// Cấu hình shuffle và hiển thị điểm:
+    /// - shuffle_questions: đảo thứ tự câu hỏi
+    /// - shuffle_choices: đảo thứ tự đáp án
+    /// - show_score_immediately: hiển thị điểm ngay sau khi nộp
+    @JsonKey(name: 'settings') Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') DateTime? createdAt,
   }) = _AssignmentDistribution;
 

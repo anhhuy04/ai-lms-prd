@@ -51,6 +51,37 @@
   - Protected by `_isUpdating` guard to prevent concurrent mutations of Riverpod `AsyncValue` state, which previously caused `Bad state: Future already completed`.
   - Reserved for more “full” updates; most per-field settings should go through `updateClassSettingOptimistic`.
 
+### Assignment Distribution System (2026-03-05)
+- **AssignmentDistribution Entity**
+  - Fields: id, assignment_id, recipient_type ('class'|'group'|'student'), recipient_id, assigned_at, created_by, etc.
+  - Uses Freezed for immutability
+  - Located: `lib/domain/entities/assignment_distribution.dart`
+
+- **RecipientTreeNode Entity**
+  - Hierarchical data structure for class → group → student selection
+  - Supports mixed selection types
+  - Located: `lib/domain/entities/recipient_tree_node.dart`
+
+- **DistributeAssignmentNotifier**
+  - State management for distribution workflow
+  - Methods: loadRecipients(), toggleSelection(), confirmDistribution()
+  - Uses Riverpod AsyncNotifier pattern
+  - Located: `lib/presentation/providers/distribute_assignment_notifier.dart`
+
+- **TeacherAssignmentHubNotifier**
+  - Manages assignment hub screen with 3 tabs: drafts, published, distributed
+  - Located: `lib/presentation/providers/teacher_assignment_hub_notifier.dart`
+
+- **QuestionBankNotifier**
+  - Manages question bank CRUD operations
+  - AI generation integration
+  - Located: `lib/presentation/providers/question_bank_notifier.dart`
+
+- **ClassHierarchyProvider**
+  - Provides hierarchical class/group/student data
+  - Optimized with Future.wait() for parallel API calls
+  - Located: `lib/presentation/providers/class_hierarchy_provider.dart`
+
 ### Routing & Navigation (v2.0 - Production Ready)
 - **GoRouter** (v14.0.0+) - Declarative routing solution
   - Type-safe routing with named routes

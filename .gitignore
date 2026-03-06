@@ -54,4 +54,4 @@ app.*.map.json
 
 # Generated environment files
 lib/core/env/env.g.dart
-**/*.g.dart
+**/*.g.dartandroid/java_pid17316.hprof

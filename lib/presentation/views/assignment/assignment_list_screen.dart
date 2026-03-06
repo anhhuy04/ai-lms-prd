@@ -3,8 +3,7 @@ import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/assignment.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/assignment_providers.dart';
-import 'package:ai_mls/presentation/providers/student_assignment_providers.dart'
-    hide assignmentRepositoryProvider;
+import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
 import 'package:ai_mls/widgets/list_item/assignment/class_detail_assignment_list_item.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
@@ -265,7 +264,7 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                 assignment: assignment,
                 viewMode: AssignmentViewMode.student,
                 onTap: () {
-                  final distributionId = assignment['id']?.toString();
+                  final distributionId = assignment['distribution_id']?.toString();
                   if (distributionId != null) {
                     context.pushNamed(
                       AppRoute.studentAssignmentDetail,

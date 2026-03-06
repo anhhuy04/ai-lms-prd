@@ -19,7 +19,11 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
       final row = await _ds.insertAssignment(payload);
       return Assignment.fromJson(row);
     } catch (e, stackTrace) {
-      AppLogger.error('🔴 [REPO ERROR] createAssignment: $e', error: e, stackTrace: stackTrace);
+      AppLogger.error(
+        '🔴 [REPO ERROR] createAssignment: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
       throw ErrorTranslationUtils.translateError(e, 'Tạo bài tập');
     }
   }
@@ -43,10 +47,7 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
         error: e,
         stackTrace: stackTrace,
       );
-      throw ErrorTranslationUtils.translateError(
-        e,
-        'Tạo bài tập cùng câu hỏi',
-      );
+      throw ErrorTranslationUtils.translateError(e, 'Tạo bài tập cùng câu hỏi');
     }
   }
 
@@ -63,7 +64,11 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
       await _ds.replaceDistributions(assignmentId, distributions);
       return Assignment.fromJson(row);
     } catch (e, stackTrace) {
-      AppLogger.error('🔴 [REPO ERROR] saveDraft: $e', error: e, stackTrace: stackTrace);
+      AppLogger.error(
+        '🔴 [REPO ERROR] saveDraft: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
       throw ErrorTranslationUtils.translateError(e, 'Lưu bản nháp bài tập');
     }
   }
@@ -142,7 +147,49 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
         error: e,
         stackTrace: stackTrace,
       );
-      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách bài tập theo lớp');
+      throw ErrorTranslationUtils.translateError(
+        e,
+        'Lấy danh sách bài tập theo lớp',
+      );
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getDistributedAssignmentsByClass(
+    String classId,
+  ) async {
+    try {
+      return await _ds.getDistributedAssignmentsByClass(classId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getDistributedAssignmentsByClass(classId: $classId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(
+        e,
+        'Lấy danh sách bài tập đã giao cho lớp',
+      );
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getDistributedAssignmentsForStudent(
+    String classId,
+    String studentId,
+  ) async {
+    try {
+      return await _ds.getDistributedAssignmentsForStudent(classId, studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getDistributedAssignmentsForStudent: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(
+        e,
+        'Lấy danh sách bài tập cho học sinh',
+      );
     }
   }
 
@@ -157,12 +204,17 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
         error: e,
         stackTrace: stackTrace,
       );
-      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách bài tập của giáo viên');
+      throw ErrorTranslationUtils.translateError(
+        e,
+        'Lấy danh sách bài tập của giáo viên',
+      );
     }
   }
 
   @override
-  Future<List<AssignmentDistribution>> getDistributions(String assignmentId) async {
+  Future<List<AssignmentDistribution>> getDistributions(
+    String assignmentId,
+  ) async {
     try {
       final rows = await _ds.getDistributions(assignmentId);
       return rows.map(AssignmentDistribution.fromJson).toList();
@@ -172,12 +224,17 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
         error: e,
         stackTrace: stackTrace,
       );
-      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách phân phối bài tập');
+      throw ErrorTranslationUtils.translateError(
+        e,
+        'Lấy danh sách phân phối bài tập',
+      );
     }
   }
 
   @override
-  Future<List<AssignmentQuestion>> getAssignmentQuestions(String assignmentId) async {
+  Future<List<AssignmentQuestion>> getAssignmentQuestions(
+    String assignmentId,
+  ) async {
     try {
       final rows = await _ds.getAssignmentQuestions(assignmentId);
       return rows.map(AssignmentQuestion.fromJson).toList();
@@ -187,7 +244,10 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
         error: e,
         stackTrace: stackTrace,
       );
-      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách câu hỏi bài tập');
+      throw ErrorTranslationUtils.translateError(
+        e,
+        'Lấy danh sách câu hỏi bài tập',
+      );
     }
   }
 
@@ -202,7 +262,10 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
         error: e,
         stackTrace: stackTrace,
       );
-      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách biến thể bài tập');
+      throw ErrorTranslationUtils.translateError(
+        e,
+        'Lấy danh sách biến thể bài tập',
+      );
     }
   }
 
@@ -238,5 +301,176 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
       throw ErrorTranslationUtils.translateError(e, 'Lấy hoạt động gần đây');
     }
   }
-}
 
+  @override
+  Future<AssignmentDistribution> distributeAssignment({
+    required String assignmentId,
+    required String classId,
+    required String distributionType,
+    String? groupId,
+    List<String>? studentIds,
+    DateTime? availableFrom,
+    DateTime? dueAt,
+    int? timeLimitMinutes,
+    bool allowLate = true,
+    Map<String, dynamic>? latePolicy,
+    bool sendNotification = true,
+
+    /// Cấu hình shuffle và hiển thị điểm - lưu vào cột settings JSONB
+    Map<String, dynamic>? settings,
+  }) async {
+    try {
+      AppLogger.debug(
+        '📤 [REPO] distributeAssignment: assignment=$assignmentId '
+        'class=$classId type=$distributionType',
+      );
+
+      final payload = <String, dynamic>{
+        'assignment_id': assignmentId,
+        'distribution_type': distributionType,
+        'class_id': classId,
+        if (groupId != null) 'group_id': groupId,
+        if (studentIds != null && studentIds.isNotEmpty)
+          'student_ids': studentIds,
+        if (availableFrom != null)
+          'available_from': availableFrom.toIso8601String(),
+        if (dueAt != null) 'due_at': dueAt.toIso8601String(),
+        if (timeLimitMinutes != null) 'time_limit_minutes': timeLimitMinutes,
+        'allow_late': allowLate,
+        if (latePolicy != null) 'late_policy': latePolicy,
+        // Thêm settings cho shuffle và hiển thị điểm
+        if (settings != null) 'settings': settings,
+      };
+
+      final row = await _ds.insertDistribution(payload);
+      return AssignmentDistribution.fromJson(row);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] distributeAssignment: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Phân phối bài tập');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getDistributionDetail(
+    String distributionId,
+  ) async {
+    try {
+      return await _ds.getDistributionDetail(distributionId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getDistributionDetail: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(
+        e,
+        'Lấy chi tiết bài tập đã giao',
+      );
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getSubmissionsByDistribution(
+    String distributionId,
+  ) async {
+    try {
+      return await _ds.getSubmissionsByDistribution(distributionId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getSubmissionsByDistribution: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách bài nộp');
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getStudentAssignments(
+    String studentId,
+  ) async {
+    try {
+      return await _ds.getStudentAssignments(studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getStudentAssignments: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách bài tập');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getOrCreateSubmission(
+    String distributionId,
+    String studentId,
+  ) async {
+    try {
+      return await _ds.getOrCreateSubmission(distributionId, studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getOrCreateSubmission: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy bài nộp');
+    }
+  }
+
+  @override
+  Future<void> saveSubmissionDraft(
+    String distributionId,
+    String studentId,
+    Map<String, dynamic> answers,
+    List<String> uploadedFiles,
+  ) async {
+    try {
+      await _ds.saveDraft(distributionId, studentId, answers, uploadedFiles);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] saveSubmissionDraft: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lưu bản nháp');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> submitAssignment(
+    String distributionId,
+    String studentId,
+  ) async {
+    try {
+      return await _ds.submitAssignment(distributionId, studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] submitAssignment: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Nộp bài tập');
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getStudentSubmissionHistory(
+    String studentId,
+  ) async {
+    try {
+      return await _ds.getStudentSubmissionHistory(studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getStudentSubmissionHistory: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy lịch sử nộp bài');
+    }
+  }
+}

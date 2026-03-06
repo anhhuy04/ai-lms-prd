@@ -115,7 +115,8 @@ create table if not exists public.class_teachers (
 -- ===========================
 create table if not exists public.groups (
   id uuid primary key default gen_random_uuid(),
-  class_id uuid references public.classes on delete cascade,
+  class_id uuid references public.classes on delete cascade, -- Có thể NULL cho nhóm liên lớp
+  teacher_id uuid references auth.users not null, -- Người sở hữu nhóm
   name text not null,
   description text,
   created_at timestamptz default now()

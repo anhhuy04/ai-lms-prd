@@ -139,7 +139,7 @@ class AuthRepositoryImpl implements AuthRepository {
       } else if (e.message.contains('Invalid email')) {
         throw Exception('Định dạng email không hợp lệ');
       } else if (e.message.contains('password')) {
-        throw Exception('Mật khẩu phải có ít nhất 6 ký tự');
+        throw Exception('Mật khẩu phải có ít nhất 8 ký tự');
       } else {
         throw Exception('Đăng ký thất bại. Vui lòng thử lại.');
       }

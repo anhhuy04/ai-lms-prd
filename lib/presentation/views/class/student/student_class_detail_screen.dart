@@ -1,10 +1,12 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/presentation/providers/assignment_providers.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/class_notifier.dart';
 import 'package:ai_mls/presentation/views/class/student/widgets/drawers/student_class_settings_drawer.dart';
 import 'package:ai_mls/widgets/drawers/action_end_drawer.dart';
 import 'package:ai_mls/widgets/list/class_detail_assignment_list.dart';
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/search/dialogs/quick_search_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,42 +35,6 @@ class StudentClassDetailScreen extends ConsumerStatefulWidget {
 
 class _StudentClassDetailScreenState
     extends ConsumerState<StudentClassDetailScreen> {
-  // State cho tìm kiếm
-  final String _searchQuery = '';
-
-  // Dữ liệu mẫu cho danh sách bài tập (const để tránh tạo lại trong mỗi build)
-  static const List<Map<String, dynamic>> _sampleAssignments = [
-    {
-      'id': '1',
-      'title': 'Toán Đại Số - Chương 1: Hàm Số',
-      'dueDate': 'Hôm nay, 23:59',
-      'status': 'active',
-      'studentStatus': 'submitted', // Trạng thái của học sinh
-      'score': '9.5', // Điểm nếu đã chấm
-      'icon': 'calculate',
-      'classInfo': 'Lớp 10A1',
-    },
-    {
-      'id': '2',
-      'title': 'Ngữ Văn - Phân tích tác phẩm',
-      'dueDate': '15/10/2023',
-      'status': 'new',
-      'studentStatus': 'not_submitted', // Chưa nộp
-      'icon': 'menu_book',
-      'classInfo': 'Lớp 11B2',
-    },
-    {
-      'id': '3',
-      'title': 'Vật Lý - Bài tập Quang học',
-      'dueDate': '15/10/2023',
-      'status': 'closed',
-      'studentStatus': 'graded', // Đã chấm điểm
-      'score': '8.0',
-      'icon': 'science',
-      'classInfo': 'Lớp 12A5',
-    },
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -124,9 +90,13 @@ class _StudentClassDetailScreenState
       ),
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
-        border: Border(
-          bottom: BorderSide(color: Theme.of(context).dividerColor, width: 1),
-        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            offset: const Offset(0, 2),
+            blurRadius: 4,
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -226,6 +196,31 @@ class _StudentClassDetailScreenState
 
   /// Hàng thống kê nhanh cho học sinh
   Widget _buildQuickStatsRow(BuildContext context) {
+    // Watch assignments provider để tính stats
+    final assignmentsAsync = ref.watch(
+      studentClassAssignmentsProvider(widget.classId),
+    );
+
+    // Tính stats từ real data
+    final totalAssignments =
+        assignmentsAsync.whenOrNull(data: (list) => list.length) ?? 0;
+    final upcomingCount =
+        assignmentsAsync.whenOrNull(
+          data: (list) {
+            final now = DateTime.now();
+            final sevenDaysLater = now.add(const Duration(days: 7));
+            return list.where((a) {
+              final dueAt = a['distribution_due_at'] as String?;
+              if (dueAt == null) return false;
+              final due = DateTime.tryParse(dueAt);
+              return due != null &&
+                  due.isAfter(now) &&
+                  due.isBefore(sevenDaysLater);
+            }).length;
+          },
+        ) ??
+        0;
+
     return Row(
       children: [
         Expanded(
@@ -233,7 +228,7 @@ class _StudentClassDetailScreenState
             context: context,
             icon: Icons.assessment,
             iconColor: DesignColors.primary,
-            value: '85%',
+            value: '--',
             label: 'Điểm trung bình',
             onTap: () {
               // TODO: Navigate to grade details
@@ -246,8 +241,8 @@ class _StudentClassDetailScreenState
             context: context,
             icon: Icons.assignment_turned_in,
             iconColor: Colors.green,
-            value: '12/15',
-            label: 'Bài đã nộp',
+            value: '$totalAssignments',
+            label: 'Bài tập',
             onTap: () {
               // TODO: Navigate to submitted assignments
             },
@@ -259,7 +254,7 @@ class _StudentClassDetailScreenState
             context: context,
             icon: Icons.schedule,
             iconColor: Colors.orange,
-            value: '3',
+            value: '$upcomingCount',
             label: 'Sắp đến hạn',
             onTap: () {
               // TODO: Navigate to upcoming assignments
@@ -286,7 +281,6 @@ class _StudentClassDetailScreenState
         decoration: BoxDecoration(
           color: DesignColors.white,
           borderRadius: BorderRadius.circular(DesignRadius.md),
-          border: Border.all(color: Theme.of(context).dividerColor, width: 1),
           boxShadow: [DesignElevation.level1],
         ),
         child: Column(
@@ -352,10 +346,6 @@ class _StudentClassDetailScreenState
             end: Alignment.centerRight,
           ),
           borderRadius: BorderRadius.circular(DesignRadius.md),
-          border: Border.all(
-            color: DesignColors.primary.withValues(alpha: 0.2),
-            width: 1,
-          ),
           boxShadow: [DesignElevation.level1],
         ),
         child: Row(
@@ -464,75 +454,101 @@ class _StudentClassDetailScreenState
     );
   }
 
-  /// Danh sách bài tập cho học sinh
+  /// Danh sách bài tập cho học sinh — real data từ Supabase với shimmer loading
   Widget _buildAssignmentList(BuildContext context) {
-    return ClassDetailAssignmentList(
-      assignments: _sampleAssignments,
-      viewMode: AssignmentViewMode.student,
-      onItemTap: (assignment) {
-        // TODO: Navigate to assignment detail or action based on studentStatus
+    final assignmentsAsync = ref.watch(
+      studentClassAssignmentsProvider(widget.classId),
+    );
+
+    return assignmentsAsync.when(
+      loading: () => const ShimmerAssignmentListLoading(),
+      error: (error, _) => _buildAssignmentErrorState(context),
+      data: (assignments) {
+        return ClassDetailAssignmentList(
+          assignments: assignments,
+          viewMode: AssignmentViewMode.student,
+          onItemTap: (assignment) {
+            final distributionId = assignment['distribution_id']?.toString();
+            if (distributionId != null) {
+              context.pushNamed(
+                AppRoute.studentAssignmentDetail,
+                pathParameters: {'assignmentId': distributionId},
+              );
+            }
+          },
+        );
       },
     );
   }
 
-  /// Hiển thị Smart Search Dialog V2 - Thiết kế mới
+  /// Error state cho danh sách bài tập
+  Widget _buildAssignmentErrorState(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(DesignSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: DesignIcons.xlSize,
+              color: DesignColors.error,
+            ),
+            SizedBox(height: DesignSpacing.md),
+            Text(
+              'Không thể tải danh sách bài tập',
+              style: DesignTypography.bodyMedium.copyWith(
+                color: DesignColors.error,
+              ),
+            ),
+            SizedBox(height: DesignSpacing.md),
+            ElevatedButton.icon(
+              onPressed: () {
+                ref.invalidate(studentClassAssignmentsProvider(widget.classId));
+              },
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Thử lại'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Hiển thị Smart Search Dialog V2 — dùng real data từ provider
   void _showSmartSearchDialog(BuildContext context) {
-    // Dữ liệu bài tập từ danh sách hiện có
-    final List<Map<String, dynamic>> assignments = [
-      {
-        'id': '1',
-        'title': 'Toán Đại Số - Chương 1: Hàm Số',
-        'subtitle': 'Lớp 10A1 • Hôm nay, 23:59',
-      },
-      {
-        'id': '2',
-        'title': 'Ngữ Văn - Phân tích tác phẩm',
-        'subtitle': 'Lớp 11B2 • 15/10/2023',
-      },
-      {
-        'id': '3',
-        'title': 'Vật Lý - Bài tập Quang học',
-        'subtitle': 'Lớp 12A5 • 15/10/2023',
-      },
-    ];
-
-    // Dữ liệu học sinh
-    final List<Map<String, dynamic>> students = [
-      {'id': '1', 'title': 'Nguyễn Văn An', 'subtitle': 'Lớp 12A1'},
-      {'id': '2', 'title': 'Trần Thị Bích', 'subtitle': 'Lớp 11A3'},
-      {'id': '3', 'title': 'Lê Minh Cường', 'subtitle': 'Lớp 9A1'},
-    ];
-
-    // Dữ liệu lớp học
-    final List<Map<String, dynamic>> classes = [
-      {
-        'id': '1',
-        'title': 'Lớp 10A1 - Toán',
-        'subtitle': 'Giáo viên: Nguyễn Văn A',
-      },
-      {
-        'id': '2',
-        'title': 'Lớp 11B2 - Ngữ Văn',
-        'subtitle': 'Giáo viên: Trần Thị B',
-      },
-      {
-        'id': '3',
-        'title': 'Lớp 12A5 - Vật Lý',
-        'subtitle': 'Giáo viên: Lê Minh C',
-      },
-    ];
+    // Lấy real assignments data (nếu đã load)
+    final assignmentsAsync = ref.read(
+      studentClassAssignmentsProvider(widget.classId),
+    );
+    final searchAssignments =
+        assignmentsAsync.whenOrNull(
+          data: (list) => list
+              .map(
+                (a) => <String, dynamic>{
+                  'id': a['id'],
+                  'title': a['title'] ?? 'Không có tiêu đề',
+                  'subtitle':
+                      '${widget.className} • ${a['distribution_due_at'] ?? 'Không hạn'}',
+                },
+              )
+              .toList(),
+        ) ??
+        <Map<String, dynamic>>[];
 
     showDialog(
       context: context,
       barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.6),
-      builder: (context) => QuickSearchDialog(
-        initialQuery: _searchQuery,
-        assignments: assignments,
-        students: students,
-        classes: classes,
+      builder: (dialogContext) => QuickSearchDialog(
+        initialQuery: '',
+        assignments: searchAssignments,
+        students: const [], // Không cần student data cho student view
+        classes: const [], // Đang ở trong chi tiết 1 lớp, không cần search lớp
         onItemSelected: (item) {
-          context.pop();
+          if (dialogContext.canPop()) {
+            dialogContext.pop();
+          }
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('Đã chọn: ${item['title']}')));

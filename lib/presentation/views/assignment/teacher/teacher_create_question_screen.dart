@@ -451,10 +451,11 @@ class _TeacherCreateQuestionScreenState
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final statusBarHeight = MediaQuery.of(context).padding.top;
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
         await _handleBack();
-        return false;
       },
       child: Scaffold(
         backgroundColor: DesignColors.moonLight,

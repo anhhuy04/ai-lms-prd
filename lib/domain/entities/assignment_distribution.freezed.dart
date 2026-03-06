@@ -44,6 +44,13 @@ mixin _$AssignmentDistribution {
   bool get allowLate => throw _privateConstructorUsedError;
   @JsonKey(name: 'late_policy')
   Map<String, dynamic>? get latePolicy => throw _privateConstructorUsedError;
+
+  /// Cấu hình shuffle và hiển thị điểm:
+  /// - shuffle_questions: đảo thứ tự câu hỏi
+  /// - shuffle_choices: đảo thứ tự đáp án
+  /// - show_score_immediately: hiển thị điểm ngay sau khi nộp
+  @JsonKey(name: 'settings')
+  Map<String, dynamic>? get settings => throw _privateConstructorUsedError;
   @JsonKey(name: 'created_at')
   DateTime? get createdAt => throw _privateConstructorUsedError;
 
@@ -76,6 +83,7 @@ abstract class $AssignmentDistributionCopyWith<$Res> {
     @JsonKey(name: 'time_limit_minutes') int? timeLimitMinutes,
     @JsonKey(name: 'allow_late') bool allowLate,
     @JsonKey(name: 'late_policy') Map<String, dynamic>? latePolicy,
+    @JsonKey(name: 'settings') Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') DateTime? createdAt,
   });
 }
@@ -109,6 +117,7 @@ class _$AssignmentDistributionCopyWithImpl<
     Object? timeLimitMinutes = freezed,
     Object? allowLate = null,
     Object? latePolicy = freezed,
+    Object? settings = freezed,
     Object? createdAt = freezed,
   }) {
     return _then(
@@ -157,6 +166,10 @@ class _$AssignmentDistributionCopyWithImpl<
                 ? _value.latePolicy
                 : latePolicy // ignore: cast_nullable_to_non_nullable
                       as Map<String, dynamic>?,
+            settings: freezed == settings
+                ? _value.settings
+                : settings // ignore: cast_nullable_to_non_nullable
+                      as Map<String, dynamic>?,
             createdAt: freezed == createdAt
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
@@ -188,6 +201,7 @@ abstract class _$$AssignmentDistributionImplCopyWith<$Res>
     @JsonKey(name: 'time_limit_minutes') int? timeLimitMinutes,
     @JsonKey(name: 'allow_late') bool allowLate,
     @JsonKey(name: 'late_policy') Map<String, dynamic>? latePolicy,
+    @JsonKey(name: 'settings') Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') DateTime? createdAt,
   });
 }
@@ -218,6 +232,7 @@ class __$$AssignmentDistributionImplCopyWithImpl<$Res>
     Object? timeLimitMinutes = freezed,
     Object? allowLate = null,
     Object? latePolicy = freezed,
+    Object? settings = freezed,
     Object? createdAt = freezed,
   }) {
     return _then(
@@ -266,6 +281,10 @@ class __$$AssignmentDistributionImplCopyWithImpl<$Res>
             ? _value._latePolicy
             : latePolicy // ignore: cast_nullable_to_non_nullable
                   as Map<String, dynamic>?,
+        settings: freezed == settings
+            ? _value._settings
+            : settings // ignore: cast_nullable_to_non_nullable
+                  as Map<String, dynamic>?,
         createdAt: freezed == createdAt
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
@@ -290,9 +309,11 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
     @JsonKey(name: 'time_limit_minutes') this.timeLimitMinutes,
     @JsonKey(name: 'allow_late') this.allowLate = true,
     @JsonKey(name: 'late_policy') final Map<String, dynamic>? latePolicy,
+    @JsonKey(name: 'settings') final Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') this.createdAt,
   }) : _studentIds = studentIds,
-       _latePolicy = latePolicy;
+       _latePolicy = latePolicy,
+       _settings = settings;
 
   factory _$AssignmentDistributionImpl.fromJson(Map<String, dynamic> json) =>
       _$$AssignmentDistributionImplFromJson(json);
@@ -345,13 +366,33 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
     return EqualUnmodifiableMapView(value);
   }
 
+  /// Cấu hình shuffle và hiển thị điểm:
+  /// - shuffle_questions: đảo thứ tự câu hỏi
+  /// - shuffle_choices: đảo thứ tự đáp án
+  /// - show_score_immediately: hiển thị điểm ngay sau khi nộp
+  final Map<String, dynamic>? _settings;
+
+  /// Cấu hình shuffle và hiển thị điểm:
+  /// - shuffle_questions: đảo thứ tự câu hỏi
+  /// - shuffle_choices: đảo thứ tự đáp án
+  /// - show_score_immediately: hiển thị điểm ngay sau khi nộp
+  @override
+  @JsonKey(name: 'settings')
+  Map<String, dynamic>? get settings {
+    final value = _settings;
+    if (value == null) return null;
+    if (_settings is EqualUnmodifiableMapView) return _settings;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
   @override
   @JsonKey(name: 'created_at')
   final DateTime? createdAt;
 
   @override
   String toString() {
-    return 'AssignmentDistribution(id: $id, assignmentId: $assignmentId, distributionType: $distributionType, classId: $classId, groupId: $groupId, studentIds: $studentIds, availableFrom: $availableFrom, dueAt: $dueAt, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePolicy: $latePolicy, createdAt: $createdAt)';
+    return 'AssignmentDistribution(id: $id, assignmentId: $assignmentId, distributionType: $distributionType, classId: $classId, groupId: $groupId, studentIds: $studentIds, availableFrom: $availableFrom, dueAt: $dueAt, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePolicy: $latePolicy, settings: $settings, createdAt: $createdAt)';
   }
 
   @override
@@ -381,6 +422,7 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
               other._latePolicy,
               _latePolicy,
             ) &&
+            const DeepCollectionEquality().equals(other._settings, _settings) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt));
   }
@@ -400,6 +442,7 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
     timeLimitMinutes,
     allowLate,
     const DeepCollectionEquality().hash(_latePolicy),
+    const DeepCollectionEquality().hash(_settings),
     createdAt,
   );
 
@@ -434,6 +477,7 @@ abstract class _AssignmentDistribution implements AssignmentDistribution {
     @JsonKey(name: 'time_limit_minutes') final int? timeLimitMinutes,
     @JsonKey(name: 'allow_late') final bool allowLate,
     @JsonKey(name: 'late_policy') final Map<String, dynamic>? latePolicy,
+    @JsonKey(name: 'settings') final Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') final DateTime? createdAt,
   }) = _$AssignmentDistributionImpl;
 
@@ -472,6 +516,14 @@ abstract class _AssignmentDistribution implements AssignmentDistribution {
   @override
   @JsonKey(name: 'late_policy')
   Map<String, dynamic>? get latePolicy;
+
+  /// Cấu hình shuffle và hiển thị điểm:
+  /// - shuffle_questions: đảo thứ tự câu hỏi
+  /// - shuffle_choices: đảo thứ tự đáp án
+  /// - show_score_immediately: hiển thị điểm ngay sau khi nộp
+  @override
+  @JsonKey(name: 'settings')
+  Map<String, dynamic>? get settings;
   @override
   @JsonKey(name: 'created_at')
   DateTime? get createdAt;

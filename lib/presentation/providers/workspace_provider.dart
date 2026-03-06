@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:ai_mls/core/services/supabase_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
-import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
+import 'package:ai_mls/presentation/providers/assignment_providers.dart';
 import 'package:easy_debounce/easy_debounce.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -75,20 +75,27 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
       final detail = await repo.getDistributionDetail(distributionId);
       final submission = await repo.getOrCreateSubmission(distributionId, studentId);
 
-      // Extract questions from detail
-      final assignment = detail['assignments'] as Map<String, dynamic>? ?? {};
-      final questions = assignment['assignment_questions'] as List<dynamic>? ?? [];
+      // Extract data từ detail (cấu trúc mới)
+      final assignment = detail['assignment'] as Map<String, dynamic>? ?? {};
+      final questions = detail['questions'] as List<dynamic>? ?? [];
+      final distribution = detail['distribution'] as Map<String, dynamic>? ?? {};
 
-      // Extract existing answers
-      final existingAnswers = submission?['answers'] as Map<String, dynamic>? ?? {};
-      final uploadedFiles = submission?['uploaded_files'] as List<dynamic>? ?? [];
+      // Extract existing answers - these may not exist in DB yet
+      Map<String, dynamic> existingAnswers = {};
+      if (submission?['answers'] is Map) {
+        existingAnswers = submission!['answers'] as Map<String, dynamic>;
+      }
+      List<dynamic> uploadedFiles = [];
+      if (submission?['uploaded_files'] is List) {
+        uploadedFiles = submission!['uploaded_files'] as List<dynamic>;
+      }
 
       final wsState = WorkspaceState(
         distributionId: distributionId,
         assignmentTitle: assignment['title'] as String? ?? 'Bài tập',
         totalPoints: (assignment['total_points'] as num?)?.toDouble(),
-        dueAt: detail['due_at'] != null
-            ? DateTime.tryParse(detail['due_at'] as String)
+        dueAt: distribution['due_at'] != null
+            ? DateTime.tryParse(distribution['due_at'] as String)
             : null,
         questions: questions.map((q) => QuestionState.fromJson(q as Map<String, dynamic>)).toList(),
         answers: Map<String, dynamic>.from(existingAnswers),
@@ -397,15 +404,39 @@ class QuestionState {
   });
 
   factory QuestionState.fromJson(Map<String, dynamic> json) {
+    // Cấu trúc mới: trực tiếp từ detail['questions']
+    // hoặc cấu trúc cũ: json['questions']
     final question = json['questions'] as Map<String, dynamic>? ?? json;
 
+    // Handle content - could be String or Map
+    String contentStr = '';
+    dynamic contentData = question['content'] ?? json['content'];
+    if (contentData is String) {
+      contentStr = contentData;
+    } else if (contentData is Map) {
+      contentStr = contentData['text'] as String? ?? '';
+    }
+
+    // Handle choices
+    List<dynamic> choicesList = [];
+    if (contentData is Map && contentData['options'] != null) {
+      // MultipleChoice format from custom_content
+      choicesList = (contentData['options'] as List<dynamic>).map((opt) => {
+        'id': '',
+        'content': {'text': opt['text']},
+        'is_correct': opt['isCorrect'] ?? false,
+      }).toList();
+    } else {
+      choicesList = question['question_choices'] as List<dynamic>? ?? json['question_choices'] as List<dynamic>? ?? [];
+    }
+
     return QuestionState(
-      id: question['id'] as String? ?? '',
-      content: question['content'] as String? ?? '',
-      type: question['type'] as String? ?? 'multiple_choice',
-      points: (question['points'] as num?)?.toDouble() ?? 1.0,
-      choices: (question['question_choices'] as List<dynamic>? ?? [])
-          .map((c) => QuestionChoiceState.fromJson(c as Map<String, dynamic>))
+      id: question['id'] as String? ?? json['id'] as String? ?? '',
+      content: contentStr,
+      type: question['type'] as String? ?? json['type'] as String? ?? 'multiple_choice',
+      points: (question['points'] as num?)?.toDouble() ?? (json['points'] as num?)?.toDouble() ?? 1.0,
+      choices: choicesList
+          .map((c) => QuestionChoiceState.fromJson(c is Map<String, dynamic> ? c : {}))
           .toList(),
     );
   }
@@ -424,9 +455,18 @@ class QuestionChoiceState {
   });
 
   factory QuestionChoiceState.fromJson(Map<String, dynamic> json) {
+    // Handle content - could be String or Map with 'text'
+    String contentStr = '';
+    dynamic contentData = json['content'];
+    if (contentData is String) {
+      contentStr = contentData;
+    } else if (contentData is Map) {
+      contentStr = contentData['text'] as String? ?? '';
+    }
+
     return QuestionChoiceState(
       id: json['id'] as String? ?? '',
-      content: json['content'] as String? ?? '',
+      content: contentStr,
       isCorrect: json['is_correct'] as bool? ?? false,
     );
   }

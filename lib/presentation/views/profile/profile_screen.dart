@@ -296,7 +296,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          if (!_isEditing)
+          if (_isEditing)
+            SizedBox(
+              width: 260,
+              child: TextFormField(
+                controller: _fullNameController,
+                decoration: InputDecoration(
+                  hintText: 'Nhập họ và tên',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(DesignRadius.lg),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                ),
+                textAlign: TextAlign.center,
+                validator: (value) {
+                  final text = value?.trim() ?? '';
+                  if (text.isEmpty) {
+                    return 'Vui lòng nhập họ và tên';
+                  }
+                  if (text.length < 3) {
+                    return 'Tên quá ngắn';
+                  }
+                  return null;
+                },
+              ),
+            )
+          else
             Text(
               user.fullName ?? 'Chưa cập nhật',
               style: DesignTypography.titleLarge.copyWith(

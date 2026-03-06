@@ -38,6 +38,8 @@ class ResponsiveText extends StatelessWidget {
   ) {
     // Widget này được build rất thường xuyên; tuyệt đối không log sync trong runtime.
     if (!kDebugMode) return;
+    // On web, dart:io Platform APIs throw, so skip host file logging.
+    if (kIsWeb) return;
     try {
       // Chỉ ghi log ra file trên Windows host để tránh I/O + jank trên mobile.
       if (!Platform.isWindows) return;

@@ -8,7 +8,6 @@ import 'package:ai_mls/core/services/network_service.dart';
 import 'package:ai_mls/core/services/supabase_service.dart';
 import 'package:ai_mls/core/theme/app_theme.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
-import 'package:flutter/services.dart';
 import 'package:ai_mls/data/datasources/assignment_datasource.dart';
 import 'package:ai_mls/data/datasources/learning_objective_datasource.dart';
 import 'package:ai_mls/data/datasources/question_bank_datasource.dart';
@@ -32,6 +31,7 @@ import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/widgets/navigation/back_button_handler.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -75,8 +75,8 @@ void _log(
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     };
 
-    // Write to host file when running on Windows host
-    if (Platform.isWindows) {
+    // Write to host file khi chạy trên Windows desktop (không áp dụng cho web)
+    if (!kIsWeb && Platform.isWindows) {
       try {
         final logPath = r'd:\code\Flutter_Android\AI_LMS_PRD\.cursor\debug.log';
         final logFile = File(logPath);
@@ -115,8 +115,8 @@ void main() async {
   _log('main.dart:17', 'App startup', {}, 'G');
   // #endregion
 
-  // Debug: Check ENV_FILE environment variable
-  final envFile = String.fromEnvironment('ENV_FILE', defaultValue: '.env.dev');
+  // Debug: Check ENV_FILE environment variable (compile-time constant)
+  const envFile = String.fromEnvironment('ENV_FILE', defaultValue: '.env.dev');
   AppLogger.info(
     '📋 [MAIN] ENV_FILE from environment: "$envFile" '
     '(default: .env.dev)',
@@ -187,7 +187,8 @@ void main() async {
           LearningObjectiveRepositoryImpl(learningObjectiveDataSource);
 
       // #region agent log
-      if (Platform.isWindows) {
+      // Chỉ ghi file debug trên Windows desktop, không chạy trên web.
+      if (!kIsWeb && Platform.isWindows) {
         try {
           final logFile = File(
             'd:\\code\\Flutter_Android\\AI_LMS_PRD\\.cursor\\debug.log',
@@ -263,13 +264,18 @@ class MyApp extends ConsumerWidget {
         // Safe to call multiple times (DeepLinkService clears pending path after applying).
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!context.mounted) return;
-          DeepLinkService.instance.applyPendingDeepLink(context);
+          // Sử dụng context bên trong GoRouter thay vì context của ScreenUtilInit,
+          // tránh lỗi "No GoRouter found in context" trên web.
+          final navContext = router.routerDelegate.navigatorKey.currentContext;
+          if (navContext == null) return;
+          DeepLinkService.instance.applyPendingDeepLink(navContext);
         });
 
         return BackButtonHandler(
           child: AnnotatedRegion<SystemUiOverlayStyle>(
             value: const SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent, // Hoàn toàn trong suốt như FB, TikTok
+              statusBarColor:
+                  Colors.transparent, // Hoàn toàn trong suốt như FB, TikTok
               statusBarIconBrightness: Brightness.dark,
               statusBarBrightness: Brightness.light,
               systemNavigationBarColor: Colors.transparent,

@@ -109,6 +109,8 @@ void _agentLog({
   required String hypothesisId,
 }) {
   if (!kDebugMode) return;
+  // On web, Platform from dart:io is not supported – skip file logging entirely.
+  if (kIsWeb) return;
   if (!Platform.isWindows) return;
   try {
     final logEntry = {

@@ -168,7 +168,8 @@ Database hiện tại có **7 bảng** đã được tạo trong schema `public`
 | Tên cột | Kiểu dữ liệu | Nullable | Mặc định | Mô tả |
 |---------|--------------|----------|----------|-------|
 | `id` | uuid | NO | gen_random_uuid() | Primary key |
-| `class_id` | uuid | YES | - | FK → classes.id |
+| `class_id` | uuid | YES | - | FK → classes.id (Null cho nhóm liên lớp) |
+| `teacher_id` | uuid | NO | - | FK → auth.users.id (chủ sở hữu nhóm) |
 | `name` | text | NO | - | Tên nhóm |
 | `description` | text | YES | - | Mô tả nhóm |
 | `created_at` | timestamptz | YES | now() | Thời gian tạo |
@@ -176,6 +177,7 @@ Database hiện tại có **7 bảng** đã được tạo trong schema `public`
 **Ràng buộc:**
 - Primary key: `id`
 - Foreign key: `class_id` → `classes.id`
+- Foreign key: `teacher_id` → `auth.users.id`
 
 **Số dòng hiện tại:** 0
 

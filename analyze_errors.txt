@@ -1,0 +1,11 @@
+﻿Analyzing teacher_distribute_assignment_screen.dart...
+
+  error - teacher_distribute_assignment_screen.dart:317:18 - 5 positional arguments expected by '_buildSectionShell', but 4 found. Try adding the missing arguments. - not_enough_positional_arguments
+  error - teacher_distribute_assignment_screen.dart:337:7 - The named parameter 'child' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'child'. - undefined_named_parameter
+  error - teacher_distribute_assignment_screen.dart:507:13 - The getter 'calendar_clock' isn't defined for the type 'Icons'. Try importing the library that defines 'calendar_clock', correcting the name to the name of an existing getter, or defining a getter or field named 'calendar_clock'. - undefined_getter
+  error - teacher_distribute_assignment_screen.dart:508:19 - 5 positional arguments expected by '_buildSectionShell', but 4 found. Try adding the missing arguments. - not_enough_positional_arguments
+  error - teacher_distribute_assignment_screen.dart:509:7 - The named parameter 'child' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'child'. - undefined_named_parameter
+  error - teacher_distribute_assignment_screen.dart:744:25 - 5 positional arguments expected by '_buildSectionShell', but 4 found. Try adding the missing arguments. - not_enough_positional_arguments
+  error - teacher_distribute_assignment_screen.dart:745:7 - The named parameter 'child' isn't defined. Try correcting the name to an existing named parameter's name, or defining a named parameter with the name 'child'. - undefined_named_parameter
+
+7 issues found.

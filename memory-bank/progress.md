@@ -1,6 +1,24 @@
 # Progress Tracker
 
-## Current Session (2026-01-30)
+## Current Session (2026-02-25)
+
+### UI Refinements, Navigation Fixes & Selection Scoping ✅
+**Completed:**
+- ✅ **Fixed Cross-Class Selection Leaks**
+  - Updated `RecipientSelectionResult` to use class context explicitly for grouping, preventing recipient leaks across classes when distributing assignments.
+  - Implemented logic in `TeacherDistributeAssignmentScreen` to rigidly lock the selection scope when routing directly from a specific class.
+- ✅ **Navigation Target Update for "Tạo ngay"**
+  - Re-routed the "Add Assignment" button in `TeacherClassDetailScreen` to point directly to `TeacherAssignmentSelection` distribution workflow rather than the general list.
+  - Passed `selectedClassId` via extras correctly so the distribute assignment page is properly scoped to that initial context.
+- ✅ **Bug Fixing: Duplicate Page Keys**
+  - Addressed a `HeroControllerScope` assertion error by injecting unique `state.pageKey` in `FadeTransitionPage` instances deployed across `app_router.dart`.
+- ✅ **Global Theme Borders Cleanup**
+  - Removed unwanted Material 3 default borders globally using `DividerThemeData` and `SwitchThemeData`.
+  - Replaced hard-coded bottom boundaries in screen app bars (student and teacher side) with soft `BoxShadow` for visual elevation.
+
+## Previous Session (2026-02-23)
+
+### Bug Fixing: GlobalKey and UI Rendering ✅
 
 ### Code Optimization & Quality Improvements - Complete ✅
 **Completed:**
@@ -918,6 +936,48 @@
 - Week 1: Data models + repository + view model
 - Week 2: Builder UI screens
 - Week 3: Testing + refinement
+
+### Phase 2: Student Workspace (Weeks 4-5)
+- Auto-save, file upload, submission flow
+
+### Phase 3: AI Grading (Weeks 6-8)
+- AI service integration, grading UI, teacher review
+
+### Phase 4: Analytics (Weeks 9-11)
+- Analytics service, dashboards, charts
+
+### Phase 5: Recommendations (Weeks 12+)
+- Recommendation algorithms, UI, testing
+
+**Total Estimated:** ~12 weeks for MVP (all 5 chapters)
+
+## Release Readiness Checklist
+
+### Pre-MVP (Current Phase)
+- [ ] Complete Chapter 1 (Assignment Builder)
+- [ ] Complete Chapter 2 (Student Workspace)
+- [ ] Implement AI Grading (basic version)
+- [ ] Basic analytics working
+- [ ] All 3 user roles functional
+
+### Before Beta Release
+- [ ] 70%+ unit test coverage
+- [ ] All critical workflows tested manually
+- [ ] Performance profiled and optimized
+- [ ] Error handling comprehensive
+- [ ] Offline mode functional (draft saves)
+
+### Before Production Release
+- [ ] 85%+ unit test coverage
+- [ ] Integration tests for all critical flows
+- [ ] Security audit (RLS policies, token handling)
+- [ ] Load testing (100+ concurrent users)
+- [ ] Full documentation updated
+
+---
+
+**Last Updated:** 2026-01-03  
+**Next Review:** After Chapter 1 completion
 
 ### Phase 2: Student Workspace (Weeks 4-5)
 - Auto-save, file upload, submission flow

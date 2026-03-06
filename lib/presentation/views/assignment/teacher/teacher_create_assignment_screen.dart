@@ -1586,10 +1586,11 @@ class _TeacherCreateAssignmentScreenState
       );
     }
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
         await _handleBackWithDialog();
-        return false;
       },
       child: Scaffold(
         backgroundColor: DesignColors.moonLight,

@@ -24,17 +24,21 @@ class TeacherPublishedAssignmentsScreen extends ConsumerStatefulWidget {
 
 class _TeacherPublishedAssignmentsScreenState
     extends ConsumerState<TeacherPublishedAssignmentsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
-    // Auto-refresh khi screen được mount
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _refreshAssignments();
-    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshAssignments() async {
-    // Trigger rebuild để load data mới từ database
     if (mounted) {
       setState(() {});
     }
@@ -46,8 +50,9 @@ class _TeacherPublishedAssignmentsScreenState
     final teacherId = ref.watch(currentUserIdProvider);
 
     if (teacherId == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Kho bài tập đã tạo')),
+      return _buildScaffold(
+        isDark: isDark,
+        teacherId: null,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -57,10 +62,12 @@ class _TeacherPublishedAssignmentsScreenState
                 size: DesignIcons.xxlSize,
                 color: DesignColors.error,
               ),
-              SizedBox(height: DesignSpacing.lg),
+              const SizedBox(height: DesignSpacing.lg),
               Text(
                 'Người dùng chưa đăng nhập',
-                style: DesignTypography.titleMedium,
+                style: DesignTypography.titleMedium.copyWith(
+                  color: isDark ? DesignColors.white : DesignColors.textPrimary,
+                ),
               ),
             ],
           ),
@@ -68,80 +75,392 @@ class _TeacherPublishedAssignmentsScreenState
       );
     }
 
+    return _buildScaffold(
+      isDark: isDark,
+      teacherId: teacherId,
+      body: _AssignmentListSection(
+        teacherId: teacherId,
+        searchQuery: _searchQuery,
+        onRefresh: _refreshAssignments,
+        isDark: isDark,
+      ),
+    );
+  }
+
+  Widget _buildScaffold({
+    required bool isDark,
+    required String? teacherId,
+    required Widget body,
+  }) {
     return Scaffold(
-      backgroundColor: DesignColors.moonLight,
+      backgroundColor: isDark ? DesignColors.moonDark : DesignColors.moonLight,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            size: DesignIcons.smSize,
+            color: isDark
+                ? DesignColors.textTertiary
+                : DesignColors.textSecondary,
+          ),
           onPressed: () => context.pop(),
-          color: isDark ? Colors.grey[300] : Colors.grey[700],
         ),
-        title: const Text(
+        title: Text(
           'Kho bài tập đã tạo',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: DesignTypography.titleLargeSize,
+            fontWeight: FontWeight.bold,
+            color: isDark ? DesignColors.white : DesignColors.textPrimary,
+          ),
         ),
-        backgroundColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+        backgroundColor: isDark ? const Color(0xFF1A2632) : DesignColors.white,
         elevation: 0,
         centerTitle: true,
-      ),
-      body: FutureBuilder<List<Assignment>>(
-        future: ref
-            .read(assignmentRepositoryProvider)
-            .getAssignmentsByTeacher(teacherId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const ShimmerLoading();
-          }
-
-          if (snapshot.hasError) {
-            return AssignmentErrorState(
-              error: snapshot.error.toString(),
-              onRetry: _refreshAssignments,
-            );
-          }
-
-          final allAssignments = snapshot.data ?? [];
-          // Filter chỉ lấy assignments đã publish
-          final publishedAssignments =
-              allAssignments.where((a) => a.isPublished).toList()..sort((a, b) {
-                // Sort by published_at hoặc updated_at descending (mới nhất trước)
-                final aTime = a.updatedAt ?? a.createdAt ?? DateTime(1970);
-                final bTime = b.updatedAt ?? b.createdAt ?? DateTime(1970);
-                return bTime.compareTo(aTime);
-              });
-
-          return AssignmentListView(
-            assignments: publishedAssignments,
-            badgeConfig: AssignmentBadgeConfig.published,
-            actionBuilder: (assignment) => AssignmentActionConfig(
-              label: 'Xem chi tiết',
-              icon: Icons.visibility_outlined,
-              onPressed: () async {
-                // TODO: Navigate to view assignment details
-                // Tạm thời navigate to edit
-                await context.pushNamed(
-                  AppRoute.teacherCreateAssignment,
-                  extra: {'assignmentId': assignment.id},
-                );
-                if (!context.mounted) return;
-                await _refreshAssignments();
-              },
+        surfaceTintColor: Colors.transparent,
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.search,
+              size: DesignIcons.mdSize,
+              color: isDark
+                  ? DesignColors.textTertiary
+                  : DesignColors.textSecondary,
             ),
-            metadataConfig: AssignmentMetadataConfig.published,
-            emptyState: AssignmentEmptyState.published(),
-            onRefresh: _refreshAssignments,
-            onTap: (assignment) async {
-              // Cho phép tap cả card để chỉnh sửa/xem chi tiết và reload khi quay lại
+            onPressed: () => _showSearchBottomSheet(isDark),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Header với search - KHÔNG bị load cùng
+          Container(
+            padding: EdgeInsets.all(DesignSpacing.lg),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1A2632) : DesignColors.white,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.grey[800]!.withValues(alpha: 0.5)
+                          : Colors.grey[50],
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.search,
+                          size: 20,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _searchQuery.isEmpty
+                                ? 'Tìm kiếm bài tập...'
+                                : _searchQuery,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: _searchQuery.isEmpty
+                                  ? (isDark
+                                        ? Colors.grey[400]
+                                        : Colors.grey[500])
+                                  : (isDark
+                                        ? DesignColors.white
+                                        : DesignColors.textPrimary),
+                            ),
+                          ),
+                        ),
+                        if (_searchQuery.isNotEmpty)
+                          GestureDetector(
+                            onTap: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                            child: Icon(
+                              Icons.close,
+                              size: 18,
+                              color: isDark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[500],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // List bài tập - CHỈ CÓ PHẦN NÀY ĐƯỢC LOAD
+          Expanded(child: body),
+        ],
+      ),
+    );
+  }
+
+  void _showSearchBottomSheet(bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.9,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A2632) : DesignColors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(DesignRadius.lg * 2),
+            topRight: Radius.circular(DesignRadius.lg * 2),
+          ),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: EdgeInsets.all(DesignSpacing.lg),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      style: TextStyle(
+                        color: isDark
+                            ? DesignColors.white
+                            : DesignColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Tìm kiếm bài tập...',
+                        hintStyle: TextStyle(
+                          color: isDark ? Colors.grey[400] : Colors.grey[500],
+                        ),
+                        border: InputBorder.none,
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: isDark ? Colors.grey[400] : Colors.grey[500],
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setState(() => _searchQuery = value);
+                      },
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: Text(
+                      'Đóng',
+                      style: TextStyle(
+                        color: DesignColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Kết quả tìm kiếm
+            Expanded(
+              child: _searchQuery.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search,
+                            size: 64,
+                            color: isDark ? Colors.grey[600] : Colors.grey[300],
+                          ),
+                          const SizedBox(height: DesignSpacing.md),
+                          Text(
+                            'Nhập từ khóa để tìm kiếm',
+                            style: TextStyle(
+                              color: isDark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _AssignmentListSection(
+                      teacherId: ref.read(currentUserIdProvider) ?? '',
+                      searchQuery: _searchQuery,
+                      onRefresh: _refreshAssignments,
+                      isDark: isDark,
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Section chỉ load danh sách bài tập (có shimmer)
+class _AssignmentListSection extends ConsumerStatefulWidget {
+  final String teacherId;
+  final String searchQuery;
+  final VoidCallback onRefresh;
+  final bool isDark;
+
+  const _AssignmentListSection({
+    required this.teacherId,
+    required this.searchQuery,
+    required this.onRefresh,
+    required this.isDark,
+  });
+
+  @override
+  ConsumerState<_AssignmentListSection> createState() =>
+      _AssignmentListSectionState();
+}
+
+class _AssignmentListSectionState
+    extends ConsumerState<_AssignmentListSection> {
+  Future<List<Assignment>>? _assignmentsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAssignments();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AssignmentListSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.teacherId != oldWidget.teacherId) {
+      _loadAssignments();
+    }
+  }
+
+  void _loadAssignments() {
+    _assignmentsFuture = ref
+        .read(assignmentRepositoryProvider)
+        .getAssignmentsByTeacher(widget.teacherId);
+  }
+
+  void _handleRefresh() {
+    setState(() {
+      _loadAssignments();
+    });
+    widget.onRefresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Assignment>>(
+      future: _assignmentsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          // Chỉ shimmer cho phần list, không load header
+          return Padding(
+            padding: const EdgeInsets.all(DesignSpacing.lg),
+            child: const ShimmerLoading(),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return AssignmentErrorState(
+            error: snapshot.error.toString(),
+            onRetry: _handleRefresh,
+          );
+        }
+
+        final allAssignments = snapshot.data ?? [];
+
+        // Filter published assignments
+        var publishedAssignments = allAssignments
+            .where((a) => a.isPublished)
+            .toList();
+
+        // Filter theo search query nếu có
+        if (widget.searchQuery.isNotEmpty) {
+          final query = widget.searchQuery.toLowerCase();
+          publishedAssignments = publishedAssignments.where((a) {
+            return a.title.toLowerCase().contains(query) ||
+                (a.description?.toLowerCase().contains(query) ?? false);
+          }).toList();
+        }
+
+        // Sort by date descending
+        publishedAssignments.sort((a, b) {
+          final aTime = a.updatedAt ?? a.createdAt ?? DateTime(1970);
+          final bTime = b.updatedAt ?? b.createdAt ?? DateTime(1970);
+          return bTime.compareTo(aTime);
+        });
+
+        if (publishedAssignments.isEmpty) {
+          return widget.searchQuery.isNotEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.search_off,
+                        size: 64,
+                        color: widget.isDark
+                            ? Colors.grey[600]
+                            : Colors.grey[300],
+                      ),
+                      const SizedBox(height: DesignSpacing.md),
+                      Text(
+                        'Không tìm thấy bài tập nào',
+                        style: TextStyle(
+                          color: widget.isDark
+                              ? Colors.grey[400]
+                              : Colors.grey[500],
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : AssignmentEmptyState.published();
+        }
+
+        return AssignmentListView(
+          assignments: publishedAssignments,
+          badgeConfig: AssignmentBadgeConfig.published,
+          actionBuilder: (assignment) => AssignmentActionConfig(
+            label: 'Xem chi tiết',
+            icon: Icons.visibility_outlined,
+            onPressed: () async {
               await context.pushNamed(
                 AppRoute.teacherCreateAssignment,
                 extra: {'assignmentId': assignment.id},
               );
               if (!context.mounted) return;
-              await _refreshAssignments();
+              _handleRefresh();
             },
-          );
-        },
-      ),
+          ),
+          metadataConfig: AssignmentMetadataConfig.published,
+          emptyState: AssignmentEmptyState.published(),
+          onRefresh: _handleRefresh,
+          onTap: (assignment) async {
+            await context.pushNamed(
+              AppRoute.teacherCreateAssignment,
+              extra: {'assignmentId': assignment.id},
+            );
+            if (!context.mounted) return;
+            _handleRefresh();
+          },
+        );
+      },
     );
   }
 }
