@@ -76,7 +76,7 @@ class AssignmentDataSource {
       final assignment = Map<String, dynamic>.from(dist['assignments'] as Map);
       return <String, dynamic>{
         ...assignment,
-        'distribution_id': dist['id'],
+        'assignment_distribution_id': dist['id'],
         'distribution_type': dist['distribution_type'],
         'distribution_class_id': dist['class_id'],
         'distribution_group_id': dist['group_id'],
@@ -147,7 +147,7 @@ class AssignmentDataSource {
       final assignment = Map<String, dynamic>.from(dist['assignments'] as Map);
       return <String, dynamic>{
         ...assignment,
-        'distribution_id': dist['id'],
+        'assignment_distribution_id': dist['id'],
         'distribution_type': dist['distribution_type'],
         'distribution_due_at': dist['due_at'],
         'distribution_available_from': dist['available_from'],

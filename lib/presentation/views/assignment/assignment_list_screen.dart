@@ -264,7 +264,7 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                 assignment: assignment,
                 viewMode: AssignmentViewMode.student,
                 onTap: () {
-                  final distributionId = assignment['distribution_id']?.toString();
+                  final distributionId = assignment['assignment_distribution_id']?.toString();
                   if (distributionId != null) {
                     context.pushNamed(
                       AppRoute.studentAssignmentDetail,

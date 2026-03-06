@@ -14,7 +14,7 @@ class SubmissionDataSource {
     final existingRes = await _client
         .from('submissions')
         .select()
-        .eq('distribution_id', distributionId)
+        .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
         .maybeSingle();
 
@@ -25,7 +25,7 @@ class SubmissionDataSource {
     // Tạo mới submission draft
     final now = DateTime.now().toUtc().toIso8601String();
     final newSubmission = await _client.from('submissions').insert({
-      'distribution_id': distributionId,
+      'assignment_distribution_id': distributionId,
       'student_id': studentId,
       'status': 'draft',
       'answers': {},
@@ -48,7 +48,7 @@ class SubmissionDataSource {
     final existing = await _client
         .from('submissions')
         .select()
-        .eq('distribution_id', distributionId)
+        .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
         .maybeSingle();
 
@@ -63,7 +63,7 @@ class SubmissionDataSource {
       // Insert mới
       final now = DateTime.now().toUtc().toIso8601String();
       await _client.from('submissions').insert({
-        'distribution_id': distributionId,
+        'assignment_distribution_id': distributionId,
         'student_id': studentId,
         'status': 'draft',
         'answers': answers,
@@ -89,7 +89,7 @@ class SubmissionDataSource {
           'submitted_at': now,
           'updated_at': now,
         })
-        .eq('distribution_id', distributionId)
+        .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
         .select()
         .single();
@@ -130,7 +130,7 @@ class SubmissionDataSource {
             avatar_url
           )
         ''')
-        .eq('distribution_id', distributionId)
+        .eq('assignment_distribution_id', distributionId)
         .order('submitted_at', ascending: false);
 
     return List<Map<String, dynamic>>.from(result);

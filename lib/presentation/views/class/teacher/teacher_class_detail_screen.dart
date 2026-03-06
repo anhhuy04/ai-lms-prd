@@ -647,7 +647,7 @@ class _TeacherClassDetailScreenState
           assignments: assignments,
           viewMode: AssignmentViewMode.teacher,
           onItemTap: (assignment) {
-            final distributionId = assignment['distribution_id'] as String?;
+            final distributionId = assignment['assignment_distribution_id'] as String?;
             if (distributionId == null) return;
             context.pushNamed(
               AppRoute.teacherAssignmentDetail,

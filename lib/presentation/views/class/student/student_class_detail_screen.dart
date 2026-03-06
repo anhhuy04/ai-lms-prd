@@ -468,7 +468,7 @@ class _StudentClassDetailScreenState
           assignments: assignments,
           viewMode: AssignmentViewMode.student,
           onItemTap: (assignment) {
-            final distributionId = assignment['distribution_id']?.toString();
+            final distributionId = assignment['assignment_distribution_id']?.toString();
             if (distributionId != null) {
               context.pushNamed(
                 AppRoute.studentAssignmentDetail,
