@@ -24,8 +24,8 @@ mixin _$Submission {
   String get id => throw _privateConstructorUsedError;
 
   /// ID của bài tập được phân phối (assignment_distributions)
-  @JsonKey(name: 'distribution_id')
-  String get distributionId => throw _privateConstructorUsedError;
+  @JsonKey(name: 'assignment_distribution_id')
+  String get assignmentDistributionId => throw _privateConstructorUsedError;
 
   /// ID của học sinh nộp bài
   @JsonKey(name: 'student_id')
@@ -91,7 +91,8 @@ abstract class $SubmissionCopyWith<$Res> {
   @useResult
   $Res call({
     String id,
-    @JsonKey(name: 'distribution_id') String distributionId,
+    @JsonKey(name: 'assignment_distribution_id')
+    String assignmentDistributionId,
     @JsonKey(name: 'student_id') String studentId,
     @JsonKey(name: 'status') SubmissionStatus status,
     @JsonKey(name: 'submitted_at') DateTime? submittedAt,
@@ -122,7 +123,7 @@ class _$SubmissionCopyWithImpl<$Res, $Val extends Submission>
   @override
   $Res call({
     Object? id = null,
-    Object? distributionId = null,
+    Object? assignmentDistributionId = null,
     Object? studentId = null,
     Object? status = null,
     Object? submittedAt = freezed,
@@ -141,9 +142,9 @@ class _$SubmissionCopyWithImpl<$Res, $Val extends Submission>
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
                       as String,
-            distributionId: null == distributionId
-                ? _value.distributionId
-                : distributionId // ignore: cast_nullable_to_non_nullable
+            assignmentDistributionId: null == assignmentDistributionId
+                ? _value.assignmentDistributionId
+                : assignmentDistributionId // ignore: cast_nullable_to_non_nullable
                       as String,
             studentId: null == studentId
                 ? _value.studentId
@@ -206,7 +207,8 @@ abstract class _$$SubmissionImplCopyWith<$Res>
   @useResult
   $Res call({
     String id,
-    @JsonKey(name: 'distribution_id') String distributionId,
+    @JsonKey(name: 'assignment_distribution_id')
+    String assignmentDistributionId,
     @JsonKey(name: 'student_id') String studentId,
     @JsonKey(name: 'status') SubmissionStatus status,
     @JsonKey(name: 'submitted_at') DateTime? submittedAt,
@@ -236,7 +238,7 @@ class __$$SubmissionImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? id = null,
-    Object? distributionId = null,
+    Object? assignmentDistributionId = null,
     Object? studentId = null,
     Object? status = null,
     Object? submittedAt = freezed,
@@ -255,9 +257,9 @@ class __$$SubmissionImplCopyWithImpl<$Res>
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
                   as String,
-        distributionId: null == distributionId
-            ? _value.distributionId
-            : distributionId // ignore: cast_nullable_to_non_nullable
+        assignmentDistributionId: null == assignmentDistributionId
+            ? _value.assignmentDistributionId
+            : assignmentDistributionId // ignore: cast_nullable_to_non_nullable
                   as String,
         studentId: null == studentId
             ? _value.studentId
@@ -313,7 +315,8 @@ class __$$SubmissionImplCopyWithImpl<$Res>
 class _$SubmissionImpl implements _Submission {
   const _$SubmissionImpl({
     required this.id,
-    @JsonKey(name: 'distribution_id') required this.distributionId,
+    @JsonKey(name: 'assignment_distribution_id')
+    required this.assignmentDistributionId,
     @JsonKey(name: 'student_id') required this.studentId,
     @JsonKey(name: 'status') this.status = SubmissionStatus.draft,
     @JsonKey(name: 'submitted_at') this.submittedAt,
@@ -337,8 +340,8 @@ class _$SubmissionImpl implements _Submission {
 
   /// ID của bài tập được phân phối (assignment_distributions)
   @override
-  @JsonKey(name: 'distribution_id')
-  final String distributionId;
+  @JsonKey(name: 'assignment_distribution_id')
+  final String assignmentDistributionId;
 
   /// ID của học sinh nộp bài
   @override
@@ -413,7 +416,7 @@ class _$SubmissionImpl implements _Submission {
 
   @override
   String toString() {
-    return 'Submission(id: $id, distributionId: $distributionId, studentId: $studentId, status: $status, submittedAt: $submittedAt, gradedAt: $gradedAt, score: $score, feedback: $feedback, totalPoints: $totalPoints, answers: $answers, uploadedFiles: $uploadedFiles, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Submission(id: $id, assignmentDistributionId: $assignmentDistributionId, studentId: $studentId, status: $status, submittedAt: $submittedAt, gradedAt: $gradedAt, score: $score, feedback: $feedback, totalPoints: $totalPoints, answers: $answers, uploadedFiles: $uploadedFiles, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -422,8 +425,11 @@ class _$SubmissionImpl implements _Submission {
         (other.runtimeType == runtimeType &&
             other is _$SubmissionImpl &&
             (identical(other.id, id) || other.id == id) &&
-            (identical(other.distributionId, distributionId) ||
-                other.distributionId == distributionId) &&
+            (identical(
+                  other.assignmentDistributionId,
+                  assignmentDistributionId,
+                ) ||
+                other.assignmentDistributionId == assignmentDistributionId) &&
             (identical(other.studentId, studentId) ||
                 other.studentId == studentId) &&
             (identical(other.status, status) || other.status == status) &&
@@ -452,7 +458,7 @@ class _$SubmissionImpl implements _Submission {
   int get hashCode => Object.hash(
     runtimeType,
     id,
-    distributionId,
+    assignmentDistributionId,
     studentId,
     status,
     submittedAt,
@@ -483,7 +489,8 @@ class _$SubmissionImpl implements _Submission {
 abstract class _Submission implements Submission {
   const factory _Submission({
     required final String id,
-    @JsonKey(name: 'distribution_id') required final String distributionId,
+    @JsonKey(name: 'assignment_distribution_id')
+    required final String assignmentDistributionId,
     @JsonKey(name: 'student_id') required final String studentId,
     @JsonKey(name: 'status') final SubmissionStatus status,
     @JsonKey(name: 'submitted_at') final DateTime? submittedAt,
@@ -505,8 +512,8 @@ abstract class _Submission implements Submission {
 
   /// ID của bài tập được phân phối (assignment_distributions)
   @override
-  @JsonKey(name: 'distribution_id')
-  String get distributionId;
+  @JsonKey(name: 'assignment_distribution_id')
+  String get assignmentDistributionId;
 
   /// ID của học sinh nộp bài
   @override

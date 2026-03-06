@@ -11,6 +11,7 @@ class AssignmentVariant with _$AssignmentVariant {
   const factory AssignmentVariant({
     required String id,
     @JsonKey(name: 'assignment_id') required String assignmentId,
+    @JsonKey(name: 'assignment_distribution_id') String? assignmentDistributionId,
     @JsonKey(name: 'variant_type') required String variantType,
     @JsonKey(name: 'student_id') String? studentId,
     @JsonKey(name: 'group_id') String? groupId,

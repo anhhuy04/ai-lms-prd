@@ -24,7 +24,7 @@ class Submission with _$Submission {
     required String id,
 
     /// ID của bài tập được phân phối (assignment_distributions)
-    @JsonKey(name: 'distribution_id') required String distributionId,
+    @JsonKey(name: 'assignment_distribution_id') required String assignmentDistributionId,
 
     /// ID của học sinh nộp bài
     @JsonKey(name: 'student_id') required String studentId,

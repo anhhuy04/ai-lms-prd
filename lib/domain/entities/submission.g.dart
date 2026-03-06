@@ -9,7 +9,7 @@ part of 'submission.dart';
 _$SubmissionImpl _$$SubmissionImplFromJson(Map<String, dynamic> json) =>
     _$SubmissionImpl(
       id: json['id'] as String,
-      distributionId: json['distribution_id'] as String,
+      assignmentDistributionId: json['assignment_distribution_id'] as String,
       studentId: json['student_id'] as String,
       status:
           $enumDecodeNullable(_$SubmissionStatusEnumMap, json['status']) ??
@@ -40,7 +40,7 @@ _$SubmissionImpl _$$SubmissionImplFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$$SubmissionImplToJson(_$SubmissionImpl instance) =>
     <String, dynamic>{
       'id': instance.id,
-      'distribution_id': instance.distributionId,
+      'assignment_distribution_id': instance.assignmentDistributionId,
       'student_id': instance.studentId,
       'status': _$SubmissionStatusEnumMap[instance.status]!,
       'submitted_at': instance.submittedAt?.toIso8601String(),

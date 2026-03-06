@@ -11,6 +11,7 @@ _$AssignmentVariantImpl _$$AssignmentVariantImplFromJson(
 ) => _$AssignmentVariantImpl(
   id: json['id'] as String,
   assignmentId: json['assignment_id'] as String,
+  assignmentDistributionId: json['assignment_distribution_id'] as String?,
   variantType: json['variant_type'] as String,
   studentId: json['student_id'] as String?,
   groupId: json['group_id'] as String?,
@@ -28,6 +29,7 @@ Map<String, dynamic> _$$AssignmentVariantImplToJson(
 ) => <String, dynamic>{
   'id': instance.id,
   'assignment_id': instance.assignmentId,
+  'assignment_distribution_id': instance.assignmentDistributionId,
   'variant_type': instance.variantType,
   'student_id': instance.studentId,
   'group_id': instance.groupId,

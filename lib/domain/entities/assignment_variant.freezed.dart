@@ -24,6 +24,8 @@ mixin _$AssignmentVariant {
   String get id => throw _privateConstructorUsedError;
   @JsonKey(name: 'assignment_id')
   String get assignmentId => throw _privateConstructorUsedError;
+  @JsonKey(name: 'assignment_distribution_id')
+  String? get assignmentDistributionId => throw _privateConstructorUsedError;
   @JsonKey(name: 'variant_type')
   String get variantType => throw _privateConstructorUsedError;
   @JsonKey(name: 'student_id')
@@ -58,6 +60,8 @@ abstract class $AssignmentVariantCopyWith<$Res> {
   $Res call({
     String id,
     @JsonKey(name: 'assignment_id') String assignmentId,
+    @JsonKey(name: 'assignment_distribution_id')
+    String? assignmentDistributionId,
     @JsonKey(name: 'variant_type') String variantType,
     @JsonKey(name: 'student_id') String? studentId,
     @JsonKey(name: 'group_id') String? groupId,
@@ -84,6 +88,7 @@ class _$AssignmentVariantCopyWithImpl<$Res, $Val extends AssignmentVariant>
   $Res call({
     Object? id = null,
     Object? assignmentId = null,
+    Object? assignmentDistributionId = freezed,
     Object? variantType = null,
     Object? studentId = freezed,
     Object? groupId = freezed,
@@ -101,6 +106,10 @@ class _$AssignmentVariantCopyWithImpl<$Res, $Val extends AssignmentVariant>
                 ? _value.assignmentId
                 : assignmentId // ignore: cast_nullable_to_non_nullable
                       as String,
+            assignmentDistributionId: freezed == assignmentDistributionId
+                ? _value.assignmentDistributionId
+                : assignmentDistributionId // ignore: cast_nullable_to_non_nullable
+                      as String?,
             variantType: null == variantType
                 ? _value.variantType
                 : variantType // ignore: cast_nullable_to_non_nullable
@@ -143,6 +152,8 @@ abstract class _$$AssignmentVariantImplCopyWith<$Res>
   $Res call({
     String id,
     @JsonKey(name: 'assignment_id') String assignmentId,
+    @JsonKey(name: 'assignment_distribution_id')
+    String? assignmentDistributionId,
     @JsonKey(name: 'variant_type') String variantType,
     @JsonKey(name: 'student_id') String? studentId,
     @JsonKey(name: 'group_id') String? groupId,
@@ -168,6 +179,7 @@ class __$$AssignmentVariantImplCopyWithImpl<$Res>
   $Res call({
     Object? id = null,
     Object? assignmentId = null,
+    Object? assignmentDistributionId = freezed,
     Object? variantType = null,
     Object? studentId = freezed,
     Object? groupId = freezed,
@@ -185,6 +197,10 @@ class __$$AssignmentVariantImplCopyWithImpl<$Res>
             ? _value.assignmentId
             : assignmentId // ignore: cast_nullable_to_non_nullable
                   as String,
+        assignmentDistributionId: freezed == assignmentDistributionId
+            ? _value.assignmentDistributionId
+            : assignmentDistributionId // ignore: cast_nullable_to_non_nullable
+                  as String?,
         variantType: null == variantType
             ? _value.variantType
             : variantType // ignore: cast_nullable_to_non_nullable
@@ -220,6 +236,7 @@ class _$AssignmentVariantImpl implements _AssignmentVariant {
   const _$AssignmentVariantImpl({
     required this.id,
     @JsonKey(name: 'assignment_id') required this.assignmentId,
+    @JsonKey(name: 'assignment_distribution_id') this.assignmentDistributionId,
     @JsonKey(name: 'variant_type') required this.variantType,
     @JsonKey(name: 'student_id') this.studentId,
     @JsonKey(name: 'group_id') this.groupId,
@@ -237,6 +254,9 @@ class _$AssignmentVariantImpl implements _AssignmentVariant {
   @override
   @JsonKey(name: 'assignment_id')
   final String assignmentId;
+  @override
+  @JsonKey(name: 'assignment_distribution_id')
+  final String? assignmentDistributionId;
   @override
   @JsonKey(name: 'variant_type')
   final String variantType;
@@ -266,7 +286,7 @@ class _$AssignmentVariantImpl implements _AssignmentVariant {
 
   @override
   String toString() {
-    return 'AssignmentVariant(id: $id, assignmentId: $assignmentId, variantType: $variantType, studentId: $studentId, groupId: $groupId, dueAtOverride: $dueAtOverride, customQuestions: $customQuestions, createdAt: $createdAt)';
+    return 'AssignmentVariant(id: $id, assignmentId: $assignmentId, assignmentDistributionId: $assignmentDistributionId, variantType: $variantType, studentId: $studentId, groupId: $groupId, dueAtOverride: $dueAtOverride, customQuestions: $customQuestions, createdAt: $createdAt)';
   }
 
   @override
@@ -277,6 +297,11 @@ class _$AssignmentVariantImpl implements _AssignmentVariant {
             (identical(other.id, id) || other.id == id) &&
             (identical(other.assignmentId, assignmentId) ||
                 other.assignmentId == assignmentId) &&
+            (identical(
+                  other.assignmentDistributionId,
+                  assignmentDistributionId,
+                ) ||
+                other.assignmentDistributionId == assignmentDistributionId) &&
             (identical(other.variantType, variantType) ||
                 other.variantType == variantType) &&
             (identical(other.studentId, studentId) ||
@@ -298,6 +323,7 @@ class _$AssignmentVariantImpl implements _AssignmentVariant {
     runtimeType,
     id,
     assignmentId,
+    assignmentDistributionId,
     variantType,
     studentId,
     groupId,
@@ -327,6 +353,8 @@ abstract class _AssignmentVariant implements AssignmentVariant {
   const factory _AssignmentVariant({
     required final String id,
     @JsonKey(name: 'assignment_id') required final String assignmentId,
+    @JsonKey(name: 'assignment_distribution_id')
+    final String? assignmentDistributionId,
     @JsonKey(name: 'variant_type') required final String variantType,
     @JsonKey(name: 'student_id') final String? studentId,
     @JsonKey(name: 'group_id') final String? groupId,
@@ -344,6 +372,9 @@ abstract class _AssignmentVariant implements AssignmentVariant {
   @override
   @JsonKey(name: 'assignment_id')
   String get assignmentId;
+  @override
+  @JsonKey(name: 'assignment_distribution_id')
+  String? get assignmentDistributionId;
   @override
   @JsonKey(name: 'variant_type')
   String get variantType;

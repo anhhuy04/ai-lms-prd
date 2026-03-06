@@ -6,7 +6,7 @@ part of 'workspace_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$workspaceNotifierHash() => r'5f879e90dfb6b385f9bc6c4d27f4a30f8892c192';
+String _$workspaceNotifierHash() => r'c3156ee5d0af9d86039885ce55ef1e89868d9367';
 
 /// Copied from Dart SDK
 class _SystemHash {
