@@ -8,8 +8,6 @@ import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 
 /// Màn hình workspace để học sinh làm bài tập
 class StudentAssignmentWorkspaceScreen extends ConsumerStatefulWidget {
@@ -28,6 +26,9 @@ class StudentAssignmentWorkspaceScreen extends ConsumerStatefulWidget {
 class _StudentAssignmentWorkspaceScreenState
     extends ConsumerState<StudentAssignmentWorkspaceScreen>
     with WidgetsBindingObserver {
+  // Map to store TextEditingControllers for fill-in-blank questions
+  final Map<String, TextEditingController> _fillInBlankControllers = {};
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +45,11 @@ class _StudentAssignmentWorkspaceScreenState
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    // Dispose all TextEditingControllers
+    for (final controller in _fillInBlankControllers.values) {
+      controller.dispose();
+    }
+    _fillInBlankControllers.clear();
     super.dispose();
   }
 
@@ -252,9 +258,6 @@ class _StudentAssignmentWorkspaceScreenState
                 );
               }),
 
-              // File Upload Section
-              const SizedBox(height: DesignSpacing.md),
-              _buildFileUploadSection(context, workspace),
             ],
           ),
         ),
@@ -288,359 +291,7 @@ class _StudentAssignmentWorkspaceScreenState
     );
   }
 
-  Widget _buildFileUploadSection(BuildContext context, WorkspaceState workspace) {
-    final uploadedFiles = workspace.uploadedFiles;
-
-    return Container(
-      padding: const EdgeInsets.all(DesignSpacing.md),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(DesignRadius.lg),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              Icon(
-                Icons.attach_file,
-                size: 20,
-                color: DesignColors.textSecondary,
-              ),
-              const SizedBox(width: DesignSpacing.sm),
-              Text(
-                'Tệp đính kèm',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: DesignColors.textPrimary,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${uploadedFiles.length} file',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: DesignColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: DesignSpacing.md),
-
-          // Upload area or file list
-          if (uploadedFiles.isEmpty)
-            _buildUploadArea(context)
-          else
-            _buildFileList(context, workspace),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUploadArea(BuildContext context) {
-    return InkWell(
-      onTap: () => _showFilePicker(context),
-      borderRadius: BorderRadius.circular(DesignRadius.md),
-      child: Container(
-        padding: const EdgeInsets.all(DesignSpacing.lg),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: DesignColors.primary.withValues(alpha: 0.3),
-            width: 2,
-            style: BorderStyle.solid,
-          ),
-          borderRadius: BorderRadius.circular(DesignRadius.md),
-          color: DesignColors.primary.withValues(alpha: 0.05),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              Icons.cloud_upload_outlined,
-              size: 40,
-              color: DesignColors.primary,
-            ),
-            const SizedBox(height: DesignSpacing.sm),
-            Text(
-              'Chạm để tải file',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: DesignColors.primary,
-              ),
-            ),
-            const SizedBox(height: DesignSpacing.xs),
-            Text(
-              'Hỗ trợ: Ảnh (JPG, PNG) hoặc PDF',
-              style: TextStyle(
-                fontSize: 12,
-                color: DesignColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFileList(BuildContext context, WorkspaceState workspace) {
-    return Column(
-      children: [
-        // Add more files button
-        InkWell(
-          onTap: () => _showFilePicker(context),
-          borderRadius: BorderRadius.circular(DesignRadius.md),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              vertical: DesignSpacing.sm,
-              horizontal: DesignSpacing.md,
-            ),
-            decoration: BoxDecoration(
-              border: Border.all(color: DesignColors.primary),
-              borderRadius: BorderRadius.circular(DesignRadius.md),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.add, size: 18, color: DesignColors.primary),
-                const SizedBox(width: DesignSpacing.xs),
-                Text(
-                  'Thêm file',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: DesignColors.primary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: DesignSpacing.md),
-
-        // File previews
-        SizedBox(
-          height: 100,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: workspace.uploadedFiles.length,
-            itemBuilder: (context, index) {
-              final fileUrl = workspace.uploadedFiles[index];
-              return _buildFilePreview(context, fileUrl, workspace);
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFilePreview(BuildContext context, String fileUrl, WorkspaceState workspace) {
-    final isImage = fileUrl.toLowerCase().contains(RegExp(r'\.(jpg|jpeg|png|gif)$'));
-
-    return Container(
-      width: 100,
-      margin: const EdgeInsets.only(right: DesignSpacing.sm),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(DesignRadius.md),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Stack(
-        children: [
-          // Preview
-          ClipRRect(
-            borderRadius: BorderRadius.circular(DesignRadius.md),
-            child: isImage
-                ? Image.network(
-                    fileUrl,
-                    width: 100,
-                    height: 100,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _buildFilePlaceholder(fileUrl),
-                  )
-                : _buildFilePlaceholder(fileUrl),
-          ),
-
-          // Delete button
-          Positioned(
-            top: 4,
-            right: 4,
-            child: GestureDetector(
-              onTap: () => _removeFile(context, fileUrl, workspace),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.close,
-                  size: 14,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilePlaceholder(String fileUrl) {
-    return Container(
-      width: 100,
-      height: 100,
-      color: Colors.grey[100],
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.picture_as_pdf,
-            size: 32,
-            color: Colors.red[400],
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              fileUrl.split('/').last,
-              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showFilePicker(BuildContext context) async {
-    final picker = ImagePicker();
-
-    // Show bottom sheet to choose source
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Thư viện ảnh'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Chụp ảnh'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.picture_as_pdf),
-              title: const Text('Chọn file PDF'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (source == null) return;
-
-    try {
-      final XFile? pickedFile = await picker.pickImage(
-        source: source,
-        maxWidth: 1920,
-        maxHeight: 1920,
-        imageQuality: 85,
-      );
-
-      if (pickedFile != null) {
-        // Show uploading indicator
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đang tải file lên...'),
-              duration: Duration(seconds: 1),
-            ),
-          );
-        }
-
-        // Upload file
-        final file = File(pickedFile.path);
-        await ref
-            .read(workspaceNotifierProvider(widget.distributionId).notifier)
-            .uploadFile(file);
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Tải file thành công!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi tải file: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _removeFile(BuildContext context, String fileUrl, WorkspaceState workspace) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xóa file'),
-        content: const Text('Bạn có chắc muốn xóa file này?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Xóa'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      ref
-          .read(workspaceNotifierProvider(widget.distributionId).notifier)
-          .removeFile(fileUrl);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã xóa file'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
-    }
-  }
+  // File upload đã chuyển vào EssayAnswerField widget
 
   Widget _buildQuestionCard(
     BuildContext context,
@@ -770,17 +421,21 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   Widget _buildMultipleChoice(QuestionState question, dynamic answer) {
+    if (question.choices.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Column(
       children: question.choices.asMap().entries.map((entry) {
         final index = entry.key;
         final choice = entry.value;
-        // Use index for comparison since choice.id may be empty
-        final isSelected = answer == index.toString() || answer == choice.id;
+        // Check if choice.id is in selected_choices array
+        final isSelected = answer is Map &&
+            (answer['selected_choices'] as List?)?.contains(choice.id) == true;
         return InkWell(
           onTap: () {
             ref
                 .read(workspaceNotifierProvider(widget.distributionId).notifier)
-                .updateAnswer(question.id, index.toString());
+                .updateAnswer(question.id, {"selected_choices": [choice.id]});
           },
           child: Container(
             margin: const EdgeInsets.only(bottom: DesignSpacing.sm),
@@ -839,6 +494,14 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   Widget _buildTrueFalse(QuestionState question, dynamic answer) {
+    // Get selected choice ID from answer map
+    final selectedChoices = answer is Map ? (answer['selected_choices'] as List?) : null;
+    final selectedChoiceId = selectedChoices?.firstOrNull as String?;
+
+    // Find the choice ID for true/false
+    final trueChoice = question.choices.where((c) => c.label.toLowerCase() == 'true' || c.label.toLowerCase() == 'đúng').firstOrNull;
+    final falseChoice = question.choices.where((c) => c.label.toLowerCase() == 'false' || c.label.toLowerCase() == 'sai').firstOrNull;
+
     return Row(
       children: [
         Expanded(
@@ -847,7 +510,8 @@ class _StudentAssignmentWorkspaceScreenState
             value: 'true',
             label: 'Đúng',
             icon: Icons.check_circle_outline,
-            isSelected: answer == 'true',
+            isSelected: selectedChoiceId == trueChoice?.id,
+            choiceId: trueChoice?.id ?? 'true',
           ),
         ),
         const SizedBox(width: DesignSpacing.md),
@@ -857,7 +521,8 @@ class _StudentAssignmentWorkspaceScreenState
             value: 'false',
             label: 'Sai',
             icon: Icons.cancel_outlined,
-            isSelected: answer == 'false',
+            isSelected: selectedChoiceId == falseChoice?.id,
+            choiceId: falseChoice?.id ?? 'false',
           ),
         ),
       ],
@@ -870,12 +535,13 @@ class _StudentAssignmentWorkspaceScreenState
     required String label,
     required IconData icon,
     required bool isSelected,
+    required String choiceId,
   }) {
     return InkWell(
       onTap: () {
         ref
             .read(workspaceNotifierProvider(widget.distributionId).notifier)
-            .updateAnswer(question.id, value);
+            .updateAnswer(question.id, {"selected_choices": [choiceId]});
       },
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -922,9 +588,11 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   Widget _buildEssay(QuestionState question, dynamic answer) {
+    // Get text from answer map: {"text": "content"}
+    final answerText = answer is Map ? (answer['text'] as String?) ?? '' : '';
     return EssayAnswerField(
       questionId: question.id,
-      initialValue: answer as String? ?? '',
+      initialValue: answerText,
       distributionId: widget.distributionId,
     );
   }
@@ -935,8 +603,19 @@ class _StudentAssignmentWorkspaceScreenState
 
     return Column(
       children: List.generate(question.choices.length, (index) {
-        final blankId = 'blank_$index';
+        final blankId = '${question.id}_blank_$index';
         final initialValue = answersMap[blankId] as String? ?? '';
+
+        // Get or create controller for this blank
+        final controller = _fillInBlankControllers.putIfAbsent(
+          blankId,
+          () => TextEditingController(text: initialValue),
+        );
+
+        // Update controller text if answer changed externally
+        if (controller.text != initialValue) {
+          controller.text = initialValue;
+        }
 
         return Padding(
           padding: const EdgeInsets.only(bottom: DesignSpacing.md),
@@ -963,7 +642,7 @@ class _StudentAssignmentWorkspaceScreenState
               const SizedBox(width: DesignSpacing.md),
               Expanded(
                 child: TextField(
-                  controller: TextEditingController(text: initialValue),
+                  controller: controller,
                   decoration: InputDecoration(
                     hintText: 'Nhập đáp án...',
                     hintStyle: TextStyle(color: Colors.grey[400]),
@@ -1294,8 +973,8 @@ class _StudentAssignmentWorkspaceScreenState
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.of(context).pop();
-                    context.goNamed(AppRoute.studentAssignmentList);
+                    // Navigate back to previous screen in stack
+                    context.pop();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: DesignColors.primary,
@@ -1352,11 +1031,8 @@ class _StudentAssignmentWorkspaceScreenState
             .saveDraft();
       }
       if (context.mounted) {
-        // Navigate back to assignment detail
-        context.pushNamed(
-          AppRoute.studentAssignmentDetail,
-          pathParameters: {'assignmentId': widget.distributionId},
-        );
+        // Navigate back to previous screen in stack (Assignment Detail)
+        context.pop();
       }
     }
   }
