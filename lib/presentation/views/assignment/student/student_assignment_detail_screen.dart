@@ -619,7 +619,8 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
                 ? null
                 : () {
                     // Navigate to workspace with distributionId
-                    context.goNamed(
+                    // Use pushNamed because we need back button to work
+                    context.pushNamed(
                       AppRoute.studentAssignmentWorkspace,
                       pathParameters: {'distributionId': assignmentId},
                     );
