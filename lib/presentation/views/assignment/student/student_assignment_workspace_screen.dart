@@ -1,8 +1,6 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/presentation/providers/workspace_provider.dart';
-import 'package:ai_mls/widgets/buttons/app_back_button.dart';
-import 'package:ai_mls/widgets/dialogs/confirm_dialog.dart';
 import 'package:ai_mls/presentation/views/assignment/student/widgets/essay_answer_field.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
@@ -76,7 +74,7 @@ class _StudentAssignmentWorkspaceScreenState
         backgroundColor: DesignColors.moonLight,
         appBar: _buildAppBar(context, workspaceAsync),
         body: workspaceAsync.when(
-          loading: () => const ShimmerWorkspaceLoading(),
+          loading: () => const ShimmerLoading(),
           error: (error, _) => _buildErrorState(context, error),
           data: (workspace) => _buildBody(context, workspace),
         ),
@@ -92,10 +90,9 @@ class _StudentAssignmentWorkspaceScreenState
       backgroundColor: DesignColors.white,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      leading: AppBackButtonWithFallback(
-        fallbackRouteName: AppRoute.studentAssignmentDetail,
-        fallbackPathParameters: {'assignmentId': widget.distributionId},
-        onBack: () => _handleBackPress(context, workspaceAsync),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new, size: DesignIcons.smSize),
+        onPressed: () => _handleBackPress(context, workspaceAsync),
       ),
       title: workspaceAsync.maybeWhen(
         data: (workspace) => Column(
@@ -499,8 +496,8 @@ class _StudentAssignmentWorkspaceScreenState
     final selectedChoiceId = selectedChoices?.firstOrNull as String?;
 
     // Find the choice ID for true/false
-    final trueChoice = question.choices.where((c) => c.label.toLowerCase() == 'true' || c.label.toLowerCase() == 'đúng').firstOrNull;
-    final falseChoice = question.choices.where((c) => c.label.toLowerCase() == 'false' || c.label.toLowerCase() == 'sai').firstOrNull;
+    final trueChoice = question.choices.where((c) => c.content.toLowerCase() == 'true' || c.content.toLowerCase() == 'đúng').firstOrNull;
+    final falseChoice = question.choices.where((c) => c.content.toLowerCase() == 'false' || c.content.toLowerCase() == 'sai').firstOrNull;
 
     return Row(
       children: [
@@ -1016,11 +1013,19 @@ class _StudentAssignmentWorkspaceScreenState
     final workspace = workspaceAsync.valueOrNull;
 
     // Show confirmation dialog
-    final shouldLeave = await ConfirmDialog.showExit(
+    // Show confirmation dialog
+    final shouldLeave = await showDialog<bool>(
       context: context,
-      message: workspace != null && workspace.answeredCount > 0
-          ? 'Bạn đang có câu trả lời chưa lưu. Bạn có chắc muốn thoát không?'
-          : 'Bạn có chắc muốn thoát không?',
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác nhận'),
+        content: Text(workspace != null && workspace.answeredCount > 0
+            ? 'Bạn đang có câu trả lời chưa lưu. Bạn có chắc muốn thoát không?'
+            : 'Bạn có chắc muốn thoát không?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Thoát')),
+        ],
+      ),
     );
 
     if (shouldLeave == true && context.mounted) {
@@ -1028,10 +1033,9 @@ class _StudentAssignmentWorkspaceScreenState
       if (workspace != null && workspace.answeredCount > 0) {
         await ref
             .read(workspaceNotifierProvider(widget.distributionId).notifier)
-            .saveDraft();
+            .submit();
       }
       if (context.mounted) {
-        // Navigate back to previous screen in stack (Assignment Detail)
         context.pop();
       }
     }

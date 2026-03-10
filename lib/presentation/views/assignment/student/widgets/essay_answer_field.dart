@@ -9,7 +9,7 @@ import 'dart:io';
 /// Có toolbar định dạng và upload ảnh/file
 class EssayAnswerField extends ConsumerStatefulWidget {
   final String questionId;
-  final String initialValue;
+  final dynamic initialValue;
   final String distributionId;
 
   const EssayAnswerField({
