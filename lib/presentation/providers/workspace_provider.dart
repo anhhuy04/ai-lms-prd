@@ -142,6 +142,11 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
     );
   }
 
+  /// Public method để lưu bản nháp khi user bấm back
+  Future<void> saveDraft() async {
+    await _saveDraft();
+  }
+
   /// Lưu bản nháp (auto-save hoặc manual)
   Future<void> _saveDraft() async {
     final currentState = state.valueOrNull;

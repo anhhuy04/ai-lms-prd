@@ -1029,9 +1029,10 @@ class _StudentAssignmentWorkspaceScreenState
     if (shouldLeave == true && context.mounted) {
       // Save draft before leaving if there are answers
       if (workspace != null && workspace.answeredCount > 0) {
+        // Save draft, NOT submit!
         await ref
             .read(workspaceNotifierProvider(widget.distributionId).notifier)
-            .submit();
+            .saveDraft();
       }
       if (context.mounted) {
         context.pop();
