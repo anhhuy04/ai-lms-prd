@@ -162,7 +162,7 @@ class StudentSubmissionConfirmScreen extends StatelessWidget {
               // View submission history button
               TextButton(
                 onPressed: () {
-                  context.goNamed(AppRoute.studentSubmissionHistory);
+                  context.pushNamed(AppRoute.studentSubmissionHistory);
                 },
                 child: Text(
                   'Xem lịch sử nộp bài',

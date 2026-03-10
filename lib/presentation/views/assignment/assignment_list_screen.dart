@@ -105,7 +105,7 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
             IconButton(
               icon: const Icon(Icons.history),
               tooltip: 'Lịch sử nộp bài',
-              onPressed: () => context.goNamed(AppRoute.studentSubmissionHistory),
+              onPressed: () => context.pushNamed(AppRoute.studentSubmissionHistory),
             ),
         ],
       ),
