@@ -119,6 +119,12 @@ lib/
          │                                    │   submissions    │
          │                                    │    (CQRS)        │
          └──────────────────────────────────>└──────────────────┘
+                                                │
+                                                ▼
+                                        ┌──────────────────┐
+                                        │     ai_queue      │
+                                        │ (pending essays)  │
+                                        └──────────────────┘
 ```
 
 ### Answer JSON Formats
@@ -152,8 +158,11 @@ lib/
 │  4️⃣  INSERT:  submissions (biên lai CQRS)                               │
 │              - total_score: tổng điểm MCQ                                │
 │              - is_late: submitted_at > due_at                            │
+│              - ai_graded: false                                          │
 │         ↓                                                                   │
-│  5️⃣  DELETE:  autosave_answers (dọn dẹp buffer)                        │
+│  5️⃣  INSERT:  ai_queue (câu Tự luận/Trả lời ngắn → status = 'pending') │
+│         ↓                                                                   │
+│  6️⃣  DELETE:  autosave_answers (dọn dẹp buffer)                        │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
