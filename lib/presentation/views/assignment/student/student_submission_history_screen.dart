@@ -1,4 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/utils/navigation_helper.dart';
 import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
@@ -20,7 +21,7 @@ class StudentSubmissionHistoryScreen extends ConsumerWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: DesignIcons.smSize),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => NavigationHelper.goBack(context),
         ),
         title: Text(
           'Lịch sử nộp bài',

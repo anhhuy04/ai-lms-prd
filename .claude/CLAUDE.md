@@ -160,10 +160,12 @@ core/            ← constants, routes, utils, widgets
 
 ### Core Principles
 - Dùng `context.goNamed()` / `context.go()` cho ALL screen navigation
+- Dùng `context.pop()` (GoRouter extension) hoặc `context.go()` cho back navigation
+- KHÔNG dùng `Navigator.pop()` với GoRouter - nó không tương thích
 - Dùng `Navigator.pop()` CHỈ cho: dialog, bottom sheet, modal overlay
 - KHÔNG `Navigator.push*()` cho screen navigation
 - KHÔNG hardcoded path strings — dùng `AppRoute` constants
-- KHÔNG helper static class (e.g. `NavigationHelper.goTo...`)
+- Có thể dùng helper như `NavigationHelper.goBack()` để an toàn
 
 ### Source Files
 - `lib/core/routes/route_constants.dart` — ALL route names, paths, RBAC

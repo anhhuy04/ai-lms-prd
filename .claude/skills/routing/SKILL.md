@@ -9,8 +9,26 @@ Tuân thủ các chuẩn sau khi viết cấu hình hoặc thực hiện chuyể
 
 ## 1. Chuẩn chung bắt buộc
 - BẮT BUỘC dùng GoRouter v14+ (Declarative routing) cho toàn bộ ứng dụng.
-- KHÔNG dùng `Navigator.push()` hoặc `Navigator.pop()` để chuyển screen chính. Chỉ dùng `pop()` cho các dialog, modals, bottom sheets nội bộ.
+- KHÔNG dùng `Navigator.push()` để chuyển screen chính.
 - Mọi route phải được định nghĩa bằng hằng số (vd: `class AppRoute { static const home = '/home'; }`).
+
+## 1.1. Back Navigation (Quan trọng)
+- **Khi dùng GoRouter** (`context.go()`, `context.goNamed()`): Dùng `context.pop()` (extension method của GoRouter) hoặc `context.go(previousPath)` để quay lại.
+- ** KHÔNG dùng `Navigator.pop()`** vì GoRouter quản lý navigation stack riêng, không tương thích với Navigator.
+- **Trường hợp dùng Navigator.pop()**: Chỉ dùng cho dialog, bottom sheet, modal overlay.
+- **Alternative**: Tạo helper như `NavigationHelper.goBack(context)` để handle cả hai trường hợp an toàn.
+
+```dart
+// ✅ ĐÚNG: Dùng GoRouter extension
+context.pop(); // quay lại route trước đó
+context.goNamed(AppRoute.home); // explicit route
+
+// ✅ Alternative: Dùng helper
+NavigationHelper.goBack(context);
+
+// ❌ SAI: Không dùng Navigator với GoRouter
+Navigator.of(context).pop(); // KHÔNG hoạt động với GoRouter!
+```
 
 ## 2. ShellRoute & Bottom Navigation
 - Sử dụng `StatefulShellRoute.indexedStack` khi cần giữ trạng thái của các tab trong Bottom Navigation Bar.
