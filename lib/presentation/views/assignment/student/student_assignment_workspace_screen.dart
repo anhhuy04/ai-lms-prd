@@ -1,5 +1,4 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/presentation/providers/workspace_provider.dart';
 import 'package:ai_mls/presentation/views/assignment/student/widgets/essay_answer_field.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
@@ -423,7 +422,6 @@ class _StudentAssignmentWorkspaceScreenState
     }
     return Column(
       children: question.choices.asMap().entries.map((entry) {
-        final index = entry.key;
         final choice = entry.value;
         // Check if choice.id is in selected_choices array
         final isSelected = answer is Map &&
@@ -432,7 +430,7 @@ class _StudentAssignmentWorkspaceScreenState
           onTap: () {
             ref
                 .read(workspaceNotifierProvider(widget.distributionId).notifier)
-                .updateAnswer(question.id, {"selected_choices": [choice.id]});
+                .updateAnswer(question.id, {'selected_choices': [choice.id]});
           },
           child: Container(
             margin: const EdgeInsets.only(bottom: DesignSpacing.sm),
@@ -538,7 +536,7 @@ class _StudentAssignmentWorkspaceScreenState
       onTap: () {
         ref
             .read(workspaceNotifierProvider(widget.distributionId).notifier)
-            .updateAnswer(question.id, {"selected_choices": [choiceId]});
+            .updateAnswer(question.id, {'selected_choices': [choiceId]});
       },
       child: Container(
         padding: const EdgeInsets.symmetric(
