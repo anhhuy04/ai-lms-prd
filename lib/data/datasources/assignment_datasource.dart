@@ -708,11 +708,14 @@ class AssignmentDataSource {
   /// Nộp bài tập với Auto-Grading cho câu hỏi khách quan (MCQ/True-False)
   ///
   /// Luồng xử lý (6 bước trong 1 transaction):
-  /// 1️⃣ READ:   autosave_answers (Lấy dữ liệu nháp)
-  /// 2️⃣ INSERT: submission_answers (Ghi đáp án + Chấm ngay điểm MCQ)
-  /// 3️⃣ UPDATE: work_sessions (Chốt sổ status = 'submitted')
-  /// 4️⃣ INSERT: submissions (Tạo biên lai CQRS: có điểm tổng MCQ, check nộp muộn)
-  /// 5️⃣ DELETE: autosave_answers (Dọn dẹp rác, giải phóng DB)
+  /// 1️⃣  READ:       autosave_answers (Lấy toàn bộ mảng ID câu hỏi và đáp án nháp)
+  /// 1.1 READ:       assignment_distributions (Lấy due_at và late_policy)
+  /// 1.2 READ:       assignment_questions JOIN questions (Lấy points, type và answer gốc)
+  /// 2️⃣  INSERT:     submission_answers (Ghi đáp án + Chấm ngay final_score cho MCQ)
+  /// 3️⃣  UPDATE:     work_sessions (Chốt status = 'submitted', cập nhật time_spent_seconds)
+  /// 4️⃣  INSERT:      submissions (Sinh biên lai CQRS: lưu total_score MCQ, chốt is_late, ai_graded = false)
+  /// 5️⃣  INSERT:      ai_queue (Lọc câu Tự luận/Trả lời ngắn -> status = 'pending')
+  /// 6️⃣  DELETE:     autosave_answers (Dọn dẹp Vùng đệm an toàn)
   Future<Map<String, dynamic>> submitAssignment(
     String distributionId,
     String studentId,
@@ -733,12 +736,22 @@ class AssignmentDataSource {
     final now = DateTime.now().toIso8601String();
     final submittedAt = DateTime.parse(now);
 
-    // Get distribution info for late check
-    final distribution = await _client
+    // ========== PRO I/O OPTIMIZATION ==========
+    // 1️⃣ + 1.1 + 1.2: Parallel reads (no dependencies)
+    // Instead of sequential: 50ms + 50ms + 50ms = 150ms
+    // Run in parallel: max(50ms, 50ms, 50ms) = 50ms
+    final autosaveFuture = _client
+        .from('autosave_answers')
+        .select()
+        .eq('session_id', sessionId);
+    final distributionFuture = _client
         .from('assignment_distributions')
         .select('due_at, allow_late, late_policy')
         .eq('id', distributionId)
         .maybeSingle();
+
+    final autosaveAnswers = await autosaveFuture;
+    final distribution = await distributionFuture;
 
     // Check if late
     bool isLate = false;
@@ -747,14 +760,8 @@ class AssignmentDataSource {
       isLate = submittedAt.isAfter(dueAt);
     }
 
-    // Get answers from autosave_answers
-    final autosaveAnswers = await _client
-        .from('autosave_answers')
-        .select()
-        .eq('session_id', sessionId);
-
-    // Get question types and correct answers for auto-grading
-    // Map: assignment_question_id -> {type, points, correct_choices}
+    // 1.2 READ: assignment_questions JOIN questions (Lấy points, type và answer gốc)
+    // This depends on autosaveAnswers, so runs after
     final questionInfoMap = <String, Map<String, dynamic>>{};
 
     if (autosaveAnswers.isNotEmpty) {
@@ -799,6 +806,8 @@ class AssignmentDataSource {
 
       // Auto-grade for objective questions
       double? finalScore;
+      bool isEssayQuestion = questionType == 'essay' || questionType == 'short_answer';
+
       if (studentAnswer != null &&
           (questionType == 'multiple_choice' || questionType == 'true_false')) {
         finalScore = _gradeObjectiveQuestion(
@@ -813,12 +822,24 @@ class AssignmentDataSource {
       }
 
       // Insert to submission_answers
-      await _client.from('submission_answers').insert({
+      final result = await _client.from('submission_answers').insert({
         'session_id': sessionId,
         'assignment_question_id': questionId,
         'answer': studentAnswer,
         if (finalScore != null) 'final_score': finalScore,
-      });
+      }).select().single();
+
+      // 5️⃣ Queue essay/short_answer questions for AI grading
+      if (isEssayQuestion) {
+        final answerId = result['id'] as String?;
+        if (answerId != null) {
+          await _client.from('ai_queue').insert({
+            'submission_answer_id': answerId,
+            'request_type': 'score',
+            'status': 'pending',
+          });
+        }
+      }
     }
 
     // 3️⃣ Create submission record (CQRS - for fast queries)
