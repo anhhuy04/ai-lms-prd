@@ -1,9 +1,15 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/presentation/providers/workspace_provider.dart';
+import 'package:ai_mls/widgets/buttons/app_back_button.dart';
+import 'package:ai_mls/widgets/dialogs/confirm_dialog.dart';
+import 'package:ai_mls/presentation/views/assignment/student/widgets/essay_answer_field.dart';
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 /// Màn hình workspace để học sinh làm bài tập
 class StudentAssignmentWorkspaceScreen extends ConsumerStatefulWidget {
@@ -20,10 +26,13 @@ class StudentAssignmentWorkspaceScreen extends ConsumerStatefulWidget {
 }
 
 class _StudentAssignmentWorkspaceScreenState
-    extends ConsumerState<StudentAssignmentWorkspaceScreen> {
+    extends ConsumerState<StudentAssignmentWorkspaceScreen>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    // Register observer for back button
+    WidgetsBinding.instance.addObserver(this);
     // Initialize workspace
     Future.microtask(() {
       ref
@@ -33,17 +42,38 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    final workspaceAsync =
+        ref.read(workspaceNotifierProvider(widget.distributionId));
+    await _handleBackPress(context, workspaceAsync);
+    return true;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final workspaceAsync =
         ref.watch(workspaceNotifierProvider(widget.distributionId));
 
-    return Scaffold(
-      backgroundColor: DesignColors.moonLight,
-      appBar: _buildAppBar(context, workspaceAsync),
-      body: workspaceAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _buildErrorState(context, error),
-        data: (workspace) => _buildBody(context, workspace),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBackPress(context, workspaceAsync);
+      },
+      child: Scaffold(
+        backgroundColor: DesignColors.moonLight,
+        appBar: _buildAppBar(context, workspaceAsync),
+        body: workspaceAsync.when(
+          loading: () => const ShimmerWorkspaceLoading(),
+          error: (error, _) => _buildErrorState(context, error),
+          data: (workspace) => _buildBody(context, workspace),
+        ),
       ),
     );
   }
@@ -56,9 +86,10 @@ class _StudentAssignmentWorkspaceScreenState
       backgroundColor: DesignColors.white,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new, size: DesignIcons.smSize),
-        onPressed: () => context.pop(),
+      leading: AppBackButtonWithFallback(
+        fallbackRouteName: AppRoute.studentAssignmentDetail,
+        fallbackPathParameters: {'assignmentId': widget.distributionId},
+        onBack: () => _handleBackPress(context, workspaceAsync),
       ),
       title: workspaceAsync.maybeWhen(
         data: (workspace) => Column(
@@ -76,7 +107,7 @@ class _StudentAssignmentWorkspaceScreenState
               'Câu ${workspace.answeredCount}/${workspace.totalQuestions} đã trả lời',
               style: TextStyle(
                 fontSize: DesignTypography.captionSize,
-                color: Colors.grey[600],
+                color: DesignColors.textSecondary,
               ),
             ),
           ],
@@ -205,19 +236,26 @@ class _StudentAssignmentWorkspaceScreenState
       children: [
         // Content
         Expanded(
-          child: ListView.builder(
+          child: ListView(
             padding: const EdgeInsets.all(DesignSpacing.md),
-            itemCount: workspace.questions.length,
-            itemBuilder: (context, index) {
-              final question = workspace.questions[index];
-              final answer = workspace.answers[question.id];
-              return _buildQuestionCard(
-                context,
-                question,
-                answer,
-                index + 1,
-              );
-            },
+            children: [
+              // Questions
+              ...workspace.questions.asMap().entries.map((entry) {
+                final index = entry.key;
+                final question = entry.value;
+                final answer = workspace.answers[question.id];
+                return _buildQuestionCard(
+                  context,
+                  question,
+                  answer,
+                  index + 1,
+                );
+              }),
+
+              // File Upload Section
+              const SizedBox(height: DesignSpacing.md),
+              _buildFileUploadSection(context, workspace),
+            ],
           ),
         ),
 
@@ -248,6 +286,360 @@ class _StudentAssignmentWorkspaceScreenState
         ),
       ),
     );
+  }
+
+  Widget _buildFileUploadSection(BuildContext context, WorkspaceState workspace) {
+    final uploadedFiles = workspace.uploadedFiles;
+
+    return Container(
+      padding: const EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Icon(
+                Icons.attach_file,
+                size: 20,
+                color: DesignColors.textSecondary,
+              ),
+              const SizedBox(width: DesignSpacing.sm),
+              Text(
+                'Tệp đính kèm',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: DesignColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${uploadedFiles.length} file',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: DesignColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: DesignSpacing.md),
+
+          // Upload area or file list
+          if (uploadedFiles.isEmpty)
+            _buildUploadArea(context)
+          else
+            _buildFileList(context, workspace),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUploadArea(BuildContext context) {
+    return InkWell(
+      onTap: () => _showFilePicker(context),
+      borderRadius: BorderRadius.circular(DesignRadius.md),
+      child: Container(
+        padding: const EdgeInsets.all(DesignSpacing.lg),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: DesignColors.primary.withValues(alpha: 0.3),
+            width: 2,
+            style: BorderStyle.solid,
+          ),
+          borderRadius: BorderRadius.circular(DesignRadius.md),
+          color: DesignColors.primary.withValues(alpha: 0.05),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.cloud_upload_outlined,
+              size: 40,
+              color: DesignColors.primary,
+            ),
+            const SizedBox(height: DesignSpacing.sm),
+            Text(
+              'Chạm để tải file',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: DesignColors.primary,
+              ),
+            ),
+            const SizedBox(height: DesignSpacing.xs),
+            Text(
+              'Hỗ trợ: Ảnh (JPG, PNG) hoặc PDF',
+              style: TextStyle(
+                fontSize: 12,
+                color: DesignColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFileList(BuildContext context, WorkspaceState workspace) {
+    return Column(
+      children: [
+        // Add more files button
+        InkWell(
+          onTap: () => _showFilePicker(context),
+          borderRadius: BorderRadius.circular(DesignRadius.md),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              vertical: DesignSpacing.sm,
+              horizontal: DesignSpacing.md,
+            ),
+            decoration: BoxDecoration(
+              border: Border.all(color: DesignColors.primary),
+              borderRadius: BorderRadius.circular(DesignRadius.md),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.add, size: 18, color: DesignColors.primary),
+                const SizedBox(width: DesignSpacing.xs),
+                Text(
+                  'Thêm file',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: DesignColors.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: DesignSpacing.md),
+
+        // File previews
+        SizedBox(
+          height: 100,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: workspace.uploadedFiles.length,
+            itemBuilder: (context, index) {
+              final fileUrl = workspace.uploadedFiles[index];
+              return _buildFilePreview(context, fileUrl, workspace);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilePreview(BuildContext context, String fileUrl, WorkspaceState workspace) {
+    final isImage = fileUrl.toLowerCase().contains(RegExp(r'\.(jpg|jpeg|png|gif)$'));
+
+    return Container(
+      width: 100,
+      margin: const EdgeInsets.only(right: DesignSpacing.sm),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Stack(
+        children: [
+          // Preview
+          ClipRRect(
+            borderRadius: BorderRadius.circular(DesignRadius.md),
+            child: isImage
+                ? Image.network(
+                    fileUrl,
+                    width: 100,
+                    height: 100,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildFilePlaceholder(fileUrl),
+                  )
+                : _buildFilePlaceholder(fileUrl),
+          ),
+
+          // Delete button
+          Positioned(
+            top: 4,
+            right: 4,
+            child: GestureDetector(
+              onTap: () => _removeFile(context, fileUrl, workspace),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.close,
+                  size: 14,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilePlaceholder(String fileUrl) {
+    return Container(
+      width: 100,
+      height: 100,
+      color: Colors.grey[100],
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.picture_as_pdf,
+            size: 32,
+            color: Colors.red[400],
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              fileUrl.split('/').last,
+              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showFilePicker(BuildContext context) async {
+    final picker = ImagePicker();
+
+    // Show bottom sheet to choose source
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Thư viện ảnh'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Chụp ảnh'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf),
+              title: const Text('Chọn file PDF'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    try {
+      final XFile? pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        // Show uploading indicator
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đang tải file lên...'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+
+        // Upload file
+        final file = File(pickedFile.path);
+        await ref
+            .read(workspaceNotifierProvider(widget.distributionId).notifier)
+            .uploadFile(file);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tải file thành công!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tải file: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeFile(BuildContext context, String fileUrl, WorkspaceState workspace) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xóa file'),
+        content: const Text('Bạn có chắc muốn xóa file này?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      ref
+          .read(workspaceNotifierProvider(widget.distributionId).notifier)
+          .removeFile(fileUrl);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã xóa file'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildQuestionCard(
@@ -530,35 +922,10 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   Widget _buildEssay(QuestionState question, dynamic answer) {
-    final controller = TextEditingController(text: answer as String? ?? '');
-
-    return TextField(
-      controller: controller,
-      maxLines: 6,
-      decoration: InputDecoration(
-        hintText: 'Nhập câu trả lời của bạn...',
-        hintStyle: TextStyle(color: Colors.grey[400]),
-        filled: true,
-        fillColor: Colors.grey[50],
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(DesignRadius.md),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(DesignRadius.md),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(DesignRadius.md),
-          borderSide: BorderSide(color: DesignColors.primary, width: 2),
-        ),
-        contentPadding: const EdgeInsets.all(DesignSpacing.md),
-      ),
-      onChanged: (value) {
-        ref
-            .read(workspaceNotifierProvider(widget.distributionId).notifier)
-            .updateAnswer(question.id, value);
-      },
+    return EssayAnswerField(
+      questionId: question.id,
+      initialValue: answer as String? ?? '',
+      distributionId: widget.distributionId,
     );
   }
 
@@ -783,20 +1150,212 @@ class _StudentAssignmentWorkspaceScreenState
           .submit();
 
       if (success && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Nộp bài thành công!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Navigate back to assignment list
-        context.goNamed(AppRoute.studentAssignmentList);
+        // Show success screen
+        _showSuccessScreen(context, workspace);
       } else if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Nộp bài thất bại. Vui lòng thử lại.'),
             backgroundColor: Colors.red,
           ),
+        );
+      }
+    }
+  }
+
+  void _showSuccessScreen(BuildContext context, WorkspaceState workspace) {
+    final now = DateTime.now();
+    final submissionId = '${now.millisecondsSinceEpoch}';
+    final confirmationNumber = 'NS${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${submissionId.substring(submissionId.length - 6)}';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(DesignRadius.lg),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(DesignSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Success icon
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.check_circle,
+                  size: 48,
+                  color: Colors.green[600],
+                ),
+              ),
+
+              const SizedBox(height: DesignSpacing.lg),
+
+              // Title
+              Text(
+                'Nộp bài thành công!',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: DesignColors.textPrimary,
+                ),
+              ),
+
+              const SizedBox(height: DesignSpacing.lg),
+
+              // Submission details
+              Container(
+                padding: const EdgeInsets.all(DesignSpacing.md),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(DesignRadius.md),
+                ),
+                child: Column(
+                  children: [
+                    // Assignment name
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.assignment,
+                          size: 18,
+                          color: DesignColors.textSecondary,
+                        ),
+                        const SizedBox(width: DesignSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            workspace.assignmentTitle,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: DesignColors.textPrimary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: DesignSpacing.sm),
+
+                    // Submission timestamp
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 18,
+                          color: DesignColors.textSecondary,
+                        ),
+                        const SizedBox(width: DesignSpacing.sm),
+                        Text(
+                          'Ngày nộp: ${_formatDateTime(now)}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: DesignColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: DesignSpacing.sm),
+
+                    // Confirmation number
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.confirmation_number,
+                          size: 18,
+                          color: DesignColors.textSecondary,
+                        ),
+                        const SizedBox(width: DesignSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            'Mã xác nhận: $confirmationNumber',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: DesignColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: DesignSpacing.lg),
+
+              // Back to list button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    context.goNamed(AppRoute.studentAssignmentList);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: DesignColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: DesignSpacing.md),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(DesignRadius.md),
+                    ),
+                  ),
+                  child: const Text(
+                    'Về danh sách bài tập',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final year = dateTime.year;
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    return '$day/$month/$year $hour:$minute';
+  }
+
+  Future<void> _handleBackPress(
+    BuildContext context,
+    AsyncValue<WorkspaceState> workspaceAsync,
+  ) async {
+    final workspace = workspaceAsync.valueOrNull;
+
+    // Show confirmation dialog
+    final shouldLeave = await ConfirmDialog.showExit(
+      context: context,
+      message: workspace != null && workspace.answeredCount > 0
+          ? 'Bạn đang có câu trả lời chưa lưu. Bạn có chắc muốn thoát không?'
+          : 'Bạn có chắc muốn thoát không?',
+    );
+
+    if (shouldLeave == true && context.mounted) {
+      // Save draft before leaving if there are answers
+      if (workspace != null && workspace.answeredCount > 0) {
+        await ref
+            .read(workspaceNotifierProvider(widget.distributionId).notifier)
+            .saveDraft();
+      }
+      if (context.mounted) {
+        // Navigate back to assignment detail
+        context.pushNamed(
+          AppRoute.studentAssignmentDetail,
+          pathParameters: {'assignmentId': widget.distributionId},
         );
       }
     }
