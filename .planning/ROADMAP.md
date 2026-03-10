@@ -5,7 +5,7 @@
 
 ---
 
-## Phase 1: Student Assignment Workflow ✓ COMPLETE
+## Phase 1: Student Assignment Workflow IN PROGRESS
 
 **Goal:** Enable students to view and complete assignments
 
@@ -19,13 +19,16 @@
 4. Auto-save works without data loss
 5. File upload functional
 6. Submission confirmation displayed
+7. Submission history accessible
 
 **Plans:**
 - [x] 01-PLAN.md — List view, detail view, routing, Submission entity
 - [x] 02-PLAN.md — Workspace, auto-save, file upload, submission
 - [x] 03-PLAN.md — Gap closure: fix assignment detail & workspace navigation
+- [x] 04-PLAN.md — Gap closure: add file upload UI, fix submit success screen
+- [ ] 05-PLAN.md — Gap closure: add navigation to submission history screen
 
-**Completed:** 2026-03-05
+**Status:** UAT Testing - Test 7 (submission history) pending
 
 ---
 
@@ -108,4 +111,4 @@
 ---
 
 *Roadmap created: 2026-03-05*
-*Last updated: 2026-03-06 - AI Grading moved to final phase*
+*Last updated: 2026-03-10 - Phase 1 in UAT, plan 05 added*

@@ -1,5 +1,7 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 /// Màn hình xác nhận nộp bài thành công
 class StudentSubmissionConfirmScreen extends StatelessWidget {
@@ -151,6 +153,23 @@ class StudentSubmissionConfirmScreen extends StatelessWidget {
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: DesignSpacing.md),
+
+              // View submission history button
+              TextButton(
+                onPressed: () {
+                  context.goNamed(AppRoute.studentSubmissionHistory);
+                },
+                child: Text(
+                  'Xem lịch sử nộp bài',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: DesignColors.primary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),

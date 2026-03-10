@@ -21,6 +21,16 @@ class AssignmentListScreen extends ConsumerStatefulWidget {
 }
 
 class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
+  // Pagination state
+  static const int _pageSize = 10;
+  int _currentPageTeacher = 0;
+  int _currentPageStudent = 0;
+  List<Assignment> _displayedTeacherAssignments = [];
+  List<Map<String, dynamic>> _displayedStudentAssignments = [];
+  bool _isLoadingMore = false;
+  final ScrollController _scrollControllerTeacher = ScrollController();
+  final ScrollController _scrollControllerStudent = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -28,6 +38,13 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAssignments();
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollControllerTeacher.dispose();
+    _scrollControllerStudent.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAssignments() async {
@@ -55,11 +72,14 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+              Icon(Icons.error_outline, size: 48, color: DesignColors.error),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Không thể tải thông tin người dùng',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: DesignTypography.bodyLargeSize,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               ElevatedButton(
@@ -78,8 +98,16 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
       backgroundColor: DesignColors.moonLight,
       appBar: AppBar(
         title: const Text('Danh sách bài tập'),
-        backgroundColor: Colors.white,
+        backgroundColor: DesignColors.white,
         elevation: 0,
+        actions: [
+          if (userRole == 'student')
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'Lịch sử nộp bài',
+              onPressed: () => context.goNamed(AppRoute.studentSubmissionHistory),
+            ),
+        ],
       ),
       body: SafeArea(
         child: userRole == 'teacher'
@@ -103,11 +131,11 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                Icon(Icons.error_outline, size: 48, color: DesignColors.error),
                 const SizedBox(height: 16),
                 Text(
                   'Lỗi khi tải danh sách bài tập: ${snapshot.error}',
-                  style: const TextStyle(fontSize: 16),
+                  style: TextStyle(fontSize: DesignTypography.bodyLargeSize),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -134,14 +162,14 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                 Icon(
                   Icons.assignment_outlined,
                   size: 64,
-                  color: Colors.grey[400],
+                  color: DesignColors.textTertiary,
                 ),
                 const SizedBox(height: 16),
                 Text(
                   'Chưa có bài tập nào',
                   style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[600],
+                    fontSize: DesignTypography.bodyLargeSize,
+                    color: DesignColors.textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -149,8 +177,8 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                 Text(
                   'Tạo bài tập mới từ Hub',
                   style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[500],
+                    fontSize: DesignTypography.bodyMediumSize,
+                    color: DesignColors.textTertiary,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -166,23 +194,67 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
           );
         }
 
+        // Initialize pagination if needed
+        if (_displayedTeacherAssignments.isEmpty && assignments.isNotEmpty) {
+          final endIndex = _pageSize.clamp(0, assignments.length);
+          _displayedTeacherAssignments = assignments.take(endIndex).toList();
+          _currentPageTeacher = 0;
+        }
+
+        final hasMore = _displayedTeacherAssignments.length < assignments.length;
+
         return RefreshIndicator(
           onRefresh: () async {
             setState(() {
               _loadAssignments();
+              _displayedTeacherAssignments = [];
+              _currentPageTeacher = 0;
             });
           },
           child: ListView.builder(
+            controller: _scrollControllerTeacher,
             padding: const EdgeInsets.all(DesignSpacing.md),
-            itemCount: assignments.length,
+            itemCount: _displayedTeacherAssignments.length + (hasMore ? 1 : 0),
             itemBuilder: (context, index) {
-              final assignment = assignments[index];
+              // Hiển thị loading indicator ở cuối list
+              if (index == _displayedTeacherAssignments.length) {
+                // Load more
+                if (!_isLoadingMore && hasMore) {
+                  _loadMoreTeacher(assignments);
+                }
+                return const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              }
+
+              final assignment = _displayedTeacherAssignments[index];
               return _buildAssignmentCard(assignment, isTeacher: true);
             },
           ),
         );
       },
     );
+  }
+
+  void _loadMoreTeacher(List<Assignment> allAssignments) {
+    if (_isLoadingMore) return;
+
+    final totalItems = allAssignments.length;
+    final currentDisplayed = (_currentPageTeacher + 1) * _pageSize;
+
+    if (currentDisplayed >= totalItems) return;
+
+    _isLoadingMore = true;
+    _currentPageTeacher++;
+
+    final endIndex = ((_currentPageTeacher + 1) * _pageSize).clamp(0, totalItems);
+    _displayedTeacherAssignments = allAssignments.take(endIndex).toList();
+    _isLoadingMore = false;
+
+    setState(() {});
   }
 
   /// Xây dựng view cho học sinh
@@ -196,11 +268,14 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+            Icon(Icons.error_outline, size: 48, color: DesignColors.error),
             const SizedBox(height: 16),
             Text(
               'Lỗi khi tải danh sách bài tập',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              style: TextStyle(
+                fontSize: DesignTypography.bodyLargeSize,
+                color: DesignColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 8),
             ElevatedButton(
@@ -219,14 +294,14 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                 Icon(
                   Icons.assignment_outlined,
                   size: 64,
-                  color: Colors.grey[400],
+                  color: DesignColors.textTertiary,
                 ),
                 const SizedBox(height: 16),
                 Text(
                   'Chưa có bài tập nào',
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.grey[600],
+                    color: DesignColors.textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -234,8 +309,8 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                 Text(
                   'Bài tập sẽ hiển thị khi được giao',
                   style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[500],
+                    fontSize: DesignTypography.bodyMediumSize,
+                    color: DesignColors.textTertiary,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -251,15 +326,43 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
           );
         }
 
+        // Initialize pagination if needed
+        if (_displayedStudentAssignments.isEmpty && assignments.isNotEmpty) {
+          final endIndex = _pageSize.clamp(0, assignments.length);
+          _displayedStudentAssignments = assignments.take(endIndex).toList();
+          _currentPageStudent = 0;
+        }
+
+        final hasMore = _displayedStudentAssignments.length < assignments.length;
+
         return RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(studentAssignmentListProvider);
+            setState(() {
+              _displayedStudentAssignments = [];
+              _currentPageStudent = 0;
+            });
           },
           child: ListView.builder(
+            controller: _scrollControllerStudent,
             padding: const EdgeInsets.all(DesignSpacing.md),
-            itemCount: assignments.length,
+            itemCount: _displayedStudentAssignments.length + (hasMore ? 1 : 0),
             itemBuilder: (context, index) {
-              final assignment = assignments[index];
+              // Hiển thị loading indicator ở cuối list
+              if (index == _displayedStudentAssignments.length) {
+                // Load more
+                if (!_isLoadingMore && hasMore) {
+                  _loadMoreStudent(assignments);
+                }
+                return const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              }
+
+              final assignment = _displayedStudentAssignments[index];
               return ClassDetailAssignmentListItem(
                 assignment: assignment,
                 viewMode: AssignmentViewMode.student,
@@ -280,6 +383,24 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
     );
   }
 
+  void _loadMoreStudent(List<Map<String, dynamic>> allAssignments) {
+    if (_isLoadingMore) return;
+
+    final totalItems = allAssignments.length;
+    final currentDisplayed = (_currentPageStudent + 1) * _pageSize;
+
+    if (currentDisplayed >= totalItems) return;
+
+    _isLoadingMore = true;
+    _currentPageStudent++;
+
+    final endIndex = ((_currentPageStudent + 1) * _pageSize).clamp(0, totalItems);
+    _displayedStudentAssignments = allAssignments.take(endIndex).toList();
+    _isLoadingMore = false;
+
+    setState(() {});
+  }
+
   /// Xây dựng card hiển thị một bài tập
   Widget _buildAssignmentCard(Assignment assignment, {required bool isTeacher}) {
     return Container(
@@ -288,11 +409,7 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(DesignRadius.md),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
+          DesignElevation.level1,
         ],
       ),
       child: InkWell(
@@ -315,16 +432,13 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                   Icon(
                     Icons.assignment,
                     color: DesignColors.primary,
-                    size: 24,
+                    size: DesignIcons.mdSize,
                   ),
                   const SizedBox(width: DesignSpacing.md),
                   Expanded(
                     child: Text(
                       assignment.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: DesignTypography.titleMedium,
                     ),
                   ),
                   if (assignment.isPublished)
@@ -334,15 +448,15 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.green[50],
+                        color: DesignColors.success.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(DesignRadius.sm),
-                        border: Border.all(color: Colors.green[300]!),
+                        border: Border.all(color: DesignColors.success),
                       ),
                       child: Text(
                         'Đã xuất bản',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.green[700],
+                          fontSize: DesignTypography.captionSize,
+                          color: DesignColors.success,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -351,18 +465,18 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: DesignSpacing.sm,
-                        vertical: 4,
+                        vertical: DesignSpacing.xs,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.orange[50],
+                        color: DesignColors.warning.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(DesignRadius.sm),
-                        border: Border.all(color: Colors.orange[300]!),
+                        border: Border.all(color: DesignColors.warning),
                       ),
                       child: Text(
                         'Bản nháp',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.orange[700],
+                          fontSize: DesignTypography.captionSize,
+                          color: DesignColors.warning,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -375,8 +489,8 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                 Text(
                   assignment.description!,
                   style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
+                    fontSize: DesignTypography.bodyMediumSize,
+                    color: DesignColors.textSecondary,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -388,15 +502,15 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                   if (assignment.dueAt != null) ...[
                     Icon(
                       Icons.access_time,
-                      size: 16,
-                      color: Colors.grey[600],
+                      size: DesignIcons.smSize,
+                      color: DesignColors.textSecondary,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: DesignSpacing.xs),
                     Text(
                       'Hạn nộp: ${_formatDate(assignment.dueAt!)}',
                       style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
+                        fontSize: DesignTypography.captionSize,
+                        color: DesignColors.textSecondary,
                       ),
                     ),
                     const SizedBox(width: DesignSpacing.md),
@@ -404,15 +518,15 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                   if (assignment.totalPoints != null) ...[
                     Icon(
                       Icons.star,
-                      size: 16,
-                      color: Colors.grey[600],
+                      size: DesignIcons.smSize,
+                      color: DesignColors.textSecondary,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: DesignSpacing.xs),
                     Text(
                       '${assignment.totalPoints} điểm',
                       style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
+                        fontSize: DesignTypography.captionSize,
+                        color: DesignColors.textSecondary,
                       ),
                     ),
                   ],

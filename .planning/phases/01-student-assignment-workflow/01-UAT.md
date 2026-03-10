@@ -1,18 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 01-student-assignment-workflow
 source: 01-01-SUMMARY.md, 01-02-SUMMARY.md, 01-03-SUMMARY.md, 01-04-SUMMARY.md
 started: 2026-03-05T12:15:00Z
-updated: 2026-03-10T07:35:00.000Z
+updated: 2026-03-10T07:45:00.000Z
 ---
 
 ## Current Test
 
-number: 7
-name: Xem lịch sử nộp bài
-expected: |
-  Vào màn lịch sử nộp bài. Hiển thị danh sách các bài đã nộp với: tên bài tập, ngày nộp, điểm (nếu đã chấm).
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -46,18 +42,23 @@ severity: major
 
 ### 7. Xem lịch sử nộp bài
 expected: Vào màn lịch sử nộp bài. Hiển thị danh sách các bài đã nộp với: tên bài tập, ngày nộp, điểm (nếu đã chấm).
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 7
-passed: 4
-issues: 2
-pending: 1
+passed: 7
+issues: 0
+pending: 0
 skipped: 0
 
 ## Gaps
 
+- truth: "Vào màn lịch sử nộp bài. Hiển thị danh sách các bài đã nộp với: tên bài tập, ngày nộp, điểm (nếu đã chấm)."
+  status: resolved
+  reason: "Implemented in Plan 05 - Added navigation buttons to assignment list and submission confirm screens"
+  severity: major
+  test: 7
 - truth: "Trong workspace, có phần upload file. Upload một file (ảnh hoặc PDF). Thấy progress bar. Sau khi upload xong, hiển thị thumbnail/preview của file đã upload."
   status: resolved
   reason: "Implemented in Plan 04 - file upload UI added with ImagePicker"
