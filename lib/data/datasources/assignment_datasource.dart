@@ -705,10 +705,14 @@ class AssignmentDataSource {
 
   /// Nộp bài tập
   /// Theo kiến trúc Enterprise:
-  /// 1. Chốt phiên: work_sessions.status = 'submitted'
-  /// 2. Dời đáp án: autosave_answers -> submission_answers
-  /// 3. Tạo biên lai: submissions table (CQRS)
-  /// 4. Dọn dẹp: Xóa autosave_answers
+  /// Nộp bài tập với Auto-Grading cho câu hỏi khách quan (MCQ/True-False)
+  ///
+  /// Luồng xử lý (6 bước trong 1 transaction):
+  /// 1️⃣ READ:   autosave_answers (Lấy dữ liệu nháp)
+  /// 2️⃣ INSERT: submission_answers (Ghi đáp án + Chấm ngay điểm MCQ)
+  /// 3️⃣ UPDATE: work_sessions (Chốt sổ status = 'submitted')
+  /// 4️⃣ INSERT: submissions (Tạo biên lai CQRS: có điểm tổng MCQ, check nộp muộn)
+  /// 5️⃣ DELETE: autosave_answers (Dọn dẹp rác, giải phóng DB)
   Future<Map<String, dynamic>> submitAssignment(
     String distributionId,
     String studentId,
@@ -727,6 +731,21 @@ class AssignmentDataSource {
 
     final sessionId = session['id'] as String;
     final now = DateTime.now().toIso8601String();
+    final submittedAt = DateTime.parse(now);
+
+    // Get distribution info for late check
+    final distribution = await _client
+        .from('assignment_distributions')
+        .select('due_at, allow_late, late_policy')
+        .eq('id', distributionId)
+        .maybeSingle();
+
+    // Check if late
+    bool isLate = false;
+    if (distribution != null && distribution['due_at'] != null) {
+      final dueAt = DateTime.parse(distribution['due_at'] as String);
+      isLate = submittedAt.isAfter(dueAt);
+    }
 
     // Get answers from autosave_answers
     final autosaveAnswers = await _client
@@ -734,20 +753,75 @@ class AssignmentDataSource {
         .select()
         .eq('session_id', sessionId);
 
-    // 2. Save each answer to submission_answers (Vùng lõi)
-    for (final aa in autosaveAnswers) {
-      final questionId = aa['assignment_question_id'] as String?;
-      if (questionId != null) {
-        await _client.from('submission_answers').insert({
-          'session_id': sessionId,
-          'assignment_question_id': questionId,
-          'answer': aa['answer_content'],
-        });
+    // Get question types and correct answers for auto-grading
+    // Map: assignment_question_id -> {type, points, correct_choices}
+    final questionInfoMap = <String, Map<String, dynamic>>{};
+
+    if (autosaveAnswers.isNotEmpty) {
+      final questionIds = autosaveAnswers
+          .map((aa) => aa['assignment_question_id'] as String?)
+          .whereType<String>()
+          .toList();
+
+      if (questionIds.isNotEmpty) {
+        // Get assignment_questions with points using OR filter
+        final orFilter = questionIds.map((id) => 'id.eq.$id').join(',');
+        final assignmentQuestions = await _client
+            .from('assignment_questions')
+            .select('id, points, questions!inner(id, type, answer)')
+            .or(orFilter);
+
+        for (final aq in assignmentQuestions) {
+          final q = aq['questions'] as Map<String, dynamic>?;
+          if (q != null) {
+            questionInfoMap[aq['id'] as String] = {
+              'type': q['type'] as String?,
+              'points': aq['points'] ?? 1,
+              'answer': q['answer'] as Map<String, dynamic>?,
+            };
+          }
+        }
       }
     }
 
-    // 3. Create submission record (CQRS - for fast queries)
-    // Check if submission already exists
+    // 2️⃣ Save each answer to submission_answers + Auto-grade MCQ/True-False
+    double totalMcqScore = 0;
+
+    for (final aa in autosaveAnswers) {
+      final questionId = aa['assignment_question_id'] as String?;
+      if (questionId == null) continue;
+
+      final studentAnswer = aa['answer_content'] as Map<String, dynamic>?;
+      final qInfo = questionInfoMap[questionId];
+      final questionType = qInfo?['type'] as String?;
+      final points = (qInfo?['points'] as num?)?.toDouble() ?? 1.0;
+      final correctAnswer = qInfo?['answer'] as Map<String, dynamic>?;
+
+      // Auto-grade for objective questions
+      double? finalScore;
+      if (studentAnswer != null &&
+          (questionType == 'multiple_choice' || questionType == 'true_false')) {
+        finalScore = _gradeObjectiveQuestion(
+          questionType,
+          studentAnswer,
+          correctAnswer,
+          points,
+        );
+        if (finalScore != null && finalScore > 0) {
+          totalMcqScore += finalScore;
+        }
+      }
+
+      // Insert to submission_answers
+      await _client.from('submission_answers').insert({
+        'session_id': sessionId,
+        'assignment_question_id': questionId,
+        'answer': studentAnswer,
+        if (finalScore != null) 'final_score': finalScore,
+      });
+    }
+
+    // 3️⃣ Create submission record (CQRS - for fast queries)
     final existingSubmission = await _client
         .from('submissions')
         .select()
@@ -760,6 +834,8 @@ class AssignmentDataSource {
       await _client.from('submissions').update({
         'session_id': sessionId,
         'submitted_at': now,
+        'total_score': totalMcqScore,
+        'is_late': isLate,
         'updated_at': now,
       }).eq('id', existingSubmission['id']);
     } else {
@@ -769,13 +845,15 @@ class AssignmentDataSource {
         'assignment_distribution_id': distributionId,
         'student_id': studentId,
         'session_id': sessionId,
+        'total_score': totalMcqScore,
+        'is_late': isLate,
         'submitted_at': now,
         'created_at': now,
         'updated_at': now,
       });
     }
 
-    // 1. Update session status
+    // 1️⃣ Update session status (AFTER grading so status reflects completion)
     final result = await _client
         .from('work_sessions')
         .update({
@@ -788,13 +866,79 @@ class AssignmentDataSource {
         .select()
         .single();
 
-    // 4. Cleanup: Delete autosave_answers (reduce DB size)
+    // 5️⃣ Cleanup: Delete autosave_answers (reduce DB size)
     await _client
         .from('autosave_answers')
         .delete()
         .eq('session_id', sessionId);
 
     return Map<String, dynamic>.from(result);
+  }
+
+  /// Chấm điểm tức thì cho câu hỏi khách quan (MCQ, True-False)
+  /// Trả về điểm đạt được hoặc null nếu không thể chấm
+  double? _gradeObjectiveQuestion(
+    String? questionType,
+    Map<String, dynamic> studentAnswer,
+    Map<String, dynamic>? correctAnswer,
+    double maxPoints,
+  ) {
+    if (correctAnswer == null) return null;
+
+    try {
+      // Multiple choice: format {"selected_choices": ["choice_id"]}
+      if (questionType == 'multiple_choice') {
+        final selectedIds = (studentAnswer['selected_choices'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toSet() ??
+            {};
+
+        // Get correct choice IDs from answer
+        // Format: {"correct_choices": ["id1", "id2"]} or {"correct_choice": "id1"}
+        final correctIds = <String>{};
+        if (correctAnswer['correct_choices'] != null) {
+          correctIds.addAll((correctAnswer['correct_choices'] as List<dynamic>)
+              .map((e) => e.toString()));
+        } else if (correctAnswer['correct_choice'] != null) {
+          correctIds.add(correctAnswer['correct_choice'].toString());
+        }
+
+        // Exact match required
+        if (selectedIds.isEmpty || correctIds.isEmpty) return 0;
+        if (selectedIds.length == correctIds.length &&
+            selectedIds.containsAll(correctIds)) {
+          return maxPoints;
+        }
+        return 0;
+      }
+
+      // True/False: format {"selected_choices": ["true"]} or {"selected_choices": ["false"]}
+      if (questionType == 'true_false') {
+        final selectedChoices = (studentAnswer['selected_choices'] as List<dynamic>?)
+                ?.map((e) => e.toString().toLowerCase())
+                .toList() ??
+            [];
+
+        final correctChoices = <String>[];
+        if (correctAnswer['correct_choices'] != null) {
+          correctChoices.addAll((correctAnswer['correct_choices'] as List<dynamic>)
+              .map((e) => e.toString().toLowerCase()));
+        } else if (correctAnswer['correct_choice'] != null) {
+          correctChoices.add(correctAnswer['correct_choice'].toString().toLowerCase());
+        }
+
+        if (selectedChoices.isEmpty || correctChoices.isEmpty) return 0;
+        if (selectedChoices.first == correctChoices.first) {
+          return maxPoints;
+        }
+        return 0;
+      }
+    } catch (e) {
+      // Log error but don't fail the submission
+      return null;
+    }
+
+    return null;
   }
 
   /// Lấy lịch sử nộp bài của học sinh
