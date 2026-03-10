@@ -12,21 +12,34 @@ Tuân thủ các chuẩn sau khi viết cấu hình hoặc thực hiện chuyể
 - KHÔNG dùng `Navigator.push()` để chuyển screen chính.
 - Mọi route phải được định nghĩa bằng hằng số (vd: `class AppRoute { static const home = '/home'; }`).
 
-## 1.1. Back Navigation (Quan trọng)
-- **Khi dùng GoRouter** (`context.go()`, `context.goNamed()`): Dùng `context.pop()` (extension method của GoRouter) hoặc `context.go(previousPath)` để quay lại.
-- ** KHÔNG dùng `Navigator.pop()`** vì GoRouter quản lý navigation stack riêng, không tương thích với Navigator.
-- **Trường hợp dùng Navigator.pop()**: Chỉ dùng cho dialog, bottom sheet, modal overlay.
-- **Alternative**: Tạo helper như `NavigationHelper.goBack(context)` để handle cả hai trường hợp an toàn.
+## 1.1. pushNamed vs goNamed (QUAN TRỌNG)
+- **Mặc định dùng `pushNamed()`/`push()`** - thêm vào navigation stack, back button hoạt động
+- **Chỉ dùng `goNamed()`/`go()`** khi KHÔNG cần quay lại ( VD: login → home, splash → main, bottom nav switch)
 
 ```dart
-// ✅ ĐÚNG: Dùng GoRouter extension
-context.pop(); // quay lại route trước đó
-context.goNamed(AppRoute.home); // explicit route
+// ✅ ĐÚNG: Screen có nút back
+context.pushNamed(AppRoute.submissionHistory); // thêm vào stack
+context.pop(); // quay lại được
 
-// ✅ Alternative: Dùng helper
+// ✅ ĐÚNG: Thay thế route (không cần back)
+context.goNamed(AppRoute.home); // login thành công → về home
+
+// ❌ SAI: Dùng goNamed cho detail screen
+context.goNamed(AppRoute.assignmentDetail); // pop() không hoạt động!
+```
+
+## 1.2. Back Navigation
+- **Luôn dùng `context.pop()`** (GoRouter extension) để quay lại
+- **KHÔNG dùng `Navigator.pop()`** vì GoRouter quản lý stack riêng
+- Dùng `Navigator.pop()` CHỈ cho: dialog, bottom sheet, modal overlay
+- Dùng `NavigationHelper.goBack(context)` để an toàn
+
+```dart
+// ✅ ĐÚNG
+context.pop();
 NavigationHelper.goBack(context);
 
-// ❌ SAI: Không dùng Navigator với GoRouter
+// ❌ SAI
 Navigator.of(context).pop(); // KHÔNG hoạt động với GoRouter!
 ```
 

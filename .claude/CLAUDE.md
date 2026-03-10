@@ -159,13 +159,23 @@ core/            ← constants, routes, utils, widgets
 ## 6. Routing (GoRouter + RBAC)
 
 ### Core Principles
-- Dùng `context.goNamed()` / `context.go()` cho ALL screen navigation
-- Dùng `context.pop()` (GoRouter extension) hoặc `context.go()` cho back navigation
-- KHÔNG dùng `Navigator.pop()` với GoRouter - nó không tương thích
+- **Mặc định dùng `pushNamed()`/`push()`** - thêm vào stack, back button hoạt động
+- **Chỉ dùng `goNamed()`/`go()`** khi KHÔNG cần quay lại ( VD: login → home, splash → main)
+- **Luôn dùng `context.pop()`** cho back navigation (GoRouter extension)
+- **KHÔNG dùng `Navigator.pop()`** với GoRouter - không tương thích
 - Dùng `Navigator.pop()` CHỈ cho: dialog, bottom sheet, modal overlay
-- KHÔNG `Navigator.push*()` cho screen navigation
+- **KHÔNG dùng `Navigator.push*()`** cho screen navigation
 - KHÔNG hardcoded path strings — dùng `AppRoute` constants
-- Có thể dùng helper như `NavigationHelper.goBack()` để an toàn
+- Dùng `NavigationHelper.goBack(context)` để an toàn
+
+### Quy tắc chọn push vs go
+| Tình huống | Method |
+|------------|--------|
+| Screen có nút back/quay lại | `pushNamed()` |
+| Bottom nav tap | `goNamed()` (thay thế tab) |
+| Login → Home | `goNamed()` |
+| List → Detail (có back) | `pushNamed()` |
+| Modal/dialog | `showDialog()`, `showModalBottomSheet()` |
 
 ### Source Files
 - `lib/core/routes/route_constants.dart` — ALL route names, paths, RBAC
