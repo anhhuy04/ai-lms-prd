@@ -805,8 +805,11 @@ class AssignmentDataSource {
       final correctAnswer = qInfo?['answer'] as Map<String, dynamic>?;
 
       // Auto-grade for objective questions
+      // fill_blank also needs AI grading (keyword matching)
       double? finalScore;
-      bool isEssayQuestion = questionType == 'essay' || questionType == 'short_answer';
+      bool needsAIGrading = questionType == 'essay' ||
+          questionType == 'short_answer' ||
+          questionType == 'fill_blank';
 
       if (studentAnswer != null &&
           (questionType == 'multiple_choice' || questionType == 'true_false')) {
@@ -829,8 +832,8 @@ class AssignmentDataSource {
         if (finalScore != null) 'final_score': finalScore,
       }).select().single();
 
-      // 5️⃣ Queue essay/short_answer questions for AI grading
-      if (isEssayQuestion) {
+      // 5️⃣ Queue essay/short_answer/fill_blank for AI grading
+      if (needsAIGrading) {
         final answerId = result['id'] as String?;
         if (answerId != null) {
           await _client.from('ai_queue').insert({
@@ -857,6 +860,7 @@ class AssignmentDataSource {
         'submitted_at': now,
         'total_score': totalMcqScore,
         'is_late': isLate,
+        'ai_graded': false, // Reset: AI grading pending
         'updated_at': now,
       }).eq('id', existingSubmission['id']);
     } else {
@@ -868,6 +872,7 @@ class AssignmentDataSource {
         'session_id': sessionId,
         'total_score': totalMcqScore,
         'is_late': isLate,
+        'ai_graded': false, // AI grading pending
         'submitted_at': now,
         'created_at': now,
         'updated_at': now,
