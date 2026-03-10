@@ -756,18 +756,19 @@ class AssignmentDataSource {
         .maybeSingle();
 
     if (existingSubmission != null) {
-      // Update existing submission
+      // Update existing submission (CQRS - only score-related fields)
       await _client.from('submissions').update({
-        'status': 'submitted',
+        'session_id': sessionId,
         'submitted_at': now,
         'updated_at': now,
       }).eq('id', existingSubmission['id']);
     } else {
-      // Create new submission record
+      // Create new submission record (CQRS - only score-related fields)
+      // Status is SSOT in work_sessions, not in submissions
       await _client.from('submissions').insert({
         'assignment_distribution_id': distributionId,
         'student_id': studentId,
-        'status': 'submitted',
+        'session_id': sessionId,
         'submitted_at': now,
         'created_at': now,
         'updated_at': now,
