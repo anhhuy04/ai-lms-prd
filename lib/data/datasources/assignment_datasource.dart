@@ -704,6 +704,11 @@ class AssignmentDataSource {
   }
 
   /// Nộp bài tập
+  /// Theo kiến trúc Enterprise:
+  /// 1. Chốt phiên: work_sessions.status = 'submitted'
+  /// 2. Dời đáp án: autosave_answers -> submission_answers
+  /// 3. Tạo biên lai: submissions table (CQRS)
+  /// 4. Dọn dẹp: Xóa autosave_answers
   Future<Map<String, dynamic>> submitAssignment(
     String distributionId,
     String studentId,
@@ -721,6 +726,7 @@ class AssignmentDataSource {
     }
 
     final sessionId = session['id'] as String;
+    final now = DateTime.now().toIso8601String();
 
     // Get answers from autosave_answers
     final autosaveAnswers = await _client
@@ -728,7 +734,7 @@ class AssignmentDataSource {
         .select()
         .eq('session_id', sessionId);
 
-    // Save each answer to submission_answers
+    // 2. Save each answer to submission_answers (Vùng lõi)
     for (final aa in autosaveAnswers) {
       final questionId = aa['assignment_question_id'] as String?;
       if (questionId != null) {
@@ -740,18 +746,52 @@ class AssignmentDataSource {
       }
     }
 
-    // Update submission status
+    // 3. Create submission record (CQRS - for fast queries)
+    // Check if submission already exists
+    final existingSubmission = await _client
+        .from('submissions')
+        .select()
+        .eq('assignment_distribution_id', distributionId)
+        .eq('student_id', studentId)
+        .maybeSingle();
+
+    if (existingSubmission != null) {
+      // Update existing submission
+      await _client.from('submissions').update({
+        'status': 'submitted',
+        'submitted_at': now,
+        'updated_at': now,
+      }).eq('id', existingSubmission['id']);
+    } else {
+      // Create new submission record
+      await _client.from('submissions').insert({
+        'assignment_distribution_id': distributionId,
+        'student_id': studentId,
+        'status': 'submitted',
+        'submitted_at': now,
+        'created_at': now,
+        'updated_at': now,
+      });
+    }
+
+    // 1. Update session status
     final result = await _client
         .from('work_sessions')
         .update({
           'status': 'submitted',
-          'submitted_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
+          'submitted_at': now,
+          'updated_at': now,
         })
         .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
         .select()
         .single();
+
+    // 4. Cleanup: Delete autosave_answers (reduce DB size)
+    await _client
+        .from('autosave_answers')
+        .delete()
+        .eq('session_id', sessionId);
 
     return Map<String, dynamic>.from(result);
   }
