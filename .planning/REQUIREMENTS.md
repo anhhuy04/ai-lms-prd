@@ -70,13 +70,35 @@
 
 ## Traceability
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| STU-01 to STU-07 | Phase 1 | Pending |
-| TEA-01 to TEA-06 | Phase 2 | Pending |
-| RUB-01 to RUB-04 | Phase 3 | Pending |
-| ANL-01 to ANL-04 | Phase 4 | Pending |
-| REC-01 to REC-03 | Phase 5 | Pending |
+| Requirement | Phase | Status | Notes |
+|-------------|-------|--------|-------|
+| STU-01 to STU-07 | Phase 1 | ✅ Implemented | Auto-save, file upload, submit, auto-grading |
+| TEA-01 to TEA-06 | Phase 2 | Pending | |
+| RUB-01 to RUB-04 | Phase 3 | Pending | |
+| ANL-01 to ANL-04 | Phase 4 | Pending | |
+| REC-01 to REC-03 | Phase 5 | Pending | |
+
+---
+
+## Implementation Notes
+
+### Data Flow Summary
+
+| Component | Implementation |
+|-----------|---------------|
+| Auto-save | Debounce 2s → `autosave_answers` table |
+| Submit | 6-step flow: READ → INSERT(submission_answers) → UPDATE(work_sessions) → INSERT(submissions) → DELETE(autosave) |
+| Auto-grading | Synchronous MCQ/True-False scoring on submit |
+| Late check | `submitted_at > assignment_distributions.due_at` |
+| CQRS | `submissions` table for fast queries, `submission_answers` for detailed answers |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `lib/data/datasources/assignment_datasource.dart` | Submit flow + auto-grading logic |
+| `.planning/sql-flow-decisions.md` | Full SQL transaction details |
+| `.planning/PROJECT.md` | Architecture overview |
 
 ---
 

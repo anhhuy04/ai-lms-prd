@@ -1,6 +1,6 @@
 # SQL Flow Decisions - AI LMS
 
-> **Last Updated:** 2026-03-06
+> **Last Updated:** 2026-03-10
 > **Purpose:** Reference document for all database logic decisions
 
 ---
@@ -14,7 +14,7 @@ This document captures database logic decisions for Flows 1-4 and 6-9.
 - [x] Flow 1: Class Management
 - [x] Flow 2: Group Management
 - [x] Flow 3: Assignments (MODIFIED)
-- [x] Flow 4: Submissions (MODIFIED)
+- [x] Flow 4: Submissions (MODIFIED - 2026-03-10: Added auto-grading)
 - [ ] Flow 5: AI Grading → **SEPARATED - See Phase XX**
 - [x] Flow 6: Learning Objectives & Question Bank
 - [x] Flow 7: Files & Attachments
@@ -273,45 +273,94 @@ UPDATE assignments SET is_published = true WHERE id = 'assignment-id';
 | Required | CQRS pattern - enables fast dashboard queries |
 | `is_late` | Generated column: `submitted_at > assignment_distributions.due_at` |
 
-### 4.5 Submit Transaction (5 Steps)
+### 4.5 Submit Transaction (6 Steps - WITH AUTO-GRADING)
+
+> **UPDATED 2026-03-10:** Now includes synchronous auto-grading for MCQ/True-False
+
+```dart
+// Flutter/Dart Implementation (assignment_datasource.dart)
+// 1️⃣ READ: autosave_answers (lấy câu trả lời tạm)
+// 1.1 READ: assignment_distributions (lấy due_at để check late)
+// 1.2 READ: assignment_questions + questions (lấy points, type, answer để chấm)
+// 2️⃣ INSERT: submission_answers (ghi đáp án + CHẤM NGAY final_score cho MCQ)
+// 3️⃣ UPDATE: work_sessions (status = 'submitted')
+// 4️⃣ INSERT: submissions (total_score = sum MCQ, is_late)
+// 5️⃣ DELETE: autosave_answers (dọn dẹp buffer)
+```
+
+**Database Query Flow:**
 
 ```sql
 BEGIN;
 
--- Step 1: Update work session
+-- Step 1: Read distribution for late check
+SELECT due_at FROM assignment_distributions WHERE id = 'dist-id';
+
+-- Step 2: Read question info for grading
+SELECT aq.id, aq.points, q.type, q.answer
+FROM assignment_questions aq
+JOIN questions q ON aq.question_id = q.id
+WHERE aq.id IN (SELECT assignment_question_id FROM autosave_answers WHERE session_id = 'session-id');
+
+-- Step 3: Insert submission_answers with final_score (auto-graded MCQ)
+INSERT INTO submission_answers (session_id, assignment_question_id, answer, final_score)
+SELECT
+    aa.session_id,
+    aa.assignment_question_id,
+    aa.answer_content,
+    CASE
+        -- Auto-grade MCQ: exact match on choice_id
+        WHEN q.type = 'multiple_choice' AND q.answer->>'correct_choice' = (aa.answer_content->'selected_choices'->>0)
+            THEN aq.points
+        -- Auto-grade True/False
+        WHEN q.type = 'true_false' AND q.answer->>'correct_choice' = (aa.answer_content->'selected_choices'->>0)
+            THEN aq.points
+        -- Essay/Fill-blank: no auto-grading
+        ELSE NULL
+    END as final_score
+FROM autosave_answers aa
+JOIN assignment_questions aq ON aa.assignment_question_id = aq.id
+JOIN questions q ON aq.question_id = q.id
+WHERE aa.session_id = 'session-id';
+
+-- Step 4: Update work_sessions
 UPDATE work_sessions
 SET status = 'submitted',
     submitted_at = NOW(),
-    time_spent_seconds = EXTRACT(EPOCH FROM (NOW() - started_at))
+    updated_at = NOW()
 WHERE id = 'session-id';
 
--- Step 2: Move answers to submission_answers
-INSERT INTO submission_answers (session_id, assignment_question_id, answer)
-SELECT session_id, assignment_question_id, answer_content
-FROM autosave_answers
-WHERE session_id = 'session-id';
+-- Step 5: Create submissions (CQRS - fast queries)
+INSERT INTO submissions (assignment_distribution_id, student_id, session_id, total_score, is_late, submitted_at, created_at, updated_at)
+SELECT
+    ws.assignment_distribution_id,
+    ws.student_id,
+    ws.id,
+    COALESCE((SELECT SUM(final_score) FROM submission_answers WHERE session_id = 'session-id'), 0),
+    NOW() > (SELECT due_at FROM assignment_distributions WHERE id = ws.assignment_distribution_id),
+    NOW(),
+    NOW(),
+    NOW()
+FROM work_sessions ws WHERE ws.id = 'session-id';
 
--- Step 3: Cleanup autosave
+-- Step 6: Cleanup autosave
 DELETE FROM autosave_answers WHERE session_id = 'session-id';
-
--- Step 4: Create submission summary
-INSERT INTO submissions (assignment_id, student_id, session_id, total_score, is_late)
-SELECT assignment_id, student_id, id,
-       (SELECT SUM(points) FROM submission_answers WHERE session_id = 'session-id'),
-       submitted_at > (SELECT due_at FROM assignment_distributions WHERE id = assignment_distribution_id)
-FROM work_sessions WHERE id = 'session-id';
-
--- Step 5: Queue for AI grading (essay questions)
-INSERT INTO ai_queue (submission_answer_id, request_type)
-SELECT id, 'score'
-FROM submission_answers
-WHERE session_id = 'session-id'
-AND question_type IN ('essay', 'short_answer');
 
 COMMIT;
 ```
 
-### 4.6 Multi-Stage Scoring
+### 4.6 Answer JSON Formats
+
+> **UPDATED 2026-03-10:** Standardized JSON format for all question types
+
+| Question Type | Student Answer (autosave/submission) | Correct Answer (questions table) |
+|---------------|-------------------------------------|--------------------------------|
+| `multiple_choice` | `{"selected_choices": ["choice-uuid-1"]}` | `{"correct_choice": "choice-uuid-1"}` or `{"correct_choices": ["id1", "id2"]}` |
+| `true_false` | `{"selected_choices": ["true"]}` hoặc `["false"]` | `{"correct_choice": "true"}` |
+| `essay` | `{"text": "Nội dung bài viết..."}` | `{"keywords": ["từ khóa"], "sample_essay": "..."}` |
+| `fill_in_blank` | `{"blank_1": "đáp án 1", "blank_2": "đáp án 2"}` | `{"blank_1": "đúng 1", "blank_2": "đúng 2"}` |
+
+### 4.7 Multi-Stage Scoring
 
 | Stage | Action |
 |-------|--------|
@@ -320,7 +369,7 @@ COMMIT;
 | 3. Async | AI Worker updates `ai_score`, `final_score` in `submission_answers` |
 | 4. Reconcile | Trigger recalculates `submissions.total_score` = SUM(final_score), sets `ai_graded = true` |
 
-### 4.7 Grade Override
+### 4.8 Grade Override
 
 Use PostgreSQL Trigger on `grade_overrides`:
 
