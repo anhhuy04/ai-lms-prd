@@ -180,6 +180,8 @@ class _TeacherSubmissionDetailScreenState
                   onApprove: () => _approveScore(currentAnswer['id']),
                   onOverride: (score, reason) =>
                       _overrideScore(currentAnswer['id'], score, reason),
+                  onFeedbackChanged: (feedback) =>
+                      _updateFeedback(currentAnswer['id'], feedback),
                 ),
             ],
           ),
@@ -241,6 +243,8 @@ class _TeacherSubmissionDetailScreenState
                       onApprove: () => _approveScore(answer['id']),
                       onOverride: (score, reason) =>
                           _overrideScore(answer['id'], score, reason),
+                      onFeedbackChanged: (feedback) =>
+                          _updateFeedback(answer['id'], feedback),
                     ),
                   ],
                 ),
@@ -405,6 +409,17 @@ class _TeacherSubmissionDetailScreenState
       }
     } catch (e) {
       AppLogger.error('Error overriding score: $e');
+    }
+  }
+
+  Future<void> _updateFeedback(String answerId, String feedback) async {
+    try {
+      await ref.read(submissionGradingNotifierProvider.notifier).updateTeacherFeedback(
+            submissionAnswerId: answerId,
+            feedback: feedback,
+          );
+    } catch (e) {
+      AppLogger.error('Error updating feedback: $e');
     }
   }
 

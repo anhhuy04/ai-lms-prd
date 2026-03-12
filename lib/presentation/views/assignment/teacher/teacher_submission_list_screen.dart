@@ -1,5 +1,4 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/presentation/providers/teacher_submission_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/submission_filter_chips.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/submission_list_item.dart';
