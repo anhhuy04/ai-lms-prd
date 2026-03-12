@@ -326,21 +326,37 @@ class _TeacherCreateAssignmentScreenState
         case 'multiple_choice':
           questionType = QuestionType.multipleChoice;
           break;
+        case 'true_false':
+          questionType = QuestionType.trueFalse;
+          break;
         case 'short_answer':
           questionType = QuestionType.shortAnswer;
           break;
         case 'essay':
           questionType = QuestionType.essay;
           break;
+        case 'fill_blank':
+          questionType = QuestionType.fillBlank;
+          break;
+        case 'matching':
+          questionType = QuestionType.matching;
+          break;
         case 'math':
           questionType = QuestionType.math;
+          break;
+        case 'problem_solving':
+          questionType = QuestionType.problemSolving;
+          break;
+        case 'file_upload':
+          questionType = QuestionType.fileUpload;
           break;
         default:
           questionType = QuestionType.multipleChoice;
       }
 
+      // Hỗ trợ cả format mới (choices) và cũ (options)
       List<Map<String, dynamic>>? parsedOptions;
-      final optionsRaw = customContent['options'];
+      final optionsRaw = customContent['choices'] ?? customContent['options'];
       if (optionsRaw != null && optionsRaw is List && optionsRaw.isNotEmpty) {
         if (optionsRaw.first is String) {
           final correctAnswerIndex =
@@ -370,12 +386,18 @@ class _TeacherCreateAssignmentScreenState
           ?.map((e) => e.toString())
           .toList();
 
+      // Hỗ trợ cả 2 format: mới (override_text + choices) và cũ (text + options)
+      final questionText = customContent['override_text'] as String? ??
+          customContent['text'] as String? ?? '';
+      final questionOptions = customContent['choices'] as List<dynamic>? ??
+          customContent['options'] as List<dynamic>?;
+
       next.add({
         'number': i + 1,
         'type': questionType,
-        'text': customContent['text'] as String? ?? '',
+        'text': questionText,
         'images': images,
-        'options': parsedOptions,
+        'options': questionOptions, // Hỗ trợ cả choices và options
         'difficulty': customContent['difficulty'] as int?,
         'tags': tags,
         'learningObjectives': los,
@@ -520,11 +542,25 @@ class _TeacherCreateAssignmentScreenState
     }
   }
 
-  /// Helper method để convert options sang List<Map> để edit
+  /// Helper method để convert options/choices sang List<Map> để edit
+  /// Hỗ trợ cả format mới (choices) và cũ (options)
   List<Map<String, dynamic>>? _getOptionsAsMapList(dynamic options) {
     if (options == null) return null;
     if (options is List<Map<String, dynamic>>) {
       return options;
+    }
+    if (options is List<dynamic>) {
+      // Convert List<dynamic> to List<Map<String, dynamic>>
+      return options.map((e) {
+        if (e is Map<String, dynamic>) {
+          return e;
+        } else if (e is Map) {
+          return Map<String, dynamic>.from(e);
+        } else if (e is String) {
+          return {'text': e, 'isCorrect': false};
+        }
+        return <String, dynamic>{};
+      }).toList();
     }
     if (options is List<String>) {
       // Convert old format to new format
@@ -575,10 +611,15 @@ class _TeacherCreateAssignmentScreenState
 
       // Get question type
       final questionType = q['type'] as QuestionType;
-      final typeString = questionType.name; // e.g., 'multiple_choice', 'essay'
+      // Fix: Dùng dbValue thay vì name để match với grading logic (snake_case)
+      final typeString = questionType.dbValue; // e.g., 'multiple_choice', 'essay'
 
-      // Build custom_content JSON (shallow JSONB)
-      final customContent = <String, dynamic>{'type': typeString, 'text': text};
+      // Build custom_content JSON (theo format mới)
+      // Format: {"override_text": "...", "choices": [...], "ai_grading_keywords": [...], "blanks": [...], ...}
+      final customContent = <String, dynamic>{
+        'type': typeString,
+        'override_text': text,
+      };
 
       // Add images if available
       final images = q['images'] as List<String>?;
@@ -586,10 +627,81 @@ class _TeacherCreateAssignmentScreenState
         customContent['images'] = images;
       }
 
-      // Add options for multiple choice questions
+      // Add choices for multiple choice / true-false questions
       final options = _getOptionsAsMapList(q['options']);
       if (options != null && options.isNotEmpty) {
-        customContent['options'] = options;
+        // Generate UUID for each choice (format: "choice-{index}")
+        final choicesWithId = options.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final opt = entry.value as Map<String, dynamic>;
+          return {
+            'id': idx, // int: 0, 1, 2... (matching question_choices.id)
+            'text': opt['text'] ?? opt['content'] ?? '',
+            'isCorrect': opt['isCorrect'] ?? opt['is_correct'] ?? false,
+          };
+        }).toList();
+        customContent['choices'] = choicesWithId;
+      }
+
+      // Add AI grading keywords for essay/short_answer
+      if (questionType == QuestionType.essay || questionType == QuestionType.shortAnswer) {
+        final keywords = q['aiGradingKeywords'] as List<dynamic>?;
+        if (keywords != null && keywords.isNotEmpty) {
+          final keywordsWithId = keywords.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final kw = entry.value as Map<String, dynamic>;
+            return {
+              'id': 'kw-$idx',
+              'keyword': kw['keyword'] ?? '',
+              'weight': kw['weight'] ?? 1.0,
+            };
+          }).toList();
+          customContent['ai_grading_keywords'] = keywordsWithId;
+        }
+        // Add expected_answer if provided
+        if (q['expectedAnswer'] != null) {
+          customContent['expected_answer'] = q['expectedAnswer'];
+        }
+      }
+
+      // Add blanks for fill_in_blank questions
+      if (questionType == QuestionType.fillBlank) {
+        final blanks = q['blanks'] as List<dynamic>?;
+        if (blanks != null && blanks.isNotEmpty) {
+          final blanksWithId = blanks.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final blank = entry.value as Map<String, dynamic>;
+            return {
+              'id': 'blank_$idx',
+              'original_id': blank['id'] ?? 'original_blank_$idx',
+              'correct_values': blank['correctValues'] ?? blank['correct_values'] ?? [],
+              'case_sensitive': blank['caseSensitive'] ?? blank['case_sensitive'] ?? false,
+            };
+          }).toList();
+          customContent['blanks'] = blanksWithId;
+        }
+      }
+
+      // Add pairs for matching questions
+      if (questionType == QuestionType.matching) {
+        final pairs = q['pairs'] as List<dynamic>?;
+        if (pairs != null && pairs.isNotEmpty) {
+          customContent['pairs'] = pairs;
+        }
+        final distractors = q['distractors'] as List<dynamic>?;
+        if (distractors != null && distractors.isNotEmpty) {
+          customContent['distractors'] = distractors;
+        }
+      }
+
+      // Add file upload constraints for problem_solving / file_upload
+      if (questionType == QuestionType.problemSolving || questionType == QuestionType.fileUpload) {
+        if (q['allowedExtensions'] != null) {
+          customContent['allowed_extensions'] = q['allowedExtensions'];
+        }
+        if (q['maxFileSizeMb'] != null) {
+          customContent['max_file_size_mb'] = q['maxFileSizeMb'];
+        }
       }
 
       // Add other optional fields
@@ -1412,23 +1524,37 @@ class _TeacherCreateAssignmentScreenState
           case 'multiple_choice':
             questionType = QuestionType.multipleChoice;
             break;
+          case 'true_false':
+            questionType = QuestionType.trueFalse;
+            break;
           case 'short_answer':
             questionType = QuestionType.shortAnswer;
             break;
           case 'essay':
             questionType = QuestionType.essay;
             break;
+          case 'fill_blank':
+            questionType = QuestionType.fillBlank;
+            break;
+          case 'matching':
+            questionType = QuestionType.matching;
+            break;
           case 'math':
             questionType = QuestionType.math;
+            break;
+          case 'problem_solving':
+            questionType = QuestionType.problemSolving;
+            break;
+          case 'file_upload':
+            questionType = QuestionType.fileUpload;
             break;
           default:
             questionType = QuestionType.multipleChoice;
         }
 
-        // Parse options từ custom_content
-        // Options có thể là List<String> hoặc List<Map<String, dynamic>>
+        // Parse options từ custom_content - hỗ trợ cả format mới (choices) và cũ (options)
         List<Map<String, dynamic>>? parsedOptions;
-        final optionsRaw = customContent['options'];
+        final optionsRaw = customContent['choices'] ?? customContent['options'];
         if (optionsRaw != null && optionsRaw is List && optionsRaw.isNotEmpty) {
           if (optionsRaw.first is String) {
             final correctAnswerIndex =
@@ -1444,6 +1570,10 @@ class _TeacherCreateAssignmentScreenState
                 .toList();
           }
         }
+
+        // Hỗ trợ cả 2 format: mới (override_text) và cũ (text)
+        final questionText = customContent['override_text'] as String? ??
+            customContent['text'] as String? ?? '';
 
         final images = (customContent['images'] as List?)
             ?.map((e) => e.toString())
@@ -1461,7 +1591,7 @@ class _TeacherCreateAssignmentScreenState
         nextQuestions.add({
           'number': i + 1,
           'type': questionType,
-          'text': customContent['text'] as String? ?? '',
+          'text': questionText,
           'images': images,
           'options': parsedOptions,
           'difficulty': customContent['difficulty'] as int?,
@@ -1774,6 +1904,7 @@ class _TeacherCreateAssignmentScreenState
                                       options: _getOptionsAsMapList(
                                         q['options'],
                                       ),
+                                      tags: (q['tags'] as List<String>?) ?? [],
                                       onEdit: () => _editQuestion(index),
                                       onDelete: () async {
                                         final confirmed =
@@ -2320,6 +2451,7 @@ class _TeacherCreateAssignmentScreenState
     required String questionText,
     required double points,
     List<Map<String, dynamic>>? options,
+    List<String> tags = const [],
     VoidCallback? onEdit,
     VoidCallback? onDelete,
   }) {
@@ -2509,6 +2641,35 @@ class _TeacherCreateAssignmentScreenState
                           );
                         }).toList(),
                       ),
+                    ),
+                  ],
+
+                  // Tags
+                  if (tags.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: tags.map((tag) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: DesignColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(DesignRadius.sm),
+                          ),
+                          child: Text(
+                            tag,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: DesignColors.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ],
 

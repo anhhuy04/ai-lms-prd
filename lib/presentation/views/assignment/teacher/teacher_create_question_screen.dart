@@ -238,6 +238,13 @@ class _TeacherCreateQuestionScreenState
     return _hasUnsavedChanges;
   }
 
+  /// Map question data sang format mới:
+  /// {
+  ///   "override_text": "...",
+  ///   "choices": [{"id": 0, "text": "A", "isCorrect": true}, ...],
+  ///   "tags": [...],
+  ///   ...
+  /// }
   CreateQuestionParams _mapToCreateQuestionParams(Map<String, dynamic> q) {
     final type = q['type'] as QuestionType;
     final text = (q['text'] as String? ?? '').trim();
@@ -250,32 +257,34 @@ class _TeacherCreateQuestionScreenState
         ?.map((e) => e.toString())
         .toList();
 
+    // Format mới: dùng override_text thay vì text
     final content = <String, dynamic>{
-      'text': text,
+      'override_text': text,
       if (images != null && images.isNotEmpty) 'images': images,
-      if (explanation != null && explanation.isNotEmpty)
-        'explanation': explanation,
+      if (explanation != null && explanation.isNotEmpty) 'explanation': explanation,
       if (hints != null && hints.isNotEmpty) 'hints': hints,
     };
 
     Map<String, dynamic>? answer;
     List<Map<String, dynamic>>? choices;
 
-    if (type == QuestionType.multipleChoice) {
+    // Format mới: choices với {id: int, text: String, isCorrect: bool}
+    if (type == QuestionType.multipleChoice || type == QuestionType.trueFalse) {
       final opts = (q['options'] as List?)?.cast<Map<String, dynamic>>() ?? [];
       choices = opts.asMap().entries.map((entry) {
         final idx = entry.key;
         final opt = entry.value;
         return <String, dynamic>{
-          'id': idx,
-          'content': (opt['text'] as String? ?? '').trim(),
-          'is_correct': opt['isCorrect'] == true || opt['is_correct'] == true,
+          'id': idx, // int: 0, 1, 2...
+          'text': (opt['text'] as String? ?? '').trim(),
+          'isCorrect': opt['isCorrect'] == true || opt['is_correct'] == true,
         };
       }).toList();
 
+      // Tạo answer với correct_choice_ids
       final correctIds = <int>[];
       for (final c in choices) {
-        if (c['is_correct'] == true) {
+        if (c['isCorrect'] == true) {
           correctIds.add(c['id'] as int);
         }
       }
@@ -1917,12 +1926,22 @@ class _TeacherCreateQuestionScreenState
     switch (type) {
       case QuestionType.multipleChoice:
         return Icons.radio_button_checked;
+      case QuestionType.trueFalse:
+        return Icons.check_circle_outline;
       case QuestionType.shortAnswer:
         return Icons.short_text;
       case QuestionType.essay:
         return Icons.article;
+      case QuestionType.fillBlank:
+        return Icons.text_fields;
+      case QuestionType.matching:
+        return Icons.compare_arrows;
       case QuestionType.math:
         return Icons.functions;
+      case QuestionType.problemSolving:
+        return Icons.calculate;
+      case QuestionType.fileUpload:
+        return Icons.upload_file;
     }
   }
 

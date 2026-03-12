@@ -409,14 +409,27 @@ class _StudentAssignmentWorkspaceScreenState
         return _buildTrueFalse(question, answer);
       case 'essay':
         return _buildEssay(question, answer);
+      case 'short_answer':
+        return _buildShortAnswer(question, answer);
       case 'fill_blank':
         return _buildFillInBlank(question, answer);
+      case 'matching':
+        return _buildMatching(question, answer);
+      case 'math':
+      case 'problem_solving':
+        return _buildProblemSolving(question, answer);
+      case 'file_upload':
+        return _buildFileUpload(question, answer);
       default:
         return _buildMultipleChoice(question, answer);
     }
   }
 
   Widget _buildMultipleChoice(QuestionState question, dynamic answer) {
+    // DEBUG: Log để kiểm tra
+    print('🔵 [UI] _buildMultipleChoice: question.choices.length = ${question.choices.length}');
+    print('🔵 [UI] question.choices = ${question.choices}');
+
     if (question.choices.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -424,8 +437,11 @@ class _StudentAssignmentWorkspaceScreenState
       children: question.choices.asMap().entries.map((entry) {
         final choice = entry.value;
         // Check if choice.id is in selected_choices array
-        final isSelected = answer is Map &&
-            (answer['selected_choices'] as List?)?.contains(choice.id) == true;
+        // Support both int and String in selected_choices for backward compatibility
+        final selectedList = answer is Map ? (answer['selected_choices'] as List?) : null;
+        final isSelected = selectedList?.any((e) =>
+          e == choice.id || e.toString() == choice.id.toString()
+        ) == true;
         return InkWell(
           onTap: () {
             ref
@@ -489,9 +505,9 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   Widget _buildTrueFalse(QuestionState question, dynamic answer) {
-    // Get selected choice ID from answer map
+    // Get selected choice ID from answer map - convert to string for comparison
     final selectedChoices = answer is Map ? (answer['selected_choices'] as List?) : null;
-    final selectedChoiceId = selectedChoices?.firstOrNull as String?;
+    final selectedChoiceId = selectedChoices?.firstOrNull?.toString();
 
     // Find the choice ID for true/false
     final trueChoice = question.choices.where((c) => c.content.toLowerCase() == 'true' || c.content.toLowerCase() == 'đúng').firstOrNull;
@@ -505,8 +521,8 @@ class _StudentAssignmentWorkspaceScreenState
             value: 'true',
             label: 'Đúng',
             icon: Icons.check_circle_outline,
-            isSelected: selectedChoiceId == trueChoice?.id,
-            choiceId: trueChoice?.id ?? 'true',
+            isSelected: selectedChoiceId == trueChoice?.id.toString(),
+            choiceId: trueChoice?.id.toString() ?? 'true',
           ),
         ),
         const SizedBox(width: DesignSpacing.md),
@@ -516,8 +532,8 @@ class _StudentAssignmentWorkspaceScreenState
             value: 'false',
             label: 'Sai',
             icon: Icons.cancel_outlined,
-            isSelected: selectedChoiceId == falseChoice?.id,
-            choiceId: falseChoice?.id ?? 'false',
+            isSelected: selectedChoiceId == falseChoice?.id.toString(),
+            choiceId: falseChoice?.id.toString() ?? 'false',
           ),
         ),
       ],
@@ -530,7 +546,7 @@ class _StudentAssignmentWorkspaceScreenState
     required String label,
     required IconData icon,
     required bool isSelected,
-    required String choiceId,
+    required String choiceId, // int converted to String for selected_choices
   }) {
     return InkWell(
       onTap: () {
@@ -674,6 +690,94 @@ class _StudentAssignmentWorkspaceScreenState
           ),
         );
       }),
+    );
+  }
+
+  /// Short Answer - tương tự essay nhưng ngắn gọn hơn
+  Widget _buildShortAnswer(QuestionState question, dynamic answer) {
+    return _buildEssay(question, answer);
+  }
+
+  /// Matching - kéo thả để nối cặp
+  Widget _buildMatching(QuestionState question, dynamic answer) {
+    // TODO: Implement matching UI with drag-drop
+    return Container(
+      padding: const EdgeInsets.all(DesignSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Nối các mục bên trái với bên phải',
+            style: TextStyle(
+              color: DesignColors.textSecondary,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(height: DesignSpacing.md),
+          // Render pairs
+          if (question.pairs != null)
+            ...question.pairs!.map((pair) => Padding(
+                  padding: const EdgeInsets.only(bottom: DesignSpacing.sm),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(pair['left_text']?.toString() ?? ''),
+                      ),
+                      const Icon(Icons.arrow_forward, size: 20),
+                      Expanded(
+                        child: Text(pair['right_text']?.toString() ?? ''),
+                      ),
+                    ],
+                  ),
+                )),
+        ],
+      ),
+    );
+  }
+
+  /// Problem Solving / Math - nộp file ảnh/ghi chép
+  Widget _buildProblemSolving(QuestionState question, dynamic answer) {
+    return _buildFileUpload(question, answer);
+  }
+
+  /// File Upload - chụp ảnh/ghi chép bài giải
+  Widget _buildFileUpload(QuestionState question, dynamic answer) {
+    return Container(
+      padding: const EdgeInsets.all(DesignSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Chụp ảnh bài làm của bạn',
+            style: TextStyle(
+              fontWeight: FontWeight.w500,
+              color: DesignColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: DesignSpacing.md),
+          Container(
+            padding: const EdgeInsets.all(DesignSpacing.lg),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey[300]!),
+              borderRadius: BorderRadius.circular(DesignRadius.md),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.camera_alt_outlined,
+                  size: 48,
+                  color: DesignColors.primary,
+                ),
+                const SizedBox(height: DesignSpacing.sm),
+                Text(
+                  'Chạm để chụp ảnh hoặc tải lên',
+                  style: TextStyle(color: DesignColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -62,34 +62,55 @@ Suy luận ngữ cảnh từ "{topic}". Nếu có CNTT/IT/Flutter/Dart/mobile/ap
 
 CHỌN TYPE (bắt keyword, kể cả sai chính tả):
 - Nếu "{topic}" có: trắc nghiệm | trắc nhiệm | MCQ | multiple choice | chọn đáp án ⇒ tất cả câu là type="multiple_choice".
+- Nếu "{topic}" có: đúng/sai | true/false ⇒ tất cả câu là type="true_false".
 - Nếu "{topic}" có: tự luận | essay ⇒ tất cả câu là type="essay".
-- Nếu "{topic}" có: trả lời ngắn | điền đáp án | short answer ⇒ tất cả câu là type="short_answer".
-- Nếu "{topic}" có: bài toán | tính toán | công thức ⇒ ưu tiên type="math" (trừ khi user yêu cầu trắc nghiệm).
+- Nếu "{topic}" có: trả lời ngắn | short answer ⇒ tất cả câu là type="short_answer".
+- Nếu "{topic}" có: điền khuyết | fill in blank ⇒ tất cả câu là type="fill_blank".
+- Nếu "{topic}" có: nối khớp | matching ⇒ tất cả câu là type="matching".
+- Nếu "{topic}" có: bài toán | tính toán | công thức ⇒ ưu tiên type="math" hoặc "problem_solving".
 - Nếu không rõ ⇒ mặc định multiple_choice.
 KHÔNG xoay vòng type. Chỉ trộn type khi user yêu cầu rõ.
 
 OUTPUT: chỉ trả về JSON ARRAY (không markdown, không chữ thừa).
-Schema mỗi phần tử:
+Format mới (assignment_questions.custom_content):
 {
-  "type": "multiple_choice"|"short_answer"|"essay"|"math",
-  "content": {"text": string, "images": [], "latex": string?},
+  "type": "multiple_choice",
+  "override_text": "Nội dung câu hỏi",
+  "choices": [
+    {"id": 0, "text": "Đáp án A", "isCorrect": true},
+    {"id": 1, "text": "Đáp án B", "isCorrect": false}
+  ],
   "difficulty": 1..5,
-  "default_points": 1.0,
-  "tags": [1-3 strings],
-  "answer": {
-    // multiple_choice:
-    "correct_choices": [int], "explanation": string
-    // short_answer/essay:
-    // "text": string, "explanation": string
-  },
-  // only for multiple_choice:
-  "choices": [{"id":0,"content":{"text":string,"image":null},"is_correct":bool}, ...]
+  "tags": ["Flutter", "Dart"],
+  "explanation": "Giải thích ngắn"
 }
 
-RÀNG BUỘC (tiết kiệm token):
+Với essay/short_answer:
+{
+  "type": "essay",
+  "override_text": "Câu hỏi tự luận...",
+  "expected_answer": "Đáp án mẫu...",
+  "ai_grading_keywords": [
+    {"id": 0, "keyword": "từ khóa 1", "weight": 0.5},
+    {"id": 1, "keyword": "từ khóa 2", "weight": 0.5}
+  ]
+}
+
+Với fill_blank:
+{
+  "type": "fill_blank",
+  "override_text": "Câu có [blank_1] và [blank_2]...",
+  "blanks": [
+    {"id": "blank_1", "correct_values": ["đáp án 1", "dap an 1"], "case_sensitive": false},
+    {"id": "blank_2", "correct_values": ["đáp án 2"], "case_sensitive": false}
+  ]
+}
+
+RÀNG BUỘC:
 - explanation tối đa 1 câu ngắn.
-- Với multiple_choice: đúng 4 choices, id=0..3, đúng 1 is_correct=true, answer.correct_choices phải khớp.
-- Nếu user yêu cầu trắc nghiệm mà có câu không phải multiple_choice ⇒ sửa lại trước khi trả JSON.
+- Với multiple_choice/true_false: đúng 4 choices (id=0..3), đúng 1 isCorrect=true.
+- tags: 1-3 strings.
+- Nếu user yêu cầu trắc nghiệm mà có câu không phải ⇒ sửa lại trước khi trả JSON.
 ''',
   };
 

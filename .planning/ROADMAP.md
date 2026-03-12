@@ -5,45 +5,45 @@
 
 ---
 
-## Phase 1: Student Assignment Workflow IN PROGRESS
+## Phase 1: Student Assignment Workflow ✅ COMPLETE
 
 **Goal:** Enable students to view and complete assignments
 
-**Requirements:**
-- STU-01 to STU-07
-
-**Success Criteria:**
-1. Student can view list of assigned assignments
-2. Student can view assignment details with all questions
-3. Student can complete assignment in workspace
-4. Auto-save works without data loss
-5. File upload functional
-6. Submission confirmation displayed
-7. Submission history accessible
+**Status:** UAT Complete - All tests passed
 
 **Plans:**
 - [x] 01-PLAN.md — List view, detail view, routing, Submission entity
 - [x] 02-PLAN.md — Workspace, auto-save, file upload, submission
 - [x] 03-PLAN.md — Gap closure: fix assignment detail & workspace navigation
 - [x] 04-PLAN.md — Gap closure: add file upload UI, fix submit success screen
-- [ ] 05-PLAN.md — Gap closure: add navigation to submission history screen
-
-**Status:** UAT Testing - Test 7 (submission history) pending
+- [x] 05-PLAN.md — Gap closure: add navigation to submission history screen
 
 ---
 
-## Phase 2: Teacher Grading Workflow
+## Phase 2: Teacher Grading Workflow ✅ PLANNED
 
 **Goal:** Enable teachers to view submissions and grade student work
 
 **Requirements:**
 - TEA-01 to TEA-06
 
-**Success Criteria:**
-1. Teacher can view submission list with status filters
-2. Teacher can view individual submission details
-3. Teacher can grade and provide feedback
-4. Grade override functional
+**Mô hình tư duy:**
+- ATC (Air Traffic Control): Dashboard nhìn lướt biết vấn đề
+- Side-by-Side: Cột trái bài làm, cột phải đáp án
+- Human-in-the-loop: AI là assistant, teacher final approver
+- Stage Curtain: Điểm chỉ hiện khi Publish
+- Focus Lens: Mobile dùng Bottom Sheet
+- Skepticism Thermometer: AI confidence < 0.7 → vàng cảnh báo
+
+**Tasks (6):**
+1. Teacher Submission List (ATC Dashboard)
+2. Submission Detail (Side-by-Side / Bottom Sheet)
+3. Grading Interface (Human-in-the-loop)
+4. Grade Override Audit Trail
+5. Publish Grades (Stage Curtain)
+6. Quick Navigation
+
+**Status:** Ready to execute
 
 ---
 

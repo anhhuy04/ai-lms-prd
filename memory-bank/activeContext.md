@@ -1,12 +1,144 @@
 # Active Context
 
 ## Current Sprint Focus
-**Goal:** UI Refinements, Navigation & Scoping Logic (2026-02-25) - Fix navigation issues, perfect UI details, and secure class-scoped distribution logic.
+**Goal:** Student Assignment Workflow - Testing & Bug Fixes (2026-03-10)
+- Fix auto-grading for MCQ questions
+- Display answer choices correctly in workspace
+- Test submission flow
 
-## Project Phase
-**Phase:** Core Navigation & Distribution Logic Robust (2026-02-25) - Preparing for robust assignment delivery.
+## Session Note (2026-03-10 - Latest)
 
-## Session Note (2026-02-25 - Latest)
+### Enterprise Architecture Applied
+✅ **"Bản in niêm phong" (Sealed Snapshot)**
+- Questions stored in assignment_variants.custom_questions
+- Each student gets their own shuffled variant
+
+✅ **"Lớp áo ghi đè" (Override Layer)**
+- custom_content in assignment_questions for teacher modifications
+- Format: {id: 0, content: {text: "..."}, is_correct: true}
+- MUST keep original IDs for AI grading context
+
+### Bugs Fixed (2026-03-10)
+
+#### 1. Auto-grading bugs:
+- **submitAssignment query**: Removed inner join on questions table (question_id is NULL for custom questions)
+- **Type conversion**: Convert camelCase to snake_case (multipleChoice → multiple_choice)
+- **Deduplicate**: Added .toSet() to prevent duplicate grading
+
+#### 2. Question display bugs:
+- **getDistributionDetail**: Fixed content structure, now returns `content: {text: '...'}`
+- **WorkspaceProvider**: Parse question_choices correctly with fallback logic
+- **QuestionChoiceState**: Generate ID from index if not present
+
+#### 3. Teacher create assignment:
+- Fixed `questionType.name` → `questionType.dbValue` (snake_case)
+
+### Format Update (2026-03-12) - Cập nhật custom_content JSONB
+
+**Format cũ (sai):**
+```json
+{"type": "multiple_choice", "text": "...", "options": [{"text": "A", "isCorrect": true}]}
+```
+
+**Format mới (đúng):**
+```json
+{
+  "type": "multiple_choice",
+  "override_text": "Question text",
+  "choices": [
+    {"id": "choice-0", "text": "A", "isCorrect": true},
+    {"id": "choice-1", "text": "B", "isCorrect": false}
+  ]
+}
+```
+
+**Các thay đổi:**
+- `text` → `override_text`
+- `options` → `choices`
+- Thêm `id` cho mỗi choice (UUID format: "choice-0", "choice-1", ...)
+- Thêm `ai_grading_keywords` + `expected_answer` cho essay/short_answer
+- Thêm `blanks` cho fill_in_blank
+- Thêm `pairs` + `distractors` cho matching
+- Thêm `allowed_extensions` + `max_file_size_mb` cho problem_solving/file_upload
+
+**Files updated:**
+- `teacher_create_assignment_screen.dart` - Build custom_content với format mới
+- `assignment_datasource.dart` - Parse custom_content với format mới (getDistributionDetail + submitAssignment)
+
+### Files Modified
+- lib/data/datasources/assignment_datasource.dart (format mới)
+- lib/presentation/providers/workspace_provider.dart
+- lib/presentation/views/assignment/teacher/teacher_create_assignment_screen.dart (format mới)
+- lib/presentation/views/assignment/student/student_assignment_workspace_screen.dart
+
+### Database Schema Notes
+```sql
+-- question_choices table (from question bank)
+id: int (0, 1, 2, 3...) - composite PK with question_id
+content: jsonb {text: "..."}
+is_correct: boolean
+
+-- assignment_questions.custom_content (for custom questions) - FORMAT MỚI
+// Multiple Choice / True-False:
+{
+  "type": "multiple_choice",
+  "override_text": "Question text",
+  "choices": [
+    {"id": 0, "text": "A", "isCorrect": true},
+    {"id": 1, "text": "B", "isCorrect": false}
+  ]
+}
+
+// Essay / Short Answer:
+{
+  "type": "essay",
+  "override_text": "Hãy phân tích...",
+  "expected_answer": "Nguyên nhân chính...",
+  "ai_grading_keywords": [
+    {"id": "kw-001", "keyword": "y tế phát triển", "weight": 0.5}
+  ]
+}
+
+// Fill in Blank:
+{
+  "type": "fill_blank",
+  "override_text": "Thủ đô VN là [blank_1]...",
+  "blanks": [
+    {"id": "blank_1", "correct_values": ["Hà Nội", "Hanoi"], "case_sensitive": false}
+  ]
+}
+
+// Matching:
+{
+  "type": "matching",
+  "override_text": "Nối các quốc gia...",
+  "pairs": [{"left_id": "...", "left_text": "Nhật Bản", "right_text": "Tokyo"}],
+  "distractors": [{"id": "...", "text": "Bắc Kinh"}]
+}
+
+// Problem Solving / File Upload:
+{
+  "type": "problem_solving",
+  "override_text": "Giải phương trình...",
+  "allowed_extensions": [".jpg", ".png", ".pdf"],
+  "max_file_size_mb": 5
+}
+```
+
+### Current Status
+- APK builds successfully
+- Questions display with choices (4 choices shown)
+- Auto-grading logic in place
+- Testing submission flow
+
+### Next Steps (Next Session)
+1. Test submission flow with auto-grading
+2. Verify score calculation
+3. Test AI queue for essay questions
+4. Clean up debug logs
+
+## Recently Completed
+(see progress.md for full history)
 - ✅ **Class-Scoped Assignment Distribution**: Protected recipient assignment distribution by enforcing strict `classId` scope.
 - ✅ **Teacher Class Detail Navigation**: Redirected "Tạo bài tập" (Create Assignment) to direct directly to `TeacherAssignmentSelectionPath`.
 - ✅ **GoRouter Page Key Duplication Fix**: Sent exact keys into `FadeTransitionPage`.

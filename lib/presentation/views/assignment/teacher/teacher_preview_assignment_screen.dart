@@ -193,9 +193,11 @@ class TeacherPreviewAssignmentScreen extends StatelessWidget {
     int questionNumber,
   ) {
     final questionType = question['type'] as QuestionType;
-    final questionText = question['text'] as String? ?? '';
+    // Format mới: ưu tiên override_text, fallback text
+    final questionText = question['override_text'] as String? ?? question['text'] as String? ?? '';
     final points = question['points'] as double? ?? 0.0;
-    final options = question['options'] as List<Map<String, dynamic>>?;
+    // Format mới: ưu tiên choices, fallback options
+    final choices = question['choices'] as List<Map<String, dynamic>>? ?? question['options'] as List<Map<String, dynamic>>?;
 
     return Container(
       margin: EdgeInsets.only(bottom: DesignSpacing.lg),
@@ -257,13 +259,15 @@ class TeacherPreviewAssignmentScreen extends StatelessWidget {
               color: isDark ? Colors.white : DesignColors.textPrimary,
             ),
           ),
-          if (options != null && options.isNotEmpty) ...[
+          if (choices != null && choices.isNotEmpty) ...[
             SizedBox(height: DesignSpacing.md),
-            ...options.asMap().entries.map((entry) {
+            ...choices.asMap().entries.map((entry) {
               final optIndex = entry.key;
               final opt = entry.value;
-              final optText = opt['text'] as String? ?? '';
-              final isCorrect = opt['isCorrect'] as bool? ?? false;
+              // Format mới: đọc text trực tiếp, fallback content.text
+              final optText = opt['text'] as String? ?? opt['content']?['text'] as String? ?? '';
+              // Format mới: isCorrect (camelCase), fallback is_correct (snake_case)
+              final isCorrect = opt['isCorrect'] as bool? ?? opt['is_correct'] as bool? ?? false;
               return Container(
                 margin: EdgeInsets.only(bottom: DesignSpacing.sm),
                 padding: EdgeInsets.all(DesignSpacing.md),

@@ -399,6 +399,12 @@ class QuestionState {
   final String type;
   final double points;
   final List<QuestionChoiceState> choices;
+  // New fields for format v2
+  final List<Map<String, dynamic>>? blanks;
+  final List<Map<String, dynamic>>? pairs;
+  final List<Map<String, dynamic>>? distractors;
+  final String? expectedAnswer;
+  final List<Map<String, dynamic>>? aiGradingKeywords;
 
   const QuestionState({
     required this.id,
@@ -406,33 +412,85 @@ class QuestionState {
     required this.type,
     required this.points,
     required this.choices,
+    this.blanks,
+    this.pairs,
+    this.distractors,
+    this.expectedAnswer,
+    this.aiGradingKeywords,
   });
 
   factory QuestionState.fromJson(Map<String, dynamic> json) {
+    // DEBUG: Log đầu vào
+    AppLogger.debug('🔵 [WORKSPACE] QuestionState.fromJson input: $json');
+
     // Cấu trúc mới: trực tiếp từ detail['questions']
     // hoặc cấu trúc cũ: json['questions']
     final question = json['questions'] as Map<String, dynamic>? ?? json;
 
+    AppLogger.debug('🔵 [WORKSPACE] question parsed: $question');
+
     // Handle content - could be String or Map
+    // Format mới: ưu tiên override_text
     String contentStr = '';
     dynamic contentData = question['content'] ?? json['content'];
     if (contentData is String) {
       contentStr = contentData;
     } else if (contentData is Map) {
-      contentStr = contentData['text'] as String? ?? '';
+      contentStr = contentData['override_text'] as String? ?? contentData['text'] as String? ?? '';
     }
 
-    // Handle choices
+    // Handle choices - ưu tiên question['question_choices'] vì getDistributionDetail trả về key này
     List<dynamic> choicesList = [];
-    if (contentData is Map && contentData['options'] != null) {
-      // MultipleChoice format from custom_content
-      choicesList = (contentData['options'] as List<dynamic>).map((opt) => {
-        'id': '',
-        'content': {'text': opt['text']},
-        'is_correct': opt['isCorrect'] ?? false,
-      }).toList();
-    } else {
-      choicesList = question['question_choices'] as List<dynamic>? ?? json['question_choices'] as List<dynamic>? ?? [];
+    // First check question['question_choices'] (from getDistributionDetail)
+    choicesList = question['question_choices'] as List<dynamic>? ?? json['question_choices'] as List<dynamic>? ?? [];
+    AppLogger.debug('🔵 [WORKSPACE] question_choices from DB: $choicesList');
+    // If still empty, check contentData['options'] (for other formats)
+    if (choicesList.isEmpty && contentData is Map) {
+      final optionsData = contentData['options'] ?? contentData['choices'];
+      if (optionsData is List && optionsData.isNotEmpty) {
+        choicesList = optionsData.toList().asMap().entries.map((entry) {
+          final index = entry.key;
+          final opt = entry.value;
+          return {
+            'id': index, // int format: 0, 1, 2...
+            'content': {'text': opt['text'] ?? opt['content']},
+            'is_correct': opt['isCorrect'] ?? opt['is_correct'] ?? false,
+          };
+        }).toList();
+      }
+    }
+
+    // Parse blanks (for fill_blank)
+    List<Map<String, dynamic>>? blanks;
+    final blanksData = question['blanks'] ?? json['blanks'];
+    if (blanksData is List && blanksData.isNotEmpty) {
+      blanks = blanksData.cast<Map<String, dynamic>>();
+    }
+
+    // Parse pairs (for matching)
+    List<Map<String, dynamic>>? pairs;
+    final pairsData = question['pairs'] ?? json['pairs'];
+    if (pairsData is List && pairsData.isNotEmpty) {
+      pairs = pairsData.cast<Map<String, dynamic>>();
+    }
+
+    // Parse distractors (for matching)
+    List<Map<String, dynamic>>? distractors;
+    final distractorsData = question['distractors'] ?? json['distractors'];
+    if (distractorsData is List && distractorsData.isNotEmpty) {
+      distractors = distractorsData.cast<Map<String, dynamic>>();
+    }
+
+    // Parse expected_answer and ai_grading_keywords (for essay/short_answer)
+    String? expectedAnswer;
+    List<Map<String, dynamic>>? aiGradingKeywords;
+    final expectedAnswerData = question['expected_answer'] ?? json['expected_answer'];
+    if (expectedAnswerData is String) {
+      expectedAnswer = expectedAnswerData;
+    }
+    final aiKeywordsData = question['ai_grading_keywords'] ?? json['ai_grading_keywords'];
+    if (aiKeywordsData is List && aiKeywordsData.isNotEmpty) {
+      aiGradingKeywords = aiKeywordsData.cast<Map<String, dynamic>>();
     }
 
     return QuestionState(
@@ -441,15 +499,22 @@ class QuestionState {
       type: question['type'] as String? ?? json['type'] as String? ?? 'multiple_choice',
       points: (question['points'] as num?)?.toDouble() ?? (json['points'] as num?)?.toDouble() ?? 1.0,
       choices: choicesList
-          .map((c) => QuestionChoiceState.fromJson(c is Map<String, dynamic> ? c : {}))
+          .asMap()
+          .entries
+          .map((e) => QuestionChoiceState.fromJson(e.value is Map<String, dynamic> ? e.value : {}, index: e.key))
           .toList(),
+      blanks: blanks,
+      pairs: pairs,
+      distractors: distractors,
+      expectedAnswer: expectedAnswer,
+      aiGradingKeywords: aiGradingKeywords,
     );
   }
 }
 
 /// State cho một lựa chọn trong câu hỏi trắc nghiệm
 class QuestionChoiceState {
-  final String id;
+  final int id; // int: 0, 1, 2... (matching question_choices.id)
   final String content;
   final bool isCorrect;
 
@@ -459,7 +524,7 @@ class QuestionChoiceState {
     required this.isCorrect,
   });
 
-  factory QuestionChoiceState.fromJson(Map<String, dynamic> json) {
+  factory QuestionChoiceState.fromJson(Map<String, dynamic> json, {int? index}) {
     // Handle content - could be String or Map with 'text'
     String contentStr = '';
     dynamic contentData = json['content'];
@@ -469,10 +534,22 @@ class QuestionChoiceState {
       contentStr = contentData['text'] as String? ?? '';
     }
 
+    // Parse ID - could be int or String, default to index if not present
+    int id = index ?? 0;
+    final idValue = json['id'];
+    if (idValue is int) {
+      id = idValue;
+    } else if (idValue is String && idValue.isNotEmpty) {
+      id = int.tryParse(idValue) ?? index ?? 0;
+    }
+
+    // Handle isCorrect - support both 'isCorrect' and 'is_correct'
+    bool isCorrect = json['isCorrect'] as bool? ?? json['is_correct'] as bool? ?? false;
+
     return QuestionChoiceState(
-      id: json['id'] as String? ?? '',
+      id: id,
       content: contentStr,
-      isCorrect: json['is_correct'] as bool? ?? false,
+      isCorrect: isCorrect,
     );
   }
 }

@@ -394,7 +394,8 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
       final customContent = aq['custom_content'] is Map
           ? Map<String, dynamic>.from(aq['custom_content'])
           : {};
-      final optionsRaw = customContent['options'];
+      // Format mới: ưu tiên choices, fallback options
+      final optionsRaw = customContent['choices'] ?? customContent['options'];
 
       List<Map<String, dynamic>> options = [];
       if (optionsRaw is List && optionsRaw.isNotEmpty) {
@@ -414,9 +415,12 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
         }
       }
 
+      // Format mới: ưu tiên override_text, fallback text
+      final questionText = customContent['override_text'] as String? ?? text;
+
       return {
         'type': qType,
-        'text': text,
+        'text': questionText,
         'points': points,
         'options': options,
       };

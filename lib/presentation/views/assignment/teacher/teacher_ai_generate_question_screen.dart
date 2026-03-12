@@ -132,20 +132,23 @@ class _TeacherAiGenerateQuestionScreenState
         ? (q['type'] as QuestionType)
         : QuestionType.multipleChoice;
 
-    // content (JSONB)
+    // Format mới: override_text + choices (KHÔNG lồng trong content)
+    // content chỉ chứa metadata như images, difficulty, tags...
     final content = <String, dynamic>{};
     final contentRaw = q['content'];
     if (contentRaw is Map) {
       content.addAll(Map<String, dynamic>.from(contentRaw));
     }
-    content['text'] = (q['text'] as String? ?? content['text'] ?? '')
-        .toString();
+
+    // Override text - format mới
+    final questionText = (q['text'] as String? ?? content['override_text'] ?? content['text'] ?? '').toString();
+    content['override_text'] = questionText;
     content['images'] = content['images'] is List ? content['images'] : [];
 
-    // choices + answer
+    // choices + answer - format mới: top-level, không lồng trong content
     Map<String, dynamic>? answer;
     List<Map<String, dynamic>>? choices;
-    if (type == QuestionType.multipleChoice) {
+    if (type == QuestionType.multipleChoice || type == QuestionType.trueFalse) {
       final opts =
           (q['options'] as List?)?.cast<Map<String, dynamic>>() ??
           (q['choices'] as List?)?.cast<Map<String, dynamic>>() ??
@@ -153,19 +156,17 @@ class _TeacherAiGenerateQuestionScreenState
       choices = opts.asMap().entries.map((entry) {
         final idx = entry.key;
         final opt = entry.value;
+        // Format mới: {id: 0, text: "A", isCorrect: true}
         return <String, dynamic>{
-          'id': idx,
-          'content': {
-            'text': (opt['text'] ?? opt['content']?['text'] ?? '').toString(),
-            'image': opt['image'],
-          },
-          'is_correct': opt['isCorrect'] == true || opt['is_correct'] == true,
+          'id': idx, // int: 0, 1, 2...
+          'text': (opt['text'] ?? opt['content']?['text'] ?? opt['content'] ?? '').toString(),
+          'isCorrect': opt['isCorrect'] == true || opt['is_correct'] == true,
         };
       }).toList();
 
       final correctIds = <int>[];
       for (final c in choices) {
-        if (c['is_correct'] == true) correctIds.add(c['id'] as int);
+        if (c['isCorrect'] == true) correctIds.add(c['id'] as int);
       }
       answer = <String, dynamic>{'correct_choice_ids': correctIds};
     } else {
