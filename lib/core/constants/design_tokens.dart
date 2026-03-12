@@ -366,6 +366,20 @@ class DesignTypography {
     height: lineHeightNormal,
     color: DesignColors.textPrimary,
   );
+
+  static TextStyle titleSmall = TextStyle(
+    fontSize: titleSmallSize,
+    fontWeight: semiBold,
+    height: lineHeightNormal,
+    color: DesignColors.textPrimary,
+  );
+
+  static TextStyle labelSmall = TextStyle(
+    fontSize: labelSmallSize,
+    fontWeight: medium,
+    height: lineHeightNormal,
+    color: DesignColors.textSecondary,
+  );
 }
 
 // ==================== ICON SIZES ====================

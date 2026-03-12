@@ -2,7 +2,7 @@ import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/class.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
-import 'package:ai_mls/presentation/views/assignment/assignment_list_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/student/assignment_list_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/student/student_assignment_detail_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/student/student_assignment_workspace_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/student/student_submission_history_screen.dart';
@@ -14,6 +14,8 @@ import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_ques
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_distribute_assignment_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_draft_assignments_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_published_assignments_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_submission_detail_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_submission_list_screen.dart';
 import 'package:ai_mls/presentation/views/auth/login_screen.dart';
 import 'package:ai_mls/presentation/views/auth/register_screen.dart';
 import 'package:ai_mls/presentation/views/class/student/join_class_screen.dart';
@@ -543,6 +545,37 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+
+      // Route submission list (teacher grading - ATC Dashboard)
+      GoRoute(
+        path: '/teacher/submissions/:distributionId',
+        name: 'teacher-submission-list',
+        builder: (context, state) {
+          final distributionId = state.pathParameters['distributionId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          return TeacherSubmissionListScreen(
+            distributionId: distributionId,
+            assignmentTitle: extra?['assignmentTitle'] as String? ?? '',
+          );
+        },
+      ),
+
+      // Route submission detail (teacher grading - Focus Lens)
+      GoRoute(
+        path: AppRoute.teacherGradeSubmissionPath(':submissionId'),
+        name: AppRoute.teacherGradeSubmission,
+        builder: (context, state) {
+          final submissionId = state.pathParameters['submissionId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          final allSubmissionIds =
+              extra?['allSubmissionIds'] as List<String>? ?? [];
+          return TeacherSubmissionDetailScreen(
+            submissionId: submissionId,
+            allSubmissionIds: allSubmissionIds,
+          );
+        },
+      ),
+
       // Note: teacherClassSearch is now inside ShellRoute, so this standalone route is removed
       // GoRoute(
       //   path: AppRoute.teacherClassSearchPath,

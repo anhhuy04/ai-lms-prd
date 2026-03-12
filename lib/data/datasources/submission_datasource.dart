@@ -167,11 +167,155 @@ class SubmissionDataSource {
     final now = DateTime.now().toUtc().toIso8601String();
 
     await _client.from('submissions').update({
-      'score': score,
+      'total_score': score,
       'feedback': feedback,
       'status': 'graded',
-      'graded_at': now,
       'updated_at': now,
     }).eq('id', submissionId);
+  }
+
+  /// Lấy danh sách câu trả lời của một submission (cho teacher grading).
+  Future<List<Map<String, dynamic>>> getSubmissionAnswers(
+    String submissionId,
+  ) async {
+    // Lấy session_id từ submission trước
+    final submission = await _client
+        .from('submissions')
+        .select('session_id')
+        .eq('id', submissionId)
+        .single();
+
+    final sessionId = submission['session_id'] as String?;
+
+    if (sessionId == null) {
+      return [];
+    }
+
+    final result = await _client
+        .from('submission_answers')
+        .select('''
+          *,
+          assignment_questions(
+            id,
+            question_text,
+            question_type,
+            points,
+            custom_content
+          )
+        ''')
+        .eq('session_id', sessionId)
+        .order('created_at', ascending: true);
+
+    return List<Map<String, dynamic>>.from(result);
+  }
+
+  /// Cập nhật điểm cho một câu trả lời (final_score + teacher_feedback).
+  Future<void> updateSubmissionAnswerGrade({
+    required String answerId,
+    required double finalScore,
+    String? teacherFeedback,
+    required String teacherId,
+  }) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    await _client.from('submission_answers').update({
+      'final_score': finalScore,
+      'teacher_feedback': teacherFeedback != null
+          ? {'comment': teacherFeedback}
+          : null,
+      'graded_by': teacherId,
+      'graded_at': now,
+      'updated_at': now,
+    }).eq('id', answerId);
+  }
+
+  /// Chấp nhận điểm AI (dùng ai_score làm final_score).
+  Future<void> approveAiScore(String answerId) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    // Lấy ai_score trước
+    final answer = await _client
+        .from('submission_answers')
+        .select('ai_score')
+        .eq('id', answerId)
+        .single();
+
+    await _client.from('submission_answers').update({
+      'final_score': answer['ai_score'],
+      'updated_at': now,
+    }).eq('id', answerId);
+  }
+
+  /// Lấy chi tiết distribution để tính max_score.
+  Future<Map<String, dynamic>?> getDistributionDetail(
+    String distributionId,
+  ) async {
+    final result = await _client
+        .from('assignment_distributions')
+        .select('''
+          *,
+          assignments(
+            id,
+            title,
+            total_points
+          )
+        ''')
+        .eq('id', distributionId)
+        .maybeSingle();
+
+    return result != null ? Map<String, dynamic>.from(result) : null;
+  }
+
+  /// Publish grades - cập nhật work_sessions status thành 'graded'.
+  Future<void> publishGrades(String submissionId) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    // Lấy session_id từ submission
+    final submission = await _client
+        .from('submissions')
+        .select('session_id')
+        .eq('id', submissionId)
+        .single();
+
+    if (submission['session_id'] != null) {
+      await _client.from('work_sessions').update({
+        'status': 'graded',
+        'updated_at': now,
+      }).eq('id', submission['session_id']);
+    }
+
+    // Cập nhật submission status
+    await _client.from('submissions').update({
+      'status': 'graded',
+      'updated_at': now,
+    }).eq('id', submissionId);
+  }
+
+  /// Publish grades cho toàn bộ distribution.
+  Future<void> publishAllGrades(String distributionId) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    // Lấy tất cả submissions của distribution
+    final submissions = await _client
+        .from('submissions')
+        .select('id, session_id')
+        .eq('assignment_distribution_id', distributionId)
+        .eq('status', 'submitted');
+
+    for (final submission in submissions) {
+      // Update work_sessions
+      if (submission['session_id'] != null) {
+        await _client.from('work_sessions').update({
+          'status': 'graded',
+          'updated_at': now,
+        }).eq('id', submission['session_id']);
+      }
+
+      // Update submissions
+      await _client.from('submissions').update({
+        'status': 'graded',
+        'updated_at': now,
+      }).eq('id', submission['id']);
+    }
   }
 }

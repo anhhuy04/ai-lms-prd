@@ -206,6 +206,11 @@ class AppRoute {
   static const String teacherGrading = 'teacher-grading';
   static const String teacherGradingPath = '/teacher/grading';
 
+  /// Teacher - Submission list (ATC Dashboard - danh sách bài nộp)
+  static const String teacherSubmissionList = 'teacher-submission-list';
+  static String teacherSubmissionListPath(String distributionId) =>
+      '/teacher/submissions/$distributionId';
+
   /// Teacher - Grade assignment submissions (with parameter)
   static const String teacherGradeSubmission = 'teacher-grade-submission';
   static String teacherGradeSubmissionPath(String submissionId) =>
@@ -357,6 +362,7 @@ class AppRoute {
       teacherCreateQuestion,
       teacherEditAssignment,
       teacherGrading,
+      teacherSubmissionList,
       teacherGradeSubmission,
       teacherAssignmentDetail,
       studentAssignmentDetail, // Allow teachers to preview assignment detail

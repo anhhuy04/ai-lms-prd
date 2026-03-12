@@ -128,4 +128,70 @@ class SubmissionRepositoryImpl implements SubmissionRepository {
       throw ErrorTranslationUtils.translateError(e, 'Cập nhật điểm');
     }
   }
+
+  @override
+  Future<List<Map<String, dynamic>>> getSubmissionAnswers(String submissionId) async {
+    try {
+      return await _ds.getSubmissionAnswers(submissionId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getSubmissionAnswers: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy câu trả lời');
+    }
+  }
+
+  @override
+  Future<void> updateSubmissionAnswerGrade({
+    required String answerId,
+    required double finalScore,
+    String? teacherFeedback,
+    required String teacherId,
+  }) async {
+    try {
+      await _ds.updateSubmissionAnswerGrade(
+        answerId: answerId,
+        finalScore: finalScore,
+        teacherFeedback: teacherFeedback,
+        teacherId: teacherId,
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] updateSubmissionAnswerGrade: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Cập nhật điểm câu trả lời');
+    }
+  }
+
+  @override
+  Future<void> publishGrades(String submissionId) async {
+    try {
+      await _ds.publishGrades(submissionId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] publishGrades: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Xuất bản điểm');
+    }
+  }
+
+  @override
+  Future<void> publishAllGrades(String distributionId) async {
+    try {
+      await _ds.publishAllGrades(distributionId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] publishAllGrades: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Xuất bản tất cả điểm');
+    }
+  }
 }

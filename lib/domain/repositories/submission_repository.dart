@@ -37,4 +37,22 @@ abstract class SubmissionRepository {
     required double score,
     String? feedback,
   });
+
+  /// Lấy câu trả lời của một submission (cho teacher grading).
+  Future<List<Map<String, dynamic>>> getSubmissionAnswers(String submissionId);
+
+  /// Cập nhật điểm cho một câu trả lời.
+  Future<void> updateSubmissionAnswerGrade({
+    required String answerId,
+    required double finalScore,
+    String? teacherFeedback,
+    required String teacherId,
+  });
+
+  /// Publish grades cho một submission - cập nhật status thành 'graded'.
+  /// Chỉ khi publish HS mới thấy điểm (Stage Curtain model).
+  Future<void> publishGrades(String submissionId);
+
+  /// Publish grades cho toàn bộ distribution - tất cả submissions.
+  Future<void> publishAllGrades(String distributionId);
 }
