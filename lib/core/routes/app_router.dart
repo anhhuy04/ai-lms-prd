@@ -8,6 +8,7 @@ import 'package:ai_mls/presentation/views/assignment/student/student_assignment_
 import 'package:ai_mls/presentation/views/assignment/student/student_submission_history_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_ai_generate_question_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_hub_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_management_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_selection_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_assignment_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_question_screen.dart';
@@ -423,6 +424,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+      // Route assignment management (quản lý bài tập)
+      GoRoute(
+        path: AppRoute.teacherAssignmentManagementPath,
+        name: AppRoute.teacherAssignmentManagement,
+        builder: (context, state) => const TeacherAssignmentManagementScreen(),
+      ),
       // Route distribute assignment (phân phối bài tập)
       GoRoute(
         path: AppRoute.teacherDistributeAssignmentPath,
@@ -546,6 +553,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      // Route class submission list (chọn lớp để xem bài nộp)
+      GoRoute(
+        path: '/teacher/assignment/:assignmentId/submissions',
+        name: 'teacher-class-submission-list',
+        builder: (context, state) {
+          final assignmentId = state.pathParameters['assignmentId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          return TeacherClassSubmissionListScreen(
+            assignmentId: assignmentId,
+            assignmentTitle: extra?['assignmentTitle'] as String? ?? '',
+          );
+        },
+      ),
+
       // Route submission list (teacher grading - ATC Dashboard)
       GoRoute(
         path: '/teacher/submissions/:distributionId',
@@ -556,6 +577,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return TeacherSubmissionListScreen(
             distributionId: distributionId,
             assignmentTitle: extra?['assignmentTitle'] as String? ?? '',
+            className: extra?['className'] as String?,
           );
         },
       ),

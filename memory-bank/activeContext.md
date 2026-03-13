@@ -1,12 +1,118 @@
 # Active Context
 
 ## Current Sprint Focus
-**Goal:** Student Assignment Workflow - Testing & Bug Fixes (2026-03-10)
-- Fix auto-grading for MCQ questions
-- Display answer choices correctly in workspace
-- Test submission flow
+**Goal:** Phase 2 Complete - Teacher Grading Workflow (2026-03-12)
+- Task 1: Teacher Submission List (ATC Dashboard) - ✅ DONE
+- Task 2: Submission Detail - Side-by-Side - ✅ DONE
+- Task 3: Grading Interface + Feedback Override - ✅ DONE
+- Task 4: Grade Override Audit Trail - ✅ DONE
+- Task 5: Publish Grades (Stage Curtain) - ✅ DONE
+- Task 6: Quick Navigation - ✅ DONE
 
-## Session Note (2026-03-10 - Latest)
+**Next:** Phase 3 - Rubric System
+
+## Session Note (2026-03-12 - LATEST)
+
+### JSONB Standardization - Strict Data Contract (2026-03-12)
+✅ **Chuẩn hóa tất cả JSONB columns trong Phase 2**
+
+**4 Tử huyệt đã được sửa:**
+
+1. **Tử huyệt 1 - Lộ đề thi:**
+   - `questions.content`: Chỉ chứa đề bài, KHÔNG giải thích
+   - `questions.answer`: Tách bạch polymorphic (trắc nghiệm/tự luận)
+   - `question_choices.content`: BẮT BUỘC là Object (tránh crash map())
+
+2. **Tử huyệt 2 - Vi phạm nguồn chân lý:**
+   - `assignment_questions.custom_content`: Delta Override Pattern - chỉ lưu khác biệt
+   - `assignment_questions.rubric`: Ma trận chấm điểm cho AI
+
+3. **Tử huyệt 3 - Kiến trúc đảo đề:**
+   - `assignment_variants.custom_questions`: Cấu trúc cây Snapshot
+
+4. **Tử huyệt 4 - Tính năng sơ sài:**
+   - `assignment_distributions.late_policy`: Cấu hình nộp muộn phức tạp
+   - `assignment_distributions.settings`: student_review_mode, ai_feedback_enabled
+
+**File updated:** `docs/note sql.txt`
+
+---
+
+### Phase 2 - Teacher Grading Workflow - ✅ COMPLETED
+
+**✅ All 6 Tasks Complete:**
+1. Teacher Submission List (ATC Dashboard) - Badge "Nộp muộn", AI loading, filters
+2. Submission Detail - Side-by-Side Layout + Mobile Bottom Sheet
+3. Grading Interface - Approve/Override + **Feedback Override textbox**
+4. Grade Override Audit Trail - datasource + repository + grade_overrides table
+5. Publish Grades (Stage Curtain) - **"Xuất bản điểm" button**
+6. Quick Navigation - Next/Previous buttons
+
+**✅ Files Created/Updated:**
+1. `lib/data/repositories/grade_override_repository_impl.dart` - NEW
+2. `lib/presentation/views/assignment/teacher/widgets/submission/teacher_feedback_editor.dart` - NEW
+3. `lib/presentation/views/assignment/teacher/teacher_submission_detail_screen.dart` - Updated with feedback callback
+4. `lib/presentation/views/assignment/teacher/teacher_submission_list_screen.dart` - Removed unused import
+5. `lib/presentation/views/assignment/teacher/widgets/submission/grading_action_buttons.dart` - Added feedback editor
+
+**✅ Build Verified:**
+- `flutter analyze` - 53 warnings (no errors)
+- `flutter build apk --debug` - SUCCESS
+
+**Database Schema (Đã có):**
+- `submissions`: is_late, total_score, ai_graded, status
+- `submission_answers`: ai_score, ai_confidence, ai_feedback, teacher_feedback
+- `grade_overrides`: submission_answer_id, old_score, new_score, reason
+- `work_sessions`: status ('in_progress', 'submitted', 'graded')
+
+## Session Note (2026-03-12 - Latest)
+
+### Database Migration - grade_overrides
+✅ Created migration file: `db/21_update_grade_overrides_constraints.sql`
+- Set `created_at NOT NULL default now()`
+- Set `submission_answer_id NOT NULL`
+- Set `overridden_by NOT NULL`
+- Set `new_score NOT NULL`
+
+### GSD Roadmap Review - 6 Tasks Analysis
+
+**Task 1: Submission List (ATC Dashboard)**
+- Badge đỏ "Nộp muộn" ✓
+- AI loading spinner ✓
+
+**Task 2: Submission Detail (Side-by-Side)**
+- Desktop: 2 cột ✓
+- Mobile: Bottom Sheet ✓
+- **⚠️ MISSING: AI Confidence indicator** - Cần thêm
+  - Database có `ai_confidence` trong submission_answers
+  - Cần hiển thị thanh confidence
+  - Khi < 0.7 → nền vàng + cảnh báo
+
+**Task 3: Grading Interface**
+- Approve/Override điểm ✓
+- **⚠️ MISSING: Feedback Override** - Cần thêm textbox
+  - Database có `teacher_feedback` column riêng
+  - Giáo viên cần sửa được lời phê AI
+
+**Task 3: Publish Grades (Stage Curtain)**
+- **⚠️ MISSING: Nút "Xuất bản"** - Tử huyệt!
+  - Khi chưa publish, học sinh không thấy điểm
+  - Backend: UPDATE work_sessions SET status = 'graded'
+  - Cần Supabase Realtime cho student app
+
+**Task 4: Grade Override Audit Trail**
+- ✅ Bảng grade_overrides đã có trong database
+- ✅ Migration update constraints đã tạo
+
+**Task 5: Quick Navigation**
+- Next/Prev buttons ✓
+- **⚠️ Cần Debounce autosave** cho feedback
+  - Debounce 1000ms khi gõ
+  - Force save onBlur/onNext
+
+---
+
+## Older Session Notes (2026-03-10)
 
 ### Enterprise Architecture Applied
 ✅ **"Bản in niêm phong" (Sealed Snapshot)**

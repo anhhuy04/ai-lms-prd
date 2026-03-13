@@ -303,6 +303,21 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
   }
 
   @override
+  Future<List<AssignmentDistribution>> getDistributionsByTeacher(String teacherId) async {
+    try {
+      final rows = await _ds.getDistributionsByTeacher(teacherId);
+      return rows.map(AssignmentDistribution.fromJson).toList();
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getDistributionsByTeacher: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách giao bài');
+    }
+  }
+
+  @override
   Future<AssignmentDistribution> distributeAssignment({
     required String assignmentId,
     required String classId,

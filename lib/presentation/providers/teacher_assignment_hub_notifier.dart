@@ -1,5 +1,6 @@
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/domain/entities/assignment.dart';
+import 'package:ai_mls/domain/entities/assignment_distribution.dart';
 import 'package:ai_mls/domain/entities/assignment_statistics.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/assignment_providers.dart';
@@ -15,6 +16,8 @@ class TeacherAssignmentHubState with _$TeacherAssignmentHubState {
   const factory TeacherAssignmentHubState({
     required AssignmentStatistics statistics,
     required List<Assignment> recentActivities,
+    @Default([]) List<Assignment> assignments,
+    @Default([]) List<AssignmentDistribution> distributions,
   }) = _TeacherAssignmentHubState;
 
   factory TeacherAssignmentHubState.fromJson(Map<String, dynamic> json) =>
@@ -41,16 +44,20 @@ class TeacherAssignmentHubNotifier extends _$TeacherAssignmentHubNotifier {
   Future<TeacherAssignmentHubState> _loadData(String teacherId) async {
     try {
       final repository = ref.read(assignmentRepositoryProvider);
-      
-      // Load statistics và recent activities song song
+
+      // Load all data song song
       final results = await Future.wait([
         repository.getAssignmentStatistics(teacherId),
         repository.getRecentActivities(teacherId, limit: 10),
+        repository.getAssignmentsByTeacher(teacherId),
+        repository.getDistributionsByTeacher(teacherId),
       ]);
 
       return TeacherAssignmentHubState(
         statistics: results[0] as AssignmentStatistics,
         recentActivities: results[1] as List<Assignment>,
+        assignments: results[2] as List<Assignment>,
+        distributions: results[3] as List<AssignmentDistribution>,
       );
     } catch (e, stackTrace) {
       AppLogger.error(

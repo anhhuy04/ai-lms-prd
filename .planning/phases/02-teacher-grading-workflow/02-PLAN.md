@@ -71,7 +71,13 @@
 **Hiển thị:**
 - Câu hỏi + Đáp án học sinh chọn
 - File đính kèm (nếu có)
-- **AI Confidence**: Nếu < 0.7 → nền vàng cảnh báo
+
+**⚠️ QUAN TRỌNG: Skepticism Thermometer (AI Confidence)**
+- Database có sẵn cột `ai_confidence` trong `submission_answers`
+- **Bắt buộc hiển thị** thanh confidence indicator
+- Nếu `ai_confidence < 0.7`:
+  - Toàn bộ khung AI đổi sang viền vàng/đỏ
+  - Hiển thị dòng text: "AI phân vân (Độ tin cậy thấp) - Yêu cầu giáo viên kiểm tra kỹ"
 
 ---
 
@@ -94,28 +100,55 @@
 - **Approve**: Dùng điểm AI → `final_score = ai_score`
 - **Override**: Nhập điểm mới → INSERT vào `grade_overrides` (old_score, new_score, reason)
 
+**⚠️ QUAN TRỌNG #1: Feedback Override (Lời phê)**
+- Database có 2 cột riêng: `ai_feedback` (jsonb) và `teacher_feedback` (jsonb)
+- **Bắt buộc có Textbox** cho phép giáo viên:
+  - Sửa lời phê của AI
+  - Thêm lời phê mới
+- UI mẫu:
+```
+📝 Feedback AI:
+"Lời giải chưa đầy đủ..."
+
+✏️ Lời phê của giáo viên:
+[ Khung nhập liệu cho phép edit ]
+```
+
+**⚠️ QUAN TRỌNG #2: Publish Grades (Xuất bản điểm) - TỬ HUYỆT!**
+- **THIẾU NÚT PUBLISH = LỖ HỔNG BẢO MẬT LỚN**
+- Khi teacher bấm "Duyệt" → Điểm lưu vào DB (status = 'submitted')
+- **Cần nút "Xuất bản"** riêng biệt:
+  - Nút màu xanh nổi bật trong Submission List
+  - Khi bấm: `UPDATE work_sessions SET status = 'graded'`
+  - Chỉ khi publish, học sinh mới thấy điểm
+- **Supabase Realtime**: Student app subscribe `work_sessions` changes
+  - Khi `status = 'graded'` → Student app tự động hiển thị điểm mới
+
 ---
 
 ### Task 4: Grade Override Audit Trail
 
 **Mô tả:** Lưu log khi teacher sửa điểm AI
 
-**Database:**
-- Tạo bảng `grade_overrides` nếu chưa có
-
-**Schema:**
+**Database (Đã có từ db/13_create_remaining_tables.sql):**
+- Bảng `grade_overrides` đã tồn tại
+- Schema chuẩn:
 ```sql
 CREATE TABLE grade_overrides (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  submission_id UUID REFERENCES submissions(id),
-  question_id UUID REFERENCES assignment_questions(id),
-  old_score DOUBLE PRECISION,
-  new_score DOUBLE PRECISION,
+  submission_answer_id UUID NOT NULL,  -- FK đến submission_answers
+  overridden_by UUID NOT NULL,          -- FK đến auth.users
+  old_score NUMERIC(7,2),
+  new_score NUMERIC(7,2) NOT NULL,
   reason TEXT,
-  teacher_id UUID REFERENCES users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
+
+**Migration (2026-03-12):**
+- ✅ File: `db/21_update_grade_overrides_constraints.sql`
+- Đã update NOT NULL constraints
+- Đã thêm FK constraints
 
 **Files:**
 - `lib/data/datasources/grade_override_datasource.dart`
@@ -167,8 +200,12 @@ flutter analyze
 - [ ] Badge "Nộp muộn" hiển thị đỏ
 - [ ] AI loading indicator khi đang chờ AI
 - [ ] Side-by-side (Desktop) / Bottom Sheet (Mobile) hoạt động
-- [ ] AI confidence < 0.7 → nền vàng cảnh báo
+- [ ] AI confidence indicator hiển thị (thanh confidence)
+- [ ] AI confidence < 0.7 → nền vàng + cảnh báo text
 - [ ] Teacher approve/override điểm AI
-- [ ] Grade override lưu audit trail
-- [ ] Publish grades chỉ khi teacher bấm nút
+- [ ] **Teacher có thể sửa Feedback (teacher_feedback textbox)**
+- [ ] **Có nút "Xuất bản điểm" (Publish) riêng biệt**
+- [ ] Grade override lưu audit trail vào bảng grade_overrides
+- [ ] Publish grades chỉ khi teacher bấm nút (status = 'graded')
 - [ ] Next/Prev navigation hoạt động
+- [ ] Debounce autosave cho feedback (1000ms)

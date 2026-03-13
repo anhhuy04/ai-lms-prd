@@ -7,7 +7,7 @@ part of 'distribute_assignment_notifier.dart';
 // **************************************************************************
 
 String _$distributeAssignmentNotifierHash() =>
-    r'bf413b18ce3d7d5f02ce51f9580510ada8968c23';
+    r'7608c486d07027e98b8ef20a38ee7c8a8fea889a';
 
 /// Copied from Dart SDK
 class _SystemHash {

@@ -46,13 +46,17 @@ mixin _$AssignmentDistribution {
   Map<String, dynamic>? get latePolicy => throw _privateConstructorUsedError;
 
   /// Cấu hình shuffle và hiển thị điểm:
-  /// - shuffle_questions: đảo thứ tự câu hỏi
-  /// - shuffle_choices: đảo thứ tự đáp án
-  /// - show_score_immediately: hiển thị điểm ngay sau khi nộp
   @JsonKey(name: 'settings')
   Map<String, dynamic>? get settings => throw _privateConstructorUsedError;
   @JsonKey(name: 'created_at')
-  DateTime? get createdAt => throw _privateConstructorUsedError;
+  DateTime? get createdAt => throw _privateConstructorUsedError; // Extended fields từ join queries
+  String? get subjectName => throw _privateConstructorUsedError;
+  String? get className => throw _privateConstructorUsedError;
+  String? get groupName => throw _privateConstructorUsedError;
+  String? get assignmentTitle => throw _privateConstructorUsedError;
+  int? get recipientCount => throw _privateConstructorUsedError;
+  int? get submittedCount => throw _privateConstructorUsedError;
+  int? get gradedCount => throw _privateConstructorUsedError;
 
   /// Serializes this AssignmentDistribution to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -85,6 +89,13 @@ abstract class $AssignmentDistributionCopyWith<$Res> {
     @JsonKey(name: 'late_policy') Map<String, dynamic>? latePolicy,
     @JsonKey(name: 'settings') Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') DateTime? createdAt,
+    String? subjectName,
+    String? className,
+    String? groupName,
+    String? assignmentTitle,
+    int? recipientCount,
+    int? submittedCount,
+    int? gradedCount,
   });
 }
 
@@ -119,6 +130,13 @@ class _$AssignmentDistributionCopyWithImpl<
     Object? latePolicy = freezed,
     Object? settings = freezed,
     Object? createdAt = freezed,
+    Object? subjectName = freezed,
+    Object? className = freezed,
+    Object? groupName = freezed,
+    Object? assignmentTitle = freezed,
+    Object? recipientCount = freezed,
+    Object? submittedCount = freezed,
+    Object? gradedCount = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -174,6 +192,34 @@ class _$AssignmentDistributionCopyWithImpl<
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
                       as DateTime?,
+            subjectName: freezed == subjectName
+                ? _value.subjectName
+                : subjectName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            className: freezed == className
+                ? _value.className
+                : className // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            groupName: freezed == groupName
+                ? _value.groupName
+                : groupName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            assignmentTitle: freezed == assignmentTitle
+                ? _value.assignmentTitle
+                : assignmentTitle // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            recipientCount: freezed == recipientCount
+                ? _value.recipientCount
+                : recipientCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            submittedCount: freezed == submittedCount
+                ? _value.submittedCount
+                : submittedCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            gradedCount: freezed == gradedCount
+                ? _value.gradedCount
+                : gradedCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -203,6 +249,13 @@ abstract class _$$AssignmentDistributionImplCopyWith<$Res>
     @JsonKey(name: 'late_policy') Map<String, dynamic>? latePolicy,
     @JsonKey(name: 'settings') Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') DateTime? createdAt,
+    String? subjectName,
+    String? className,
+    String? groupName,
+    String? assignmentTitle,
+    int? recipientCount,
+    int? submittedCount,
+    int? gradedCount,
   });
 }
 
@@ -234,6 +287,13 @@ class __$$AssignmentDistributionImplCopyWithImpl<$Res>
     Object? latePolicy = freezed,
     Object? settings = freezed,
     Object? createdAt = freezed,
+    Object? subjectName = freezed,
+    Object? className = freezed,
+    Object? groupName = freezed,
+    Object? assignmentTitle = freezed,
+    Object? recipientCount = freezed,
+    Object? submittedCount = freezed,
+    Object? gradedCount = freezed,
   }) {
     return _then(
       _$AssignmentDistributionImpl(
@@ -289,6 +349,34 @@ class __$$AssignmentDistributionImplCopyWithImpl<$Res>
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
                   as DateTime?,
+        subjectName: freezed == subjectName
+            ? _value.subjectName
+            : subjectName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        className: freezed == className
+            ? _value.className
+            : className // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        groupName: freezed == groupName
+            ? _value.groupName
+            : groupName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        assignmentTitle: freezed == assignmentTitle
+            ? _value.assignmentTitle
+            : assignmentTitle // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        recipientCount: freezed == recipientCount
+            ? _value.recipientCount
+            : recipientCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        submittedCount: freezed == submittedCount
+            ? _value.submittedCount
+            : submittedCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        gradedCount: freezed == gradedCount
+            ? _value.gradedCount
+            : gradedCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -311,6 +399,13 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
     @JsonKey(name: 'late_policy') final Map<String, dynamic>? latePolicy,
     @JsonKey(name: 'settings') final Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') this.createdAt,
+    this.subjectName,
+    this.className,
+    this.groupName,
+    this.assignmentTitle,
+    this.recipientCount,
+    this.submittedCount,
+    this.gradedCount,
   }) : _studentIds = studentIds,
        _latePolicy = latePolicy,
        _settings = settings;
@@ -367,15 +462,9 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
   }
 
   /// Cấu hình shuffle và hiển thị điểm:
-  /// - shuffle_questions: đảo thứ tự câu hỏi
-  /// - shuffle_choices: đảo thứ tự đáp án
-  /// - show_score_immediately: hiển thị điểm ngay sau khi nộp
   final Map<String, dynamic>? _settings;
 
   /// Cấu hình shuffle và hiển thị điểm:
-  /// - shuffle_questions: đảo thứ tự câu hỏi
-  /// - shuffle_choices: đảo thứ tự đáp án
-  /// - show_score_immediately: hiển thị điểm ngay sau khi nộp
   @override
   @JsonKey(name: 'settings')
   Map<String, dynamic>? get settings {
@@ -389,10 +478,25 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
   @override
   @JsonKey(name: 'created_at')
   final DateTime? createdAt;
+  // Extended fields từ join queries
+  @override
+  final String? subjectName;
+  @override
+  final String? className;
+  @override
+  final String? groupName;
+  @override
+  final String? assignmentTitle;
+  @override
+  final int? recipientCount;
+  @override
+  final int? submittedCount;
+  @override
+  final int? gradedCount;
 
   @override
   String toString() {
-    return 'AssignmentDistribution(id: $id, assignmentId: $assignmentId, distributionType: $distributionType, classId: $classId, groupId: $groupId, studentIds: $studentIds, availableFrom: $availableFrom, dueAt: $dueAt, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePolicy: $latePolicy, settings: $settings, createdAt: $createdAt)';
+    return 'AssignmentDistribution(id: $id, assignmentId: $assignmentId, distributionType: $distributionType, classId: $classId, groupId: $groupId, studentIds: $studentIds, availableFrom: $availableFrom, dueAt: $dueAt, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePolicy: $latePolicy, settings: $settings, createdAt: $createdAt, subjectName: $subjectName, className: $className, groupName: $groupName, assignmentTitle: $assignmentTitle, recipientCount: $recipientCount, submittedCount: $submittedCount, gradedCount: $gradedCount)';
   }
 
   @override
@@ -424,12 +528,26 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
             ) &&
             const DeepCollectionEquality().equals(other._settings, _settings) &&
             (identical(other.createdAt, createdAt) ||
-                other.createdAt == createdAt));
+                other.createdAt == createdAt) &&
+            (identical(other.subjectName, subjectName) ||
+                other.subjectName == subjectName) &&
+            (identical(other.className, className) ||
+                other.className == className) &&
+            (identical(other.groupName, groupName) ||
+                other.groupName == groupName) &&
+            (identical(other.assignmentTitle, assignmentTitle) ||
+                other.assignmentTitle == assignmentTitle) &&
+            (identical(other.recipientCount, recipientCount) ||
+                other.recipientCount == recipientCount) &&
+            (identical(other.submittedCount, submittedCount) ||
+                other.submittedCount == submittedCount) &&
+            (identical(other.gradedCount, gradedCount) ||
+                other.gradedCount == gradedCount));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     id,
     assignmentId,
@@ -444,7 +562,14 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
     const DeepCollectionEquality().hash(_latePolicy),
     const DeepCollectionEquality().hash(_settings),
     createdAt,
-  );
+    subjectName,
+    className,
+    groupName,
+    assignmentTitle,
+    recipientCount,
+    submittedCount,
+    gradedCount,
+  ]);
 
   /// Create a copy of AssignmentDistribution
   /// with the given fields replaced by the non-null parameter values.
@@ -479,6 +604,13 @@ abstract class _AssignmentDistribution implements AssignmentDistribution {
     @JsonKey(name: 'late_policy') final Map<String, dynamic>? latePolicy,
     @JsonKey(name: 'settings') final Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') final DateTime? createdAt,
+    final String? subjectName,
+    final String? className,
+    final String? groupName,
+    final String? assignmentTitle,
+    final int? recipientCount,
+    final int? submittedCount,
+    final int? gradedCount,
   }) = _$AssignmentDistributionImpl;
 
   factory _AssignmentDistribution.fromJson(Map<String, dynamic> json) =
@@ -518,15 +650,26 @@ abstract class _AssignmentDistribution implements AssignmentDistribution {
   Map<String, dynamic>? get latePolicy;
 
   /// Cấu hình shuffle và hiển thị điểm:
-  /// - shuffle_questions: đảo thứ tự câu hỏi
-  /// - shuffle_choices: đảo thứ tự đáp án
-  /// - show_score_immediately: hiển thị điểm ngay sau khi nộp
   @override
   @JsonKey(name: 'settings')
   Map<String, dynamic>? get settings;
   @override
   @JsonKey(name: 'created_at')
-  DateTime? get createdAt;
+  DateTime? get createdAt; // Extended fields từ join queries
+  @override
+  String? get subjectName;
+  @override
+  String? get className;
+  @override
+  String? get groupName;
+  @override
+  String? get assignmentTitle;
+  @override
+  int? get recipientCount;
+  @override
+  int? get submittedCount;
+  @override
+  int? get gradedCount;
 
   /// Create a copy of AssignmentDistribution
   /// with the given fields replaced by the non-null parameter values.

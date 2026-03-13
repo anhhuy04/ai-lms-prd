@@ -25,6 +25,9 @@ TeacherAssignmentHubState _$TeacherAssignmentHubStateFromJson(
 mixin _$TeacherAssignmentHubState {
   AssignmentStatistics get statistics => throw _privateConstructorUsedError;
   List<Assignment> get recentActivities => throw _privateConstructorUsedError;
+  List<Assignment> get assignments => throw _privateConstructorUsedError;
+  List<AssignmentDistribution> get distributions =>
+      throw _privateConstructorUsedError;
 
   /// Serializes this TeacherAssignmentHubState to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -46,6 +49,8 @@ abstract class $TeacherAssignmentHubStateCopyWith<$Res> {
   $Res call({
     AssignmentStatistics statistics,
     List<Assignment> recentActivities,
+    List<Assignment> assignments,
+    List<AssignmentDistribution> distributions,
   });
 
   $AssignmentStatisticsCopyWith<$Res> get statistics;
@@ -68,7 +73,12 @@ class _$TeacherAssignmentHubStateCopyWithImpl<
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? statistics = null, Object? recentActivities = null}) {
+  $Res call({
+    Object? statistics = null,
+    Object? recentActivities = null,
+    Object? assignments = null,
+    Object? distributions = null,
+  }) {
     return _then(
       _value.copyWith(
             statistics: null == statistics
@@ -79,6 +89,14 @@ class _$TeacherAssignmentHubStateCopyWithImpl<
                 ? _value.recentActivities
                 : recentActivities // ignore: cast_nullable_to_non_nullable
                       as List<Assignment>,
+            assignments: null == assignments
+                ? _value.assignments
+                : assignments // ignore: cast_nullable_to_non_nullable
+                      as List<Assignment>,
+            distributions: null == distributions
+                ? _value.distributions
+                : distributions // ignore: cast_nullable_to_non_nullable
+                      as List<AssignmentDistribution>,
           )
           as $Val,
     );
@@ -107,6 +125,8 @@ abstract class _$$TeacherAssignmentHubStateImplCopyWith<$Res>
   $Res call({
     AssignmentStatistics statistics,
     List<Assignment> recentActivities,
+    List<Assignment> assignments,
+    List<AssignmentDistribution> distributions,
   });
 
   @override
@@ -130,7 +150,12 @@ class __$$TeacherAssignmentHubStateImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? statistics = null, Object? recentActivities = null}) {
+  $Res call({
+    Object? statistics = null,
+    Object? recentActivities = null,
+    Object? assignments = null,
+    Object? distributions = null,
+  }) {
     return _then(
       _$TeacherAssignmentHubStateImpl(
         statistics: null == statistics
@@ -141,6 +166,14 @@ class __$$TeacherAssignmentHubStateImplCopyWithImpl<$Res>
             ? _value._recentActivities
             : recentActivities // ignore: cast_nullable_to_non_nullable
                   as List<Assignment>,
+        assignments: null == assignments
+            ? _value._assignments
+            : assignments // ignore: cast_nullable_to_non_nullable
+                  as List<Assignment>,
+        distributions: null == distributions
+            ? _value._distributions
+            : distributions // ignore: cast_nullable_to_non_nullable
+                  as List<AssignmentDistribution>,
       ),
     );
   }
@@ -152,7 +185,11 @@ class _$TeacherAssignmentHubStateImpl implements _TeacherAssignmentHubState {
   const _$TeacherAssignmentHubStateImpl({
     required this.statistics,
     required final List<Assignment> recentActivities,
-  }) : _recentActivities = recentActivities;
+    final List<Assignment> assignments = const [],
+    final List<AssignmentDistribution> distributions = const [],
+  }) : _recentActivities = recentActivities,
+       _assignments = assignments,
+       _distributions = distributions;
 
   factory _$TeacherAssignmentHubStateImpl.fromJson(Map<String, dynamic> json) =>
       _$$TeacherAssignmentHubStateImplFromJson(json);
@@ -168,9 +205,27 @@ class _$TeacherAssignmentHubStateImpl implements _TeacherAssignmentHubState {
     return EqualUnmodifiableListView(_recentActivities);
   }
 
+  final List<Assignment> _assignments;
+  @override
+  @JsonKey()
+  List<Assignment> get assignments {
+    if (_assignments is EqualUnmodifiableListView) return _assignments;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_assignments);
+  }
+
+  final List<AssignmentDistribution> _distributions;
+  @override
+  @JsonKey()
+  List<AssignmentDistribution> get distributions {
+    if (_distributions is EqualUnmodifiableListView) return _distributions;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_distributions);
+  }
+
   @override
   String toString() {
-    return 'TeacherAssignmentHubState(statistics: $statistics, recentActivities: $recentActivities)';
+    return 'TeacherAssignmentHubState(statistics: $statistics, recentActivities: $recentActivities, assignments: $assignments, distributions: $distributions)';
   }
 
   @override
@@ -183,6 +238,14 @@ class _$TeacherAssignmentHubStateImpl implements _TeacherAssignmentHubState {
             const DeepCollectionEquality().equals(
               other._recentActivities,
               _recentActivities,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._assignments,
+              _assignments,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._distributions,
+              _distributions,
             ));
   }
 
@@ -192,6 +255,8 @@ class _$TeacherAssignmentHubStateImpl implements _TeacherAssignmentHubState {
     runtimeType,
     statistics,
     const DeepCollectionEquality().hash(_recentActivities),
+    const DeepCollectionEquality().hash(_assignments),
+    const DeepCollectionEquality().hash(_distributions),
   );
 
   /// Create a copy of TeacherAssignmentHubState
@@ -215,6 +280,8 @@ abstract class _TeacherAssignmentHubState implements TeacherAssignmentHubState {
   const factory _TeacherAssignmentHubState({
     required final AssignmentStatistics statistics,
     required final List<Assignment> recentActivities,
+    final List<Assignment> assignments,
+    final List<AssignmentDistribution> distributions,
   }) = _$TeacherAssignmentHubStateImpl;
 
   factory _TeacherAssignmentHubState.fromJson(Map<String, dynamic> json) =
@@ -224,6 +291,10 @@ abstract class _TeacherAssignmentHubState implements TeacherAssignmentHubState {
   AssignmentStatistics get statistics;
   @override
   List<Assignment> get recentActivities;
+  @override
+  List<Assignment> get assignments;
+  @override
+  List<AssignmentDistribution> get distributions;
 
   /// Create a copy of TeacherAssignmentHubState
   /// with the given fields replaced by the non-null parameter values.

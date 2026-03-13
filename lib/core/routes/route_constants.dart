@@ -178,6 +178,12 @@ class AppRoute {
   static const String teacherAssignmentSelectionPath =
       '/teacher/assignment/select';
 
+  /// Teacher - Assignment Management (quản lý bài tập)
+  static const String teacherAssignmentManagement =
+      'teacher-assignment-management';
+  static const String teacherAssignmentManagementPath =
+      '/teacher/assignments/manage';
+
   /// Teacher - Distribute assignment (phân phối bài tập)
   static const String teacherDistributeAssignment =
       'teacher-distribute-assignment';
@@ -210,6 +216,11 @@ class AppRoute {
   static const String teacherSubmissionList = 'teacher-submission-list';
   static String teacherSubmissionListPath(String distributionId) =>
       '/teacher/submissions/$distributionId';
+
+  /// Teacher - Class Selection (chọn lớp để xem bài nộp)
+  static const String teacherClassSubmissionList = 'teacher-class-submission-list';
+  static String teacherClassSubmissionListPath(String assignmentId) =>
+      '/teacher/assignment/$assignmentId/submissions';
 
   /// Teacher - Grade assignment submissions (with parameter)
   static const String teacherGradeSubmission = 'teacher-grade-submission';

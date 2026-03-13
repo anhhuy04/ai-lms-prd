@@ -1,6 +1,30 @@
 # Progress Tracker
 
-## Current Session (2026-02-25)
+## Current Session (2026-03-12)
+
+### GSD Roadmap Review & Database Migration ✅
+**Completed:**
+- ✅ **Analyzed 6 Tasks in Phase 2 (Teacher Grading Workflow)**
+  - Task 1: Submission List (ATC) - ✓ Có badge đỏ, AI loading
+  - Task 2: Side-by-Side - ⚠️ THIẾU AI Confidence indicator
+  - Task 3: Grading Interface - ⚠️ THIẾU Feedback Override + Publish button
+  - Task 4: Grade Override Audit - ✓ Bảng đã có trong DB
+  - Task 5: Quick Nav - ⚠️ Cần Debounce autosave
+
+- ✅ **Created Database Migration**
+  - File: `db/21_update_grade_overrides_constraints.sql`
+  - Set `created_at NOT NULL default now()`
+  - Set `submission_answer_id NOT NULL`
+  - Set `overridden_by NOT NULL`
+  - Set `new_score NOT NULL`
+
+- ✅ **Updated Plan Documents**
+  - Added "Skepticism Thermometer" requirement (AI confidence < 0.7)
+  - Added "Feedback Override" requirement (teacher_feedback textbox)
+  - Added "Publish Grades" requirement (Stage Curtain)
+  - Added Debounce autosave requirement
+
+## Previous Session (2026-02-25)
 
 ### UI Refinements, Navigation Fixes & Selection Scoping ✅
 **Completed:**

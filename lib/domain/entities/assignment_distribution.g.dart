@@ -30,6 +30,13 @@ _$AssignmentDistributionImpl _$$AssignmentDistributionImplFromJson(
   createdAt: json['created_at'] == null
       ? null
       : DateTime.parse(json['created_at'] as String),
+  subjectName: json['subjectName'] as String?,
+  className: json['className'] as String?,
+  groupName: json['groupName'] as String?,
+  assignmentTitle: json['assignmentTitle'] as String?,
+  recipientCount: (json['recipientCount'] as num?)?.toInt(),
+  submittedCount: (json['submittedCount'] as num?)?.toInt(),
+  gradedCount: (json['gradedCount'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$$AssignmentDistributionImplToJson(
@@ -48,4 +55,11 @@ Map<String, dynamic> _$$AssignmentDistributionImplToJson(
   'late_policy': instance.latePolicy,
   'settings': instance.settings,
   'created_at': instance.createdAt?.toIso8601String(),
+  'subjectName': instance.subjectName,
+  'className': instance.className,
+  'groupName': instance.groupName,
+  'assignmentTitle': instance.assignmentTitle,
+  'recipientCount': instance.recipientCount,
+  'submittedCount': instance.submittedCount,
+  'gradedCount': instance.gradedCount,
 };

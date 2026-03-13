@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "supabase": {
+   "supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=vazhgunhcjdwlkbslroc",
       "autoApprove": [
@@ -31,6 +31,7 @@
         "rebase_branch"
       ]
     },
+
     "context7": {
       "command": "npx",
       "args": [
@@ -68,23 +69,6 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-memory@latest"
-      ]
-    },
-    "dart": {
-      "type": "stdio",
-      "command": "dart",
-      "args": [
-        "mcp-server",
-        "--experimental-mcp-server",
-        "--force-roots-fallback"
-      ],
-      "env": {}
-    },
-    "playwright": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-playwright"
       ]
     }
   }

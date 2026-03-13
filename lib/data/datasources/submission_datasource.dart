@@ -150,9 +150,31 @@ class SubmissionDataSource {
             id,
             full_name,
             avatar_url
+          ),
+          submission_answers(
+            id,
+            question_id,
+            ai_score,
+            ai_confidence,
+            ai_feedback,
+            teacher_feedback,
+            final_score,
+            graded_by,
+            graded_at,
+            created_at,
+            assignment_questions(
+              id,
+              question_text,
+              question_type,
+              points,
+              content,
+              answer,
+              rubric
+            )
           )
         ''')
         .eq('id', submissionId)
+        .order('submission_answers(created_at)', ascending: true)
         .single();
 
     return Map<String, dynamic>.from(result);

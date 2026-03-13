@@ -276,18 +276,26 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
       }
 
       final sel = state.recipientSelection!;
+      // Tử Huyệt 4: late_policy phải dùng đúng cấu trúc chuẩn hóa
       final latePolicy = state.allowLate
-          ? {'penalty_per_day_percent': state.latePenaltyPercent}
+          ? <String, dynamic>{
+              'policy_type': 'daily_deduction',
+              'deduction_value': state.latePenaltyPercent,
+              'unit': 'percent',
+              'max_days_allowed': 7, // default 7 ngày cho phép nộp trễ
+              'lowest_possible_score': 0,
+            }
           : null;
 
-      // Settings JSON cho Backend-Driven Snapshot
-      // Backend KHÔNG shuffle ở đây — chỉ lưu settings.
-      // Khi HS bấm "Bắt đầu làm bài", server gọi ensure_student_variant()
-      // để tạo bản chụp câu hỏi đã xáo trộn cố định.
-      final settings = {
+      // Settings JSON - Tử Huyệt 4: thêm student_review_mode và ai_feedback_enabled
+      final settings = <String, dynamic>{
         'shuffle_questions': state.shuffleQuestions,
         'shuffle_choices': state.shuffleAnswers,
         'show_score_immediately': state.showScoreImmediately,
+        'student_review_mode': state.showScoreImmediately
+            ? 'full_review'
+            : 'score_only',
+        'ai_feedback_enabled': true, // bật AI feedback theo mặc định
       };
 
       // Loop qua từng assignment (hỗ trợ multi-assignment)

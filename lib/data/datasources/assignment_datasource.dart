@@ -180,6 +180,22 @@ class AssignmentDataSource {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  Future<List<Map<String, dynamic>>> getDistributionsByTeacher(
+    String teacherId,
+  ) async {
+    // Lấy tất cả distributions của các assignments mà teacher sở hữu
+    final res = await _client
+        .from('assignment_distributions')
+        .select('''
+          *,
+          assignment:assignments(title, teacher_id, is_published, total_points),
+          class:classes(name)
+        ''')
+        .eq('assignments.teacher_id', teacherId)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(res);
+  }
+
   Future<List<Map<String, dynamic>>> getVariants(String assignmentId) async {
     return _assignmentVariants.getAll(
       column: 'assignment_id',
@@ -220,7 +236,9 @@ class AssignmentDataSource {
       final existingIds = existingQuestions.map((q) => q['id']).toSet();
 
       // Chỉ insert những câu chưa tồn tại
-      final newItems = items.where((item) => !existingIds.contains(item['id'])).toList();
+      final newItems = items
+          .where((item) => !existingIds.contains(item['id']))
+          .toList();
       if (newItems.isNotEmpty) {
         await _assignmentQuestions.insertMany(newItems);
       }
@@ -401,13 +419,19 @@ class AssignmentDataSource {
       // Bước 1: Lấy distribution và assignment
       final distRes = await _client
           .from('assignment_distributions')
-          .select('*, assignments(id, title, description, total_points, is_published)')
+          .select(
+            '*, assignments(id, title, description, total_points, is_published)',
+          )
           .eq('id', distributionId)
           .maybeSingle();
 
       if (distRes == null) {
         return {
-          'assignment': {'title': 'Không tìm thấy', 'description': null, 'total_points': 0},
+          'assignment': {
+            'title': 'Không tìm thấy',
+            'description': null,
+            'total_points': 0,
+          },
           'questions': <Map<String, dynamic>>[],
           'distribution': <String, dynamic>{},
         };
@@ -427,12 +451,16 @@ class AssignmentDataSource {
             .from('questions')
             .select('id, type, content, default_points')
             .limit(5);
-        AppLogger.debug('🔵 [Datasource] questions table sample: $questionsRes');
+        AppLogger.debug(
+          '🔵 [Datasource] questions table sample: $questionsRes',
+        );
 
         // Lấy assignment_questions đơn giản trước
         final aqRes = await _client
             .from('assignment_questions')
-            .select('id, assignment_id, question_id, points, order_idx, custom_content')
+            .select(
+              'id, assignment_id, question_id, points, order_idx, custom_content',
+            )
             .eq('assignment_id', assignmentId)
             .order('order_idx');
 
@@ -440,7 +468,10 @@ class AssignmentDataSource {
 
         // Nếu có assignment_questions, lấy chi tiết questions
         if ((aqRes as List).isNotEmpty) {
-          final questionIds = (aqRes as List).map((e) => e['question_id'] as String?).whereType<String>().toList();
+          final questionIds = (aqRes as List)
+              .map((e) => e['question_id'] as String?)
+              .whereType<String>()
+              .toList();
           AppLogger.debug('🔵 [Datasource] question_ids: $questionIds');
 
           // Lấy tất cả question_ids từ question bank (đã được lọc ở trên)
@@ -453,7 +484,9 @@ class AssignmentDataSource {
               try {
                 final qDetail = await _client
                     .from('questions')
-                    .select('id, type, content, default_points, question_choices(id, content, is_correct)')
+                    .select(
+                      'id, type, content, answer, default_points, question_choices(id, content, is_correct)',
+                    )
                     .eq('id', qId)
                     .maybeSingle();
 
@@ -461,7 +494,9 @@ class AssignmentDataSource {
                   questionBankData[qId] = qDetail;
                 }
               } catch (e) {
-                AppLogger.debug('🔵 [Datasource] Error fetching question $qId: $e');
+                AppLogger.debug(
+                  '🔵 [Datasource] Error fetching question $qId: $e',
+                );
               }
             }
           }
@@ -469,15 +504,23 @@ class AssignmentDataSource {
           // Xử lý từng assignment_question
           for (final aq in aqRes) {
             final qId = aq['question_id'] as String?;
-            final customContent = aq['custom_content']; // JSON content khi tạo mới
+            final customContent =
+                aq['custom_content']; // JSON content khi tạo mới
 
             if (qId != null && questionBankData.containsKey(qId)) {
               // Case 1: Câu hỏi từ question bank
+              // Schema mới: questions.content = { text, latex, assets[] }, questions.answer = { correct_choice_ids, ... }
               final qDetail = questionBankData[qId]!;
+              final qContent =
+                  qDetail['content'] as Map<String, dynamic>? ?? {};
+              final qAnswer = qDetail['answer'] as Map<String, dynamic>? ?? {};
+
               questions.add({
                 'id': aq['id'],
                 'question_id': qId,
-                'content': qDetail['content'],
+                'content': qContent, // { text, latex, assets[] }
+                'answer':
+                    qAnswer, // { correct_choice_ids, general_explanation, ... }
                 'type': qDetail['type'],
                 'points': aq['points'],
                 'order_idx': aq['order_idx'],
@@ -497,7 +540,8 @@ class AssignmentDataSource {
               }
 
               // Get question text - ưu tiên override_text
-              final questionText = customContent['override_text'] ?? customContent['text'] ?? '';
+              final questionText =
+                  customContent['override_text'] ?? customContent['text'] ?? '';
 
               // Transform choices - format mới: [{id: "uuid", text: "...", isCorrect: true}, ...]
               List<Map<String, dynamic>> questionChoices = [];
@@ -508,16 +552,19 @@ class AssignmentDataSource {
                   return {
                     'id': choice['id'] ?? '',
                     'content': {'text': choice['text'] ?? ''},
-                    'is_correct': choice['isCorrect'] ?? choice['is_correct'] ?? false,
+                    'is_correct':
+                        choice['isCorrect'] ?? choice['is_correct'] ?? false,
                   };
                 }).toList();
               }
 
               // Get AI grading keywords for essay/short_answer
               Map<String, dynamic>? aiGradingInfo;
-              final aiKeywords = customContent['ai_grading_keywords'] as List<dynamic>?;
+              final aiKeywords =
+                  customContent['ai_grading_keywords'] as List<dynamic>?;
               final expectedAnswer = customContent['expected_answer'];
-              if ((aiKeywords != null && aiKeywords.isNotEmpty) || expectedAnswer != null) {
+              if ((aiKeywords != null && aiKeywords.isNotEmpty) ||
+                  expectedAnswer != null) {
                 aiGradingInfo = {
                   'ai_grading_keywords': aiKeywords,
                   'expected_answer': expectedAnswer,
@@ -528,15 +575,14 @@ class AssignmentDataSource {
               Map<String, dynamic>? blanksInfo;
               final blanks = customContent['blanks'] as List<dynamic>?;
               if (blanks != null && blanks.isNotEmpty) {
-                blanksInfo = {
-                  'blanks': blanks,
-                };
+                blanksInfo = {'blanks': blanks};
               }
 
               // Get pairs/distractors for matching
               Map<String, dynamic>? matchingInfo;
               final pairs = customContent['pairs'] as List<dynamic>?;
-              final distractors = customContent['distractors'] as List<dynamic>?;
+              final distractors =
+                  customContent['distractors'] as List<dynamic>?;
               if (pairs != null || distractors != null) {
                 matchingInfo = {
                   if (pairs != null) 'pairs': pairs,
@@ -571,7 +617,9 @@ class AssignmentDataSource {
           }
         }
 
-        AppLogger.debug('🔵 [Datasource] final questions extracted: ${questions.length}');
+        AppLogger.debug(
+          '🔵 [Datasource] final questions extracted: ${questions.length}',
+        );
       }
 
       // Build response với cấu trúc expected bởi UI
@@ -590,10 +638,18 @@ class AssignmentDataSource {
         },
       };
     } catch (e, st) {
-      AppLogger.error('🔴 [Datasource] getDistributionDetail error: $e', error: e, stackTrace: st);
+      AppLogger.error(
+        '🔴 [Datasource] getDistributionDetail error: $e',
+        error: e,
+        stackTrace: st,
+      );
       // Return safe fallback on error
       return {
-        'assignment': {'title': 'Lỗi tải dữ liệu', 'description': null, 'total_points': 0},
+        'assignment': {
+          'title': 'Lỗi tải dữ liệu',
+          'description': null,
+          'total_points': 0,
+        },
         'questions': <Map<String, dynamic>>[],
         'distribution': <String, dynamic>{},
       };
@@ -780,10 +836,13 @@ class AssignmentDataSource {
 
       if (existing != null) {
         // Update existing
-        await _client.from('autosave_answers').update({
-          'answer_content': answerValue,
-          'updated_at': DateTime.now().toIso8601String(),
-        }).eq('id', existing['id']);
+        await _client
+            .from('autosave_answers')
+            .update({
+              'answer_content': answerValue,
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .eq('id', existing['id']);
       } else {
         // Insert new
         await _client.from('autosave_answers').insert({
@@ -797,10 +856,13 @@ class AssignmentDataSource {
 
     // Update work_sessions status (use UPDATE since we know session exists)
     // NOTE: Schema only accepts 'in_progress', 'submitted', 'graded' - NOT 'draft'
-    await _client.from('work_sessions').update({
-      'status': 'in_progress',
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', sessionId);
+    await _client
+        .from('work_sessions')
+        .update({
+          'status': 'in_progress',
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', sessionId);
   }
 
   /// Nộp bài tập
@@ -821,8 +883,12 @@ class AssignmentDataSource {
     String studentId,
   ) async {
     AppLogger.debug('🔵 [SUBMIT] ===== START SUBMIT ASSIGNMENT =====');
-    AppLogger.debug('🔵 [SUBMIT] distributionId: $distributionId, studentId: $studentId');
-    AppLogger.debug('🔵 [SUBMIT] Timestamp: ${DateTime.now().toIso8601String()}');
+    AppLogger.debug(
+      '🔵 [SUBMIT] distributionId: $distributionId, studentId: $studentId',
+    );
+    AppLogger.debug(
+      '🔵 [SUBMIT] Timestamp: ${DateTime.now().toIso8601String()}',
+    );
 
     // Get session
     final session = await _client
@@ -859,7 +925,9 @@ class AssignmentDataSource {
     final autosaveAnswers = await autosaveFuture;
     final distribution = await distributionFuture;
 
-    AppLogger.debug('🔵 [SUBMIT] autosaveAnswers count: ${autosaveAnswers.length}');
+    AppLogger.debug(
+      '🔵 [SUBMIT] autosaveAnswers count: ${autosaveAnswers.length}',
+    );
     AppLogger.debug('🔵 [SUBMIT] autosaveAnswers: $autosaveAnswers');
 
     // Check if late
@@ -892,7 +960,9 @@ class AssignmentDataSource {
             .select('id, points, question_id, custom_content')
             .inFilter('id', questionIds);
 
-        AppLogger.debug('🔵 [SUBMIT] Got ${assignmentQuestions.length} assignment_questions');
+        AppLogger.debug(
+          '🔵 [SUBMIT] Got ${assignmentQuestions.length} assignment_questions',
+        );
 
         // Get correct answers from question_choices (Cấp 2) - only for linked questions
         final questionIds2 = assignmentQuestions
@@ -903,7 +973,25 @@ class AssignmentDataSource {
             .toList();
 
         Map<String, List<String>> correctChoiceIdsMap = {};
+        Map<String, Map<String, dynamic>> questionsAnswerMap = {};
+
+        // Lấy questions.answer cho linked questions (Cấp 3 - new)
         if (questionIds2.isNotEmpty) {
+          // Lấy answer từ questions table
+          final questionsRes = await _client
+              .from('questions')
+              .select('id, answer')
+              .inFilter('id', questionIds2);
+
+          for (final q in questionsRes) {
+            final qId = q['id'] as String;
+            final answer = q['answer'] as Map<String, dynamic>?;
+            if (answer != null) {
+              questionsAnswerMap[qId] = answer;
+            }
+          }
+
+          // Lấy correct choice IDs từ question_choices
           final choicesRes = await _client
               .from('question_choices')
               .select('id, question_id')
@@ -923,8 +1011,12 @@ class AssignmentDataSource {
           final questionId = aq['question_id'] as String?;
           final customContent = aq['custom_content'] as Map<String, dynamic>?;
 
-          AppLogger.debug('🔵 [SUBMIT] Processing question: aqId=$aqId, questionId=$questionId');
-          AppLogger.debug('🔵 [SUBMIT]   customContent keys: ${customContent?.keys.toList()}');
+          AppLogger.debug(
+            '🔵 [SUBMIT] Processing question: aqId=$aqId, questionId=$questionId',
+          );
+          AppLogger.debug(
+            '🔵 [SUBMIT]   customContent keys: ${customContent?.keys.toList()}',
+          );
 
           // Get question type - ưu tiên custom_content.type
           String questionType = 'multiple_choice';
@@ -952,19 +1044,26 @@ class AssignmentDataSource {
           // Format: [{id: 0, text: "...", isCorrect: true}, ...] - id là int
           // Fallback: format cũ dùng 'options'
           Map<String, dynamic>? correctAnswer;
-          final choicesList = customContent?['choices'] ?? customContent?['options'] as List<dynamic>?;
+          final choicesList =
+              customContent?['choices'] ??
+              customContent?['options'] as List<dynamic>?;
           if (customContent != null && choicesList != null) {
             // Lấy các choice có isCorrect = true từ custom_content.choices
             final choices = choicesList;
-            AppLogger.debug('🔵 [SUBMIT] Question $aqId: Found ${choices.length} choices in custom_content');
+            AppLogger.debug(
+              '🔵 [SUBMIT] Question $aqId: Found ${choices.length} choices in custom_content',
+            );
 
             final correctChoices = <int>[];
             for (final choice in choices) {
               final c = choice as Map<String, dynamic>;
-              final isCorrect = c['isCorrect'] == true || c['is_correct'] == true;
+              final isCorrect =
+                  c['isCorrect'] == true || c['is_correct'] == true;
               final id = c['id'];
 
-              AppLogger.debug('🔵 [SUBMIT]   Choice: id=$id (${id.runtimeType}), isCorrect=$isCorrect');
+              AppLogger.debug(
+                '🔵 [SUBMIT]   Choice: id=$id (${id.runtimeType}), isCorrect=$isCorrect',
+              );
 
               if (isCorrect) {
                 // id là int (0, 1, 2...) - matching với question_choices.id
@@ -976,33 +1075,68 @@ class AssignmentDataSource {
                   final parsedId = int.tryParse(id);
                   if (parsedId != null) {
                     correctChoices.add(parsedId);
-                    AppLogger.debug('🔵 [SUBMIT]   → Added parsed int id: $parsedId from String');
+                    AppLogger.debug(
+                      '🔵 [SUBMIT]   → Added parsed int id: $parsedId from String',
+                    );
                   } else {
-                    AppLogger.warning('⚠️ [SUBMIT]   → Could not parse String id: $id');
+                    AppLogger.warning(
+                      '⚠️ [SUBMIT]   → Could not parse String id: $id',
+                    );
                   }
                 } else {
-                  AppLogger.warning('⚠️ [SUBMIT]   → Unknown id type: ${id.runtimeType}');
+                  AppLogger.warning(
+                    '⚠️ [SUBMIT]   → Unknown id type: ${id.runtimeType}',
+                  );
                 }
               }
             }
-            AppLogger.debug('🔵 [SUBMIT] Question $aqId: Correct choices: $correctChoices');
+            AppLogger.debug(
+              '🔵 [SUBMIT] Question $aqId: Correct choices: $correctChoices',
+            );
             if (correctChoices.isNotEmpty) {
               correctAnswer = {'correct_choices': correctChoices};
             }
           }
 
           // Cấp 2: Fallback to question_choices (is_correct = true)
-          if (correctAnswer == null && questionId != null && questionId.isNotEmpty) {
+          if (correctAnswer == null &&
+              questionId != null &&
+              questionId.isNotEmpty) {
             final correctChoiceIds = correctChoiceIdsMap[questionId] ?? [];
             if (correctChoiceIds.isNotEmpty) {
               correctAnswer = {'correct_choices': correctChoiceIds};
             }
           }
 
-          // Cấp 3: Fallback to questions.answer - skip because question_id is null
-          // (This would require a separate query for linked questions)
+          // Cấp 3: Fallback to questions.answer (new - for linked questions)
+          if (correctAnswer == null &&
+              questionId != null &&
+              questionId.isNotEmpty) {
+            final qAnswer = questionsAnswerMap[questionId];
+            if (qAnswer != null) {
+              // Extract correct_choice_ids from questions.answer
+              final correctChoiceIds =
+                  qAnswer['correct_choice_ids'] as List<dynamic>?;
+              if (correctChoiceIds != null && correctChoiceIds.isNotEmpty) {
+                correctAnswer = {
+                  'correct_choices': correctChoiceIds
+                      .map((e) => e.toString())
+                      .toList(),
+                  'general_explanation': qAnswer['general_explanation'],
+                };
+              } else if (qAnswer.containsKey('ai_grading_keywords')) {
+                // Essay/short_answer - use AI grading keywords
+                correctAnswer = {
+                  'ai_grading_keywords': qAnswer['ai_grading_keywords'],
+                  'sample_response': qAnswer['sample_response'],
+                };
+              }
+            }
+          }
 
-          AppLogger.debug('🔵 [SUBMIT] Question $aqId: type=$questionType, points=$points, hasCorrectAnswer=${correctAnswer != null}');
+          AppLogger.debug(
+            '🔵 [SUBMIT] Question $aqId: type=$questionType, points=$points, hasCorrectAnswer=${correctAnswer != null}',
+          );
           questionInfoMap[aqId] = {
             'type': questionType,
             'points': points,
@@ -1015,7 +1149,9 @@ class AssignmentDataSource {
     // 2️⃣ Save each answer to submission_answers + Auto-grade MCQ/True-False
     double totalMcqScore = 0;
 
-    AppLogger.debug('🔵 [SUBMIT] Auto-grading: ${autosaveAnswers.length} answers, questionInfoMap: ${questionInfoMap.length} questions');
+    AppLogger.debug(
+      '🔵 [SUBMIT] Auto-grading: ${autosaveAnswers.length} answers, questionInfoMap: ${questionInfoMap.length} questions',
+    );
 
     for (final aa in autosaveAnswers) {
       final questionId = aa['assignment_question_id'] as String?;
@@ -1027,34 +1163,56 @@ class AssignmentDataSource {
       final points = (qInfo?['points'] as num?)?.toDouble() ?? 1.0;
       final correctAnswer = qInfo?['answer'] as Map<String, dynamic>?;
 
-      AppLogger.debug('🔵 [SUBMIT] Question $questionId: type=$questionType, points=$points, hasCorrectAnswer=${correctAnswer != null}');
+      AppLogger.debug(
+        '🔵 [SUBMIT] Question $questionId: type=$questionType, points=$points, hasCorrectAnswer=${correctAnswer != null}',
+      );
       AppLogger.debug('🔵 [SUBMIT]   Student answer: $studentAnswer');
       AppLogger.debug('🔵 [SUBMIT]   Correct answer: $correctAnswer');
 
       // Validate question type
       if (questionType == null) {
-        AppLogger.warning('⚠️ [SUBMIT] Question $questionId: type is null - cannot grade!');
-      } else if (!['multiple_choice', 'true_false', 'essay', 'short_answer', 'fill_blank', 'matching', 'problem_solving'].contains(questionType)) {
-        AppLogger.warning('⚠️ [SUBMIT] Question $questionId: Unknown question type "$questionType"');
+        AppLogger.warning(
+          '⚠️ [SUBMIT] Question $questionId: type is null - cannot grade!',
+        );
+      } else if (![
+        'multiple_choice',
+        'true_false',
+        'essay',
+        'short_answer',
+        'fill_blank',
+        'matching',
+        'problem_solving',
+      ].contains(questionType)) {
+        AppLogger.warning(
+          '⚠️ [SUBMIT] Question $questionId: Unknown question type "$questionType"',
+        );
       }
 
       // Auto-grade for objective questions
       // fill_blank also needs AI grading (keyword matching)
       double? finalScore;
-      bool needsAIGrading = questionType == 'essay' ||
+      bool needsAIGrading =
+          questionType == 'essay' ||
           questionType == 'short_answer' ||
           questionType == 'fill_blank';
 
       if (studentAnswer != null &&
           (questionType == 'multiple_choice' || questionType == 'true_false')) {
         // Validation: Kiểm tra answer format
-        final selectedChoices = studentAnswer['selected_choices'] as List<dynamic>?;
+        // Tử Huyệt 5: đọc format mới (selected_choice_ids) trước, fallback cũ (selected_choices)
+        final selectedChoices =
+            (studentAnswer['selected_choice_ids'] as List<dynamic>?) ??
+            (studentAnswer['selected_choices'] as List<dynamic>?);
         if (selectedChoices == null || selectedChoices.isEmpty) {
-          AppLogger.warning('⚠️ [SUBMIT] Question $questionId: No selected choices in answer');
+          AppLogger.warning(
+            '⚠️ [SUBMIT] Question $questionId: No selected choices in answer',
+          );
         }
 
         if (correctAnswer == null) {
-          AppLogger.warning('⚠️ [SUBMIT] Question $questionId: No correct answer found for grading!');
+          AppLogger.warning(
+            '⚠️ [SUBMIT] Question $questionId: No correct answer found for grading!',
+          );
         }
 
         finalScore = _gradeObjectiveQuestion(
@@ -1063,22 +1221,30 @@ class AssignmentDataSource {
           correctAnswer,
           points,
         );
-        AppLogger.debug('🔵 [SUBMIT] Graded: finalScore=$finalScore (maxPoints=$points)');
+        AppLogger.debug(
+          '🔵 [SUBMIT] Graded: finalScore=$finalScore (maxPoints=$points)',
+        );
 
         if (finalScore == null) {
-          AppLogger.warning('⚠️ [SUBMIT] Question $questionId: Grading returned null - possible format mismatch');
+          AppLogger.warning(
+            '⚠️ [SUBMIT] Question $questionId: Grading returned null - possible format mismatch',
+          );
         } else if (finalScore > 0) {
           totalMcqScore += finalScore;
         }
       }
 
       // Insert to submission_answers
-      final result = await _client.from('submission_answers').insert({
-        'session_id': sessionId,
-        'assignment_question_id': questionId,
-        'answer': studentAnswer,
-        if (finalScore != null) 'final_score': finalScore,
-      }).select().single();
+      final result = await _client
+          .from('submission_answers')
+          .insert({
+            'session_id': sessionId,
+            'assignment_question_id': questionId,
+            'answer': studentAnswer,
+            if (finalScore != null) 'final_score': finalScore,
+          })
+          .select()
+          .single();
 
       // 5️⃣ Queue essay/short_answer/fill_blank for AI grading
       if (needsAIGrading) {
@@ -1112,14 +1278,17 @@ class AssignmentDataSource {
 
     if (existingSubmission != null) {
       // Update existing submission (CQRS - only score-related fields)
-      await _client.from('submissions').update({
-        'session_id': sessionId,
-        'submitted_at': now,
-        'total_score': totalMcqScore,
-        'is_late': isLate,
-        'ai_graded': false, // Reset: AI grading pending
-        'updated_at': now,
-      }).eq('id', existingSubmission['id']);
+      await _client
+          .from('submissions')
+          .update({
+            'session_id': sessionId,
+            'submitted_at': now,
+            'total_score': totalMcqScore,
+            'is_late': isLate,
+            'ai_graded': false, // Reset: AI grading pending
+            'updated_at': now,
+          })
+          .eq('id', existingSubmission['id']);
     } else {
       // Create new submission record (CQRS - for fast queries by distribution)
       // Both assignment_id (for AI backward compat) and assignment_distribution_id (for fast queries)
@@ -1140,21 +1309,14 @@ class AssignmentDataSource {
     // 1️⃣ Update session status (AFTER grading so status reflects completion)
     final result = await _client
         .from('work_sessions')
-        .update({
-          'status': 'submitted',
-          'submitted_at': now,
-          'updated_at': now,
-        })
+        .update({'status': 'submitted', 'submitted_at': now, 'updated_at': now})
         .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
         .select()
         .single();
 
     // 5️⃣ Cleanup: Delete autosave_answers (reduce DB size)
-    await _client
-        .from('autosave_answers')
-        .delete()
-        .eq('session_id', sessionId);
+    await _client.from('autosave_answers').delete().eq('session_id', sessionId);
 
     return Map<String, dynamic>.from(result);
   }
@@ -1172,7 +1334,10 @@ class AssignmentDataSource {
     try {
       // Multiple choice: format {"selected_choices": ["choice_id"]}
       if (questionType == 'multiple_choice') {
-        final selectedIds = (studentAnswer['selected_choices'] as List<dynamic>?)
+        // Tử Huyệt 5: đọc format mới trước, fallback format cũ cho backward compat
+        final selectedIds =
+            ((studentAnswer['selected_choice_ids'] as List<dynamic>?) ??
+                    (studentAnswer['selected_choices'] as List<dynamic>?))
                 ?.map((e) => e.toString())
                 .toSet() ??
             {};
@@ -1181,14 +1346,19 @@ class AssignmentDataSource {
         // Format: {"correct_choices": ["id1", "id2"]} or {"correct_choice": "id1"}
         final correctIds = <String>{};
         if (correctAnswer['correct_choices'] != null) {
-          correctIds.addAll((correctAnswer['correct_choices'] as List<dynamic>)
-              .map((e) => e.toString()));
+          correctIds.addAll(
+            (correctAnswer['correct_choices'] as List<dynamic>).map(
+              (e) => e.toString(),
+            ),
+          );
         } else if (correctAnswer['correct_choice'] != null) {
           correctIds.add(correctAnswer['correct_choice'].toString());
         }
 
         // Debug: Log comparison details
-        AppLogger.debug('🔵 [GRADING] MCQ: selectedIds=$selectedIds, correctIds=$correctIds, maxPoints=$maxPoints');
+        AppLogger.debug(
+          '🔵 [GRADING] MCQ: selectedIds=$selectedIds, correctIds=$correctIds, maxPoints=$maxPoints',
+        );
 
         // Exact match required
         if (selectedIds.isEmpty) {
@@ -1200,9 +1370,12 @@ class AssignmentDataSource {
           return 0;
         }
 
-        final isCorrect = selectedIds.length == correctIds.length &&
+        final isCorrect =
+            selectedIds.length == correctIds.length &&
             selectedIds.containsAll(correctIds);
-        AppLogger.debug('🔵 [GRADING] MCQ: isCorrect=$isCorrect, selected=${selectedIds.length}, correct=${correctIds.length}');
+        AppLogger.debug(
+          '🔵 [GRADING] MCQ: isCorrect=$isCorrect, selected=${selectedIds.length}, correct=${correctIds.length}',
+        );
 
         return isCorrect ? maxPoints : 0;
       }
@@ -1210,7 +1383,10 @@ class AssignmentDataSource {
       // True/False: format {"selected_choices": ["true"]} or {"selected_choices": ["false"]} OR {"selected_choices": [0]} OR {"selected_choices": [1]}
       if (questionType == 'true_false') {
         // Support BOTH formats: "true"/"false" strings AND int IDs (0=true, 1=false)
-        final selectedChoices = (studentAnswer['selected_choices'] as List<dynamic>?)
+        // Tử Huyệt 5: đọc format mới trước cho True/False
+        final selectedChoices =
+            ((studentAnswer['selected_choice_ids'] as List<dynamic>?) ??
+                    (studentAnswer['selected_choices'] as List<dynamic>?))
                 ?.map((e) => e.toString().toLowerCase())
                 .toList() ??
             [];
@@ -1237,7 +1413,9 @@ class AssignmentDataSource {
         }
 
         // Debug: Log comparison details
-        AppLogger.debug('🔵 [GRADING] TF: selectedChoices=$selectedChoices, correctChoices=$correctChoices, maxPoints=$maxPoints');
+        AppLogger.debug(
+          '🔵 [GRADING] TF: selectedChoices=$selectedChoices, correctChoices=$correctChoices, maxPoints=$maxPoints',
+        );
 
         if (selectedChoices.isEmpty) {
           AppLogger.warning('⚠️ [GRADING] TF: No selected choice');
@@ -1249,7 +1427,9 @@ class AssignmentDataSource {
         }
 
         final isCorrect = selectedChoices.first == correctChoices.first;
-        AppLogger.debug('🔵 [GRADING] TF: isCorrect=$isCorrect (selected="${selectedChoices.first}" vs correct="${correctChoices.first}")');
+        AppLogger.debug(
+          '🔵 [GRADING] TF: isCorrect=$isCorrect (selected="${selectedChoices.first}" vs correct="${correctChoices.first}")',
+        );
 
         return isCorrect ? maxPoints : 0;
       }

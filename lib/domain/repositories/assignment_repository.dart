@@ -91,6 +91,9 @@ abstract class AssignmentRepository {
     int limit = 10,
   });
 
+  /// Get all distributions for a teacher (across all their assignments)
+  Future<List<AssignmentDistribution>> getDistributionsByTeacher(String teacherId);
+
   /// Lấy chi tiết distribution kèm assignment info.
   Future<Map<String, dynamic>> getDistributionDetail(String distributionId);
 

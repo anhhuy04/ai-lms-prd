@@ -1,5 +1,5 @@
 import 'package:ai_mls/domain/entities/profile.dart';
-import 'package:ai_mls/presentation/views/assignment/assignment_list_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/student/assignment_list_screen.dart';
 import 'package:ai_mls/presentation/views/class/student/student_class_list_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/home/student_home_content_screen.dart';
 import 'package:ai_mls/presentation/views/grading/scores_screen.dart';

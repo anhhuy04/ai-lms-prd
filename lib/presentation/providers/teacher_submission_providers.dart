@@ -205,13 +205,18 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
   Future<void> build() async {}
 
   /// Approve điểm AI - dùng điểm AI làm điểm cuối cùng
-  Future<void> approveAiScore(String submissionAnswerId) async {
+  Future<void> approveAiScore(String submissionAnswerId, {String? distributionId}) async {
     if (_isUpdating) return;
     _isUpdating = true;
 
     try {
       await _datasource.approveAiScore(submissionAnswerId);
       AppLogger.info('✅ Approved AI score for: $submissionAnswerId');
+
+      // Refresh state
+      if (distributionId != null) {
+        ref.invalidate(teacherSubmissionListProvider(distributionId: distributionId));
+      }
     } catch (e, stackTrace) {
       AppLogger.error(
         '🔴 [APPROVE_AI_SCORE] Error: $e',
@@ -230,6 +235,7 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
     required String submissionAnswerId,
     required double newScore,
     required String reason,
+    String? distributionId,
   }) async {
     if (_isUpdating) return;
     _isUpdating = true;
@@ -271,6 +277,11 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
       AppLogger.info(
         '🔄 Override score for: $submissionAnswerId, newScore: $newScore, reason: $reason',
       );
+
+      // Refresh state
+      if (distributionId != null) {
+        ref.invalidate(teacherSubmissionListProvider(distributionId: distributionId));
+      }
     } catch (e, stackTrace) {
       AppLogger.error(
         '🔴 [OVERRIDE_SCORE] Error: $e',
@@ -330,7 +341,7 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
 
   /// Publish grades - chuyển status từ 'submitted' sang 'graded'
   /// Chỉ khi publish HS mới thấy điểm (Stage Curtain model)
-  Future<void> publishGrades(String submissionId) async {
+  Future<void> publishGrades(String submissionId, {String? distributionId}) async {
     if (_isUpdating) return;
     _isUpdating = true;
 
@@ -338,6 +349,11 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
       final repository = ref.read(submissionRepositoryProvider);
       await repository.publishGrades(submissionId);
       AppLogger.info('✅ Published grades for submission: $submissionId');
+
+      // Refresh state
+      if (distributionId != null) {
+        ref.invalidate(teacherSubmissionListProvider(distributionId: distributionId));
+      }
     } catch (e, stackTrace) {
       AppLogger.error(
         '🔴 [PUBLISH_GRADES] Error: $e',
@@ -359,6 +375,9 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
       final repository = ref.read(submissionRepositoryProvider);
       await repository.publishAllGrades(distributionId);
       AppLogger.info('✅ Published all grades for distribution: $distributionId');
+
+      // Refresh state
+      ref.invalidate(teacherSubmissionListProvider(distributionId: distributionId));
     } catch (e, stackTrace) {
       AppLogger.error(
         '🔴 [PUBLISH_ALL_GRADES] Error: $e',

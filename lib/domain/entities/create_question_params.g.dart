@@ -40,7 +40,12 @@ Map<String, dynamic> _$$CreateQuestionParamsImplToJson(
 
 const _$QuestionTypeEnumMap = {
   QuestionType.multipleChoice: 'multipleChoice',
+  QuestionType.trueFalse: 'trueFalse',
   QuestionType.shortAnswer: 'shortAnswer',
   QuestionType.essay: 'essay',
+  QuestionType.fillBlank: 'fillBlank',
+  QuestionType.matching: 'matching',
   QuestionType.math: 'math',
+  QuestionType.problemSolving: 'problemSolving',
+  QuestionType.fileUpload: 'fileUpload',
 };

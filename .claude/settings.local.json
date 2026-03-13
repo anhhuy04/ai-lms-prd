@@ -42,11 +42,24 @@
       "Bash(cd /d/code/Flutter_Android/Flutter_Android/AI_LMS_PRD && git add .planning/STATE.md && git commit -m \"$\\(cat <<'EOF'\nchore: update STATE.md with plan progress\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\" 2>&1)",
       "Bash(cd:*)",
       "Bash(cd D:\\\\code\\\\Flutter_Android\\\\Flutter_Android\\\\AI_LMS_PRD:*)",
-      "Bash(claude:*)"
+      "Bash(claude:*)",
+      "Bash(npx:*)",
+      "mcp__context7__query-docs",
+      "Bash(curl:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__dart__dart_fix",
+      "mcp__filesystem__edit_file",
+      "Bash(flutter pub:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__filesystem__create_directory",
+      "mcp__filesystem__write_file",
+      "Bash(playwright-cli:*)",
+      "Bash(npm list:*)",
+      "Bash(npm install:*)",
+      "Bash(playwright:*)"
     ],
     "mcp": {
       "allow": [
-        "supabase-official:*",
         "supabase:*",
         "context7:*",
         "fetch:*",

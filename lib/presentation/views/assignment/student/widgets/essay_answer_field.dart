@@ -71,7 +71,7 @@ class _EssayAnswerFieldState extends ConsumerState<EssayAnswerField> {
     _isInternalUpdate = true;
     ref
         .read(workspaceNotifierProvider(widget.distributionId).notifier)
-        .updateAnswer(widget.questionId, {"text": value});
+        .updateAnswer(widget.questionId, {'text': value});
   }
 
   void _applyBoldFormatting() {

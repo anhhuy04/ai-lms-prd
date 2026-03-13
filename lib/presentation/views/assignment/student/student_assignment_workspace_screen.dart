@@ -52,16 +52,18 @@ class _StudentAssignmentWorkspaceScreenState
 
   @override
   Future<bool> didPopRoute() async {
-    final workspaceAsync =
-        ref.read(workspaceNotifierProvider(widget.distributionId));
+    final workspaceAsync = ref.read(
+      workspaceNotifierProvider(widget.distributionId),
+    );
     await _handleBackPress(context, workspaceAsync);
     return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    final workspaceAsync =
-        ref.watch(workspaceNotifierProvider(widget.distributionId));
+    final workspaceAsync = ref.watch(
+      workspaceNotifierProvider(widget.distributionId),
+    );
 
     return PopScope(
       canPop: false,
@@ -143,10 +145,7 @@ class _StudentAssignmentWorkspaceScreenState
               const SizedBox(width: 6),
               Text(
                 'Đang lưu...',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
             ],
           ),
@@ -160,10 +159,7 @@ class _StudentAssignmentWorkspaceScreenState
               const SizedBox(width: 6),
               Text(
                 'Đã lưu',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.green[600],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.green[600]),
               ),
             ],
           ),
@@ -177,10 +173,7 @@ class _StudentAssignmentWorkspaceScreenState
               const SizedBox(width: 6),
               Text(
                 'Lỗi lưu',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.red[600],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.red[600]),
               ),
             ],
           ),
@@ -217,8 +210,9 @@ class _StudentAssignmentWorkspaceScreenState
             ElevatedButton(
               onPressed: () {
                 ref
-                    .read(workspaceNotifierProvider(widget.distributionId)
-                        .notifier)
+                    .read(
+                      workspaceNotifierProvider(widget.distributionId).notifier,
+                    )
                     .initialize();
               },
               child: const Text('Thử lại'),
@@ -246,14 +240,8 @@ class _StudentAssignmentWorkspaceScreenState
                 final index = entry.key;
                 final question = entry.value;
                 final answer = workspace.answers[question.id];
-                return _buildQuestionCard(
-                  context,
-                  question,
-                  answer,
-                  index + 1,
-                );
+                return _buildQuestionCard(context, question, answer, index + 1);
               }),
-
             ],
           ),
         ),
@@ -427,7 +415,9 @@ class _StudentAssignmentWorkspaceScreenState
 
   Widget _buildMultipleChoice(QuestionState question, dynamic answer) {
     // DEBUG: Log để kiểm tra
-    print('🔵 [UI] _buildMultipleChoice: question.choices.length = ${question.choices.length}');
+    print(
+      '🔵 [UI] _buildMultipleChoice: question.choices.length = ${question.choices.length}',
+    );
     print('🔵 [UI] question.choices = ${question.choices}');
 
     if (question.choices.isEmpty) {
@@ -436,17 +426,23 @@ class _StudentAssignmentWorkspaceScreenState
     return Column(
       children: question.choices.asMap().entries.map((entry) {
         final choice = entry.value;
-        // Check if choice.id is in selected_choices array
-        // Support both int and String in selected_choices for backward compatibility
-        final selectedList = answer is Map ? (answer['selected_choices'] as List?) : null;
-        final isSelected = selectedList?.any((e) =>
-          e == choice.id || e.toString() == choice.id.toString()
-        ) == true;
+        // Tử Huyệt 5: đọc format mới (selected_choice_ids) trước, fallback format cũ (selected_choices)
+        final selectedList = answer is Map
+            ? ((answer['selected_choice_ids'] as List?) ??
+                  (answer['selected_choices'] as List?))
+            : null;
+        final isSelected =
+            selectedList?.any(
+              (e) => e == choice.id || e.toString() == choice.id.toString(),
+            ) ==
+            true;
         return InkWell(
           onTap: () {
             ref
                 .read(workspaceNotifierProvider(widget.distributionId).notifier)
-                .updateAnswer(question.id, {'selected_choices': [choice.id]});
+                .updateAnswer(question.id, {
+                  'selected_choice_ids': [choice.id],
+                });
           },
           child: Container(
             margin: const EdgeInsets.only(bottom: DesignSpacing.sm),
@@ -469,7 +465,9 @@ class _StudentAssignmentWorkspaceScreenState
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isSelected ? DesignColors.primary : Colors.grey[400]!,
+                      color: isSelected
+                          ? DesignColors.primary
+                          : Colors.grey[400]!,
                       width: 2,
                     ),
                   ),
@@ -505,13 +503,28 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   Widget _buildTrueFalse(QuestionState question, dynamic answer) {
-    // Get selected choice ID from answer map - convert to string for comparison
-    final selectedChoices = answer is Map ? (answer['selected_choices'] as List?) : null;
+    // Tử Huyệt 5: đọc format mới trước, fallback cũ
+    final selectedChoices = answer is Map
+        ? ((answer['selected_choice_ids'] as List?) ??
+              (answer['selected_choices'] as List?))
+        : null;
     final selectedChoiceId = selectedChoices?.firstOrNull?.toString();
 
     // Find the choice ID for true/false
-    final trueChoice = question.choices.where((c) => c.content.toLowerCase() == 'true' || c.content.toLowerCase() == 'đúng').firstOrNull;
-    final falseChoice = question.choices.where((c) => c.content.toLowerCase() == 'false' || c.content.toLowerCase() == 'sai').firstOrNull;
+    final trueChoice = question.choices
+        .where(
+          (c) =>
+              c.content.toLowerCase() == 'true' ||
+              c.content.toLowerCase() == 'đúng',
+        )
+        .firstOrNull;
+    final falseChoice = question.choices
+        .where(
+          (c) =>
+              c.content.toLowerCase() == 'false' ||
+              c.content.toLowerCase() == 'sai',
+        )
+        .firstOrNull;
 
     return Row(
       children: [
@@ -552,7 +565,9 @@ class _StudentAssignmentWorkspaceScreenState
       onTap: () {
         ref
             .read(workspaceNotifierProvider(widget.distributionId).notifier)
-            .updateAnswer(question.id, {'selected_choices': [choiceId]});
+            .updateAnswer(question.id, {
+              'selected_choice_ids': [choiceId],
+            });
       },
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -561,7 +576,9 @@ class _StudentAssignmentWorkspaceScreenState
         ),
         decoration: BoxDecoration(
           color: isSelected
-              ? (value == 'true' ? Colors.green : Colors.red).withValues(alpha: 0.1)
+              ? (value == 'true' ? Colors.green : Colors.red).withValues(
+                  alpha: 0.1,
+                )
               : Colors.grey[50],
           borderRadius: BorderRadius.circular(DesignRadius.md),
           border: Border.all(
@@ -610,7 +627,9 @@ class _StudentAssignmentWorkspaceScreenState
 
   Widget _buildFillInBlank(QuestionState question, dynamic answer) {
     // For fill in blank, answer can be a map with blank indices
-    final answersMap = answer is Map ? answer as Map<String, dynamic> : <String, dynamic>{};
+    final answersMap = answer is Map
+        ? answer as Map<String, dynamic>
+        : <String, dynamic>{};
 
     return Column(
       children: List.generate(question.choices.length, (index) {
@@ -669,7 +688,10 @@ class _StudentAssignmentWorkspaceScreenState
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(DesignRadius.md),
-                      borderSide: BorderSide(color: DesignColors.primary, width: 2),
+                      borderSide: BorderSide(
+                        color: DesignColors.primary,
+                        width: 2,
+                      ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: DesignSpacing.md,
@@ -680,8 +702,11 @@ class _StudentAssignmentWorkspaceScreenState
                     final newAnswers = Map<String, dynamic>.from(answersMap);
                     newAnswers[blankId] = value;
                     ref
-                        .read(workspaceNotifierProvider(widget.distributionId)
-                            .notifier)
+                        .read(
+                          workspaceNotifierProvider(
+                            widget.distributionId,
+                          ).notifier,
+                        )
                         .updateAnswer(question.id, newAnswers);
                   },
                 ),
@@ -716,20 +741,18 @@ class _StudentAssignmentWorkspaceScreenState
           const SizedBox(height: DesignSpacing.md),
           // Render pairs
           if (question.pairs != null)
-            ...question.pairs!.map((pair) => Padding(
-                  padding: const EdgeInsets.only(bottom: DesignSpacing.sm),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(pair['left_text']?.toString() ?? ''),
-                      ),
-                      const Icon(Icons.arrow_forward, size: 20),
-                      Expanded(
-                        child: Text(pair['right_text']?.toString() ?? ''),
-                      ),
-                    ],
-                  ),
-                )),
+            ...question.pairs!.map(
+              (pair) => Padding(
+                padding: const EdgeInsets.only(bottom: DesignSpacing.sm),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(pair['left_text']?.toString() ?? '')),
+                    const Icon(Icons.arrow_forward, size: 20),
+                    Expanded(child: Text(pair['right_text']?.toString() ?? '')),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -812,8 +835,9 @@ class _StudentAssignmentWorkspaceScreenState
                         ? workspace.answeredCount / workspace.totalQuestions
                         : 0,
                     backgroundColor: Colors.grey[200],
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(DesignColors.primary),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      DesignColors.primary,
+                    ),
                     minHeight: 6,
                     borderRadius: BorderRadius.circular(3),
                   ),
@@ -840,10 +864,13 @@ class _StudentAssignmentWorkspaceScreenState
                     ? null
                     : () => _showSubmitConfirmation(context, workspace),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      isSubmitted ? Colors.grey[300] : DesignColors.primary,
+                  backgroundColor: isSubmitted
+                      ? Colors.grey[300]
+                      : DesignColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: DesignSpacing.md),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: DesignSpacing.md,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(DesignRadius.md),
                   ),
@@ -862,8 +889,8 @@ class _StudentAssignmentWorkspaceScreenState
                   isSubmitting
                       ? 'Đang nộp...'
                       : isSubmitted
-                          ? 'Đã nộp'
-                          : 'Nộp bài',
+                      ? 'Đã nộp'
+                      : 'Nộp bài',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -944,7 +971,8 @@ class _StudentAssignmentWorkspaceScreenState
   void _showSuccessScreen(BuildContext context, WorkspaceState workspace) {
     final now = DateTime.now();
     final submissionId = '${now.millisecondsSinceEpoch}';
-    final confirmationNumber = 'NS${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${submissionId.substring(submissionId.length - 6)}';
+    final confirmationNumber =
+        'NS${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${submissionId.substring(submissionId.length - 6)}';
 
     showDialog(
       context: context,
@@ -1078,17 +1106,16 @@ class _StudentAssignmentWorkspaceScreenState
                   style: ElevatedButton.styleFrom(
                     backgroundColor: DesignColors.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: DesignSpacing.md),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: DesignSpacing.md,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(DesignRadius.md),
                     ),
                   ),
                   child: const Text(
                     'Về danh sách bài tập',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -1120,12 +1147,20 @@ class _StudentAssignmentWorkspaceScreenState
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xác nhận'),
-        content: Text(workspace != null && workspace.answeredCount > 0
-            ? 'Bạn đang có câu trả lời chưa lưu. Bạn có chắc muốn thoát không?'
-            : 'Bạn có chắc muốn thoát không?'),
+        content: Text(
+          workspace != null && workspace.answeredCount > 0
+              ? 'Bạn đang có câu trả lời chưa lưu. Bạn có chắc muốn thoát không?'
+              : 'Bạn có chắc muốn thoát không?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Thoát')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Thoát'),
+          ),
         ],
       ),
     );

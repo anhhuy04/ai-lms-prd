@@ -12,12 +12,14 @@ class TeacherSubmissionListScreen extends ConsumerStatefulWidget {
   final String distributionId;
   final String? classId;
   final String assignmentTitle;
+  final String? className;
 
   const TeacherSubmissionListScreen({
     super.key,
     required this.distributionId,
     this.classId,
     this.assignmentTitle = '',
+    this.className,
   });
 
   @override

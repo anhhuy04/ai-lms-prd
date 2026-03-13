@@ -1,0 +1,818 @@
+-- ==============================================================================
+-- AI LMS - GHI CHÚ TỔNG HỢP DATABASE
+-- Cập nhật: 2026-03-12 (CHUẨN HÓA JSONB - Strict Data Contract)
+-- ==============================================================================
+--
+-- DATABASE: PostgreSQL (Supabase)
+-- PROJECT URL: https://vazhgunhcjdwlkbslroc.supabase.co
+-- SCHEMA: public (28 bảng)
+--
+-- ═══════════════════════════════════════════════════════════════════════
+-- CẤU TRÚC THƯ MỤC db/
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- schema_01_core_users_classes.sql      → Phase 1: Users, Schools, Classes, Groups (7 bảng)
+-- schema_02_questions_assignments.sql   → Phase 2: Question Bank, Assignments, Distributions (8 bảng)
+-- schema_03_submissions_ai_analytics.sql → Phase 3: Submissions, AI Grading, Analytics (14 bảng)
+
+-- 01-21_*.sql                           → Migration scripts cũ (lịch sử, giữ để tham khảo)
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- TỔNG QUAN 28 BẢNG
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- === PHASE 1: CORE ===
+-- profiles            Hồ sơ người dùng (1-1 với auth.users)
+-- schools             Trường học
+-- classes             Lớp học
+-- class_members       Học sinh trong lớp (N-N)
+-- class_teachers      Giáo viên phụ trách lớp
+-- groups              Nhóm trong lớp
+-- group_members       Thành viên nhóm (N-N)
+
+-- === PHASE 2: QUESTIONS & ASSIGNMENTS ===
+-- learning_objectives Mục tiêu học tập (cấu trúc cây)
+-- questions           Ngân hàng câu hỏi gốc
+-- question_choices    Đáp án câu hỏi (id: INTEGER, không UUID)
+-- question_objectives Liên kết câu hỏi ↔ mục tiêu (N-N)
+-- assignments         Template bài tập (KHÔNG có deadline)
+-- assignment_questions Câu hỏi trong bài tập (inline hoặc link ngân hàng)
+-- assignment_variants Biến thể đề (shuffle)
+-- assignment_distributions Đợt phát hành = nguồn sự thật cho deadline
+
+-- === PHASE 3: SUBMISSIONS & AI ===
+-- work_sessions       Phiên làm bài
+-- autosave_answers    Lưu tự động (draft)
+-- submissions         Bài nộp chính thức
+-- submission_answers  Câu trả lời từng câu
+-- files               File upload (Supabase Storage)
+-- file_links          Liên kết polymorphic file ↔ entity
+-- ai_queue            Hàng đợi AI chấm bài
+-- ai_evaluations      Kết quả đánh giá AI
+-- grade_overrides     Audit trail chỉnh điểm
+-- student_skill_mastery Trình độ kỹ năng HS
+-- question_stats      Thống kê câu hỏi
+-- submission_analytics Phân tích bài nộp
+-- ai_recommendations  Đề xuất AI cho GV
+-- teacher_notes       Ghi chú GV về HS
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- TỔNG HỢP TẤT CẢ CỘT JSONB TRONG DỰ ÁN
+-- ═══════════════════════════════════════════════════════════════════════
+-- 🔒 STRICT DATA CONTRACT - JSONB phải có DTO validation ở tầng Backend
+--
+-- PHASE 1 (Core - GIỮ NGUYÊN, không đổi):
+-- 1. profiles.metadata              → { preferences, school_info }
+-- 2. schools.metadata              → { address, phone, logo_url }
+-- 3. classes.class_settings       → { defaults, enrollment, group_management, student_permissions }
+-- 4. learning_objectives.metadata  → { ... }
+--
+-- PHASE 2 (Questions & Assignments - CẦN THAY ĐỔI):
+-- 5. questions.content               → { text, latex, assets[] }           ← CHỈ đề bài, KHÔNG giải thích
+-- 6. questions.answer             → { correct_choice_ids, general_explanation, ai_grading_keywords, sample_response }
+-- 7. question_choices.content     → { text, image_url, distractor_rationale } ← BẮT BUỘC Object
+-- 8. assignment_questions.custom_content → { override_text, choices[] }     ← Delta Override Pattern
+-- 9. assignment_questions.rubric   → { criteria: [{id, name, max_points, levels: []}] }
+-- 10. assignment_variants.custom_questions → [{ assignment_question_id, display_order, shuffled_choices }]
+-- 11. assignment_distributions.late_policy → { policy_type, deduction_value, unit, max_days_allowed, lowest_possible_score }
+-- 12. assignment_distributions.settings → { shuffle_questions, shuffle_choices, show_score_immediately, student_review_mode, ai_feedback_enabled }
+--
+-- PHASE 3 (Submissions & AI - GIỮ NGUYÊN, không đổi):
+-- 13. autosave_answers.answer_content → { selected_choices: [int] } hoặc { text: "..." }
+-- 14. submission_answers.answer         → { selected_choices: [int] } hoặc { text: "..." }
+-- 15. submission_answers.files         → [{ file_id, name, url }]
+-- 16. submission_answers.ai_feedback   → { comment, strengths[], weaknesses[], suggestions[] }
+-- 17. submission_answers.teacher_feedback → { comment, rating }
+-- 18. files.metadata                   → Metadata file
+-- 19. ai_queue.payload                 → { question_text, answer_text, rubric, max_points }
+-- 20. ai_queue.result                  → Kết quả AI
+-- 21. ai_evaluations.rationale        → { criteria_scores[], overall_comment }
+-- 22. submission_analytics.metrics      → { time_per_question, accuracy_by_tag }
+-- 23. ai_recommendations.resources      → { exercises[], videos[], documents[] }
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- 🔒 STRICT DATA CONTRACT - PHASE 2 CHI TIẾT
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- JSONB 1: questions.content
+-- ═══════════════════════════════════════════════════════════════════════
+-- ⚠️ TỬ HUYỆT 1: CHỈ chứa đề bài, KHÔNG giải thích (tránh lộ đề thi)
+--    Frontend chỉ hiển thị content này, không bao giờ hiển thị answer
+--
+-- { "text": "Nội dung câu hỏi?", "latex": null, "assets": [] }
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- JSONB 2: questions.answer (Đa hình - Polymorphic)
+-- ═══════════════════════════════════════════════════════════════════════
+-- ⚠️ TỬ HUYỆT 1: Tách bạch "Cái học sinh thấy" và "Cái AI/GV thấy"
+--
+-- Trắc nghiệm:
+-- { "correct_choice_ids": [13], "general_explanation": "Giải thích đáp án" }
+--
+-- Tự luận:
+-- { "ai_grading_keywords": [{"id": "kw-001", "keyword": "từ khóa", "weight": 0.5}], "sample_response": "..." }
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- JSONB 3: question_choices.content
+-- ═══════════════════════════════════════════════════════════════════════
+-- ⚠️ TỬ HUYỆT 1: BẮT BUỘC là Object, có mồi cho AI
+--    Frontend map() sẽ crash nếu là string
+--
+-- { "text": "Đáp án A", "image_url": null, "distractor_rationale": "Lý do HS hay chọn sai..." }
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- JSONB 4: assignment_questions.custom_content (DELTA OVERRIDE)
+-- ═══════════════════════════════════════════════════════════════════════
+-- ⚠️ TỬ HUYỆT 2: Nguồn chân lý duy nhất - KHÔNG copy từ questions
+--    Chỉ lưu những gì KHÁC với questions gốc
+--
+-- Multiple Choice - Chỉ override_text (không copy tags, type, difficulty):
+-- { "override_text": "Nội dung câu hỏi đã được sửa cho lớp 10A" }
+--
+-- Multiple Choice - Thay đổi cả đáp án:
+-- {
+--   "override_text": "Nội dung câu hỏi đã sửa",
+--   "choices": [
+--     {"id": 0, "text": "Đáp án A đã sửa", "isCorrect": true},
+--     {"id": 1, "text": "Đáp án B", "isCorrect": false}
+--   ]
+-- }
+--
+-- Essay - Có rubric riêng cho bài tập này:
+-- { "override_text": "Viết về...", "expected_answer": "Mẫu đáp án", "ai_grading_keywords": [...] }
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- JSONB 5: assignment_questions.rubric (Ma trận chấm điểm)
+-- ═══════════════════════════════════════════════════════════════════════
+-- ⚠️ TỬ HUYỆT 2: Bắt buộc dùng Ma trận cho AI chấm
+--
+-- {
+--   "criteria": [
+--     {
+--       "id": "crit-1",
+--       "name": "Hiểu định nghĩa",
+--       "max_points": 5,
+--       "levels": [
+--         {"points": 5, "description": "Trả lời chính xác hoàn toàn"},
+--         {"points": 3, "description": "Trả lời đúng nhưng thiếu chi tiết"},
+--         {"points": 0, "description": "Trả lời sai"}
+--       ]
+--     }
+--   ]
+-- }
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- JSONB 6: assignment_variants.custom_questions (Snapshot Format)
+-- ═══════════════════════════════════════════════════════════════════════
+-- ⚠️ TỬ HUYỆT 3: Cấu trúc cây để Frontend vẽ UI không cần tính toán
+--
+-- [
+--   {
+--     "assignment_question_id": "uuid-cau-3",
+--     "display_order": 1,
+--     "shuffled_choices": [13, 17, 15, 19]  ← Mảng INT đã đảo
+--   }
+-- ]
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- JSONB 7: assignment_distributions.late_policy
+-- ═══════════════════════════════════════════════════════════════════════
+-- ⚠️ TỬ HUYỆT 4: Cấu hình nộp muộn phức tạp
+--
+-- { "policy_type": "daily_deduction", "deduction_value": 10, "unit": "percent", "max_days_allowed": 3, "lowest_possible_score": 0 }
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- JSONB 8: assignment_distributions.settings
+-- ═══════════════════════════════════════════════════════════════════════
+-- ⚠️ TỬ HUYỆT 4: Xem lại đáp án sau khi nộp
+--
+-- {
+--   "shuffle_questions": false,
+--   "shuffle_choices": false,
+--   "show_score_immediately": true,
+--   "student_review_mode": "full_review",  ← none | score_only | full_review
+--   "ai_feedback_enabled": true
+-- }
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- INDEXES ĐỀ XUẤT
+-- ═══════════════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_groups_class_id ON public.groups(class_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_enrolled_by ON public.group_members(enrolled_by);
+CREATE INDEX IF NOT EXISTS idx_files_is_deleted ON public.files(is_deleted);
+CREATE INDEX IF NOT EXISTS idx_submissions_is_late ON public.submissions(is_late);
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- LƯU Ý QUAN TRỌNG
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- 1. RLS (Row Level Security) hiện CHƯA BẬT trên tất cả bảng
+--    → Cần bật trước khi lên production
+
+-- 2. question_choices.id là INTEGER (không phải UUID)
+--    → Weak Entity, tiết kiệm 12 bytes/dòng, index nhanh hơn
+
+-- 3. assignments KHÔNG có due_at, time_limit
+--    → Nằm ở assignment_distributions (tách biệt nội dung vs phân phối)
+
+-- 4. submissions.is_late là boolean TĨNH (không phải generated column)
+--    → Backend tính từ due_at của distribution khi HS nộp bài
+
+-- 5. 🔒 STRICT DATA CONTRACT
+--    → JSONB phải có DTO validation ở tầng Backend
+--    → Nếu Frontend gửi sai kiểu → Trả 400 Bad Request ngay
+
+
+-- #############################################################################
+-- #                                                                           #
+-- #                    LỆNH TẠO BẢNG (CREATE TABLE)                           #
+-- #                    28 bảng - đồng bộ từ Supabase production               #
+-- #                                                                           #
+-- #############################################################################
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- PHASE 1: CORE (Users, Schools, Classes, Groups) - 7 bảng
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- ─── 1.1 PROFILES ───
+-- Hồ sơ người dùng, tự động tạo khi auth.users insert (trigger)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id          uuid PRIMARY KEY REFERENCES auth.users(id),  -- ID = auth.users.id
+  full_name   text,                                         -- Họ tên đầy đủ
+  role        text DEFAULT 'student'                        -- Vai trò: 'teacher' | 'student' | 'admin'
+              CHECK (role IN ('teacher', 'student', 'admin')),
+  avatar_url  text,                                         -- URL ảnh đại diện (Supabase Storage)
+  bio         text,                                         -- Giới thiệu ngắn
+  phone       text,                                         -- Số điện thoại
+  gender      text                                          -- Giới tính: 'male' | 'female' | 'other'
+              CHECK (gender IN ('male', 'female', 'other')),
+  metadata    jsonb,                                        -- Metadata mở rộng
+  updated_at  timestamptz DEFAULT now()
+);
+-- JSONB: profiles.metadata
+-- {
+--   "preferences": { "theme": "dark", "language": "vi" },
+--   "school_info": { "student_code": "HS001", "class_name": "10A1" }
+-- }
+
+
+-- ─── 1.2 SCHOOLS ───
+-- Trường học - container cấp cao nhất
+CREATE TABLE IF NOT EXISTS public.schools (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        text NOT NULL,                                -- Tên trường
+  domain      text UNIQUE,                                  -- Domain email (vd: "school.edu.vn")
+  metadata    jsonb,                                        -- Thông tin mở rộng về trường
+  created_at  timestamptz DEFAULT now()
+);
+-- JSONB: schools.metadata
+-- { "address": "123 ABC", "phone": "028-1234", "logo_url": "https://..." }
+
+
+-- ─── 1.3 CLASSES ───
+-- Lớp học - đơn vị quản lý chính
+CREATE TABLE IF NOT EXISTS public.classes (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id       uuid REFERENCES public.schools(id),       -- Thuộc trường nào (nullable = lớp độc lập)
+  teacher_id      uuid NOT NULL REFERENCES auth.users(id),  -- Giáo viên chủ nhiệm
+  name            text NOT NULL,                             -- Tên lớp (vd: "Toán 10A1")
+  subject         text,                                      -- Môn học
+  academic_year   text,                                      -- Năm học (vd: "2025-2026")
+  description     text,                                      -- Mô tả lớp
+  class_settings  jsonb,                                     -- Cấu hình lớp (xem mẫu JSONB)
+  created_at      timestamptz DEFAULT now()
+);
+-- JSONB: classes.class_settings (default value)
+-- {
+--   "defaults": { "lock_class": false },
+--   "enrollment": {
+--     "qr_code": {
+--       "is_active": false,     -- QR code hoạt động?
+--       "join_code": null,      -- Mã tham gia
+--       "expires_at": null,     -- Hạn QR
+--       "require_approval": true -- Cần GV duyệt
+--     },
+--     "manual_join_limit": null  -- Giới hạn HS (null = ko giới hạn)
+--   },
+--   "group_management": {
+--     "lock_groups": false,
+--     "allow_student_switch": false,
+--     "is_visible_to_students": true
+--   },
+--   "student_permissions": {
+--     "auto_lock_on_submission": false,
+--     "can_edit_profile_in_class": true
+--   }
+-- }
+
+
+-- ─── 1.4 CLASS_MEMBERS ───
+-- Danh sách học sinh trong lớp
+CREATE TABLE IF NOT EXISTS public.class_members (
+  class_id    uuid NOT NULL REFERENCES public.classes(id),
+  student_id  uuid NOT NULL REFERENCES auth.users(id),
+  role        text DEFAULT 'student',                        -- Vai trò trong lớp
+  joined_at   timestamptz DEFAULT now(),                     -- Thời điểm tham gia
+  status      text DEFAULT 'pending'                         -- 'pending' | 'approved' | 'rejected'
+              CHECK (status IN ('pending', 'approved', 'rejected')),
+  PRIMARY KEY (class_id, student_id)
+);
+
+
+-- ─── 1.5 CLASS_TEACHERS ───
+-- Giáo viên phụ trách lớp (hỗ trợ nhiều GV/lớp)
+CREATE TABLE IF NOT EXISTS public.class_teachers (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id    uuid REFERENCES public.classes(id),
+  teacher_id  uuid REFERENCES auth.users(id),
+  role        text DEFAULT 'teacher'                         -- 'teacher' | 'assistant'
+);
+
+
+-- ─── 1.6 GROUPS ───
+-- Nhóm học sinh trong lớp
+CREATE TABLE IF NOT EXISTS public.groups (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id    uuid REFERENCES public.classes(id),            -- Thuộc lớp nào
+  teacher_id  uuid REFERENCES auth.users(id),                -- GV tạo nhóm (legacy)
+  name        text NOT NULL,                                  -- Tên nhóm
+  description text,
+  created_at  timestamptz DEFAULT now()
+);
+
+
+-- ─── 1.7 GROUP_MEMBERS ───
+-- Thành viên trong nhóm
+CREATE TABLE IF NOT EXISTS public.group_members (
+  group_id    uuid NOT NULL REFERENCES public.groups(id),
+  student_id  uuid NOT NULL REFERENCES public.profiles(id),  -- FK → profiles
+  role        text DEFAULT 'member',                          -- 'member' | 'leader'
+  enrolled_by uuid REFERENCES auth.users(id),                 -- Ai thêm vào nhóm
+  joined_at   timestamptz DEFAULT now(),
+  PRIMARY KEY (group_id, student_id)
+);
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- PHASE 2: QUESTION BANK & ASSIGNMENTS - 8 bảng
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- ─── 2.1 LEARNING_OBJECTIVES ───
+-- Mục tiêu học tập (chuẩn kiến thức) - cấu trúc cây
+CREATE TABLE IF NOT EXISTS public.learning_objectives (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  subject_code  text NOT NULL,                               -- Mã môn (vd: "MATH")
+  code          text NOT NULL,                               -- Mã chuẩn KT (vd: "M3.1.1")
+  description   text NOT NULL,                               -- Mô tả mục tiêu
+  difficulty    integer CHECK (difficulty >= 1 AND difficulty <= 5),
+  parent_id     uuid REFERENCES public.learning_objectives(id),
+  metadata      jsonb,
+  created_at    timestamptz DEFAULT now()
+);
+-- JSONB: learning_objectives.metadata
+-- { ... }
+
+
+-- ─── 2.2 QUESTIONS ───
+-- Ngân hàng câu hỏi (Question Bank) - câu hỏi gốc, tái sử dụng
+CREATE TABLE IF NOT EXISTS public.questions (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  author_id       uuid NOT NULL REFERENCES auth.users(id),   -- GV tạo câu hỏi
+  type            text NOT NULL                               -- Loại câu hỏi
+                  CHECK (type IN (
+                    'multiple_choice', 'short_answer', 'essay', 'true_false',
+                    'matching', 'problem_solving', 'file_upload', 'fill_in_blank'
+                  )),
+  content         jsonb NOT NULL,                             -- Nội dung câu hỏi
+  answer          jsonb,                                      -- Đáp án đúng
+  default_points  numeric DEFAULT 1 CHECK (default_points > 0),
+  difficulty      integer CHECK (difficulty >= 1 AND difficulty <= 5),
+  tags            text[],                                     -- Tags phân loại
+  is_public       boolean DEFAULT false,                      -- Câu hỏi công khai
+  created_at      timestamptz DEFAULT now(),
+  updated_at      timestamptz DEFAULT now()
+);
+-- ╔═══════════════════════════════════════════════════════════════════╗
+-- ║  JSONB: questions.content                                        ║
+-- ║  ⚠️ CHỈ chứa đề bài, KHÔNG giải thích (tránh lộ đề thi)       ║
+-- ╚═══════════════════════════════════════════════════════════════════╝
+-- {
+--   "text": "Trong Flutter, kiểu dữ liệu nào được sử dụng để lưu trữ một chuỗi ký tự?",
+--   "latex": null,
+--   "assets": []
+-- }
+
+-- ╔═══════════════════════════════════════════════════════════════════╗
+-- ║  JSONB: questions.answer (Polymorphic)                           ║
+-- ╚═══════════════════════════════════════════════════════════════════╝
+-- Trắc nghiệm:
+-- { "correct_choice_ids": [13], "general_explanation": "String là kiểu dữ liệu chuỗi trong Dart" }
+--
+-- Tự luận:
+-- { "ai_grading_keywords": [{"id": "kw-001", "keyword": "biến", "weight": 0.5}], "sample_response": "Đáp án mẫu..." }
+
+
+-- ─── 2.3 QUESTION_CHOICES ───
+-- Đáp án câu hỏi trong ngân hàng
+-- LƯU Ý: id là INTEGER (không UUID) → tiết kiệm, index nhanh
+CREATE TABLE IF NOT EXISTS public.question_choices (
+  id          integer NOT NULL CHECK (id >= 0),              -- 0, 1, 2, 3...
+  question_id uuid NOT NULL REFERENCES public.questions(id),
+  content     jsonb NOT NULL,                                 -- BẮT BUỘC là Object
+  is_correct  boolean DEFAULT false,                          -- Đáp án đúng?
+  PRIMARY KEY (id, question_id)
+);
+-- ╔═══════════════════════════════════════════════════════════════════╗
+-- ║  JSONB: question_choices.content                               ║
+-- ║  ⚠️ BẮT BUỘC là Object, có mồi cho AI (tránh crash map())   ║
+-- ╚═══════════════════════════════════════════════════════════════════╝
+-- { "text": "Đáp án A", "image_url": null, "distractor_rationale": "Lý do HS hay chọn sai..." }
+
+
+-- ─── 2.4 QUESTION_OBJECTIVES ───
+-- Liên kết N-N: câu hỏi ↔ mục tiêu
+CREATE TABLE IF NOT EXISTS public.question_objectives (
+  question_id   uuid NOT NULL REFERENCES public.questions(id),
+  objective_id  uuid NOT NULL REFERENCES public.learning_objectives(id),
+  PRIMARY KEY (question_id, objective_id)
+);
+
+
+-- ─── 2.5 ASSIGNMENTS ───
+-- Template bài tập (KHÔNG có deadline/time_limit → nằm ở distributions)
+CREATE TABLE IF NOT EXISTS public.assignments (
+  id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id                  uuid REFERENCES public.classes(id),
+  teacher_id                uuid NOT NULL REFERENCES auth.users(id),
+  title                     text NOT NULL,                              -- Tiêu đề
+  description               text,                                       -- Mô tả / ghi chú
+  is_published              boolean DEFAULT false,
+  published_at              timestamptz,
+  total_points              numeric CHECK (total_points IS NULL OR total_points >= 0),
+  default_shuffle_questions boolean DEFAULT false,                      -- Đảo câu hỏi
+  default_shuffle_choices   boolean DEFAULT false,                      -- Đảo đáp án
+  created_at                timestamptz DEFAULT now(),
+  updated_at                timestamptz DEFAULT now()
+);
+
+
+-- ─── 2.6 ASSIGNMENT_QUESTIONS ───
+-- Câu hỏi trong bài tập
+-- question_id = NULL → inline (custom_content chứa toàn bộ)
+-- question_id != NULL → link ngân hàng, custom_content = override
+CREATE TABLE IF NOT EXISTS public.assignment_questions (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  assignment_id    uuid NOT NULL REFERENCES public.assignments(id),
+  question_id      uuid REFERENCES public.questions(id),     -- NULL = inline
+  custom_content   jsonb,                                     -- Delta Override
+  points           numeric NOT NULL DEFAULT 1 CHECK (points > 0),
+  rubric           jsonb,                                     -- Rubric chấm điểm
+  order_idx        integer NOT NULL                           -- Thứ tự (1, 2, 3...)
+);
+-- ╔═══════════════════════════════════════════════════════════════════╗
+-- ║  JSONB: assignment_questions.custom_content (DELTA OVERRIDE)     ║
+-- ║  ⚠️ TỬ HUYỆT 2: Chỉ lưu khác biệt so với questions gốc        ║
+-- ╚═══════════════════════════════════════════════════════════════════╝
+--
+-- Chỉ override_text:
+-- { "override_text": "Nội dung câu hỏi đã sửa cho lớp 10A" }
+--
+-- Override cả đáp án:
+-- {
+--   "override_text": "Nội dung đã sửa",
+--   "choices": [
+--     {"id": 0, "text": "Đáp án A đã sửa", "isCorrect": true},
+--     {"id": 1, "text": "Đáp án B", "isCorrect": false}
+--   ]
+-- }
+--
+-- Essay với keywords:
+-- { "override_text": "Viết về...", "expected_answer": "Mẫu", "ai_grading_keywords": [...] }
+
+-- ╔═══════════════════════════════════════════════════════════════════╗
+-- ║  JSONB: assignment_questions.rubric (MA TRẬN CHẤM ĐIỂM)        ║
+-- ║  ⚠️ Bắt buộc dùng Ma trận cho AI chấm                         ║
+-- ╚═══════════════════════════════════════════════════════════════════╝
+-- {
+--   "criteria": [
+--     {
+--       "id": "crit-1",
+--       "name": "Hiểu định nghĩa",
+--       "max_points": 5,
+--       "levels": [
+--         {"points": 5, "description": "Trả lời chính xác hoàn toàn"},
+--         {"points": 3, "description": "Trả lời đúng nhưng thiếu chi tiết"},
+--         {"points": 0, "description": "Trả lời sai"}
+--       ]
+--     }
+--   ]
+-- }
+
+
+-- ─── 2.7 ASSIGNMENT_VARIANTS ───
+-- Biến thể đề (shuffle câu hỏi/đáp án cho từng HS/nhóm)
+CREATE TABLE IF NOT EXISTS public.assignment_variants (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  assignment_id     uuid NOT NULL REFERENCES public.assignments(id),
+  variant_type      text NOT NULL DEFAULT 'student'
+                    CHECK (variant_type IN ('student', 'group', 'global')),
+  student_id        uuid REFERENCES auth.users(id),
+  group_id          uuid REFERENCES public.groups(id),
+  due_at_override   timestamptz,                             -- Override deadline riêng
+  custom_questions  jsonb,                                    -- Snapshot đã shuffle
+  created_at        timestamptz DEFAULT now()
+);
+-- ╔═══════════════════════════════════════════════════════════════════╗
+-- ║  JSONB: assignment_variants.custom_questions (SNAPSHOT FORMAT)   ║
+-- ║  ⚠️ TỬ HUYỆT 3: Cấu trúc cây để Frontend vẽ UI không tính     ║
+-- ╚═══════════════════════════════════════════════════════════════════╝
+-- [
+--   {
+--     "assignment_question_id": "uuid-cau-3",
+--     "display_order": 1,
+--     "shuffled_choices": [13, 17, 15, 19]  ← Mảng INT đã đảo
+--   }
+-- ]
+
+
+-- ─── 2.8 ASSIGNMENT_DISTRIBUTIONS ───
+-- Đợt phát hành = NGUỒN SỰ THẬT cho deadline, time_limit, status
+CREATE TABLE IF NOT EXISTS public.assignment_distributions (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  assignment_id       uuid NOT NULL REFERENCES public.assignments(id),
+  distribution_type   text NOT NULL
+                      CHECK (distribution_type IN ('class', 'group', 'individual')),
+  class_id            uuid REFERENCES public.classes(id),    -- Lớp nhận
+  group_id            uuid REFERENCES public.groups(id),     -- Nhóm nhận
+  student_ids         uuid[],                                 -- DS học sinh (individual)
+  available_from      timestamptz,                            -- Bắt đầu từ
+  due_at              timestamptz,                            -- Hạn nộp
+  time_limit_minutes  integer CHECK (time_limit_minutes IS NULL OR time_limit_minutes > 0),
+  allow_late          boolean DEFAULT true,
+  late_policy         jsonb,                                  -- Chính sách nộp trễ
+  status              text NOT NULL DEFAULT 'active'
+                      CHECK (status IN ('draft', 'scheduled', 'active', 'closed', 'archived')),
+  settings            jsonb DEFAULT '{"shuffle_choices": false, "shuffle_questions": false, "show_score_immediately": true, "student_review_mode": "full_review", "ai_feedback_enabled": true}',
+  created_at          timestamptz DEFAULT now()
+);
+-- ╔═══════════════════════════════════════════════════════════════════╗
+-- ║  JSONB: assignment_distributions.late_policy                     ║
+-- ║  ⚠️ TỬ HUYỆT 4: Cấu hình nộp muộn phức tạp                  ║
+-- ╚═══════════════════════════════════════════════════════════════════╝
+-- { "policy_type": "daily_deduction", "deduction_value": 10, "unit": "percent", "max_days_allowed": 3, "lowest_possible_score": 0 }
+
+-- ╔═══════════════════════════════════════════════════════════════════╗
+-- ║  JSONB: assignment_distributions.settings                       ║
+-- ║  ⚠️ TỬ HUYỆT 4: Xem lại đáp án sau khi nộp                  ║
+-- ╚═══════════════════════════════════════════════════════════════════╝
+-- {
+--   "shuffle_questions": false,
+--   "shuffle_choices": false,
+--   "show_score_immediately": true,
+--   "student_review_mode": "full_review",  ← none | score_only | full_review
+--   "ai_feedback_enabled": true
+-- }
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- PHASE 3: SUBMISSIONS, AI GRADING & ANALYTICS - 14 bảng
+-- ═══════════════════════════════════════════════════════════════════════
+
+-- ─── 3.1 WORK_SESSIONS ───
+-- Phiên làm bài (tracking từ mở đề → nộp)
+CREATE TABLE IF NOT EXISTS public.work_sessions (
+  id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  assignment_distribution_id uuid REFERENCES public.assignment_distributions(id),
+  assignment_id             uuid REFERENCES public.assignments(id),
+  student_id                uuid NOT NULL REFERENCES public.profiles(id),
+  started_at                timestamptz,                     -- Bắt đầu làm
+  submitted_at              timestamptz,                     -- Nộp bài
+  attempt                   integer DEFAULT 1,               -- Lần thứ mấy
+  status                    text DEFAULT 'in_progress'
+                            CHECK (status IN ('in_progress', 'submitted', 'graded')),
+  time_spent_seconds        bigint DEFAULT 0,                -- Thời gian làm (giây)
+  created_at                timestamptz DEFAULT now(),
+  updated_at                timestamptz DEFAULT now()
+);
+
+
+-- ─── 3.2 AUTOSAVE_ANSWERS ───
+-- Lưu tự động (draft) khi HS đang làm bài
+CREATE TABLE IF NOT EXISTS public.autosave_answers (
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id              uuid REFERENCES public.work_sessions(id),
+  assignment_question_id  uuid REFERENCES public.assignment_questions(id),
+  answer_content          jsonb,                             -- Nội dung draft
+  updated_at              timestamptz DEFAULT now()
+);
+-- JSONB: autosave_answers.answer_content
+-- Multiple choice: { "selected_choices": [0] }
+-- Essay:           { "text": "Bài làm..." }
+
+
+-- ─── 3.3 SUBMISSIONS ───
+-- Bài nộp chính thức
+CREATE TABLE IF NOT EXISTS public.submissions (
+  id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  assignment_id             uuid REFERENCES public.assignments(id),
+  assignment_distribution_id uuid REFERENCES public.assignment_distributions(id),
+  student_id                uuid NOT NULL REFERENCES public.profiles(id),
+  session_id                uuid REFERENCES public.work_sessions(id),
+  variant_id                uuid REFERENCES public.assignment_variants(id),
+  started_at                timestamptz,
+  submitted_at              timestamptz,
+  is_late                   boolean DEFAULT false,           -- Nộp trễ? (boolean tĩnh)
+  total_score               numeric,                         -- Tổng điểm
+  ai_graded                 boolean DEFAULT false,           -- AI đã chấm?
+  is_voided                 boolean DEFAULT false,           -- Bài bị hủy
+  created_at                timestamptz DEFAULT now(),
+  updated_at                timestamptz DEFAULT now()
+);
+
+
+-- ─── 3.4 SUBMISSION_ANSWERS ───
+-- Câu trả lời chính thức từng câu
+CREATE TABLE IF NOT EXISTS public.submission_answers (
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id              uuid REFERENCES public.work_sessions(id),
+  assignment_question_id  uuid NOT NULL REFERENCES public.assignment_questions(id),
+  answer                  jsonb NOT NULL,                    -- Câu trả lời
+  files                   jsonb,                             -- Files đính kèm
+  flagged                 boolean DEFAULT false,             -- GV đánh dấu review
+  ai_score                numeric,                           -- Điểm AI
+  ai_confidence           numeric,                           -- Độ tin cậy AI (0-1)
+  final_score             numeric,                           -- Điểm cuối cùng
+  ai_feedback             jsonb,                             -- Phản hồi AI
+  teacher_feedback        jsonb,                             -- Phản hồi GV
+  graded_by               uuid REFERENCES auth.users(id),   -- Ai chấm (null=AI)
+  graded_at               timestamptz,
+  created_at              timestamptz DEFAULT now(),
+  updated_at              timestamptz DEFAULT now()
+);
+-- JSONB: submission_answers.answer
+-- Multiple choice: { "selected_choices": [0] }     ← Mảng INT
+-- True/false:      { "selected_choices": [0] }     ← 0=true, 1=false
+-- Essay:           { "text": "Bài làm..." }
+--
+-- JSONB: submission_answers.ai_feedback
+-- { "comment": "...", "strengths": [], "weaknesses": [], "suggestions": [] }
+--
+-- JSONB: submission_answers.teacher_feedback
+-- { "comment": "...", "rating": 3 }
+--
+-- JSONB: submission_answers.files
+-- [{ "file_id": "uuid", "name": "bai_lam.pdf", "url": "https://..." }]
+
+
+-- ─── 3.5 FILES ───
+-- File upload (Supabase Storage)
+CREATE TABLE IF NOT EXISTS public.files (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  storage_path  text NOT NULL,                               -- Path trong Storage bucket
+  url           text,                                         -- Public URL
+  filename      text,                                         -- Tên file gốc
+  mime_type     text,                                         -- MIME type
+  size_bytes    bigint,                                       -- Kích thước (bytes)
+  uploaded_by   uuid REFERENCES auth.users(id),
+  metadata      jsonb,
+  is_deleted    boolean DEFAULT false,                        -- Soft delete
+  created_at    timestamptz DEFAULT now()
+);
+
+
+-- ─── 3.6 FILE_LINKS ───
+-- Liên kết polymorphic: file ↔ entity
+CREATE TABLE IF NOT EXISTS public.file_links (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  file_id     uuid REFERENCES public.files(id),
+  target_type text NOT NULL,                                  -- 'assignment' | 'submission' | ...
+  target_id   uuid NOT NULL,
+  created_at  timestamptz DEFAULT now()
+);
+
+
+-- ─── 3.7 AI_QUEUE ───
+-- Hàng đợi chấm bài AI (async)
+CREATE TABLE IF NOT EXISTS public.ai_queue (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  submission_answer_id  uuid REFERENCES public.submission_answers(id),
+  request_type          text DEFAULT 'score'
+                        CHECK (request_type IN ('score', 'feedback', 'analysis')),
+  status                text DEFAULT 'pending',              -- pending | processing | completed | failed
+  attempts              integer DEFAULT 0,
+  payload               jsonb,                               -- Data gửi AI
+  result                jsonb,                               -- Kết quả AI trả về
+  created_at            timestamptz DEFAULT now(),
+  updated_at            timestamptz DEFAULT now()
+);
+-- JSONB: ai_queue.payload
+-- { "question_text": "...", "answer_text": "...", "rubric": {...}, "max_points": 5 }
+
+
+-- ─── 3.8 AI_EVALUATIONS ───
+-- Kết quả đánh giá AI (lịch sử)
+CREATE TABLE IF NOT EXISTS public.ai_evaluations (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  submission_answer_id  uuid REFERENCES public.submission_answers(id),
+  model_name            text,                                -- "gpt-4" | "gemini-pro"
+  model_version         text,
+  ai_score              numeric,
+  ai_confidence         numeric,                             -- 0.0 - 1.0
+  feedback              text,
+  rationale             jsonb,                               -- Giải thích chi tiết
+  created_at            timestamptz DEFAULT now()
+);
+-- JSONB: ai_evaluations.rationale
+-- {
+--   "criteria_scores": [
+--     { "criteria": "Hiểu đề", "score": 3, "max": 5, "comment": "..." }
+--   ],
+--   "overall_comment": "..."
+-- }
+
+
+-- ─── 3.9 GRADE_OVERRIDES ───
+-- Audit trail: GV chỉnh điểm
+CREATE TABLE IF NOT EXISTS public.grade_overrides (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  submission_answer_id  uuid NOT NULL REFERENCES public.submission_answers(id),
+  overridden_by         uuid NOT NULL REFERENCES auth.users(id),
+  old_score             numeric,
+  new_score             numeric NOT NULL,
+  reason                text,
+  created_at            timestamptz NOT NULL DEFAULT now()
+);
+
+
+-- ─── 3.10 STUDENT_SKILL_MASTERY ───
+-- Trình độ kỹ năng HS (AI tính toán)
+CREATE TABLE IF NOT EXISTS public.student_skill_mastery (
+  student_id    uuid NOT NULL REFERENCES auth.users(id),
+  objective_id  uuid NOT NULL REFERENCES public.learning_objectives(id),
+  mastery_level numeric DEFAULT 0.0 CHECK (mastery_level >= 0 AND mastery_level <= 1),
+  attempts      integer DEFAULT 0,
+  correct       integer DEFAULT 0,
+  last_updated  timestamptz DEFAULT now(),
+  PRIMARY KEY (student_id, objective_id)
+);
+
+
+-- ─── 3.11 QUESTION_STATS ───
+-- Thống kê câu hỏi
+CREATE TABLE IF NOT EXISTS public.question_stats (
+  question_id     uuid PRIMARY KEY REFERENCES public.questions(id),
+  total_attempts  integer DEFAULT 0,
+  correct_count   integer DEFAULT 0,
+  avg_score       numeric DEFAULT 0,
+  last_attempted  timestamptz
+);
+
+
+-- ─── 3.12 SUBMISSION_ANALYTICS ───
+-- Phân tích bài nộp (cho AI recommendations)
+CREATE TABLE IF NOT EXISTS public.submission_analytics (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  submission_id uuid REFERENCES public.submissions(id),
+  metrics       jsonb,
+  created_at    timestamptz DEFAULT now()
+);
+-- JSONB: submission_analytics.metrics
+-- {
+--   "time_per_question": { "q1": 45, "q2": 120 },
+--   "accuracy_by_tag": { "toán": 0.8, "hình học": 0.6 }
+-- }
+
+
+-- ─── 3.13 AI_RECOMMENDATIONS ───
+-- Đề xuất AI cho GV
+CREATE TABLE IF NOT EXISTS public.ai_recommendations (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id  uuid REFERENCES auth.users(id),
+  class_id    uuid REFERENCES public.classes(id),
+  student_id  uuid REFERENCES auth.users(id),
+  type        text DEFAULT 'individual'
+              CHECK (type IN ('individual', 'small_group', 'class')),
+  priority    integer DEFAULT 3 CHECK (priority >= 1 AND priority <= 5),
+  title       text NOT NULL,
+  description text,
+  resources   jsonb,                                         -- Tài liệu gợi ý
+  dismissed   boolean DEFAULT false,
+  created_at  timestamptz DEFAULT now()
+);
+-- JSONB: ai_recommendations.resources
+-- { "exercises": ["uuid-1"], "videos": ["https://..."], "documents": ["https://..."] }
+
+
+-- ─── 3.14 TEACHER_NOTES ───
+-- Ghi chú GV về HS
+CREATE TABLE IF NOT EXISTS public.teacher_notes (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id  uuid REFERENCES auth.users(id),
+  student_id  uuid REFERENCES auth.users(id),
+  content     text NOT NULL,
+  is_private  boolean DEFAULT true,
+  created_at  timestamptz DEFAULT now()
+);

@@ -15,6 +15,18 @@ _$TeacherAssignmentHubStateImpl _$$TeacherAssignmentHubStateImplFromJson(
   recentActivities: (json['recentActivities'] as List<dynamic>)
       .map((e) => Assignment.fromJson(e as Map<String, dynamic>))
       .toList(),
+  assignments:
+      (json['assignments'] as List<dynamic>?)
+          ?.map((e) => Assignment.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
+  distributions:
+      (json['distributions'] as List<dynamic>?)
+          ?.map(
+            (e) => AssignmentDistribution.fromJson(e as Map<String, dynamic>),
+          )
+          .toList() ??
+      const [],
 );
 
 Map<String, dynamic> _$$TeacherAssignmentHubStateImplToJson(
@@ -22,6 +34,8 @@ Map<String, dynamic> _$$TeacherAssignmentHubStateImplToJson(
 ) => <String, dynamic>{
   'statistics': instance.statistics,
   'recentActivities': instance.recentActivities,
+  'assignments': instance.assignments,
+  'distributions': instance.distributions,
 };
 
 // **************************************************************************
@@ -29,7 +43,7 @@ Map<String, dynamic> _$$TeacherAssignmentHubStateImplToJson(
 // **************************************************************************
 
 String _$teacherAssignmentHubNotifierHash() =>
-    r'8449be37e85effb6d5c489876674674456afc9da';
+    r'eeba0c82399d9a07e59118dd49e0cb8357b33591';
 
 /// Notifier cho Teacher Assignment Hub Screen
 ///
