@@ -41,9 +41,10 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 ## Session
 
-**Last activity:** 2026-03-18 - Phase 4 Learning Analytics context gathered
-- Context captured for Learning Analytics phase
-- Decisions: Extend Scores Tab, Hybrid visualizations, Week/Month/Semester + Custom Range, Auto-calc Strengths/Weaknesses
+**Last activity:** 2026-03-18 - Phase 4 Learning Analytics context updated
+- Extended context with detailed metrics & empty states
+- Metrics: Basic & Engagement, Skill Map (Radar), Deep S/W Analysis, Context & Trajectory
+- Empty States: Zero Submissions, Pending Grading, No Skill/Partial, Normal
 
 **Next:** Phase 4 - Planning
 
