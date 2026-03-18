@@ -73,6 +73,11 @@
 2. Teacher class analytics show aggregate data
 3. Trends visualized correctly
 
+**Plans:**
+- [x] 04-01-PLAN.md — Data Layer: Entities, Datasource, Providers
+- [x] 04-02-PLAN.md — Student Analytics Dashboard UI
+- [x] 04-03-PLAN.md — Teacher Analytics Dashboard UI
+
 ---
 
 ## Phase 5: Personalized Recommendations
@@ -111,4 +116,4 @@
 ---
 
 *Roadmap created: 2026-03-05*
-*Last updated: 2026-03-10 - Phase 1 in UAT, plan 05 added*
+*Last updated: 2026-03-18 - Phase 4 plans added (04-01, 04-02, 04-03)*
