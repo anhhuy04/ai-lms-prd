@@ -15,7 +15,9 @@ import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_ques
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_distribute_assignment_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_draft_assignments_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_published_assignments_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_class_submission_list_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_submission_detail_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_grading_hub_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_submission_list_screen.dart';
 import 'package:ai_mls/presentation/views/auth/login_screen.dart';
 import 'package:ai_mls/presentation/views/auth/register_screen.dart';
@@ -38,6 +40,8 @@ import 'package:ai_mls/presentation/views/dashboard/home/teacher_home_content_sc
 import 'package:ai_mls/presentation/views/dashboard/student_dashboard_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/teacher_dashboard_screen.dart';
 import 'package:ai_mls/presentation/views/grading/scores_screen.dart';
+import 'package:ai_mls/presentation/views/grading/student_analytics_screen.dart';
+import 'package:ai_mls/presentation/views/grading/teacher_analytics_screen.dart';
 import 'package:ai_mls/presentation/views/network/no_internet_screen.dart';
 import 'package:ai_mls/presentation/views/profile/profile_screen.dart';
 import 'package:ai_mls/presentation/views/settings/api_key_setup_screen.dart';
@@ -116,6 +120,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      // ==================== REDIRECTS ====================
+      // Catch-all redirect to splash
+      GoRoute(path: '/', redirect: (_, __) => AppRoute.splashPath),
+
       // ==================== PUBLIC ROUTES ====================
       // No authentication required
       GoRoute(
@@ -206,6 +214,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 FadeTransitionPage(key: state.pageKey, child: ScoresScreen()),
           ),
           GoRoute(
+            path: AppRoute.studentAnalyticsPath,
+            name: AppRoute.studentAnalytics,
+            pageBuilder: (context, state) =>
+                FadeTransitionPage(key: state.pageKey, child: StudentAnalyticsScreen()),
+          ),
+          GoRoute(
             path: AppRoute.studentAssignmentListPath,
             name: AppRoute.studentAssignmentList,
             pageBuilder: (context, state) => FadeTransitionPage(
@@ -220,6 +234,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 FadeTransitionPage(key: state.pageKey, child: ProfileScreen()),
           ),
         ],
+      ),
+
+      // ==================== TEACHER PUBLIC ROUTES (No Bottom Nav) ====================
+      GoRoute(
+        path: AppRoute.teacherGradingPath,
+        name: AppRoute.teacherGrading,
+        pageBuilder: (context, state) => FadeTransitionPage(
+          key: state.pageKey,
+          child: const TeacherGradingHubScreen(),
+        ),
+      ),
+
+      // Teacher Analytics Overview (dual-mode: with or without classId)
+      GoRoute(
+        path: AppRoute.teacherAnalyticsOverviewPath,
+        name: AppRoute.teacherAnalyticsOverview,
+        pageBuilder: (context, state) => FadeTransitionPage(
+          key: state.pageKey,
+          child: const TeacherAnalyticsScreen(), // classId = null → show class list
+        ),
       ),
 
       // ==================== TEACHER DASHBOARD SHELL ====================
@@ -361,7 +395,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.studentAssignmentWorkspace,
         builder: (context, state) {
           final distributionId = state.pathParameters['distributionId']!;
-          return StudentAssignmentWorkspaceScreen(distributionId: distributionId);
+          return StudentAssignmentWorkspaceScreen(
+            distributionId: distributionId,
+          );
         },
       ),
 

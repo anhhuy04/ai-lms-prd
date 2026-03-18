@@ -109,6 +109,10 @@ class AppRoute {
   static const String studentScores = 'student-scores';
   static const String studentScoresPath = '/student/scores';
 
+  /// Student - Analytics view
+  static const String studentAnalytics = 'student-analytics';
+  static const String studentAnalyticsPath = '/student/analytics';
+
   // ==================== TEACHER ROUTES ====================
   // Routes specific to teacher role
 
@@ -211,6 +215,14 @@ class AppRoute {
   /// Teacher - Grading view (assignments to grade)
   static const String teacherGrading = 'teacher-grading';
   static const String teacherGradingPath = '/teacher/grading';
+
+  /// Teacher - Analytics view (class analytics for teacher)
+  static const String teacherAnalytics = 'teacher-analytics';
+  static String teacherAnalyticsPath(String classId) => '/teacher/class/$classId/analytics';
+
+  /// Teacher - Analytics Overview (choose class)
+  static const String teacherAnalyticsOverview = 'teacher-analytics-overview';
+  static const String teacherAnalyticsOverviewPath = '/teacher/analytics';
 
   /// Teacher - Submission list (ATC Dashboard - danh sách bài nộp)
   static const String teacherSubmissionList = 'teacher-submission-list';

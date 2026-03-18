@@ -5,7 +5,10 @@ import '../../domain/entities/analytics/student_analytics.dart';
 import '../../domain/entities/analytics/skill_mastery.dart';
 import '../../domain/entities/analytics/grade_trend.dart';
 import '../../domain/entities/analytics/class_analytics.dart';
+import '../../domain/entities/class.dart';
+import '../../domain/repositories/school_class_repository.dart';
 import 'auth_providers.dart';
+import 'class_providers.dart';
 
 part 'analytics_providers.g.dart';
 
@@ -128,4 +131,14 @@ enum AnalyticsEmptyState {
   normal,
   loading,
   error,
+}
+
+/// Provider lấy danh sách lớp của giáo viên hiện tại (dùng cho TeacherAnalyticsScreen)
+@riverpod
+Future<List<Class>> teacherClassesForAnalytics(Ref ref) async {
+  final teacherId = ref.watch(currentUserIdProvider);
+  if (teacherId == null) return [];
+
+  final repo = ref.watch(schoolClassRepositoryProvider);
+  return repo.getClassesByTeacher(teacherId);
 }
