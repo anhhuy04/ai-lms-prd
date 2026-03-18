@@ -34,7 +34,7 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 | 1 | Student Assignment Workflow | UAT | - | ✓ Complete |
 | 2 | Teacher Grading Workflow | 02-PLAN.md | 1 | ✓ Complete |
 | 3 | Rubric System | 0 | 00 | Pending |
-| 4 | Learning Analytics | 04-CONTEXT.md | 1 | ✓ Context Ready |
+| 4 | Learning Analytics | 04-01-PLAN.md, 04-02-PLAN.md, 04-03-PLAN.md | 3 | ✓ Planned |
 | 5 | Personalized Recommendations | 0 | 00 | Pending |
 
 ---
