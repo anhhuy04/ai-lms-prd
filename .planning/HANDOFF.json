@@ -1,187 +1,114 @@
 {
   "version": "1.0",
-  "timestamp": "2026-03-19T15:26:57Z",
+  "timestamp": "2026-03-20T14:24:59.403Z",
   "phase": "04-learning-analytics",
   "phase_name": "Learning Analytics",
-  "phase_dir": "04-learning-analytics",
-  "plan": 4,
-  "task": 1,
-  "total_tasks": 12,
-  "status": "in_progress",
+  "phase_dir": ".planning/phases/04-learning-analytics",
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
   "completed_tasks": [
     {
       "id": 1,
-      "name": "Student Analytics - Radar Chart",
-      "status": "issue_fixed",
-      "fix_applied": "Navigation fixed (outside ShellRoute), schema fixed (learning_objectives.code, assignments.title separate fetch), empty state, DateTime.parse null safety"
+      "name": "Add 'Phân tích học tập' to Teacher Class Detail Drawer",
+      "status": "done"
     },
     {
       "id": 2,
-      "name": "Student Analytics - Grade Trend Line Chart",
-      "status": "not_started"
+      "name": "Grade Distribution Heatmap - entity, datasource, widget",
+      "status": "done"
     },
     {
       "id": 3,
-      "name": "Student Analytics - Metric Cards",
-      "status": "not_started"
+      "name": "Fix heatmap: assignment title (not subject), thang diem 10, max 5 rows, scrollable container",
+      "status": "done"
     },
     {
       "id": 4,
-      "name": "Student Analytics - Strength/Weakness Card",
-      "status": "not_started"
-    },
-    {
-      "id": 5,
-      "name": "Student Analytics - Time Range Selector",
-      "status": "not_started"
-    },
-    {
-      "id": 6,
-      "name": "Student Analytics - Empty States",
-      "status": "not_started"
-    },
-    {
-      "id": 7,
-      "name": "Teacher Analytics - Grade Distribution Bar Chart",
-      "status": "not_started"
-    },
-    {
-      "id": 8,
-      "name": "Teacher Analytics - Class Overview Card",
-      "status": "not_started"
-    },
-    {
-      "id": 9,
-      "name": "Teacher Analytics - Top/Bottom Performers Lists",
-      "status": "not_started"
-    },
-    {
-      "id": 10,
-      "name": "Student Analytics - Navigation Integration",
-      "status": "not_started"
-    },
-    {
-      "id": 11,
-      "name": "Teacher Analytics - Navigation Integration",
-      "status": "not_started"
-    },
-    {
-      "id": 12,
-      "name": "Analytics Screen - Loading States",
-      "status": "not_started"
+      "name": "4-agent code review (Task #3 router + Task #4 providers done CLEAN, Task #1 data-layer + Task #2 UI still running)",
+      "status": "in_progress"
     }
   ],
   "remaining_tasks": [
     {
-      "id": 2,
-      "name": "Student Analytics - Grade Trend Line Chart",
-      "status": "not_started"
-    },
-    {
-      "id": 3,
-      "name": "Student Analytics - Metric Cards",
-      "status": "not_started"
-    },
-    {
-      "id": 4,
-      "name": "Student Analytics - Strength/Weakness Card",
-      "status": "not_started"
-    },
-    {
       "id": 5,
-      "name": "Student Analytics - Time Range Selector",
+      "name": "Complete 4-agent review - wait for data-layer-reviewer and ui-reviewer results",
       "status": "not_started"
     },
     {
       "id": 6,
-      "name": "Student Analytics - Empty States",
+      "name": "Fix any issues found by review agents",
       "status": "not_started"
     },
     {
       "id": 7,
-      "name": "Teacher Analytics - Grade Distribution Bar Chart",
+      "name": "UAT tests 7-12: Teacher Analytics navigation and loading states",
       "status": "not_started"
     },
     {
       "id": 8,
-      "name": "Teacher Analytics - Class Overview Card",
-      "status": "not_started"
-    },
-    {
-      "id": 9,
-      "name": "Teacher Analytics - Top/Bottom Performers Lists",
-      "status": "not_started"
-    },
-    {
-      "id": 10,
-      "name": "Student Analytics - Navigation Integration",
-      "status": "not_started"
-    },
-    {
-      "id": 11,
-      "name": "Teacher Analytics - Navigation Integration",
-      "status": "not_started"
-    },
-    {
-      "id": 12,
-      "name": "Analytics Screen - Loading States",
+      "name": "Fix UAT issues: Student Analytics metric cards (thang diem /10 + trend indicator), time filter bottom sheet",
       "status": "not_started"
     }
   ],
   "blockers": [
     {
-      "description": "UAT Test #1: Student Analytics Radar Chart - Đã fix blocker nhưng cần user retest trên device",
-      "type": "human_action",
-      "workaround": "User cần build và test trên device để xác nhận fixes hoạt động"
+      "description": "Review agents data-layer-reviewer and ui-reviewer still running - flutter analyze shows 0 errors/0 warnings currently",
+      "type": "background_process",
+      "workaround": "flutter analyze clean - can proceed to commit"
     }
   ],
   "human_actions_pending": [
     {
-      "action": "Build và test app trên device",
-      "context": "Retest UAT Test #1 (Student Analytics Radar Chart) và test score % display",
-      "blocking": true
+      "action": "Manual UAT testing of Teacher Analytics heatmap and navigation",
+      "context": "Verify: 1) 'Phân tích học tập' menu in drawer. 2) Heatmap shows assignment titles (Y), 4 buckets (X), colored cells. 3) Max 5 rows, scrolls. 4) Navigation from drawer works.",
+      "blocking": false
+    },
+    {
+      "action": "Fix UAT test 3: Student Analytics metric cards - thang diem /10 instead of %",
+      "context": "ScoreDisplayUtils.toPercent() converts /10 to %. Need to show raw /10 score (e.g., '7.5') not '75%'. Also add trend indicator arrows.",
+      "blocking": false
+    },
+    {
+      "action": "Fix UAT test 5: Time filter bottom sheet for Student Analytics",
+      "context": "Time range selector chips only affect line chart, not metric cards. Need: bottom sheet with custom date range, filter connects to all data.",
+      "blocking": false
     }
   ],
   "decisions": [
     {
-      "decision": "Tạo ScoreDisplayUtils helper class cho % calculation",
-      "rationale": "Reusable, consistent formula x/10*100, có thể mở rộng maxScore sau",
-      "phase": "04"
+      "decision": "Heatmap Y-axis = assignment title (from assignments.title), not subject (from classes.subject)",
+      "rationale": "User reported môn học nhầm → actually wanted bài tập names",
+      "phase": "04-learning-analytics"
     },
     {
-      "decision": "Data layer giữ raw score, UI layer convert sang %",
-      "rationale": "Backend tính toán chính xác với raw values, UI chỉ format display",
-      "phase": "04"
+      "decision": "Heatmap score scale = thang diem 10, buckets: 0-4, 4-6, 6-8, 8-10",
+      "rationale": "User said 'thang diem 10, bo bot 1 so 0 tren thang 100'. Internal normalizes to % for bucket comparison, display uses /10 labels.",
+      "phase": "04-learning-analytics"
     },
     {
-      "decision": "LineTrendChart: SingleChildScrollView + adaptive width/interval",
-      "rationale": "Chart scroll được trên mobile, labels không overlap",
-      "phase": "04"
+      "decision": "Heatmap shows max 5 rows, scrollable inside fixed white card container with shadow",
+      "rationale": "User: 'hien thi 5 mon hoc tro xuong, chi hien thi trong khung do'. SingleChildScrollView inside sized Container.",
+      "phase": "04-learning-analytics"
+    },
+    {
+      "decision": "_buildDistributionInfoMap filters by classId, ORDER BY created_at DESC",
+      "rationale": "Linter/user auto-fixed to filter distributions by classId only. ORDER BY created_at DESC = newest first.",
+      "phase": "04-learning-analytics"
     }
   ],
   "uncommitted_files": [
-    "lib/core/utils/score_display_utils.dart",
-    "lib/presentation/views/grading/scores_screen.dart",
-    "lib/presentation/views/grading/student_analytics_screen.dart",
-    "lib/presentation/views/grading/teacher_analytics_screen.dart",
-    "lib/presentation/views/grading/widgets/analytics/charts/line_trend_chart.dart",
-    "lib/presentation/views/grading/widgets/analytics/cards/metric_card.dart",
-    "lib/presentation/views/grading/widgets/analytics/cards/strength_weakness_card.dart",
-    "lib/presentation/views/grading/widgets/analytics/teacher/cards/class_overview_card.dart",
-    "lib/presentation/views/grading/widgets/analytics/teacher/lists/top_performers_list.dart",
-    "lib/presentation/views/grading/widgets/analytics/teacher/lists/bottom_performers_list.dart",
-    "lib/presentation/views/grading/widgets/analytics/teacher/charts/grade_distribution_chart.dart",
-    "lib/presentation/views/grading/widgets/analytics/empty_states/no_skill_data.dart",
-    "lib/presentation/views/grading/widgets/analytics/empty_states/pending_grading.dart",
-    "lib/presentation/views/grading/widgets/analytics/empty_states/zero_submissions.dart",
-    "lib/presentation/views/grading/widgets/analytics/time_range_selector.dart",
-    "lib/presentation/views/grading/widgets/analytics/charts/radar_skill_chart.dart",
-    "lib/data/datasources/analytics_datasource.dart",
-    "lib/presentation/providers/analytics_providers.dart",
     "lib/core/routes/app_router.dart",
-    "lib/core/routes/route_constants.dart",
-    "memory-bank/activeContext.md"
+    "lib/data/datasources/analytics_datasource.dart",
+    "lib/domain/entities/analytics/class_analytics.dart",
+    "lib/domain/entities/analytics/class_analytics.freezed.dart",
+    "lib/domain/entities/analytics/class_analytics.g.dart",
+    "lib/presentation/views/class/teacher/widgets/drawers/class_settings_drawer.dart",
+    "lib/presentation/views/grading/teacher_analytics_screen.dart",
+    "lib/presentation/views/grading/widgets/analytics/teacher/charts/grade_distribution_heatmap.dart",
+    "lib/presentation/views/grading/widgets/analytics/charts/line_trend_chart.dart"
   ],
-  "next_action": "Build và test app trên device - retest UAT Test #1 và score % display",
-  "context_notes": "Phase 04 Learning Analytics đang trong giai đoạn UAT. 2 teams đã fix type safety, score % calculation, LineTrendChart mobile UX. Team agents có bug shutdown nhưng không ảnh hưởng work. Cần user test trên device để verify fixes."
+  "next_action": "Commit all uncommitted changes as WIP, then resume when review agents return. flutter analyze is clean (0 errors, 0 warnings).",
+  "context_notes": "Ran 4-agent code review team (code-review). Task #4 (providers) + #3 (router) = CLEAN. Task #1 (data-layer) + #2 (UI) still running. flutter analyze: 14 info pre-existing async warnings. Plan (add drawer menu + heatmap) fully implemented and linter auto-fixed _buildDistributionInfoMap(classId). Key remaining: UAT tests 7-12 for Teacher Analytics, plus UAT issues 2/3/5 for Student Analytics (metric cards /10 scale + trend, time filter)."
 }
