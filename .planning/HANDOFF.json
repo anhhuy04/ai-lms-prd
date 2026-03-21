@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-03-20T14:24:59.403Z",
+  "timestamp": "2026-03-21T14:20:32.129Z",
   "phase": "04-learning-analytics",
   "phase_name": "Learning Analytics",
   "phase_dir": ".planning/phases/04-learning-analytics",
@@ -11,104 +11,151 @@
   "completed_tasks": [
     {
       "id": 1,
-      "name": "Add 'Phân tích học tập' to Teacher Class Detail Drawer",
+      "name": "Blocker fix: Data classId filter via assignment_distributions",
       "status": "done"
     },
     {
       "id": 2,
-      "name": "Grade Distribution Heatmap - entity, datasource, widget",
+      "name": "Test 7: Heatmap UI (padding, colors red/amber/orange/green, truncate)",
       "status": "done"
     },
     {
       "id": 3,
-      "name": "Fix heatmap: assignment title (not subject), thang diem 10, max 5 rows, scrollable container",
+      "name": "Test 8: Class Overview Card (/10 scale, submission rate, position)",
       "status": "done"
     },
     {
       "id": 4,
-      "name": "4-agent code review (Task #3 router + Task #4 providers done CLEAN, Task #1 data-layer + Task #2 UI still running)",
-      "status": "in_progress"
+      "name": "Test 9: Top/Bottom Performers (/10 scale, dedup logic, tap navigation, new TeacherStudentAnalyticsScreen)",
+      "status": "done"
+    },
+    {
+      "id": 5,
+      "name": "Test 2: Line Chart redesign (/10 scale, scroll, bottom sheet filter)",
+      "status": "done"
+    },
+    {
+      "id": 6,
+      "name": "Test 3: Metric Cards (/10 scale, trend indicator ↑↓→)",
+      "status": "done"
+    },
+    {
+      "id": 7,
+      "name": "Test 5: Time Filter redesign (bottom sheet + class filter)",
+      "status": "done"
+    },
+    {
+      "id": 8,
+      "name": "Test 12: Shimmer loading states (ShimmerTeacherAnalyticsLoading, ShimmerStudentAnalyticsLoading)",
+      "status": "done"
     }
   ],
   "remaining_tasks": [
     {
-      "id": 5,
-      "name": "Complete 4-agent review - wait for data-layer-reviewer and ui-reviewer results",
+      "id": 9,
+      "name": "Test 3 re-test: Metric Cards /10 + trend + bottom sheet filter",
+      "status": "pending_user_test"
+    },
+    {
+      "id": 10,
+      "name": "Test 7-12 re-test: All Teacher Analytics fixes",
       "status": "not_started"
     },
     {
-      "id": 6,
-      "name": "Fix any issues found by review agents",
-      "status": "not_started"
-    },
-    {
-      "id": 7,
-      "name": "UAT tests 7-12: Teacher Analytics navigation and loading states",
-      "status": "not_started"
-    },
-    {
-      "id": 8,
-      "name": "Fix UAT issues: Student Analytics metric cards (thang diem /10 + trend indicator), time filter bottom sheet",
+      "id": 11,
+      "name": "Commit all changes after UAT passes",
       "status": "not_started"
     }
   ],
   "blockers": [
     {
-      "description": "Review agents data-layer-reviewer and ui-reviewer still running - flutter analyze shows 0 errors/0 warnings currently",
-      "type": "background_process",
-      "workaround": "flutter analyze clean - can proceed to commit"
+      "description": "User đang test Test 3 - Metric Cards + Filter Bottom Sheet. APK đã install trên emulator.",
+      "type": "human_action",
+      "workaround": "Đợi user test và feedback"
     }
   ],
   "human_actions_pending": [
     {
-      "action": "Manual UAT testing of Teacher Analytics heatmap and navigation",
-      "context": "Verify: 1) 'Phân tích học tập' menu in drawer. 2) Heatmap shows assignment titles (Y), 4 buckets (X), colored cells. 3) Max 5 rows, scrolls. 4) Navigation from drawer works.",
+      "action": "Test Test 3: Metric Cards (/10 scale, trend indicator, filter bottom sheet)",
+      "context": "APK đã install trên emulator. Bước: Đăng nhập HS → Student Analytics → kiểm tra metric cards /10 + trend + bottom sheet filter + class filter",
       "blocking": false
     },
     {
-      "action": "Fix UAT test 3: Student Analytics metric cards - thang diem /10 instead of %",
-      "context": "ScoreDisplayUtils.toPercent() converts /10 to %. Need to show raw /10 score (e.g., '7.5') not '75%'. Also add trend indicator arrows.",
+      "action": "Test Test 7-12: Teacher Analytics re-test sau khi fix",
+      "context": "Tất cả 8 issues đã fix. Cần user test lại từng test để confirm pass.",
       "blocking": false
     },
     {
-      "action": "Fix UAT test 5: Time filter bottom sheet for Student Analytics",
-      "context": "Time range selector chips only affect line chart, not metric cards. Need: bottom sheet with custom date range, filter connects to all data.",
+      "action": "Commit tất cả changes sau khi UAT hoàn thành",
+      "context": "20+ files đang modified nhưng chưa commit",
       "blocking": false
     }
   ],
   "decisions": [
     {
-      "decision": "Heatmap Y-axis = assignment title (from assignments.title), not subject (from classes.subject)",
-      "rationale": "User reported môn học nhầm → actually wanted bài tập names",
+      "decision": "Blocker root cause: submissions table KHÔNG có class_id column. Filter phải qua assignment_distributions → assignment_distribution_id. Supabase silently ignores non-existent column filter.",
+      "rationale": "Fix: fetch distributionIds from assignment_distributions WHERE class_id=classId, then filter submissions by .inFilter('assignment_distribution_id', distributionIds)",
       "phase": "04-learning-analytics"
     },
     {
-      "decision": "Heatmap score scale = thang diem 10, buckets: 0-4, 4-6, 6-8, 8-10",
-      "rationale": "User said 'thang diem 10, bo bot 1 so 0 tren thang 100'. Internal normalizes to % for bucket comparison, display uses /10 labels.",
+      "decision": "Time filter redesign: chips row → bottom sheet với time range + class filter riêng biệt",
+      "rationale": "User yêu cầu bottom sheet dễ chỉnh hơn, thêm sort/lọc theo LỚP",
       "phase": "04-learning-analytics"
     },
     {
-      "decision": "Heatmap shows max 5 rows, scrollable inside fixed white card container with shadow",
-      "rationale": "User: 'hien thi 5 mon hoc tro xuong, chi hien thi trong khung do'. SingleChildScrollView inside sized Container.",
+      "decision": "Top/Bottom performers dedup: dùng Set<String> topIds để loại trừ students trùng ở cả 2 danh sách",
+      "rationale": "1 học sinh không xuất hiện trong cả 2 danh sách dù lớp ít học sinh",
       "phase": "04-learning-analytics"
     },
     {
-      "decision": "_buildDistributionInfoMap filters by classId, ORDER BY created_at DESC",
-      "rationale": "Linter/user auto-fixed to filter distributions by classId only. ORDER BY created_at DESC = newest first.",
+      "decision": "Shimmer: tạo ShimmerTeacherAnalyticsLoading + ShimmerStudentAnalyticsLoading widgets riêng",
+      "rationale": "Match layout của từng screen cụ thể thay vì generic ShimmerDashboardLoading",
+      "phase": "04-learning-analytics"
+    },
+    {
+      "decision": "Heatmap colors: 0-4=red, 4-6=amber, 6-8=orange, 8-10=green",
+      "rationale": "Sai thứ tự index - 2 cột giữa bị đảo màu. Agent fix đổi từ lightGreen→orange và amber→amber.",
+      "phase": "04-learning-analytics"
+    },
+    {
+      "decision": "Student detail navigation: tạo TeacherStudentAnalyticsScreen mới với route teacherStudentAnalytics",
+      "rationale": "Tap vào student trong top/bottom list → điều hướng đến màn phân tích học sinh của giáo viên",
+      "phase": "04-learning-analytics"
+    },
+    {
+      "decision": "Score display: dùng ScoreDisplayUtils.toRawString() thay vì toPercent() cho mọi score display trong analytics",
+      "rationale": "Thang /10 thay vì %: 8.0 thay vì 80%",
+      "phase": "04-learning-analytics"
+    },
+    {
+      "decision": "AnalyticsTimeRange sealed class: giữ nguyên structure, dùng trong cả student analytics và teacher student detail screen",
+      "rationale": "Consistent filter pattern across screens",
       "phase": "04-learning-analytics"
     }
   ],
   "uncommitted_files": [
     "lib/core/routes/app_router.dart",
+    "lib/core/routes/route_constants.dart",
     "lib/data/datasources/analytics_datasource.dart",
     "lib/domain/entities/analytics/class_analytics.dart",
     "lib/domain/entities/analytics/class_analytics.freezed.dart",
     "lib/domain/entities/analytics/class_analytics.g.dart",
-    "lib/presentation/views/class/teacher/widgets/drawers/class_settings_drawer.dart",
+    "lib/presentation/providers/analytics_providers.dart",
+    "lib/presentation/providers/analytics_providers.g.dart",
     "lib/presentation/views/grading/teacher_analytics_screen.dart",
+    "lib/presentation/views/grading/teacher_student_analytics_screen.dart",
+    "lib/presentation/views/grading/student_analytics_screen.dart",
+    "lib/presentation/views/grading/widgets/analytics/teacher/cards/class_overview_card.dart",
     "lib/presentation/views/grading/widgets/analytics/teacher/charts/grade_distribution_heatmap.dart",
-    "lib/presentation/views/grading/widgets/analytics/charts/line_trend_chart.dart"
+    "lib/presentation/views/grading/widgets/analytics/teacher/lists/top_performers_list.dart",
+    "lib/presentation/views/grading/widgets/analytics/teacher/lists/bottom_performers_list.dart",
+    "lib/presentation/views/grading/widgets/analytics/charts/line_trend_chart.dart",
+    "lib/presentation/views/grading/widgets/analytics/cards/metric_card.dart",
+    "lib/presentation/views/grading/widgets/analytics/time_range_selector.dart",
+    "lib/widgets/loading/shimmer_loading.dart",
+    ".claude/context.md",
+    ".planning/phases/04-learning-analytics/04-UAT.md"
   ],
-  "next_action": "Commit all uncommitted changes as WIP, then resume when review agents return. flutter analyze is clean (0 errors, 0 warnings).",
-  "context_notes": "Ran 4-agent code review team (code-review). Task #4 (providers) + #3 (router) = CLEAN. Task #1 (data-layer) + #2 (UI) still running. flutter analyze: 14 info pre-existing async warnings. Plan (add drawer menu + heatmap) fully implemented and linter auto-fixed _buildDistributionInfoMap(classId). Key remaining: UAT tests 7-12 for Teacher Analytics, plus UAT issues 2/3/5 for Student Analytics (metric cards /10 scale + trend, time filter)."
+  "next_action": "Đợi user test Test 3 (Metric Cards + Bottom Sheet). Sau đó test lại Test 7-12 (Teacher Analytics). Commit all changes khi UAT pass.",
+  "context_notes": "Tất cả 8 issues từ UAT tests 7-12 đã được fix trong session này. Blockers (classId filter) + 7 major issues đều đã xử lý. APK build thành công, đã install trên emulator (SM S908EZGHXXV). User vừa nhận prompt test Test 3 - đang chờ response. Các files cần commit: 20+ files bao gồm datasource, providers, screens, widgets, shimmer loading, routes."
 }
