@@ -1,10 +1,16 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/utils/score_display_utils.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:go_router/go_router.dart';
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/domain/entities/analytics/class_analytics.dart';
 import 'package:ai_mls/domain/entities/class.dart';
 import 'package:ai_mls/presentation/providers/analytics_providers.dart';
-import 'package:ai_mls/presentation/providers/auth_providers.dart';
-import 'package:go_router/go_router.dart';
+import 'package:ai_mls/presentation/views/grading/widgets/analytics/teacher/cards/class_overview_card.dart';
+import 'package:ai_mls/presentation/views/grading/widgets/analytics/teacher/charts/grade_distribution_heatmap.dart';
+import 'package:ai_mls/presentation/views/grading/widgets/analytics/teacher/lists/top_performers_list.dart';
+import 'package:ai_mls/presentation/views/grading/widgets/analytics/teacher/lists/bottom_performers_list.dart';
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,10 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class TeacherAnalyticsScreen extends ConsumerStatefulWidget {
   final String? classId;
 
-  const TeacherAnalyticsScreen({
-    super.key,
-    this.classId,
-  });
+  const TeacherAnalyticsScreen({super.key, this.classId});
 
   @override
   ConsumerState<TeacherAnalyticsScreen> createState() =>
@@ -57,34 +60,58 @@ class _TeacherAnalyticsScreenState
         elevation: 0,
       ),
       body: classesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, size: 48, color: DesignColors.error),
-              SizedBox(height: DesignSpacing.md),
-              Text('Không thể tải danh sách lớp', style: DesignTypography.titleMedium),
-              SizedBox(height: DesignSpacing.sm),
-              ElevatedButton(
-                onPressed: () => ref.invalidate(teacherClassesForAnalyticsProvider),
-                child: const Text('Thử lại'),
-              ),
-            ],
-          ),
-        ),
-        data: (classes) => _buildClassList(classes),
+        loading: () => const ShimmerLoading(),
+        error: (e, st) {
+          AppLogger.error(
+            '[TeacherAnalytics] Error loading classes',
+            error: e,
+            stackTrace: st,
+          );
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 48, color: DesignColors.error),
+                SizedBox(height: DesignSpacing.md),
+                Text(
+                  'Không thể tải danh sách lớp',
+                  style: DesignTypography.titleMedium,
+                ),
+                SizedBox(height: DesignSpacing.sm),
+                ElevatedButton(
+                  onPressed: () =>
+                      ref.invalidate(teacherClassesForAnalyticsProvider),
+                  child: const Text('Thử lại'),
+                ),
+              ],
+            ),
+          );
+        },
+        data: (classes) => _buildClassListRefresh(classes),
       ),
     );
   }
 
-  Widget _buildClassList(List<SchoolClass> classes) {
+  Widget _buildClassListRefresh(List<Class> classes) {
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(teacherClassesForAnalyticsProvider);
+      },
+      child: _buildClassList(classes),
+    );
+  }
+
+  Widget _buildClassList(List<Class> classes) {
     if (classes.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.class_outlined, size: 64, color: DesignColors.textSecondary),
+            Icon(
+              Icons.class_outlined,
+              size: 64,
+              color: DesignColors.textSecondary,
+            ),
             SizedBox(height: DesignSpacing.md),
             Text('Bạn chưa có lớp nào', style: DesignTypography.titleMedium),
           ],
@@ -102,7 +129,7 @@ class _TeacherAnalyticsScreenState
     );
   }
 
-  Widget _buildClassCard(SchoolClass classItem) {
+  Widget _buildClassCard(Class classItem) {
     final analyticsAsync = ref.watch(classAnalyticsProvider(classItem.id));
 
     return GestureDetector(
@@ -115,7 +142,7 @@ class _TeacherAnalyticsScreenState
         margin: EdgeInsets.only(bottom: DesignSpacing.md),
         padding: EdgeInsets.all(DesignSpacing.md),
         decoration: BoxDecoration(
-          color: DesignColors.surface,
+          color: DesignColors.white,
           borderRadius: BorderRadius.circular(DesignRadius.lg),
           border: Border.all(color: DesignColors.dividerLight),
         ),
@@ -125,15 +152,15 @@ class _TeacherAnalyticsScreenState
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: DesignColors.primaryLight,
+                color: DesignColors.primary,
                 borderRadius: BorderRadius.circular(DesignRadius.md),
               ),
               child: Center(
                 child: analyticsAsync.when(
                   data: (analytics) => Text(
-                    '${analytics.classAverage.toStringAsFixed(0)}%',
+                    '${ScoreDisplayUtils.toRawString(analytics.classAverage)}/10',
                     style: DesignTypography.titleMedium.copyWith(
-                      color: DesignColors.primary,
+                      color: DesignColors.white,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -142,7 +169,8 @@ class _TeacherAnalyticsScreenState
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  error: (_, __) => Icon(Icons.error, color: DesignColors.error),
+                  error: (_, __) =>
+                      Icon(Icons.error, color: DesignColors.error),
                 ),
               ),
             ),
@@ -152,7 +180,7 @@ class _TeacherAnalyticsScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    classItem.name ?? 'Lớp học',
+                    classItem.name,
                     style: DesignTypography.titleMedium.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -181,10 +209,7 @@ class _TeacherAnalyticsScreenState
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: DesignColors.textSecondary,
-            ),
+            Icon(Icons.chevron_right, color: DesignColors.textSecondary),
           ],
         ),
       ),
@@ -196,12 +221,14 @@ class _TeacherAnalyticsScreenState
     final analyticsAsync = ref.watch(classAnalyticsProvider(classId));
     final classInfo = ref.watch(teacherClassesForAnalyticsProvider);
 
-    final className = classInfo.whenOrNull(
-      data: (classes) => classes.firstWhere(
-        (c) => c.id == classId,
-        orElse: () => SchoolClass(),
-      ).name,
-    ) ?? 'Lớp học';
+    final className =
+        classInfo.whenOrNull(
+          data: (classes) {
+            final found = classes.where((c) => c.id == classId).firstOrNull;
+            return found?.name;
+          },
+        ) ??
+        'Lớp học';
 
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
@@ -225,22 +252,33 @@ class _TeacherAnalyticsScreenState
         ],
       ),
       body: analyticsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, size: 48, color: DesignColors.error),
-              SizedBox(height: DesignSpacing.md),
-              Text('Không thể tải dữ liệu', style: DesignTypography.titleMedium),
-              SizedBox(height: DesignSpacing.sm),
-              ElevatedButton(
-                onPressed: () => ref.invalidate(classAnalyticsProvider(classId)),
-                child: const Text('Thử lại'),
-              ),
-            ],
-          ),
-        ),
+        loading: () => const ShimmerTeacherAnalyticsLoading(),
+        error: (e, st) {
+          AppLogger.error(
+            '[TeacherAnalytics] Error loading analytics for class: $classId',
+            error: e,
+            stackTrace: st,
+          );
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 48, color: DesignColors.error),
+                SizedBox(height: DesignSpacing.md),
+                Text(
+                  'Không thể tải dữ liệu',
+                  style: DesignTypography.titleMedium,
+                ),
+                SizedBox(height: DesignSpacing.sm),
+                ElevatedButton(
+                  onPressed: () =>
+                      ref.invalidate(classAnalyticsProvider(classId)),
+                  child: const Text('Thử lại'),
+                ),
+              ],
+            ),
+          );
+        },
         data: (analytics) => _buildAnalyticsContent(analytics, classId),
       ),
     );
@@ -260,30 +298,37 @@ class _TeacherAnalyticsScreenState
             // Class Overview Card
             ClassOverviewCard(
               classAverage: analytics.classAverage,
+              highestScore: analytics.highestScore,
+              lowestScore: analytics.lowestScore,
               totalStudents: analytics.totalStudents,
-              totalSubmissions: analytics.totalSubmissions,
-              highestScore: analytics.topPerformers.isNotEmpty
-                  ? analytics.topPerformers.first.score
-                  : null,
-              lowestScore: analytics.bottomPerformers.isNotEmpty
-                  ? analytics.bottomPerformers.last.score
-                  : null,
+              submissionRate: analytics.submissionRate,
+              lateSubmissionRate: analytics.lateSubmissionRate,
+              lateSubmissionCount: analytics.lateSubmissionCount,
+              lateSubmissionTotal: analytics.totalSubmissions,
+              worstOffenderName: analytics.worstOffender?.studentName,
+              worstOffenderCount: analytics.worstOffender?.lateCount,
             ),
             SizedBox(height: DesignSpacing.lg),
 
-            // Grade Distribution Chart
-            _buildSectionTitle('Phân bố điểm số'),
+            // Grade Distribution Chart (Heatmap)
+            _buildSectionTitle('Phân bố điểm số theo môn'),
             SizedBox(height: DesignSpacing.sm),
-            GradeDistributionChart(distribution: analytics.distribution),
+            GradeDistributionHeatmap(
+              subjects: analytics.subjectDistributions,
+            ),
             SizedBox(height: DesignSpacing.lg),
 
             // Top Performers
-            _buildSectionTitle('Top performers'),
+            _buildSectionTitle('Học sinh xuất sắc'),
             SizedBox(height: DesignSpacing.sm),
             TopPerformersList(
               performers: analytics.topPerformers,
               onTap: (studentId) {
-                // Navigate to student detail
+                context.pushNamed(
+                  AppRoute.teacherStudentAnalytics,
+                  pathParameters: {'studentId': studentId},
+                  extra: {'classId': classId},
+                );
               },
             ),
             SizedBox(height: DesignSpacing.lg),
@@ -294,7 +339,11 @@ class _TeacherAnalyticsScreenState
             BottomPerformersList(
               performers: analytics.bottomPerformers,
               onTap: (studentId) {
-                // Navigate to student detail or send intervention
+                context.pushNamed(
+                  AppRoute.teacherStudentAnalytics,
+                  pathParameters: {'studentId': studentId},
+                  extra: {'classId': classId},
+                );
               },
             ),
             SizedBox(height: DesignSpacing.xxl),
@@ -307,9 +356,7 @@ class _TeacherAnalyticsScreenState
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: DesignTypography.titleMedium.copyWith(
-        fontWeight: FontWeight.w600,
-      ),
+      style: DesignTypography.titleMedium.copyWith(fontWeight: FontWeight.w600),
     );
   }
 }

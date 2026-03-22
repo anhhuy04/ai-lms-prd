@@ -49,6 +49,12 @@ class _StudentClassDetailScreenState
           unreadNotifications: 2,
           pendingAssignments: 3,
           onLeaveClass: () => _handleLeaveClass(context),
+          onViewAnalytics: () {
+            context.pushNamed(
+              AppRoute.studentAnalytics,
+              extra: {'classId': widget.classId},
+            );
+          },
         ),
       ),
       body: SafeArea(
@@ -401,7 +407,10 @@ class _StudentClassDetailScreenState
                 ),
               ),
               onPressed: () {
-                // TODO: Navigate to student progress screen
+                context.pushNamed(
+                  AppRoute.studentAnalytics,
+                  extra: {'classId': widget.classId},
+                );
               },
               child: const Text('Xem chi tiết'),
             ),
@@ -591,7 +600,8 @@ class _StudentClassDetailScreenState
     final studentId = auth.value?.id;
     if (studentId == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Không tìm thấy thông tin học sinh'),
           backgroundColor: Colors.red,
@@ -620,7 +630,8 @@ class _StudentClassDetailScreenState
     if (success) {
       // Hiển thị thông báo thành công
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
         SnackBar(
           content: Text('Đã rời lớp "${widget.className}"'),
           backgroundColor: Colors.green,
@@ -634,7 +645,8 @@ class _StudentClassDetailScreenState
     } else {
       // Hiển thị thông báo lỗi
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Không thể rời lớp. Vui lòng thử lại sau.'),
           backgroundColor: Colors.red,

@@ -1,21 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/score_display_utils.dart';
 import 'package:ai_mls/domain/entities/analytics/student_analytics.dart';
 import 'package:ai_mls/presentation/providers/analytics_providers.dart';
-import 'package:ai_mls/widgets/loading/shimmer_loading.dart' as shimmers;
-import 'widgets/analytics/charts/radar_skill_chart.dart';
-import 'widgets/analytics/charts/line_trend_chart.dart';
-import 'widgets/analytics/cards/metric_card.dart';
-import 'widgets/analytics/cards/strength_weakness_card.dart';
-import 'widgets/analytics/empty_states/zero_submissions.dart';
-import 'widgets/analytics/empty_states/pending_grading.dart';
-import 'widgets/analytics/empty_states/no_submissions_in_range.dart';
-import 'widgets/analytics/time_range_selector.dart'
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/presentation/views/grading/widgets/analytics/charts/radar_skill_chart.dart';
+import 'package:ai_mls/presentation/views/grading/widgets/analytics/charts/line_trend_chart.dart';
+import 'package:ai_mls/presentation/views/grading/widgets/analytics/cards/metric_card.dart';
+import 'package:ai_mls/presentation/views/grading/widgets/analytics/cards/strength_weakness_card.dart';
+import 'package:ai_mls/presentation/views/grading/widgets/analytics/time_range_selector.dart'
     show
         AnalyticsTimeRange,
         AnalyticsTimeRangeAll,
@@ -25,68 +20,34 @@ import 'widgets/analytics/time_range_selector.dart'
         showAnalyticsFilterBottomSheet,
         AnalyticsFilterChip;
 
-class StudentAnalyticsScreen extends ConsumerStatefulWidget {
+/// Screen for a teacher to view a specific student's analytics.
+/// Accessed from top/bottom performers list in TeacherAnalyticsScreen.
+class TeacherStudentAnalyticsScreen extends ConsumerStatefulWidget {
+  final String studentId;
   final String? classId;
 
-  const StudentAnalyticsScreen({super.key, this.classId});
+  const TeacherStudentAnalyticsScreen({
+    super.key,
+    required this.studentId,
+    this.classId,
+  });
 
   @override
-  ConsumerState<StudentAnalyticsScreen> createState() =>
-      _StudentAnalyticsScreenState();
+  ConsumerState<TeacherStudentAnalyticsScreen> createState() =>
+      _TeacherStudentAnalyticsScreenState();
 }
 
-class _StudentAnalyticsScreenState
-    extends ConsumerState<StudentAnalyticsScreen> {
+class _TeacherStudentAnalyticsScreenState
+    extends ConsumerState<TeacherStudentAnalyticsScreen> {
   AnalyticsTimeRange _selectedRange = const AnalyticsTimeRangeAll();
   String? _selectedClassId;
-  String? _selectedClassName;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedClassId = widget.classId;
-  }
-
-  /// Computed filter state description text.
-  String get _filterDescription {
-    final parts = <String>[];
-
-    if (_selectedRange is AnalyticsTimeRangeWeek) {
-      parts.add('Tuần này');
-    } else if (_selectedRange is AnalyticsTimeRangeMonth) {
-      parts.add('Tháng này');
-    } else if (_selectedRange is AnalyticsTimeRangeCustom) {
-      parts.add('Tùy chỉnh');
-    } else {
-      parts.add('Tất cả thời gian');
-    }
-
-    if (_selectedClassName != null) {
-      parts.add(_selectedClassName!);
-    } else {
-      parts.add('Tất cả lớp');
-    }
-
-    return parts.join(' · ');
-  }
-
-  bool get _hasActiveFilter {
-    if (_selectedRange is! AnalyticsTimeRangeAll) return true;
-    if (_selectedClassId != null) return true;
-    return false;
-  }
 
   @override
   Widget build(BuildContext context) {
     final analyticsAsync = ref.watch(
-      studentAnalyticsNotifierProvider(
-        classId: _selectedClassId,
-        timeRange: _selectedRange,
-      ),
-    );
-    final emptyState = ref.watch(
-      analyticsEmptyStateProvider(
-        classId: _selectedClassId,
+      teacherStudentAnalyticsNotifierProvider(
+        studentId: widget.studentId,
+        classId: widget.classId,
         timeRange: _selectedRange,
       ),
     );
@@ -94,15 +55,15 @@ class _StudentAnalyticsScreenState
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
       appBar: AppBar(
-        title: const Text('Phân tích học tập'),
+        title: const Text('Phân tích học sinh'),
         backgroundColor: DesignColors.moonLight,
         elevation: 0,
       ),
       body: analyticsAsync.when(
-        loading: () => const shimmers.ShimmerStudentAnalyticsLoading(),
+        loading: () => const ShimmerDashboardLoading(),
         error: (e, st) {
           AppLogger.error(
-            '[StudentAnalyticsScreen] Error loading analytics',
+            '[TeacherStudentAnalytics] Error loading analytics',
             error: e,
             stackTrace: st,
           );
@@ -117,9 +78,9 @@ class _StudentAnalyticsScreenState
                 SizedBox(height: DesignSpacing.sm),
                 ElevatedButton(
                   onPressed: () => ref.invalidate(
-                    studentAnalyticsNotifierProvider(
-                      classId: _selectedClassId,
-                      timeRange: _selectedRange,
+                    teacherStudentAnalyticsNotifierProvider(
+                      studentId: widget.studentId,
+                      classId: widget.classId,
                     ),
                   ),
                   child: const Text('Thử lại'),
@@ -128,61 +89,36 @@ class _StudentAnalyticsScreenState
             ),
           );
         },
-        data: (analytics) => _buildContent(analytics, emptyState),
+        data: (analytics) => _buildContent(analytics),
       ),
     );
   }
 
-  Widget _buildContent(
-    StudentAnalytics analytics,
-    AnalyticsEmptyState emptyState,
-  ) {
-    // Show zeroSubmissions empty state when student has no submissions at all
-    if (emptyState == AnalyticsEmptyState.zeroSubmissions) {
-      return ZeroSubmissionsState(
-        onTakeDiagnostic: () {
-          context.pushNamed(AppRoute.studentAssignmentList);
-        },
-      );
-    }
-
-    if (emptyState == AnalyticsEmptyState.pendingGrading) {
-      return const PendingGradingState();
-    }
-
-    if (emptyState == AnalyticsEmptyState.noDataInRange) {
-      return NoSubmissionsInRangeState(
-        onClearFilter: () {
-          setState(() {
-            _selectedRange = const AnalyticsTimeRangeAll();
-            _selectedClassId = null;
-            _selectedClassName = null;
-          });
-        },
-      );
-    }
-
-    // noSkillData: show dashboard with basic metrics + placeholder for radar/line
-    final hasSkillData =
-        analytics.skillMasteries.isNotEmpty &&
+  Widget _buildContent(StudentAnalytics analytics) {
+    final hasSkillData = analytics.skillMasteries.isNotEmpty &&
         analytics.skillMasteries.any((s) => s.attempts > 0);
 
     return RefreshIndicator(
       onRefresh: () => ref
           .read(
-            studentAnalyticsNotifierProvider(
-              classId: _selectedClassId,
+            teacherStudentAnalyticsNotifierProvider(
+              studentId: widget.studentId,
+              classId: widget.classId,
               timeRange: _selectedRange,
             ).notifier,
           )
-          .refresh(classId: _selectedClassId, timeRange: _selectedRange),
+          .refresh(
+            studentId: widget.studentId,
+            classId: widget.classId,
+            timeRange: _selectedRange,
+          ),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.all(DesignSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Filter chip + current filter description
+            // Filter row (time range + class filter via bottom sheet)
             _buildFilterRow(),
             SizedBox(height: DesignSpacing.lg),
 
@@ -190,8 +126,8 @@ class _StudentAnalyticsScreenState
             _buildBasicMetrics(analytics.basicMetrics),
             SizedBox(height: DesignSpacing.lg),
 
-            // Group 2: Skill Map (Radar) - Core Feature
-            _buildSectionTitle('Kỹ năng của bạn'),
+            // Group 2: Skill Map (Radar)
+            _buildSectionTitle('Kỹ năng'),
             SizedBox(height: DesignSpacing.sm),
             if (hasSkillData)
               RadarSkillChart(skills: analytics.skillMasteries)
@@ -206,9 +142,7 @@ class _StudentAnalyticsScreenState
               StrengthWeaknessCard(
                 strengths: analytics.strengthsWeaknesses.strengths,
                 weaknesses: analytics.strengthsWeaknesses.weaknesses,
-                onWeaknessTap: (skillName) {
-                  context.pushNamed(AppRoute.studentAssignmentList);
-                },
+                onWeaknessTap: (_) {},
               )
             else
               _buildStrengthWeaknessPlaceholder(),
@@ -228,78 +162,26 @@ class _StudentAnalyticsScreenState
     );
   }
 
-  Widget _buildFilterRow() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AnalyticsFilterChip(
-          hasActiveFilter: _hasActiveFilter,
-          onTap: _showFilterBottomSheet,
-        ),
-        if (_hasActiveFilter) ...[
-          SizedBox(height: DesignSpacing.xs),
-          Padding(
-            padding: EdgeInsets.only(left: DesignSpacing.xs),
-            child: Text(
-              _filterDescription,
-              style: DesignTypography.caption.copyWith(
+  Widget _buildSkillMapPlaceholder() {
+    return SizedBox(
+      height: 300,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.analytics_outlined,
+              size: 48,
+              color: DesignColors.textSecondary,
+            ),
+            SizedBox(height: DesignSpacing.sm),
+            Text(
+              'Chưa có dữ liệu kỹ năng',
+              style: DesignTypography.bodyMedium.copyWith(
                 color: DesignColors.textSecondary,
               ),
             ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Future<void> _showFilterBottomSheet() async {
-    final result = await showAnalyticsFilterBottomSheet(
-      context: context,
-      ref: ref,
-      initialTimeRange: _selectedRange,
-      initialClassId: _selectedClassId,
-    );
-
-    if (result != null && mounted) {
-      setState(() {
-        _selectedRange = result.timeRange;
-        _selectedClassId = result.classId;
-        _selectedClassName = result.className;
-      });
-    }
-  }
-
-  Widget _buildSkillMapPlaceholder() {
-    return GestureDetector(
-      onTap: () => context.pushNamed(AppRoute.studentAssignmentList),
-      child: SizedBox(
-        height: 300,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.analytics_outlined,
-                size: 48,
-                color: DesignColors.textSecondary,
-              ),
-              SizedBox(height: DesignSpacing.sm),
-              Text(
-                'Chưa có dữ liệu kỹ năng',
-                style: DesignTypography.bodyMedium.copyWith(
-                  color: DesignColors.textSecondary,
-                ),
-              ),
-              SizedBox(height: DesignSpacing.xs),
-              Text(
-                'Hoàn thành nhiều bài tập hơn để xem biểu đồ kỹ năng',
-                style: DesignTypography.caption.copyWith(
-                  color: DesignColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -314,7 +196,7 @@ class _StudentAnalyticsScreenState
       ),
       child: Center(
         child: Text(
-          'Hoàn thành nhiều bài tập hơn để xem phân tích điểm mạnh/yếu',
+          'Chưa có dữ liệu phân tích điểm mạnh/yếu',
           style: DesignTypography.bodyMedium.copyWith(
             color: DesignColors.textSecondary,
           ),
@@ -366,8 +248,8 @@ class _StudentAnalyticsScreenState
               trendColor: metrics.trendDirection == TrendDirection.up
                   ? DesignColors.success
                   : metrics.trendDirection == TrendDirection.down
-                  ? DesignColors.error
-                  : DesignColors.textSecondary,
+                      ? DesignColors.error
+                      : DesignColors.textSecondary,
               trendText: _getTrendText(metrics.trendDirection),
             ),
             MetricCard(
@@ -416,5 +298,58 @@ class _StudentAnalyticsScreenState
   String _formatTime(int minutes) {
     if (minutes < 60) return '${minutes}m';
     return '${minutes ~/ 60}h ${minutes % 60}m';
+  }
+
+  String get _filterDescription {
+    final parts = <String>[];
+    if (_selectedRange is AnalyticsTimeRangeWeek) {
+      parts.add('Tuần này');
+    } else if (_selectedRange is AnalyticsTimeRangeMonth) {
+      parts.add('Tháng này');
+    } else if (_selectedRange is AnalyticsTimeRangeCustom) {
+      parts.add('Tùy chỉnh');
+    } else {
+      parts.add('Tất cả thời gian');
+    }
+    if (_selectedClassId != null) {
+      parts.add('Lớp đã chọn');
+    } else {
+      parts.add('Tất cả lớp');
+    }
+    return parts.join(' · ');
+  }
+
+  Future<void> _showFilterBottomSheet() async {
+    final result = await showAnalyticsFilterBottomSheet(
+      context: context,
+      ref: ref,
+      initialTimeRange: _selectedRange,
+      initialClassId: _selectedClassId,
+    );
+    if (result != null) {
+      setState(() {
+        _selectedRange = result.timeRange;
+        _selectedClassId = result.classId;
+      });
+    }
+  }
+
+  Widget _buildFilterRow() {
+    final hasActiveFilter = _selectedRange is! AnalyticsTimeRangeAll ||
+        _selectedClassId != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AnalyticsFilterChip(
+          onTap: _showFilterBottomSheet,
+          hasActiveFilter: hasActiveFilter,
+        ),
+        SizedBox(height: DesignSpacing.xs),
+        Text(
+          _filterDescription,
+          style: DesignTypography.bodySmall,
+        ),
+      ],
+    );
   }
 }

@@ -414,8 +414,6 @@ class AssignmentDataSource {
     String distributionId,
   ) async {
     try {
-      AppLogger.debug('🔵 [Datasource] getDistributionDetail: $distributionId');
-
       // Bước 1: Lấy distribution và assignment
       final distRes = await _client
           .from('assignment_distributions')
@@ -441,20 +439,9 @@ class AssignmentDataSource {
       final assignments = rawData['assignments'] as Map<String, dynamic>?;
       final assignmentId = assignments?['id'] as String?;
 
-      AppLogger.debug('🔵 [Datasource] assignmentId: $assignmentId');
-
       // Bước 2: Lấy câu hỏi của bài tập (nếu có assignment_id)
       List<Map<String, dynamic>> questions = [];
       if (assignmentId != null) {
-        // Thử query trực tiếp bảng questions trước
-        final questionsRes = await _client
-            .from('questions')
-            .select('id, type, content, default_points')
-            .limit(5);
-        AppLogger.debug(
-          '🔵 [Datasource] questions table sample: $questionsRes',
-        );
-
         // Lấy assignment_questions đơn giản trước
         final aqRes = await _client
             .from('assignment_questions')
@@ -464,15 +451,12 @@ class AssignmentDataSource {
             .eq('assignment_id', assignmentId)
             .order('order_idx');
 
-        AppLogger.debug('🔵 [Datasource] assignment_questions simple: $aqRes');
-
         // Nếu có assignment_questions, lấy chi tiết questions
         if ((aqRes as List).isNotEmpty) {
           final questionIds = (aqRes as List)
               .map((e) => e['question_id'] as String?)
               .whereType<String>()
               .toList();
-          AppLogger.debug('🔵 [Datasource] question_ids: $questionIds');
 
           // Lấy tất cả question_ids từ question bank (đã được lọc ở trên)
           final validQuestionIds = questionIds;
@@ -494,9 +478,7 @@ class AssignmentDataSource {
                   questionBankData[qId] = qDetail;
                 }
               } catch (e) {
-                AppLogger.debug(
-                  '🔵 [Datasource] Error fetching question $qId: $e',
-                );
+                // Silently ignore question fetch errors
               }
             }
           }
@@ -617,9 +599,6 @@ class AssignmentDataSource {
           }
         }
 
-        AppLogger.debug(
-          '🔵 [Datasource] final questions extracted: ${questions.length}',
-        );
       }
 
       // Build response với cấu trúc expected bởi UI
@@ -882,14 +861,6 @@ class AssignmentDataSource {
     String distributionId,
     String studentId,
   ) async {
-    AppLogger.debug('🔵 [SUBMIT] ===== START SUBMIT ASSIGNMENT =====');
-    AppLogger.debug(
-      '🔵 [SUBMIT] distributionId: $distributionId, studentId: $studentId',
-    );
-    AppLogger.debug(
-      '🔵 [SUBMIT] Timestamp: ${DateTime.now().toIso8601String()}',
-    );
-
     // Get session
     final session = await _client
         .from('work_sessions')
@@ -905,8 +876,6 @@ class AssignmentDataSource {
     final sessionId = session['id'] as String;
     final now = DateTime.now().toIso8601String();
     final submittedAt = DateTime.parse(now);
-
-    AppLogger.debug('🔵 [SUBMIT] sessionId: $sessionId');
 
     // ========== PRO I/O OPTIMIZATION ==========
     // 1️⃣ + 1.1 + 1.2: Parallel reads (no dependencies)
@@ -924,11 +893,6 @@ class AssignmentDataSource {
 
     final autosaveAnswers = await autosaveFuture;
     final distribution = await distributionFuture;
-
-    AppLogger.debug(
-      '🔵 [SUBMIT] autosaveAnswers count: ${autosaveAnswers.length}',
-    );
-    AppLogger.debug('🔵 [SUBMIT] autosaveAnswers: $autosaveAnswers');
 
     // Check if late
     bool isLate = false;
@@ -949,20 +913,13 @@ class AssignmentDataSource {
           .toSet() // Remove duplicates
           .toList();
 
-      AppLogger.debug('🔵 [SUBMIT] Loading question info for: $questionIds');
-
       if (questionIds.isNotEmpty) {
         // Get assignment_questions - DON'T use !inner join because question_id is NULL for custom questions
         // Type is in custom_content.type, not questions.type
-        AppLogger.debug('🔵 [SUBMIT] questionIds: $questionIds');
         final assignmentQuestions = await _client
             .from('assignment_questions')
             .select('id, points, question_id, custom_content')
             .inFilter('id', questionIds);
-
-        AppLogger.debug(
-          '🔵 [SUBMIT] Got ${assignmentQuestions.length} assignment_questions',
-        );
 
         // Get correct answers from question_choices (Cấp 2) - only for linked questions
         final questionIds2 = assignmentQuestions
@@ -1011,13 +968,6 @@ class AssignmentDataSource {
           final questionId = aq['question_id'] as String?;
           final customContent = aq['custom_content'] as Map<String, dynamic>?;
 
-          AppLogger.debug(
-            '🔵 [SUBMIT] Processing question: aqId=$aqId, questionId=$questionId',
-          );
-          AppLogger.debug(
-            '🔵 [SUBMIT]   customContent keys: ${customContent?.keys.toList()}',
-          );
-
           // Get question type - ưu tiên custom_content.type
           String questionType = 'multiple_choice';
           if (customContent != null && customContent['type'] != null) {
@@ -1050,9 +1000,6 @@ class AssignmentDataSource {
           if (customContent != null && choicesList != null) {
             // Lấy các choice có isCorrect = true từ custom_content.choices
             final choices = choicesList;
-            AppLogger.debug(
-              '🔵 [SUBMIT] Question $aqId: Found ${choices.length} choices in custom_content',
-            );
 
             final correctChoices = <int>[];
             for (final choice in choices) {
@@ -1061,23 +1008,15 @@ class AssignmentDataSource {
                   c['isCorrect'] == true || c['is_correct'] == true;
               final id = c['id'];
 
-              AppLogger.debug(
-                '🔵 [SUBMIT]   Choice: id=$id (${id.runtimeType}), isCorrect=$isCorrect',
-              );
-
               if (isCorrect) {
                 // id là int (0, 1, 2...) - matching với question_choices.id
                 if (id is int) {
                   correctChoices.add(id);
-                  AppLogger.debug('🔵 [SUBMIT]   → Added int id: $id');
                 } else if (id is String) {
                   // Fallback: parse String to int
                   final parsedId = int.tryParse(id);
                   if (parsedId != null) {
                     correctChoices.add(parsedId);
-                    AppLogger.debug(
-                      '🔵 [SUBMIT]   → Added parsed int id: $parsedId from String',
-                    );
                   } else {
                     AppLogger.warning(
                       '⚠️ [SUBMIT]   → Could not parse String id: $id',
@@ -1090,9 +1029,6 @@ class AssignmentDataSource {
                 }
               }
             }
-            AppLogger.debug(
-              '🔵 [SUBMIT] Question $aqId: Correct choices: $correctChoices',
-            );
             if (correctChoices.isNotEmpty) {
               correctAnswer = {'correct_choices': correctChoices};
             }
@@ -1134,9 +1070,6 @@ class AssignmentDataSource {
             }
           }
 
-          AppLogger.debug(
-            '🔵 [SUBMIT] Question $aqId: type=$questionType, points=$points, hasCorrectAnswer=${correctAnswer != null}',
-          );
           questionInfoMap[aqId] = {
             'type': questionType,
             'points': points,
@@ -1149,10 +1082,6 @@ class AssignmentDataSource {
     // 2️⃣ Save each answer to submission_answers + Auto-grade MCQ/True-False
     double totalMcqScore = 0;
 
-    AppLogger.debug(
-      '🔵 [SUBMIT] Auto-grading: ${autosaveAnswers.length} answers, questionInfoMap: ${questionInfoMap.length} questions',
-    );
-
     for (final aa in autosaveAnswers) {
       final questionId = aa['assignment_question_id'] as String?;
       if (questionId == null) continue;
@@ -1162,12 +1091,6 @@ class AssignmentDataSource {
       final questionType = qInfo?['type'] as String?;
       final points = (qInfo?['points'] as num?)?.toDouble() ?? 1.0;
       final correctAnswer = qInfo?['answer'] as Map<String, dynamic>?;
-
-      AppLogger.debug(
-        '🔵 [SUBMIT] Question $questionId: type=$questionType, points=$points, hasCorrectAnswer=${correctAnswer != null}',
-      );
-      AppLogger.debug('🔵 [SUBMIT]   Student answer: $studentAnswer');
-      AppLogger.debug('🔵 [SUBMIT]   Correct answer: $correctAnswer');
 
       // Validate question type
       if (questionType == null) {
@@ -1221,9 +1144,6 @@ class AssignmentDataSource {
           correctAnswer,
           points,
         );
-        AppLogger.debug(
-          '🔵 [SUBMIT] Graded: finalScore=$finalScore (maxPoints=$points)',
-        );
 
         if (finalScore == null) {
           AppLogger.warning(
@@ -1259,15 +1179,54 @@ class AssignmentDataSource {
       }
     }
 
-    // 3️⃣ Create submission record (CQRS - for fast queries)
-    AppLogger.debug('🔵 [SUBMIT] totalMcqScore: $totalMcqScore');
-    AppLogger.debug('🔵 [SUBMIT] isLate: $isLate');
-
-    // Schema now has both assignment_id (for AI backward compat) AND assignment_distribution_id (for fast queries)
+    // 2.5️⃣ Insert submission_answers cho các câu hỏi CHƯA trả lời (bỏ trống)
+    // Lấy toàn bộ assignment_questions cho assignment này
     final assignmentId = session['assignment_id'] as String?;
     if (assignmentId == null) {
       throw Exception('Assignment ID not found in session');
     }
+
+    final allAqRes = await _client
+        .from('assignment_questions')
+        .select('id, custom_content, points')
+        .eq('assignment_id', assignmentId);
+
+    // Tìm các question chưa có trong autosave
+    final answeredQuestionIds = autosaveAnswers
+        .map((aa) => aa['assignment_question_id'] as String?)
+        .whereType<String>()
+        .toSet();
+
+    for (final aq in allAqRes) {
+      final aqId = aq['id'] as String;
+      if (!answeredQuestionIds.contains(aqId)) {
+        // Câu này bị bỏ trống → insert empty answer
+        final customContent = aq['custom_content'] as Map<String, dynamic>?;
+        String questionType = customContent?['type'] as String? ?? 'essay';
+        // Normalize type
+        if (questionType == 'multipleChoice') questionType = 'multiple_choice';
+        if (questionType == 'trueFalse') questionType = 'true_false';
+
+        // Tạo empty answer phù hợp với loại câu hỏi
+        Map<String, dynamic> emptyAnswer;
+        if (questionType == 'multiple_choice' || questionType == 'true_false') {
+          emptyAnswer = {'selected_choice_ids': <dynamic>[]};
+        } else {
+          emptyAnswer = {'text': ''};
+        }
+
+        await _client.from('submission_answers').insert({
+          'session_id': sessionId,
+          'assignment_question_id': aqId,
+          'answer': emptyAnswer,
+          'final_score': 0,
+        });
+      }
+    }
+
+    // 3️⃣ Create submission record (CQRS - for fast queries)
+    // Schema now has both assignment_id (for AI backward compat) AND assignment_distribution_id (for fast queries)
+    // assignmentId already declared above (step 2.5)
 
     final existingSubmission = await _client
         .from('submissions')
@@ -1355,11 +1314,6 @@ class AssignmentDataSource {
           correctIds.add(correctAnswer['correct_choice'].toString());
         }
 
-        // Debug: Log comparison details
-        AppLogger.debug(
-          '🔵 [GRADING] MCQ: selectedIds=$selectedIds, correctIds=$correctIds, maxPoints=$maxPoints',
-        );
-
         // Exact match required
         if (selectedIds.isEmpty) {
           AppLogger.warning('⚠️ [GRADING] MCQ: No selected choices');
@@ -1373,9 +1327,6 @@ class AssignmentDataSource {
         final isCorrect =
             selectedIds.length == correctIds.length &&
             selectedIds.containsAll(correctIds);
-        AppLogger.debug(
-          '🔵 [GRADING] MCQ: isCorrect=$isCorrect, selected=${selectedIds.length}, correct=${correctIds.length}',
-        );
 
         return isCorrect ? maxPoints : 0;
       }
@@ -1412,11 +1363,6 @@ class AssignmentDataSource {
           }
         }
 
-        // Debug: Log comparison details
-        AppLogger.debug(
-          '🔵 [GRADING] TF: selectedChoices=$selectedChoices, correctChoices=$correctChoices, maxPoints=$maxPoints',
-        );
-
         if (selectedChoices.isEmpty) {
           AppLogger.warning('⚠️ [GRADING] TF: No selected choice');
           return 0;
@@ -1427,9 +1373,6 @@ class AssignmentDataSource {
         }
 
         final isCorrect = selectedChoices.first == correctChoices.first;
-        AppLogger.debug(
-          '🔵 [GRADING] TF: isCorrect=$isCorrect (selected="${selectedChoices.first}" vs correct="${correctChoices.first}")',
-        );
 
         return isCorrect ? maxPoints : 0;
       }

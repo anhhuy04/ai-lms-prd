@@ -90,9 +90,6 @@ class SchoolClassDataSource {
       // còn .order() trả về PostgrestTransformBuilder (không thể gọi filter methods)
       if (searchQuery != null && searchQuery.isNotEmpty) {
         final searchPattern = '%$searchQuery%';
-        AppLogger.debug(
-          '🔍 [DATASOURCE] getClassesByTeacherPaginated: Áp dụng search filter',
-        );
         // Supabase PostgREST OR syntax: 'field1.ilike.pattern,field2.ilike.pattern'
         query = query.or(
           'name.ilike.$searchPattern,subject.ilike.$searchPattern',
@@ -167,10 +164,6 @@ class SchoolClassDataSource {
         }
       }
 
-      AppLogger.debug(
-        '✅ [DATASOURCE] getClassesByTeacherPaginated: Query thành công - '
-        'page: $page, pageSize: $pageSize, results: ${results.length}',
-      );
       return results;
     } catch (e, stackTrace) {
       AppLogger.error(
@@ -182,166 +175,113 @@ class SchoolClassDataSource {
     }
   }
 
-  /// Lấy danh sách lớp học mà học sinh đã tham gia
+  /// Lấy danh sách lớp học mà học sinh đã tham gia.
+  ///
+  /// [approvedOnly] = true:  chỉ lớp đã duyệt (dùng cho analytics filter)
+  /// [approvedOnly] = false: tất cả lớp đã gửi yêu cầu, kể cả pending (dùng cho student class list)
   Future<List<Map<String, dynamic>>> getClassesByStudent(
-    String studentId,
-  ) async {
+    String studentId, {
+    bool approvedOnly = true,
+  }) async {
     try {
-      // 1. Lấy danh sách class_members với status = 'approved' hoặc 'pending'
-      final members = await _client
-          .from('class_members')
-          .select('class_id, status')
-          .eq('student_id', studentId)
-          .or('status.eq.approved,status.eq.pending');
-
-      if (members.isEmpty) {
-        return [];
+      // 1. Lấy class_members
+      List<dynamic> members;
+      if (approvedOnly) {
+        members = await _client
+            .from('class_members')
+            .select('class_id')
+            .eq('student_id', studentId)
+            .eq('status', 'approved');
+      } else {
+        members = await _client
+            .from('class_members')
+            .select('class_id, status')
+            .eq('student_id', studentId)
+            .or('status.eq.approved,status.eq.pending');
       }
 
-      // 2. Lấy danh sách class IDs và map trạng thái tham gia
+      if (members.isEmpty) return [];
+
+      // 2. Lấy class IDs + status (nếu không approvedOnly)
       final Map<String, String> memberStatusByClassId = {};
       final classIds = <String>[];
-      for (final m in members as List<dynamic>) {
+      for (final m in members) {
         final map = m as Map<String, dynamic>;
         final classId = map['class_id'] as String?;
-        final status = map['status']?.toString();
         if (classId == null) continue;
-        classIds.add(classId);
-        // Nếu có nhiều record, ưu tiên pending (đang chờ duyệt)
-        if (!memberStatusByClassId.containsKey(classId)) {
-          memberStatusByClassId[classId] = status ?? 'approved';
-        } else if (status == 'pending') {
-          memberStatusByClassId[classId] = 'pending';
+        if (!classIds.contains(classId)) {
+          classIds.add(classId);
+          if (!approvedOnly) {
+            memberStatusByClassId[classId] = (map['status']?.toString() ?? 'approved');
+          }
         }
       }
 
-      if (classIds.isEmpty) {
-        return [];
-      }
+      if (classIds.isEmpty) return [];
 
-      // 3. Lấy thông tin các lớp học theo list ID
+      // 3. Lấy thông tin lớp
       var query = _client.from('classes').select();
-
-      // Sử dụng OR filter cho nhiều IDs
       query = _applyOrFilter(query, 'id', classIds);
-
-      final classesResponse = await (query as dynamic).order(
-        'created_at',
-        ascending: false,
-      );
       final classes = List<Map<String, dynamic>>.from(
-        classesResponse as List<dynamic>,
+        (await (query as dynamic).order('created_at', ascending: false)) as List<dynamic>,
       );
 
-      if (classes.isEmpty) {
-        return [];
-      }
+      if (classes.isEmpty) return [];
 
-      // 4. Enrich dữ liệu: map thêm teacher_name và student_count
-      // 4.1. Lấy danh sách teacher_id và class_id duy nhất
+      // 4. Enrich: teacher_name + student_count (+ member_status nếu cần)
       final teacherIds = classes
-          .map((c) => c['teacher_id'])
-          .where((id) => id is String && id.isNotEmpty)
+          .map((c) => c['teacher_id'] as String?)
+          .where((id) => id != null && id.isNotEmpty)
           .cast<String>()
           .toSet()
           .toList();
 
-      final uniqueClassIds = classes
-          .map((c) => c['id'])
-          .where((id) => id is String && id.isNotEmpty)
-          .cast<String>()
-          .toSet()
-          .toList();
-
-      // 4.2. Query profiles để lấy tên giáo viên
       Map<String, String> teacherNameById = {};
       if (teacherIds.isNotEmpty) {
         try {
           var profilesQuery = _client.from('profiles').select('id, full_name');
-
-          // Sử dụng OR filter cho nhiều teacher_id
           profilesQuery = _applyOrFilter(profilesQuery, 'id', teacherIds);
-
-          final profilesResponse = await profilesQuery;
-
-          for (final p in profilesResponse as List<dynamic>) {
-            final map = p as Map<String, dynamic>;
-            final id = map['id'] as String?;
-            final fullName = map['full_name']?.toString();
+          for (final p in await profilesQuery as List<dynamic>) {
+            final id = p['id'] as String?;
+            final fullName = p['full_name'] as String?;
             if (id != null && fullName != null && fullName.isNotEmpty) {
               teacherNameById[id] = fullName;
             }
           }
-        } catch (e, stackTrace) {
-          AppLogger.error(
-            '🔴 [DATASOURCE ERROR] getClassesByStudent: Lỗi khi lấy tên giáo viên: $e',
-            error: e,
-            stackTrace: stackTrace,
-          );
-          // Không throw để không block luồng chính, chỉ bỏ qua teacher_name
-        }
+        } catch (_) {}
       }
 
-      // 4.3. Query class_members để đếm tổng số học sinh đã duyệt cho mỗi lớp
       Map<String, int> studentCountByClassId = {};
-      if (uniqueClassIds.isNotEmpty) {
-        try {
-          var membersQuery = _client
-              .from('class_members')
-              .select('class_id')
-              .eq('status', 'approved');
-
-          // OR filter cho nhiều class_id
-          membersQuery = _applyOrFilter(
-            membersQuery,
-            'class_id',
-            uniqueClassIds,
-          );
-
-          final membersResponse = await membersQuery;
-
-          for (final m in membersResponse as List<dynamic>) {
-            final map = m as Map<String, dynamic>;
-            final id = map['class_id'] as String?;
-            if (id == null) continue;
+      try {
+        var membersQuery = _client
+            .from('class_members')
+            .select('class_id')
+            .eq('status', 'approved');
+        membersQuery = _applyOrFilter(membersQuery, 'class_id', classIds);
+        for (final m in await membersQuery as List<dynamic>) {
+          final id = m['class_id'] as String?;
+          if (id != null) {
             studentCountByClassId[id] = (studentCountByClassId[id] ?? 0) + 1;
           }
-        } catch (e, stackTrace) {
-          AppLogger.error(
-            '🔴 [DATASOURCE ERROR] getClassesByStudent: Lỗi khi đếm số học sinh: $e',
-            error: e,
-            stackTrace: stackTrace,
-          );
-          // Không throw để không block luồng chính, chỉ bỏ qua student_count
         }
-      }
+      } catch (_) {}
 
-      // 4.4. Merge dữ liệu enrich vào từng class
-      final enrichedClasses = classes.map((c) {
+      return classes.map((c) {
         final classId = c['id'] as String?;
         final teacherId = c['teacher_id'] as String?;
-        final teacherName = teacherId != null
-            ? teacherNameById[teacherId]
-            : null;
-        final studentCount = classId != null
-            ? (studentCountByClassId[classId] ?? 0)
-            : 0;
-        final memberStatus = classId != null
-            ? memberStatusByClassId[classId]
-            : null;
-
-        return <String, dynamic>{
+        final result = <String, dynamic>{
           ...c,
-          'teacher_name': teacherName,
-          'student_count': studentCount,
-          'member_status': memberStatus,
+          'teacher_name': teacherId != null ? teacherNameById[teacherId] : null,
+          'student_count': classId != null ? (studentCountByClassId[classId] ?? 0) : 0,
         };
+        if (!approvedOnly) {
+          result['member_status'] = classId != null ? memberStatusByClassId[classId] : null;
+        }
+        return result;
       }).toList();
-
-      return enrichedClasses;
     } catch (e, stackTrace) {
       AppLogger.error(
-        '🔴 [DATASOURCE ERROR] getClassesByStudent(studentId: $studentId): $e',
+        '🔴 [DATASOURCE ERROR] getClassesByStudent(studentId: $studentId, approvedOnly: $approvedOnly): $e',
         error: e,
         stackTrace: stackTrace,
       );

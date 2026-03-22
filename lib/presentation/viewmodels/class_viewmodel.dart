@@ -169,7 +169,7 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
     _setError(null);
 
     try {
-      _classes = await _repository.getClassesByStudent(studentId);
+      _classes = await _repository.getClassesByStudent(studentId, approvedOnly: false);
       // Clear error khi thành công (dù có dữ liệu hay không)
       _setError(null);
       _setLoading(false);
@@ -297,8 +297,6 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
     _setError(null);
 
     try {
-      AppLogger.debug('🟢 [VIEWMODEL] deleteClass: Bắt đầu xóa lớp học $classId');
-      
       // Kiểm tra xem lớp có tồn tại trong danh sách không
       final classExists = _classes.any((c) => c.id == classId) || 
                          _selectedClass?.id == classId;
@@ -312,17 +310,11 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
       );
 
       // Xóa khỏi danh sách
-      final beforeCount = _classes.length;
       _classes.removeWhere((c) => c.id == classId);
-      final afterCount = _classes.length;
-      AppLogger.debug(
-        '🟢 [VIEWMODEL] deleteClass: Đã xóa ${beforeCount - afterCount} lớp khỏi danh sách (trước: $beforeCount, sau: $afterCount)',
-      );
 
       // Xóa selected class nếu đang được chọn
       if (_selectedClass?.id == classId) {
         _selectedClass = null;
-        AppLogger.debug('🟢 [VIEWMODEL] deleteClass: Đã clear selected class');
       }
 
       _setDeleting(false);
