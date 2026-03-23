@@ -865,6 +865,48 @@ List<ClassNode> get _paginatedData {
 - **Input Validation:** Validate all user input before sending to backend
 - **API Rate Limiting:** Prevent spam; implement debouncing for frequent operations
 
+### Phase 04 Learning Analytics — Critical File Registry (2026-03-23)
+
+**QUAN TRỌNG:** 4 files sau được plan trong Phase 04 nhưng bị xoá trước khi commit. Đã restore và verify ĐÚNG. KHÔNG xoá hoặc di chuyển.
+
+#### 1. `lib/core/utils/score_display_utils.dart`
+- **Type:** Utility class
+- **Purpose:** Format scores for /10 scale display in analytics
+- **API:** `ScoreDisplayUtils.toRawString(double score)` → `String` (1 decimal place)
+- **Used by:**
+  - `student_analytics_screen.dart:364` → `ScoreDisplayUtils.toRawString(metrics.avgScore)`
+  - `teacher_analytics_screen.dart:161` → `ScoreDisplayUtils.toRawString(analytics.classAverage)`
+  - `teacher_student_analytics_screen.dart:246` → `ScoreDisplayUtils.toRawString(metrics.avgScore)`
+
+#### 2. `lib/presentation/views/grading/widgets/analytics/empty_states/no_submissions_in_range.dart`
+- **Type:** Empty state widget
+- **Purpose:** Shown when student has submissions but none fall within selected time range filter
+- **Class:** `NoSubmissionsInRangeState({VoidCallback? onClearFilter})`
+- **Usage:** `student_analytics_screen.dart` import + instantiation when `AnalyticsEmptyState.noDataInRange`
+- **Design:** SizedBox 300.h to match radar chart height (prevent layout shift)
+- **Enum dependency:** `AnalyticsEmptyState.noDataInRange` in `analytics_providers.dart`
+
+#### 3. `lib/presentation/views/grading/widgets/analytics/teacher/charts/grade_distribution_heatmap.dart`
+- **Type:** Chart widget (heatmap grid)
+- **Purpose:** Grade distribution heatmap for teacher analytics — rows=subjects, columns=score buckets (0-4, 4-6, 6-8, 8-10)
+- **Class:** `GradeDistributionHeatmap({List<SubjectDistribution>? subjects, double height})`
+- **Nested class:** `SubjectDistribution({required String subjectName, int below50Count, int below60Count, int below80Count, int above80Count})`
+- **Colors:** 0-4=red, 4-6=amber, 6-8=orange, 8-10=green
+- **Usage:** `teacher_analytics_screen.dart:316` → `GradeDistributionHeatmap(subjects: analytics.subjectDistributions)`
+- **Import path:** `widgets/analytics/teacher/charts/grade_distribution_heatmap.dart` (NOT `analytics/charts/`)
+
+#### 4. `lib/presentation/views/assignment/teacher/teacher_grading_hub_screen.dart`
+- **Type:** Screen (ATC Dashboard)
+- **Purpose:** Central teacher grading hub — shows stats (ungraded/graded/total), submission filter chips, distributions list, quick actions
+- **Route:** `AppRoute.teacherGrading` = `/teacher/grading`
+- **Provider:** `teacherAssignmentHubNotifierProvider` (from `teacher_assignment_hub_notifier.dart`)
+- **State:** `TeacherAssignmentHubState` (statistics, recentActivities, assignments, distributions)
+- **Key widgets:** `StatisticsCard`, `SubmissionFilterChips` (enum `SubmissionFilter` from `teacher_submission_providers.dart`), `_DistributionGradingCard`, `_QuickActionCard`
+- **Nav dependencies:**
+  - `AppRoute.teacherSubmissionList` → submission list
+  - `AppRoute.teacherAnalyticsOverview` → analytics
+- **Entity dependency:** `AssignmentStatistics` from `domain/entities/assignment_statistics.dart` (fields: ungraded, graded, totalAssignments)
+
 ### Supabase RLS Conventions (Updated 2026-01-30)
 - **auth.uid() pattern:** Trong mọi policy mới, LUÔN dùng `(select auth.uid())` thay vì `auth.uid()` trực tiếp (theo Supabase advisor) để tránh re-evaluate per-row.
 - **Core tables RLS:** Tất cả bảng `public` liên quan lớp & permission (**profiles, classes, schools, groups, class_teachers, class_members, group_members**) phải bật RLS và có policy:

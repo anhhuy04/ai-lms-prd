@@ -6,21 +6,27 @@
   "phase_dir": "04-learning-analytics-debug",
   "plan": 1,
   "task": 1,
-  "total_tasks": 1,
+  "total_tasks": 8,
   "status": "in_progress",
   "completed_tasks": [
     {
       "id": 1,
-      "name": "Restore 4 missing/empty files from Phase 04",
+      "name": "Restore 4 missing/empty Phase 04 files + verify correctness",
       "status": "done",
-      "details": "Created score_display_utils.dart, no_submissions_in_range.dart, grade_distribution_heatmap.dart, teacher_grading_hub_screen.dart"
+      "commit": "871e24c",
+      "verification": {
+        "score_display_utils.dart": "VERIFIED - toRawString() API matches all 3 usages",
+        "no_submissions_in_range.dart": "VERIFIED - class name + params match student_analytics_screen.dart",
+        "grade_distribution_heatmap.dart": "VERIFIED - widget constructor + SubjectDistribution class match teacher_analytics_screen.dart",
+        "teacher_grading_hub_screen.dart": "VERIFIED - TeacherGradingHubScreen class + route + provider all match app_router.dart + notifier"
+      }
     }
   ],
   "remaining_tasks": [
-    {"id": 2, "name": "Fix analytics_datasource.dart - WorstOffender, SubjectDistribution undefined (16 errors)", "status": "not_started"},
+    {"id": 2, "name": "Fix analytics_datasource.dart - WorstOffender, SubjectDistribution (16 errors)", "status": "not_started"},
     {"id": 3, "name": "Fix analytics_providers.dart - @riverpod broken (6 errors)", "status": "not_started"},
     {"id": 4, "name": "Fix scores_screen.dart - DesignColors missing getters (5 errors)", "status": "not_started"},
-    {"id": 5, "name": "Fix teacher_analytics_screen.dart - ClassOverviewCard params, missing providers (15 errors)", "status": "not_started"},
+    {"id": 5, "name": "Fix teacher_analytics_screen.dart - ClassOverviewCard params + missing providers (15 errors)", "status": "not_started"},
     {"id": 6, "name": "Fix student_analytics_screen.dart - @riverpod invocation broken (4 errors)", "status": "not_started"},
     {"id": 7, "name": "Fix teacher_student_analytics_screen.dart - missing provider (3 errors)", "status": "not_started"},
     {"id": 8, "name": "Fix remaining - grade_audit_trail.dart, class_viewmodel.dart, lateCount, routes (6 errors)", "status": "not_started"}
@@ -29,16 +35,10 @@
   "human_actions_pending": [],
   "decisions": [
     {"decision": "4 missing files are root cause of cascading errors", "rationale": "flutter analyze: 63 errors → 55 errors after restoring 4 files", "phase": "04-debug"},
-    {"decision": "grade_distribution_heatmap.dart location: lib/presentation/views/grading/widgets/analytics/teacher/charts/", "rationale": "teacher_analytics_screen.dart imports from 'teacher/charts/' path", "phase": "04-debug"},
-    {"decision": "SubjectDistribution defined locally in heatmap file", "rationale": "analytics_datasource.dart references SubjectDistribution but entity doesn't exist", "phase": "04-debug"}
+    {"decision": "All 4 files verified CORRECT - APIs, class names, params, routes, providers all match consumers", "rationale": "Cross-referenced all usages; all imports, constructors, enums match", "phase": "04-debug"},
+    {"decision": "SubjectDistribution defined LOCALLY inside grade_distribution_heatmap.dart", "rationale": "analytics_datasource.dart references it but entity doesn't exist in domain layer", "phase": "04-debug"}
   ],
-  "uncommitted_files": [
-    "lib/core/utils/score_display_utils.dart (NEW)",
-    "lib/presentation/views/assignment/teacher/teacher_grading_hub_screen.dart (NEW - existed but empty, now has content)",
-    "lib/presentation/views/grading/widgets/analytics/charts/grade_distribution_heatmap.dart (NEW - WRONG PATH, delete this)",
-    "lib/presentation/views/grading/widgets/analytics/empty_states/no_submissions_in_range.dart (NEW)",
-    "lib/presentation/views/grading/widgets/analytics/teacher/charts/grade_distribution_heatmap.dart (NEW - correct path)"
-  ],
-  "next_action": "flutter analyze → fix remaining 55 errors in dependency order: entity fields → datasource → providers → screens",
-  "context_notes": "Phase 04 COMPLETE but 4 files got deleted before commit. Files existed in working tree but were never committed. flutter analyze was run: 63 errors total, restored 4 files reduced to 55 errors. Root cause: files were local-only, never git committed. Remaining errors are pre-existing bugs in data layer + entity mismatches."
+  "uncommitted_files": [],
+  "next_action": "flutter analyze to confirm 55 errors, then fix Task 2 (analytics_datasource.dart - 16 errors) first (lowest dependency level)",
+  "context_notes": "Phase 04 COMPLETE but 4 files got deleted before commit. All 4 files restored and verified correct against all usages. 55 remaining errors are pre-existing bugs in data layer + entity mismatches. All verified in memory-bank/systemPatterns.md Phase 04 section. Session paused - user will resume with /gsd:debug"
 }
