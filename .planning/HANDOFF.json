@@ -1,44 +1,66 @@
 {
   "version": "1.0",
-  "timestamp": "2026-03-23T03:44:43.379Z",
+  "timestamp": "2026-03-23T04:41:16.480Z",
   "phase": "04-debug",
   "phase_name": "learning-analytics-debug",
   "phase_dir": "04-learning-analytics-debug",
   "plan": 1,
-  "task": 1,
+  "task": 3,
   "total_tasks": 8,
-  "status": "in_progress",
+  "status": "paused",
   "completed_tasks": [
     {
       "id": 1,
       "name": "Restore 4 missing/empty Phase 04 files + verify correctness",
       "status": "done",
       "commit": "871e24c",
-      "verification": {
-        "score_display_utils.dart": "VERIFIED - toRawString() API matches all 3 usages",
-        "no_submissions_in_range.dart": "VERIFIED - class name + params match student_analytics_screen.dart",
-        "grade_distribution_heatmap.dart": "VERIFIED - widget constructor + SubjectDistribution class match teacher_analytics_screen.dart",
-        "teacher_grading_hub_screen.dart": "VERIFIED - TeacherGradingHubScreen class + route + provider all match app_router.dart + notifier"
-      }
+      "verification": "VERIFIED - 4 files restored"
+    },
+    {
+      "id": 2,
+      "name": "Fix analytics_datasource.dart, class_analytics entity, SubjectDistribution, WorstOffender Freezed types",
+      "status": "done",
+      "note": "Partial - entity + datasource + ClassOverviewCard updated"
+    },
+    {
+      "id": 3,
+      "name": "Fix analytics_providers.dart - regenerated .g.dart with build_runner",
+      "status": "done",
+      "note": "TeachersStudentAnalyticsNotifier + analyticsEmptyStateProvider + teacherClassesForAnalytics regenerated"
     }
   ],
   "remaining_tasks": [
-    {"id": 2, "name": "Fix analytics_datasource.dart - WorstOffender, SubjectDistribution (16 errors)", "status": "not_started"},
-    {"id": 3, "name": "Fix analytics_providers.dart - @riverpod broken (6 errors)", "status": "not_started"},
-    {"id": 4, "name": "Fix scores_screen.dart - DesignColors missing getters (5 errors)", "status": "not_started"},
-    {"id": 5, "name": "Fix teacher_analytics_screen.dart - ClassOverviewCard params + missing providers (15 errors)", "status": "not_started"},
-    {"id": 6, "name": "Fix student_analytics_screen.dart - @riverpod invocation broken (4 errors)", "status": "not_started"},
-    {"id": 7, "name": "Fix teacher_student_analytics_screen.dart - missing provider (3 errors)", "status": "not_started"},
-    {"id": 8, "name": "Fix remaining - grade_audit_trail.dart, class_viewmodel.dart, lateCount, routes (6 errors)", "status": "not_started"}
+    {"id": 4, "name": "scores_screen.dart - 2 errors (provider invocations fixed)", "status": "done"},
+    {"id": 5, "name": "grade_distribution_heatmap.dart - import path fixed, SubjectDistribution imported from class_analytics.dart", "status": "done"},
+    {"id": 6, "name": "teacher_analytics_screen.dart - ClassOverviewCard call + TeacherStudentAnalyticsScreen import + MaterialPageRoute navigation", "status": "done"},
+    {"id": 7, "name": "Fix 6 remaining errors", "status": "in_progress", "progress": "Down from 77 to 3 errors"}
   ],
-  "blockers": [],
+  "blockers": [
+    {
+      "description": "3 analyzer errors remain that need fixing",
+      "type": "technical",
+      "workaround": "All context gathered - next session just needs to fix last 3 errors"
+    }
+  ],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "4 missing files are root cause of cascading errors", "rationale": "flutter analyze: 63 errors → 55 errors after restoring 4 files", "phase": "04-debug"},
-    {"decision": "All 4 files verified CORRECT - APIs, class names, params, routes, providers all match consumers", "rationale": "Cross-referenced all usages; all imports, constructors, enums match", "phase": "04-debug"},
-    {"decision": "SubjectDistribution defined LOCALLY inside grade_distribution_heatmap.dart", "rationale": "analytics_datasource.dart references it but entity doesn't exist in domain layer", "phase": "04-debug"}
+    {"decision": "Created GradeAuditTrail widget at lib/presentation/views/assignment/teacher/widgets/submission/grade_audit_trail.dart", "rationale": "Missing file that teacher_submission_detail_screen.dart imports", "phase": "04-debug"},
+    {"decision": "Added gradeOverrideHistoryProvider to teacher_submission_providers.dart - accidentally placed INSIDE SubmissionGradingNotifier class first, then moved out", "rationale": "Need provider at top-level scope", "phase": "04-debug"},
+    {"decision": "Fixed classOverviewCard to accept all params (totalSubmissions required, submissionRate/lateSubmissionRate/lateSubmissionCount/lateSubmissionTotal/worstOffenderName/worstOffenderCount all optional", "rationale": "Match datasource return values", "phase": "04-debug"},
+    {"decision": "Used MaterialPageRoute instead of GoRouter for TeacherStudentAnalyticsScreen navigation", "rationale": "Simpler, no router changes needed", "phase": "04-debug"},
+    {"decision": "Package imports for heatmap file (ai_mls/core/constants/...)", "rationale": "Relative path depth hard to calculate correctly", "phase": "04-debug"},
+    {"decision": "Freezed-ize SubjectDistribution and WorstOffender classes", "rationale": "Freezed can't auto-serialize plain classes", "phase": "04-debug"}
   ],
-  "uncommitted_files": [],
-  "next_action": "flutter analyze to confirm 55 errors, then fix Task 2 (analytics_datasource.dart - 16 errors) first (lowest dependency level)",
-  "context_notes": "Phase 04 COMPLETE but 4 files got deleted before commit. All 4 files restored and verified correct against all usages. 55 remaining errors are pre-existing bugs in data layer + entity mismatches. All verified in memory-bank/systemPatterns.md Phase 04 section. Session paused - user will resume with /gsd:debug"
+  "uncommitted_files": [
+    "lib/domain/entities/analytics/class_analytics.dart",
+    "lib/data/datasources/analytics_datasource.dart",
+    "lib/presentation/views/grading/widgets/analytics/teacher/cards/class_overview_card.dart",
+    "lib/presentation/providers/teacher_submission_providers.dart",
+    "lib/presentation/views/assignment/teacher/widgets/submission/grade_audit_trail.dart (new file)",
+    "lib/presentation/providers/analytics_providers.g.dart",
+    "lib/presentation/providers/teacher_submission_providers.g.dart",
+    "lib/domain/entities/assignment_distribution.dart (may have stray edits)"
+  ],
+  "next_action": "flutter analyze → fix last 3 errors: lateCount in teacher_class_submission_list_screen, gradeOverrideHistoryProvider in teacher_submission_detail_screen, onViewAnalytics in student_class_detail_screen → then /gsd:plan-phase 5 for Phase 05",
+  "context_notes": "77 errors → 3 errors. Root cause: Phase 04 datasource + entity + providers were out of sync. Fixed systematically: entity fields added, datasource updated, ClassOverviewCard expanded, imports fixed, provider methods created. 3 errors remain: lateCount getter in AssignmentDistribution, gradeOverrideHistoryProvider method placement, onViewAnalytics param. All context ready for next session."
 }
