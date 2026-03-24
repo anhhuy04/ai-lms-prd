@@ -24,14 +24,14 @@ class NoSubmissionsInRangeState extends StatelessWidget {
             ),
             SizedBox(height: DesignSpacing.md),
             Text(
-              'Khong co bai nop trong khoang thoi gian nay',
+              'Không có bài nộp trong khoảng thời gian này',
               style: DesignTypography.titleMedium,
             ),
             SizedBox(height: DesignSpacing.sm),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: DesignSpacing.xl),
               child: Text(
-                'Thay doi khoang thoi gian hoac chon "Tat ca" de xem tat ca bai nop.',
+                'Thay đổi khoảng thời gian hoặc chọn "Tất cả" để xem tất cả bài nộp.',
                 style: DesignTypography.bodyMedium.copyWith(
                   color: DesignColors.textSecondary,
                 ),
@@ -42,7 +42,7 @@ class NoSubmissionsInRangeState extends StatelessWidget {
               SizedBox(height: DesignSpacing.lg),
               TextButton(
                 onPressed: onClearFilter,
-                child: const Text('Xoa bo loc'),
+                child: const Text('Xóa bộ lọc'),
               ),
             ],
           ],

@@ -27,7 +27,7 @@ final analyticsDatasourceProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef AnalyticsDatasourceRef = AutoDisposeProviderRef<AnalyticsDatasource>;
-String _$skillMasteryHash() => r'989be9834842868bab99d5c7afa100d6ba09b787';
+String _$skillMasteryHash() => r'8076d4ffebbd37469e39256a394449c0522dd28e';
 
 /// Skill Mastery Provider (ANL-04 - for radar chart)
 ///
@@ -47,7 +47,7 @@ final skillMasteryProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef SkillMasteryRef = AutoDisposeFutureProviderRef<List<SkillMastery>>;
-String _$gradeTrendsHash() => r'9a659a95d283229f09e557722b21a006516ead9e';
+String _$gradeTrendsHash() => r'057d0651d0d1a59980bdea9f9349f5f0802e530a';
 
 /// Grade Trends Provider (ANL-03 - for line chart)
 ///
@@ -67,7 +67,7 @@ final gradeTrendsProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef GradeTrendsRef = AutoDisposeFutureProviderRef<List<GradeTrend>>;
-String _$classAnalyticsHash() => r'104b8d356e9303ba0c1fcba8807159753a72805d';
+String _$classAnalyticsHash() => r'40f38c2f0a23074c9d24aa6a8b5264d81b849e80';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -221,7 +221,7 @@ class _ClassAnalyticsProviderElement
 }
 
 String _$studentClassComparisonHash() =>
-    r'8a3999b93603e647e93f33f8111b84add496c4b4';
+    r'f9130a36c0d11e316c8840ffc0d6fe698cbaa9fe';
 
 /// Class Comparison Provider - compares student to class average
 ///
@@ -358,47 +358,611 @@ class _StudentClassComparisonProviderElement
 }
 
 String _$analyticsEmptyStateHash() =>
-    r'03c920b7f6bce53a7b11f71e6a88b33748302fe0';
+    r'884ba5c1d1f22e90a4a14a9af7ddbb18c5da11cf';
 
 /// Empty state detection for analytics
 ///
 /// Copied from [analyticsEmptyState].
 @ProviderFor(analyticsEmptyState)
-final analyticsEmptyStateProvider =
-    AutoDisposeProvider<AnalyticsEmptyState>.internal(
-      analyticsEmptyState,
-      name: r'analyticsEmptyStateProvider',
+const analyticsEmptyStateProvider = AnalyticsEmptyStateFamily();
+
+/// Empty state detection for analytics
+///
+/// Copied from [analyticsEmptyState].
+class AnalyticsEmptyStateFamily extends Family<AnalyticsEmptyState> {
+  /// Empty state detection for analytics
+  ///
+  /// Copied from [analyticsEmptyState].
+  const AnalyticsEmptyStateFamily();
+
+  /// Empty state detection for analytics
+  ///
+  /// Copied from [analyticsEmptyState].
+  AnalyticsEmptyStateProvider call({
+    String? classId,
+    AnalyticsTimeRange timeRange = const AnalyticsTimeRangeAll(),
+  }) {
+    return AnalyticsEmptyStateProvider(classId: classId, timeRange: timeRange);
+  }
+
+  @override
+  AnalyticsEmptyStateProvider getProviderOverride(
+    covariant AnalyticsEmptyStateProvider provider,
+  ) {
+    return call(classId: provider.classId, timeRange: provider.timeRange);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'analyticsEmptyStateProvider';
+}
+
+/// Empty state detection for analytics
+///
+/// Copied from [analyticsEmptyState].
+class AnalyticsEmptyStateProvider
+    extends AutoDisposeProvider<AnalyticsEmptyState> {
+  /// Empty state detection for analytics
+  ///
+  /// Copied from [analyticsEmptyState].
+  AnalyticsEmptyStateProvider({
+    String? classId,
+    AnalyticsTimeRange timeRange = const AnalyticsTimeRangeAll(),
+  }) : this._internal(
+         (ref) => analyticsEmptyState(
+           ref as AnalyticsEmptyStateRef,
+           classId: classId,
+           timeRange: timeRange,
+         ),
+         from: analyticsEmptyStateProvider,
+         name: r'analyticsEmptyStateProvider',
+         debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+             ? null
+             : _$analyticsEmptyStateHash,
+         dependencies: AnalyticsEmptyStateFamily._dependencies,
+         allTransitiveDependencies:
+             AnalyticsEmptyStateFamily._allTransitiveDependencies,
+         classId: classId,
+         timeRange: timeRange,
+       );
+
+  AnalyticsEmptyStateProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.classId,
+    required this.timeRange,
+  }) : super.internal();
+
+  final String? classId;
+  final AnalyticsTimeRange timeRange;
+
+  @override
+  Override overrideWith(
+    AnalyticsEmptyState Function(AnalyticsEmptyStateRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: AnalyticsEmptyStateProvider._internal(
+        (ref) => create(ref as AnalyticsEmptyStateRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        classId: classId,
+        timeRange: timeRange,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeProviderElement<AnalyticsEmptyState> createElement() {
+    return _AnalyticsEmptyStateProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is AnalyticsEmptyStateProvider &&
+        other.classId == classId &&
+        other.timeRange == timeRange;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, classId.hashCode);
+    hash = _SystemHash.combine(hash, timeRange.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin AnalyticsEmptyStateRef on AutoDisposeProviderRef<AnalyticsEmptyState> {
+  /// The parameter `classId` of this provider.
+  String? get classId;
+
+  /// The parameter `timeRange` of this provider.
+  AnalyticsTimeRange get timeRange;
+}
+
+class _AnalyticsEmptyStateProviderElement
+    extends AutoDisposeProviderElement<AnalyticsEmptyState>
+    with AnalyticsEmptyStateRef {
+  _AnalyticsEmptyStateProviderElement(super.provider);
+
+  @override
+  String? get classId => (origin as AnalyticsEmptyStateProvider).classId;
+  @override
+  AnalyticsTimeRange get timeRange =>
+      (origin as AnalyticsEmptyStateProvider).timeRange;
+}
+
+String _$teacherClassesForAnalyticsHash() =>
+    r'e2931c4f8e10a954d2f8dc40e50c298c26465a29';
+
+/// Provider lấy danh sách lớp của giáo viên hiện tại (dùng cho TeacherAnalyticsScreen)
+///
+/// Copied from [teacherClassesForAnalytics].
+@ProviderFor(teacherClassesForAnalytics)
+final teacherClassesForAnalyticsProvider =
+    AutoDisposeFutureProvider<List<Class>>.internal(
+      teacherClassesForAnalytics,
+      name: r'teacherClassesForAnalyticsProvider',
       debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
           ? null
-          : _$analyticsEmptyStateHash,
+          : _$teacherClassesForAnalyticsHash,
       dependencies: null,
       allTransitiveDependencies: null,
     );
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef AnalyticsEmptyStateRef = AutoDisposeProviderRef<AnalyticsEmptyState>;
+typedef TeacherClassesForAnalyticsRef =
+    AutoDisposeFutureProviderRef<List<Class>>;
+String _$studentClassesForAnalyticsHash() =>
+    r'aa2848d88e81ad3e840f7ef36a6a4c1b644ebce9';
+
+/// Provider lấy danh sách lớp học sinh đã tham gia (dùng cho StudentAnalyticsScreen filter)
+///
+/// Copied from [studentClassesForAnalytics].
+@ProviderFor(studentClassesForAnalytics)
+final studentClassesForAnalyticsProvider =
+    AutoDisposeFutureProvider<List<Class>>.internal(
+      studentClassesForAnalytics,
+      name: r'studentClassesForAnalyticsProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$studentClassesForAnalyticsHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef StudentClassesForAnalyticsRef =
+    AutoDisposeFutureProviderRef<List<Class>>;
 String _$studentAnalyticsNotifierHash() =>
-    r'd3c8125a729b55c15fbf99fac1f258dc4d3956e4';
+    r'e8d69719f5c6491f5851545c94ad9730c14dc796';
+
+abstract class _$StudentAnalyticsNotifier
+    extends BuildlessAutoDisposeAsyncNotifier<StudentAnalytics> {
+  late final String? classId;
+  late final AnalyticsTimeRange timeRange;
+
+  FutureOr<StudentAnalytics> build({
+    String? classId,
+    AnalyticsTimeRange timeRange = const AnalyticsTimeRangeAll(),
+  });
+}
 
 /// Student Analytics Provider (ANL-01, ANL-03, ANL-04)
 ///
 /// Copied from [StudentAnalyticsNotifier].
 @ProviderFor(StudentAnalyticsNotifier)
-final studentAnalyticsNotifierProvider =
-    AutoDisposeAsyncNotifierProvider<
-      StudentAnalyticsNotifier,
-      StudentAnalytics
-    >.internal(
-      StudentAnalyticsNotifier.new,
-      name: r'studentAnalyticsNotifierProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$studentAnalyticsNotifierHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+const studentAnalyticsNotifierProvider = StudentAnalyticsNotifierFamily();
 
-typedef _$StudentAnalyticsNotifier = AutoDisposeAsyncNotifier<StudentAnalytics>;
+/// Student Analytics Provider (ANL-01, ANL-03, ANL-04)
+///
+/// Copied from [StudentAnalyticsNotifier].
+class StudentAnalyticsNotifierFamily
+    extends Family<AsyncValue<StudentAnalytics>> {
+  /// Student Analytics Provider (ANL-01, ANL-03, ANL-04)
+  ///
+  /// Copied from [StudentAnalyticsNotifier].
+  const StudentAnalyticsNotifierFamily();
+
+  /// Student Analytics Provider (ANL-01, ANL-03, ANL-04)
+  ///
+  /// Copied from [StudentAnalyticsNotifier].
+  StudentAnalyticsNotifierProvider call({
+    String? classId,
+    AnalyticsTimeRange timeRange = const AnalyticsTimeRangeAll(),
+  }) {
+    return StudentAnalyticsNotifierProvider(
+      classId: classId,
+      timeRange: timeRange,
+    );
+  }
+
+  @override
+  StudentAnalyticsNotifierProvider getProviderOverride(
+    covariant StudentAnalyticsNotifierProvider provider,
+  ) {
+    return call(classId: provider.classId, timeRange: provider.timeRange);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'studentAnalyticsNotifierProvider';
+}
+
+/// Student Analytics Provider (ANL-01, ANL-03, ANL-04)
+///
+/// Copied from [StudentAnalyticsNotifier].
+class StudentAnalyticsNotifierProvider
+    extends
+        AutoDisposeAsyncNotifierProviderImpl<
+          StudentAnalyticsNotifier,
+          StudentAnalytics
+        > {
+  /// Student Analytics Provider (ANL-01, ANL-03, ANL-04)
+  ///
+  /// Copied from [StudentAnalyticsNotifier].
+  StudentAnalyticsNotifierProvider({
+    String? classId,
+    AnalyticsTimeRange timeRange = const AnalyticsTimeRangeAll(),
+  }) : this._internal(
+         () => StudentAnalyticsNotifier()
+           ..classId = classId
+           ..timeRange = timeRange,
+         from: studentAnalyticsNotifierProvider,
+         name: r'studentAnalyticsNotifierProvider',
+         debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+             ? null
+             : _$studentAnalyticsNotifierHash,
+         dependencies: StudentAnalyticsNotifierFamily._dependencies,
+         allTransitiveDependencies:
+             StudentAnalyticsNotifierFamily._allTransitiveDependencies,
+         classId: classId,
+         timeRange: timeRange,
+       );
+
+  StudentAnalyticsNotifierProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.classId,
+    required this.timeRange,
+  }) : super.internal();
+
+  final String? classId;
+  final AnalyticsTimeRange timeRange;
+
+  @override
+  FutureOr<StudentAnalytics> runNotifierBuild(
+    covariant StudentAnalyticsNotifier notifier,
+  ) {
+    return notifier.build(classId: classId, timeRange: timeRange);
+  }
+
+  @override
+  Override overrideWith(StudentAnalyticsNotifier Function() create) {
+    return ProviderOverride(
+      origin: this,
+      override: StudentAnalyticsNotifierProvider._internal(
+        () => create()
+          ..classId = classId
+          ..timeRange = timeRange,
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        classId: classId,
+        timeRange: timeRange,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeAsyncNotifierProviderElement<
+    StudentAnalyticsNotifier,
+    StudentAnalytics
+  >
+  createElement() {
+    return _StudentAnalyticsNotifierProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is StudentAnalyticsNotifierProvider &&
+        other.classId == classId &&
+        other.timeRange == timeRange;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, classId.hashCode);
+    hash = _SystemHash.combine(hash, timeRange.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin StudentAnalyticsNotifierRef
+    on AutoDisposeAsyncNotifierProviderRef<StudentAnalytics> {
+  /// The parameter `classId` of this provider.
+  String? get classId;
+
+  /// The parameter `timeRange` of this provider.
+  AnalyticsTimeRange get timeRange;
+}
+
+class _StudentAnalyticsNotifierProviderElement
+    extends
+        AutoDisposeAsyncNotifierProviderElement<
+          StudentAnalyticsNotifier,
+          StudentAnalytics
+        >
+    with StudentAnalyticsNotifierRef {
+  _StudentAnalyticsNotifierProviderElement(super.provider);
+
+  @override
+  String? get classId => (origin as StudentAnalyticsNotifierProvider).classId;
+  @override
+  AnalyticsTimeRange get timeRange =>
+      (origin as StudentAnalyticsNotifierProvider).timeRange;
+}
+
+String _$teacherStudentAnalyticsNotifierHash() =>
+    r'452a311859fb51a1ea538e17a8c0d5f6e1034f91';
+
+abstract class _$TeacherStudentAnalyticsNotifier
+    extends BuildlessAutoDisposeAsyncNotifier<StudentAnalytics> {
+  late final String studentId;
+  late final String? classId;
+  late final AnalyticsTimeRange timeRange;
+
+  FutureOr<StudentAnalytics> build({
+    required String studentId,
+    String? classId,
+    AnalyticsTimeRange timeRange = const AnalyticsTimeRangeAll(),
+  });
+}
+
+/// Teacher viewing a specific student's analytics (override studentId).
+///
+/// Copied from [TeacherStudentAnalyticsNotifier].
+@ProviderFor(TeacherStudentAnalyticsNotifier)
+const teacherStudentAnalyticsNotifierProvider =
+    TeacherStudentAnalyticsNotifierFamily();
+
+/// Teacher viewing a specific student's analytics (override studentId).
+///
+/// Copied from [TeacherStudentAnalyticsNotifier].
+class TeacherStudentAnalyticsNotifierFamily
+    extends Family<AsyncValue<StudentAnalytics>> {
+  /// Teacher viewing a specific student's analytics (override studentId).
+  ///
+  /// Copied from [TeacherStudentAnalyticsNotifier].
+  const TeacherStudentAnalyticsNotifierFamily();
+
+  /// Teacher viewing a specific student's analytics (override studentId).
+  ///
+  /// Copied from [TeacherStudentAnalyticsNotifier].
+  TeacherStudentAnalyticsNotifierProvider call({
+    required String studentId,
+    String? classId,
+    AnalyticsTimeRange timeRange = const AnalyticsTimeRangeAll(),
+  }) {
+    return TeacherStudentAnalyticsNotifierProvider(
+      studentId: studentId,
+      classId: classId,
+      timeRange: timeRange,
+    );
+  }
+
+  @override
+  TeacherStudentAnalyticsNotifierProvider getProviderOverride(
+    covariant TeacherStudentAnalyticsNotifierProvider provider,
+  ) {
+    return call(
+      studentId: provider.studentId,
+      classId: provider.classId,
+      timeRange: provider.timeRange,
+    );
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'teacherStudentAnalyticsNotifierProvider';
+}
+
+/// Teacher viewing a specific student's analytics (override studentId).
+///
+/// Copied from [TeacherStudentAnalyticsNotifier].
+class TeacherStudentAnalyticsNotifierProvider
+    extends
+        AutoDisposeAsyncNotifierProviderImpl<
+          TeacherStudentAnalyticsNotifier,
+          StudentAnalytics
+        > {
+  /// Teacher viewing a specific student's analytics (override studentId).
+  ///
+  /// Copied from [TeacherStudentAnalyticsNotifier].
+  TeacherStudentAnalyticsNotifierProvider({
+    required String studentId,
+    String? classId,
+    AnalyticsTimeRange timeRange = const AnalyticsTimeRangeAll(),
+  }) : this._internal(
+         () => TeacherStudentAnalyticsNotifier()
+           ..studentId = studentId
+           ..classId = classId
+           ..timeRange = timeRange,
+         from: teacherStudentAnalyticsNotifierProvider,
+         name: r'teacherStudentAnalyticsNotifierProvider',
+         debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+             ? null
+             : _$teacherStudentAnalyticsNotifierHash,
+         dependencies: TeacherStudentAnalyticsNotifierFamily._dependencies,
+         allTransitiveDependencies:
+             TeacherStudentAnalyticsNotifierFamily._allTransitiveDependencies,
+         studentId: studentId,
+         classId: classId,
+         timeRange: timeRange,
+       );
+
+  TeacherStudentAnalyticsNotifierProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.studentId,
+    required this.classId,
+    required this.timeRange,
+  }) : super.internal();
+
+  final String studentId;
+  final String? classId;
+  final AnalyticsTimeRange timeRange;
+
+  @override
+  FutureOr<StudentAnalytics> runNotifierBuild(
+    covariant TeacherStudentAnalyticsNotifier notifier,
+  ) {
+    return notifier.build(
+      studentId: studentId,
+      classId: classId,
+      timeRange: timeRange,
+    );
+  }
+
+  @override
+  Override overrideWith(TeacherStudentAnalyticsNotifier Function() create) {
+    return ProviderOverride(
+      origin: this,
+      override: TeacherStudentAnalyticsNotifierProvider._internal(
+        () => create()
+          ..studentId = studentId
+          ..classId = classId
+          ..timeRange = timeRange,
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        studentId: studentId,
+        classId: classId,
+        timeRange: timeRange,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeAsyncNotifierProviderElement<
+    TeacherStudentAnalyticsNotifier,
+    StudentAnalytics
+  >
+  createElement() {
+    return _TeacherStudentAnalyticsNotifierProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TeacherStudentAnalyticsNotifierProvider &&
+        other.studentId == studentId &&
+        other.classId == classId &&
+        other.timeRange == timeRange;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, studentId.hashCode);
+    hash = _SystemHash.combine(hash, classId.hashCode);
+    hash = _SystemHash.combine(hash, timeRange.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin TeacherStudentAnalyticsNotifierRef
+    on AutoDisposeAsyncNotifierProviderRef<StudentAnalytics> {
+  /// The parameter `studentId` of this provider.
+  String get studentId;
+
+  /// The parameter `classId` of this provider.
+  String? get classId;
+
+  /// The parameter `timeRange` of this provider.
+  AnalyticsTimeRange get timeRange;
+}
+
+class _TeacherStudentAnalyticsNotifierProviderElement
+    extends
+        AutoDisposeAsyncNotifierProviderElement<
+          TeacherStudentAnalyticsNotifier,
+          StudentAnalytics
+        >
+    with TeacherStudentAnalyticsNotifierRef {
+  _TeacherStudentAnalyticsNotifierProviderElement(super.provider);
+
+  @override
+  String get studentId =>
+      (origin as TeacherStudentAnalyticsNotifierProvider).studentId;
+  @override
+  String? get classId =>
+      (origin as TeacherStudentAnalyticsNotifierProvider).classId;
+  @override
+  AnalyticsTimeRange get timeRange =>
+      (origin as TeacherStudentAnalyticsNotifierProvider).timeRange;
+}
+
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

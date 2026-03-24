@@ -1,3 +1,4 @@
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/data/datasources/grade_override_datasource.dart';
 
 /// Repository interface cho grade overrides.
@@ -32,25 +33,52 @@ class GradeOverrideRepositoryImpl implements GradeOverrideRepository {
     required double oldScore,
     required double newScore,
     String? reason,
-  }) {
-    return _datasource.createGradeOverride(
-      submissionAnswerId: submissionAnswerId,
-      overriddenBy: overriddenBy,
-      oldScore: oldScore,
-      newScore: newScore,
-      reason: reason,
-    );
+  }) async {
+    try {
+      return await _datasource.createGradeOverride(
+        submissionAnswerId: submissionAnswerId,
+        overriddenBy: overriddenBy,
+        oldScore: oldScore,
+        newScore: newScore,
+        reason: reason,
+      );
+    } catch (e, st) {
+      AppLogger.error(
+        '[GradeOverrideRepository] createOverride error: $e',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
   }
 
   @override
   Future<List<Map<String, dynamic>>> getOverrideHistory(
-      String submissionAnswerId) {
-    return _datasource.getOverrideHistory(submissionAnswerId);
+      String submissionAnswerId) async {
+    try {
+      return await _datasource.getOverrideHistory(submissionAnswerId);
+    } catch (e, st) {
+      AppLogger.error(
+        '[GradeOverrideRepository] getOverrideHistory error: $e',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
   }
 
   @override
   Future<List<Map<String, dynamic>>> getOverridesByDistribution(
-      String distributionId) {
-    return _datasource.getOverridesByDistribution(distributionId);
+      String distributionId) async {
+    try {
+      return await _datasource.getOverridesByDistribution(distributionId);
+    } catch (e, st) {
+      AppLogger.error(
+        '[GradeOverrideRepository] getOverridesByDistribution error: $e',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
   }
 }

@@ -216,8 +216,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoute.studentAnalyticsPath,
             name: AppRoute.studentAnalytics,
-            pageBuilder: (context, state) =>
-                FadeTransitionPage(key: state.pageKey, child: StudentAnalyticsScreen()),
+            pageBuilder: (context, state) {
+              final extra = state.extra as Map<String, dynamic>?;
+              final classId = extra?['classId'] as String?;
+              return FadeTransitionPage(
+                key: state.pageKey,
+                child: StudentAnalyticsScreen(classId: classId),
+              );
+            },
           ),
           GoRoute(
             path: AppRoute.studentAssignmentListPath,
@@ -246,14 +252,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // Teacher Analytics Overview (dual-mode: with or without classId)
+      // Teacher Analytics Overview (show class list)
       GoRoute(
         path: AppRoute.teacherAnalyticsOverviewPath,
         name: AppRoute.teacherAnalyticsOverview,
         pageBuilder: (context, state) => FadeTransitionPage(
           key: state.pageKey,
-          child: const TeacherAnalyticsScreen(), // classId = null → show class list
+          child: const TeacherAnalyticsScreen(),
         ),
+      ),
+
+      // Teacher Analytics for specific class (show analytics dashboard)
+      GoRoute(
+        path: AppRoute.teacherAnalyticsPath(':classId'),
+        name: AppRoute.teacherAnalytics,
+        pageBuilder: (context, state) {
+          final classId = state.pathParameters['classId']!;
+          return FadeTransitionPage(
+            key: state.pageKey,
+            child: TeacherAnalyticsScreen(classId: classId),
+          );
+        },
       ),
 
       // ==================== TEACHER DASHBOARD SHELL ====================
@@ -591,8 +610,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Route class submission list (chọn lớp để xem bài nộp)
       GoRoute(
-        path: '/teacher/assignment/:assignmentId/submissions',
-        name: 'teacher-class-submission-list',
+        path: AppRoute.teacherClassSubmissionListPath(':assignmentId'),
+        name: AppRoute.teacherClassSubmissionList,
         builder: (context, state) {
           final assignmentId = state.pathParameters['assignmentId']!;
           final extra = state.extra as Map<String, dynamic>?;
@@ -605,8 +624,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Route submission list (teacher grading - ATC Dashboard)
       GoRoute(
-        path: '/teacher/submissions/:distributionId',
-        name: 'teacher-submission-list',
+        path: AppRoute.teacherSubmissionListPath(':distributionId'),
+        name: AppRoute.teacherSubmissionList,
         builder: (context, state) {
           final distributionId = state.pathParameters['distributionId']!;
           final extra = state.extra as Map<String, dynamic>?;

@@ -216,6 +216,150 @@ class _TeacherSubmissionListProviderElement
       (origin as TeacherSubmissionListProvider).filter;
 }
 
+String _$gradeOverrideHistoryHash() =>
+    r'6f447e718b9bd2ea745187e0df82e3c879e1308b';
+
+/// Provider lấy grade override history cho audit trail
+///
+/// Copied from [gradeOverrideHistory].
+@ProviderFor(gradeOverrideHistory)
+const gradeOverrideHistoryProvider = GradeOverrideHistoryFamily();
+
+/// Provider lấy grade override history cho audit trail
+///
+/// Copied from [gradeOverrideHistory].
+class GradeOverrideHistoryFamily
+    extends Family<AsyncValue<List<Map<String, dynamic>>>> {
+  /// Provider lấy grade override history cho audit trail
+  ///
+  /// Copied from [gradeOverrideHistory].
+  const GradeOverrideHistoryFamily();
+
+  /// Provider lấy grade override history cho audit trail
+  ///
+  /// Copied from [gradeOverrideHistory].
+  GradeOverrideHistoryProvider call({required String submissionAnswerId}) {
+    return GradeOverrideHistoryProvider(submissionAnswerId: submissionAnswerId);
+  }
+
+  @override
+  GradeOverrideHistoryProvider getProviderOverride(
+    covariant GradeOverrideHistoryProvider provider,
+  ) {
+    return call(submissionAnswerId: provider.submissionAnswerId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'gradeOverrideHistoryProvider';
+}
+
+/// Provider lấy grade override history cho audit trail
+///
+/// Copied from [gradeOverrideHistory].
+class GradeOverrideHistoryProvider
+    extends AutoDisposeFutureProvider<List<Map<String, dynamic>>> {
+  /// Provider lấy grade override history cho audit trail
+  ///
+  /// Copied from [gradeOverrideHistory].
+  GradeOverrideHistoryProvider({required String submissionAnswerId})
+    : this._internal(
+        (ref) => gradeOverrideHistory(
+          ref as GradeOverrideHistoryRef,
+          submissionAnswerId: submissionAnswerId,
+        ),
+        from: gradeOverrideHistoryProvider,
+        name: r'gradeOverrideHistoryProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$gradeOverrideHistoryHash,
+        dependencies: GradeOverrideHistoryFamily._dependencies,
+        allTransitiveDependencies:
+            GradeOverrideHistoryFamily._allTransitiveDependencies,
+        submissionAnswerId: submissionAnswerId,
+      );
+
+  GradeOverrideHistoryProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.submissionAnswerId,
+  }) : super.internal();
+
+  final String submissionAnswerId;
+
+  @override
+  Override overrideWith(
+    FutureOr<List<Map<String, dynamic>>> Function(
+      GradeOverrideHistoryRef provider,
+    )
+    create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: GradeOverrideHistoryProvider._internal(
+        (ref) => create(ref as GradeOverrideHistoryRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        submissionAnswerId: submissionAnswerId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<List<Map<String, dynamic>>> createElement() {
+    return _GradeOverrideHistoryProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is GradeOverrideHistoryProvider &&
+        other.submissionAnswerId == submissionAnswerId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, submissionAnswerId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin GradeOverrideHistoryRef
+    on AutoDisposeFutureProviderRef<List<Map<String, dynamic>>> {
+  /// The parameter `submissionAnswerId` of this provider.
+  String get submissionAnswerId;
+}
+
+class _GradeOverrideHistoryProviderElement
+    extends AutoDisposeFutureProviderElement<List<Map<String, dynamic>>>
+    with GradeOverrideHistoryRef {
+  _GradeOverrideHistoryProviderElement(super.provider);
+
+  @override
+  String get submissionAnswerId =>
+      (origin as GradeOverrideHistoryProvider).submissionAnswerId;
+}
+
 String _$teacherSubmissionDetailHash() =>
     r'dd60fd14bdcadbb0b70d9eb9d231ba5b664d3d52';
 

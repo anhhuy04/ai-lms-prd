@@ -21,7 +21,7 @@ class PendingGradingState extends StatelessWidget {
             ),
             SizedBox(height: DesignSpacing.sm),
             Text(
-              'AI is analyzing your submission',
+              'AI đang phân tích bài làm của bạn',
               style: DesignTypography.bodyMedium.copyWith(
                 color: DesignColors.textSecondary,
               ),

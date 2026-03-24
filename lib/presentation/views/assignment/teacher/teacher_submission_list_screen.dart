@@ -60,39 +60,7 @@ class _TeacherSubmissionListScreenState
             },
           ),
 
-          // AI Loading indicator
-          submissionState.when(
-            data: (state) {
-              if (state.isLoadingAi) {
-                return Container(
-                  padding: const EdgeInsets.all(DesignSpacing.sm),
-                  color: DesignColors.warning.withValues(alpha: 0.1),
-                  child: Row(
-                    children: [
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: DesignColors.warning,
-                        ),
-                      ),
-                      const SizedBox(width: DesignSpacing.sm),
-                      Text(
-                        'AI đang phân tích...',
-                        style: DesignTypography.caption?.copyWith(
-                          color: DesignColors.warning,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
+
 
           // Submission list
           Expanded(

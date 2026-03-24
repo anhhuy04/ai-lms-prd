@@ -193,7 +193,53 @@ class AssignmentDataSource {
         ''')
         .eq('assignments.teacher_id', teacherId)
         .order('created_at', ascending: false);
-    return List<Map<String, dynamic>>.from(res);
+
+    final distributions = List<Map<String, dynamic>>.from(res);
+
+    // Post-process: map 'classes.name' → 'className' (Freezed uses camelCase)
+    for (final dist in distributions) {
+      final classesData = dist['classes'];
+      if (classesData != null && classesData is Map) {
+        dist['className'] = (classesData as Map<String, dynamic>)['name'] ?? 'Lớp học';
+      }
+      dist.remove('classes');
+    }
+
+    // Fetch counts per distribution from work_sessions
+    for (final dist in distributions) {
+      final distId = dist['id'] as String;
+
+      // work_sessions: status = 'submitted' (đã nộp) | 'graded' (đã chấm) | 'in_progress'
+      final wsRes = await _client
+          .from('work_sessions')
+          .select('id, status, submitted_at')
+          .eq('assignment_distribution_id', distId);
+      final sessions = List<Map<String, dynamic>>.from(wsRes as List);
+
+      // submitted = work_sessions có submitted_at (đã nộp bài)
+      dist['submitted_count'] = sessions.where((s) => s['submitted_at'] != null).length;
+      // graded = work_sessions có status = 'graded' (GV đã chấm)
+      dist['graded_count'] = sessions.where((s) => s['status'] == 'graded').length;
+      
+      // Tính số nộp muộn (late_submission_count)
+      int lateCount = 0;
+      final dueAtStr = dist['due_at'] as String?;
+      if (dueAtStr != null) {
+        final dueAt = DateTime.parse(dueAtStr);
+        lateCount = sessions.where((s) {
+          final submittedAtStr = s['submitted_at'] as String?;
+          if (submittedAtStr == null) return false;
+          final submittedAt = DateTime.parse(submittedAtStr);
+          return submittedAt.isAfter(dueAt);
+        }).length;
+      }
+      dist['late_submission_count'] = lateCount;
+
+      // recipientCount = tổng số sessions đã started
+      dist['recipient_count'] = sessions.length;
+    }
+
+    return distributions;
   }
 
   Future<List<Map<String, dynamic>>> getVariants(String assignmentId) async {

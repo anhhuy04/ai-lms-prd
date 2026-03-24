@@ -383,7 +383,7 @@ class AnalyticsDatasource {
           ? <Map<String, dynamic>>[]
           : await _client
                 .from('submissions')
-                .select('total_score, student_id, assignment_distribution_id, is_late')
+                .select('total_score, student_id, assignment_distribution_id, is_late, profiles(full_name)')
                 .inFilter('student_id', studentIds)
                 .inFilter('assignment_distribution_id', distributionIds)
                 .not('total_score', 'is', null);
@@ -558,11 +558,16 @@ class AnalyticsDatasource {
     List<Map<String, dynamic>> submissions,
     Map<String, ({String title, double maxScore})> distributionInfo,
   ) {
+    // Track scores + student info per bucket per assignment
     final Map<String, List<double>> assignmentScores = {};
+    final Map<String, List<({String studentId, String studentName, double score})>>
+        assignmentStudents = {};
 
     for (final sub in submissions) {
       final distributionId = sub['assignment_distribution_id'] as String?;
       final score = ((sub['total_score'] ?? 0) as num).toDouble();
+      final studentId = sub['student_id'] as String? ?? '';
+      final studentName = sub['profiles']?['full_name'] as String? ?? 'Học sinh';
       final info = distributionInfo[distributionId];
       final title = info?.title ?? 'Bài tập';
       final maxScore = info?.maxScore ?? 10.0;
@@ -570,6 +575,9 @@ class AnalyticsDatasource {
       // Normalize score to 100-scale for consistent bucket comparison
       final scorePercent = maxScore > 0 ? (score / maxScore) * 100 : 0.0;
       assignmentScores.putIfAbsent(title, () => []).add(scorePercent);
+      assignmentStudents
+          .putIfAbsent(title, () => [])
+          .add((studentId: studentId, studentName: studentName, score: scorePercent));
     }
 
     return assignmentScores.entries.map((entry) {
@@ -579,22 +587,46 @@ class AnalyticsDatasource {
         '6-8': 0,
         '8-10': 0,
       };
+      final bucketStudents = <String, List<StudentScoreItem>>{
+        '0-4': [],
+        '4-6': [],
+        '6-8': [],
+        '8-10': [],
+      };
 
-      for (final scorePercent in entry.value) {
-        if (scorePercent < 40) {
-          buckets['0-4'] = buckets['0-4']! + 1;
-        } else if (scorePercent < 60) {
-          buckets['4-6'] = buckets['4-6']! + 1;
-        } else if (scorePercent < 80) {
-          buckets['6-8'] = buckets['6-8']! + 1;
-        } else {
-          buckets['8-10'] = buckets['8-10']! + 1;
-        }
+      for (int i = 0; i < entry.value.length; i++) {
+        final scorePercent = entry.value[i];
+        final student = assignmentStudents[entry.key]![i];
+        final bucket = scorePercent < 40
+            ? '0-4'
+            : scorePercent < 60
+                ? '4-6'
+                : scorePercent < 80
+                    ? '6-8'
+                    : '8-10';
+        buckets[bucket] = buckets[bucket]! + 1;
+        bucketStudents[bucket]!.add(StudentScoreItem(
+          studentId: student.studentId,
+          studentName: student.studentName,
+          score: scorePercent,
+        ));
+      }
+
+      // Sort each bucket by score descending
+      for (final key in bucketStudents.keys) {
+        bucketStudents[key]!.sort((a, b) => b.score.compareTo(a.score));
       }
 
       return SubjectDistribution(
-        assignmentTitle: entry.key,
-        buckets: buckets,
+        subjectName: entry.key,
+        below50Count: buckets['0-4']!,
+        below60Count: buckets['4-6']!,
+        below80Count: buckets['6-8']!,
+        above80Count: buckets['8-10']!,
+        below50Students: bucketStudents['0-4'] ?? const [],
+        below60Students: bucketStudents['4-6'] ?? const [],
+        below80Students: bucketStudents['6-8'] ?? const [],
+        above80Students: bucketStudents['8-10'] ?? const [],
       );
     }).toList();
   }

@@ -12,14 +12,13 @@ class ShimmerLoading extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(
-          5,
-          (index) => Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12.w),
-            child: const _ClassItemShimmer(),
-          ),
+      child: ListView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.symmetric(vertical: 8.h),
+        itemCount: 5,
+        itemBuilder: (context, index) => Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12.w),
+          child: const _ClassItemShimmer(),
         ),
       ),
     );

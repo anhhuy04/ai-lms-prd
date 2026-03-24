@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';

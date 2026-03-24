@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/presentation/providers/assignment_providers.dart';
@@ -49,12 +50,6 @@ class _StudentClassDetailScreenState
           unreadNotifications: 2,
           pendingAssignments: 3,
           onLeaveClass: () => _handleLeaveClass(context),
-          onViewAnalytics: () {
-            context.pushNamed(
-              AppRoute.studentAnalytics,
-              extra: {'classId': widget.classId},
-            );
-          },
         ),
       ),
       body: SafeArea(

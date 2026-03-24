@@ -25,18 +25,33 @@ class SubmissionListItem extends StatelessWidget {
           child: Row(
             children: [
               // Avatar
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: DesignColors.primary.withValues(alpha: 0.1),
-                backgroundImage: submission.studentAvatarUrl != null
-                    ? NetworkImage(submission.studentAvatarUrl!)
-                    : null,
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: submission.studentAvatarUrl == null
+                      ? const LinearGradient(
+                          colors: [Color(0xFF64B5F6), Color(0xFF1976D2)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  image: submission.studentAvatarUrl != null
+                      ? DecorationImage(
+                          image: NetworkImage(submission.studentAvatarUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
                 child: submission.studentAvatarUrl == null
-                    ? Text(
-                        _getInitials(submission.studentName),
-                        style: DesignTypography.bodyMedium?.copyWith(
-                          color: DesignColors.primary,
-                          fontWeight: FontWeight.bold,
+                    ? Center(
+                        child: Text(
+                          _getInitials(submission.studentName),
+                          style: DesignTypography.bodyMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       )
                     : null,
@@ -97,11 +112,8 @@ class SubmissionListItem extends StatelessWidget {
                           ),
                         ),
                         const Spacer(),
-                        // AI indicator
-                        if (!submission.aiGraded && submission.status == 'submitted')
-                          _buildAiLoadingIndicator()
-                        else
-                          _buildScoreIndicator(),
+                        // Chấm điểm status
+                        _buildScoreIndicator(),
                       ],
                     ),
                   ],
@@ -120,28 +132,7 @@ class SubmissionListItem extends StatelessWidget {
     );
   }
 
-  Widget _buildAiLoadingIndicator() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const SizedBox(
-          width: 12,
-          height: 12,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: DesignColors.warning,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          'AI đang phân tích...',
-          style: DesignTypography.bodySmall?.copyWith(
-            color: DesignColors.warning,
-          ),
-        ),
-      ],
-    );
-  }
+
 
   Widget _buildScoreIndicator() {
     final hasScore = submission.totalScore != null;
@@ -155,7 +146,7 @@ class SubmissionListItem extends StatelessWidget {
       decoration: BoxDecoration(
         color: isGraded
             ? DesignColors.success.withValues(alpha: 0.1)
-            : const Color(0xFFF5F5F5),
+            : DesignColors.moonLight,
         borderRadius: BorderRadius.circular(DesignRadius.sm),
       ),
       child: Column(
@@ -163,10 +154,10 @@ class SubmissionListItem extends StatelessWidget {
         children: [
           if (hasScore)
             Text(
-              '${submission.totalScore!.toStringAsFixed(1)}',
+              submission.totalScore!.toStringAsFixed(1),
               style: DesignTypography.bodyMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: isGraded ? DesignColors.success : const Color(0xFF616161),
+                color: isGraded ? DesignColors.success : DesignColors.textSecondary,
               ),
             )
           else

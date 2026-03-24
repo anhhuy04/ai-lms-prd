@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../../../../../../core/constants/design_tokens.dart';
+import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/domain/entities/analytics/class_analytics.dart';
 
 /// Heatmap showing grade distribution across score buckets for each subject/assignment.
-/// Rows = subjects (max 5 visible, scrollable)
-/// Columns = score buckets: 0-4, 4-6, 6-8, 8-10
-/// Cell color intensity based on student count.
+/// Header row is STICKY (does not scroll with data rows).
+/// Data rows scrollable vertically, max 5 visible at a time (scrollable when > 5).
 class GradeDistributionHeatmap extends StatelessWidget {
-  /// List of subject distributions, each containing bucket counts.
-  /// If null/empty, shows empty state.
   final List<SubjectDistribution>? subjects;
   final double height;
+  static const int _maxVisibleRows = 5;
+  static const _bucketLabels = ['0-4', '4-6', '6-8', '8-10'];
 
   const GradeDistributionHeatmap({
     super.key,
@@ -18,15 +17,30 @@ class GradeDistributionHeatmap extends StatelessWidget {
     this.height = 300,
   });
 
+  /// Fixed height for the header row — used to constrain ListView properly.
+  double get _headerHeight => 36.0;
+
   @override
   Widget build(BuildContext context) {
     final data = subjects ?? [];
     if (data.isEmpty) {
-      return SizedBox(
-        height: height,
+      return Container(
+        decoration: BoxDecoration(
+          color: DesignColors.white,
+          borderRadius: BorderRadius.circular(DesignRadius.lg),
+          border: Border.all(color: DesignColors.dividerLight),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0D000000),
+              blurRadius: 3,
+              offset: Offset(0, 1),
+            ),
+          ],
+        ),
+        padding: EdgeInsets.all(DesignSpacing.xl),
         child: Center(
           child: Text(
-            'Khong co du lieu phan bo',
+            'Không có dữ liệu phân bố',
             style: DesignTypography.bodyMedium.copyWith(
               color: DesignColors.textSecondary,
             ),
@@ -35,133 +49,324 @@ class GradeDistributionHeatmap extends StatelessWidget {
       );
     }
 
-    // Show max 5 rows, scroll if more
-    final displayData = data.take(5).toList();
-
-    return SizedBox(
-      height: height,
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: DesignColors.white,
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border: Border.all(color: DesignColors.dividerLight),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0D000000),
+            blurRadius: 3,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
       child: Column(
         children: [
-          // Header row: bucket labels
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: Container(
-                  padding: EdgeInsets.all(DesignSpacing.sm),
-                  child: Text('Mon hoc', style: DesignTypography.caption),
-                ),
-              ),
-              ..._bucketLabels.map((label) => Expanded(
-                child: Container(
-                  padding: EdgeInsets.all(DesignSpacing.sm),
-                  alignment: Alignment.center,
-                  child: Text(label, style: DesignTypography.caption),
-                ),
-              )),
-            ],
+          // Header — always visible at top (fixed height)
+          SizedBox(
+            height: _headerHeight,
+            child: _buildHeader(),
           ),
-          const Divider(height: 1),
-          // Data rows
-          Expanded(
-            child: ListView.separated(
-              itemCount: displayData.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final sub = displayData[index];
-                return _buildRow(sub);
-              },
-            ),
-          ),
+          // Data rows (tối đa 5 hàng hiển thị, quá thì scroll)
+          _buildDataRows(data),
         ],
       ),
     );
   }
 
-  static const _bucketLabels = ['0-4', '4-6', '6-8', '8-10'];
+  double get _rowHeight => 52.0;
 
-  Widget _buildRow(SubjectDistribution subject) {
+  double _rowsViewportHeight(int rowCount) {
+    final visibleRows = rowCount > _maxVisibleRows ? _maxVisibleRows : rowCount;
+    return visibleRows * _rowHeight;
+  }
+
+  /// Header row — always visible (sticky). Does not scroll.
+  Widget _buildHeader() {
+    return Container(
+      decoration: BoxDecoration(
+        color: DesignColors.moonLight,
+        border: Border(
+          bottom: BorderSide(color: DesignColors.dividerLight, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Subject name column
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+              child: Text(
+                'Môn học',
+                style: DesignTypography.caption.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          // Bucket label columns
+          ..._bucketLabels.map((label) => Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 12,
+                ),
+                child: Text(
+                  label,
+                  style: DesignTypography.caption.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+
+  /// Data rows — tối đa 5 hàng hiển thị, quá thì scroll
+  Widget _buildDataRows(List<SubjectDistribution> data) {
+    final rowCount = data.length;
+
+    return SizedBox(
+      height: _rowsViewportHeight(rowCount),
+      child: ListView.separated(
+        physics: rowCount > _maxVisibleRows
+            ? const BouncingScrollPhysics()
+            : const NeverScrollableScrollPhysics(),
+        itemCount: data.length,
+        separatorBuilder: (_, __) =>
+            Container(height: 1, color: DesignColors.dividerLight),
+        itemBuilder: (context, index) => _buildRow(context, data[index]),
+      ),
+    );
+  }
+
+  Widget _buildRow(BuildContext context, SubjectDistribution subject) {
     final buckets = [
       subject.below50Count,
       subject.below60Count,
       subject.below80Count,
       subject.above80Count,
     ];
+    final bucketStudents = [
+      subject.below50Students,
+      subject.below60Students,
+      subject.below80Students,
+      subject.above80Students,
+    ];
 
-    return Row(
-      children: [
-        // Subject name
-        Expanded(
-          flex: 2,
-          child: Container(
-            padding: EdgeInsets.all(DesignSpacing.sm),
-            alignment: Alignment.centerLeft,
-            child: Text(
-              subject.subjectName,
-              style: DesignTypography.bodySmall,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+    return SizedBox(
+      height: _rowHeight,
+      child: Row(
+        children: [
+          // Subject name
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  subject.subjectName,
+                  style: DesignTypography.bodySmall,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
           ),
-        ),
-        // Bucket cells
-        ...buckets.asMap().entries.map((entry) => Expanded(
-          child: _dataCell(entry.value, entry.key),
-        )),
-      ],
+          // Bucket cells
+          ...buckets.asMap().entries.map((e) => _dataCell(
+            context,
+            e.value,
+            e.key,
+            bucketStudents[e.key],
+          )),
+        ],
+      ),
     );
   }
 
-  Widget _dataCell(int count, int bucketIndex) {
+  void _showStudentsBottomSheet(
+    BuildContext context,
+    int bucketIndex,
+    List<StudentScoreItem> students,
+  ) {
+    if (students.isEmpty) return;
+
+    final labels = ['0-4', '4-6', '6-8', '8-10'];
+    final colors = [
+      DesignColors.error,
+      DesignColors.warning,
+      Colors.orange,
+      DesignColors.success,
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle bar
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: DesignColors.dividerMedium,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          // Header
+          Padding(
+            padding: EdgeInsets.only(
+              top: DesignSpacing.md,
+              left: DesignSpacing.md,
+              right: DesignSpacing.md,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: colors[bucketIndex],
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Học sinh điểm ${labels[bucketIndex]}',
+                  style: DesignTypography.titleMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Student list
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: students.length,
+            itemBuilder: (context, index) {
+              final student = students[index];
+              return ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: DesignSpacing.md,
+                  vertical: 4,
+                ),
+                leading: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: colors[bucketIndex].withValues(alpha: 0.15),
+                  child: Text(
+                    student.studentName.isNotEmpty
+                        ? student.studentName[0].toUpperCase()
+                        : '?',
+                    style: TextStyle(
+                      color: colors[bucketIndex],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  student.studentName,
+                  style: DesignTypography.bodyMedium,
+                ),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors[bucketIndex].withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${(student.score / 10).toStringAsFixed(1)}',
+                    style: TextStyle(
+                      color: colors[bucketIndex],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          SizedBox(height: MediaQuery.of(context).padding.bottom),
+        ],
+      ),
+    );
+  }
+
+  Widget _dataCell(
+    BuildContext context,
+    int count,
+    int bucketIndex,
+    List<StudentScoreItem> students,
+  ) {
     final color = _getBucketColor(bucketIndex);
     final bgColor = count > 0
-        ? color.withValues(alpha: (0.2 + (count.clamp(1, 5) * 0.15)).clamp(0.2, 0.9))
+        ? color.withValues(alpha: 0.2 + (count.clamp(1, 5) * 0.15).clamp(0.2, 0.9))
         : DesignColors.moonLight.withValues(alpha: 0.3);
     final textColor = count > 0 ? color : DesignColors.textSecondary;
 
-    return Container(
-      margin: EdgeInsets.all(2.r),
-      padding: EdgeInsets.symmetric(vertical: DesignSpacing.xs),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(DesignRadius.sm),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        count > 0 ? '$count' : '-',
-        style: DesignTypography.caption.copyWith(
-          color: textColor,
-          fontWeight: count > 0 ? FontWeight.w600 : FontWeight.normal,
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: GestureDetector(
+          onTap: count > 0
+              ? () => _showStudentsBottomSheet(context, bucketIndex, students)
+              : null,
+          child: Container(
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              count > 0 ? '$count' : '-',
+              style: DesignTypography.bodySmall.copyWith(
+                color: textColor,
+                fontWeight: count > 0 ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
   Color _getBucketColor(int bucketIndex) {
-    // 0-4=red, 4-6=amber, 6-8=orange, 8-10=green
     switch (bucketIndex) {
       case 0: return DesignColors.error;
-      case 1: return const Color(0xFFFFB300); // amber-600
-      case 2: return const Color(0xFFFF9800); // orange
+      case 1: return DesignColors.warning;
+      case 2: return Colors.orange;
       case 3: return DesignColors.success;
       default: return DesignColors.textSecondary;
     }
   }
-}
-
-/// Data model for a single subject's grade distribution across score buckets.
-class SubjectDistribution {
-  final String subjectName;
-  final int below50Count; // 0-4 range
-  final int below60Count; // 4-6 range
-  final int below80Count; // 6-8 range
-  final int above80Count;  // 8-10 range
-
-  const SubjectDistribution({
-    required this.subjectName,
-    this.below50Count = 0,
-    this.below60Count = 0,
-    this.below80Count = 0,
-    this.above80Count = 0,
-  });
 }

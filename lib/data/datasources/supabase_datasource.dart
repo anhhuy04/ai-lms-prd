@@ -231,11 +231,11 @@ class BaseTableDataSource {
     required Map<String, dynamic> data,
   }) async {
     try {
-      var query = _client.from(tableName).update(data);
-      for (var id in ids) {
-        query = query.eq('id', id) as dynamic;
-      }
-      final response = await (query as dynamic).select();
+      final response = await _client
+          .from(tableName)
+          .update(data)
+          .inFilter('id', ids)
+          .select();
 
       return List<Map<String, dynamic>>.from(response);
     } on PostgrestException catch (e) {

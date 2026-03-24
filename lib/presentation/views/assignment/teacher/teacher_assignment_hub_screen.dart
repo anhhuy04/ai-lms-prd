@@ -126,11 +126,11 @@ class _TeacherAssignmentHubScreenState
                         ),
                         SizedBox(width: DesignSpacing.md),
                         QuickActionButton(
-                          label: 'Tạo bằng AI',
-                          icon: Icons.auto_awesome,
+                          label: 'Kiểm tra',
+                          icon: Icons.fact_check_outlined,
                           isGradient: true,
                           onTap: () {
-                            // TODO: Navigate to AI assignment creator
+                            context.pushNamed(AppRoute.teacherGrading);
                           },
                         ),
                         SizedBox(width: DesignSpacing.md),
@@ -163,7 +163,7 @@ class _TeacherAssignmentHubScreenState
                           label: 'Báo cáo',
                           icon: Icons.insights,
                           onTap: () {
-                            // TODO: Navigate to reports
+                            context.pushNamed(AppRoute.teacherAnalyticsOverview);
                           },
                         ),
                         SizedBox(width: DesignSpacing.md),

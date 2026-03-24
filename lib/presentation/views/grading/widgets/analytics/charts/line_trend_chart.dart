@@ -7,7 +7,7 @@ class LineTrendChart extends StatelessWidget {
   final List<GradeTrend> trends;
   final double height;
 
-  LineTrendChart({
+  const LineTrendChart({
     super.key,
     required this.trends,
     this.height = 200,
@@ -20,7 +20,7 @@ class LineTrendChart extends StatelessWidget {
         height: height,
         child: Center(
           child: Text(
-            'No trend data available',
+            'Chưa có dữ liệu xu hướng điểm',
             style: DesignTypography.bodyMedium.copyWith(
               color: DesignColors.textSecondary,
             ),
@@ -49,7 +49,7 @@ class LineTrendChart extends StatelessWidget {
               dotData: const FlDotData(show: true),
               belowBarData: BarAreaData(
                 show: true,
-                color: DesignColors.primary.withOpacity(0.1),
+                color: DesignColors.primary.withValues(alpha: 0.1),
               ),
             ),
           ],
@@ -59,7 +59,7 @@ class LineTrendChart extends StatelessWidget {
                 showTitles: true,
                 reservedSize: 40,
                 getTitlesWidget: (value, meta) =>
-                  Text('${value.toInt()}', style: DesignTypography.caption),
+                    Text('${value.toInt()}', style: DesignTypography.caption),
               ),
             ),
             bottomTitles: AxisTitles(
@@ -83,7 +83,20 @@ class LineTrendChart extends StatelessWidget {
           gridData: const FlGridData(show: true),
           borderData: FlBorderData(show: false),
           minY: 0,
-          maxY: 100,
+          maxY: 10,
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipItems: (touchedSpots) {
+                return touchedSpots.map((spot) {
+                  final trend = trends[spot.spotIndex];
+                  return LineTooltipItem(
+                    '${trend.assignmentName}\n${trend.score.toStringAsFixed(1)} điểm',
+                    DesignTypography.bodySmall,
+                  );
+                }).toList();
+              },
+            ),
+          ),
         ),
         duration: const Duration(milliseconds: 400),
       ),

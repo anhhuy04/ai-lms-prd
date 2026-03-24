@@ -65,7 +65,9 @@ class MetricCard extends StatelessWidget {
                     Icon(
                       trendColor == DesignColors.success
                           ? Icons.trending_up
-                          : Icons.trending_down,
+                          : trendColor == DesignColors.error
+                              ? Icons.trending_down
+                              : Icons.trending_flat,
                       size: DesignIcons.xsSize,
                       color: trendColor,
                     ),

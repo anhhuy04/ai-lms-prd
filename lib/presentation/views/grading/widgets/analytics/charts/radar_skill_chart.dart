@@ -7,7 +7,7 @@ class RadarSkillChart extends StatelessWidget {
   final List<SkillMastery> skills;
   final double height;
 
-  RadarSkillChart({
+  const RadarSkillChart({
     super.key,
     required this.skills,
     this.height = 300,
@@ -38,7 +38,7 @@ class RadarSkillChart extends StatelessWidget {
         RadarChartData(
           dataSets: [
             RadarDataSet(
-              fillColor: DesignColors.primary.withOpacity(0.2),
+              fillColor: DesignColors.primary.withValues(alpha: 0.2),
               borderColor: DesignColors.primary,
               borderWidth: 2,
               entryRadius: 3,

@@ -50,13 +50,17 @@ mixin _$AssignmentDistribution {
   Map<String, dynamic>? get settings => throw _privateConstructorUsedError;
   @JsonKey(name: 'created_at')
   DateTime? get createdAt => throw _privateConstructorUsedError; // Extended fields từ join queries
-  String? get subjectName => throw _privateConstructorUsedError;
   String? get className => throw _privateConstructorUsedError;
   String? get groupName => throw _privateConstructorUsedError;
   String? get assignmentTitle => throw _privateConstructorUsedError;
+  @JsonKey(name: 'recipient_count')
   int? get recipientCount => throw _privateConstructorUsedError;
+  @JsonKey(name: 'submitted_count')
   int? get submittedCount => throw _privateConstructorUsedError;
+  @JsonKey(name: 'graded_count')
   int? get gradedCount => throw _privateConstructorUsedError;
+  @JsonKey(name: 'late_submission_count')
+  int? get lateSubmissionCount => throw _privateConstructorUsedError;
 
   /// Serializes this AssignmentDistribution to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -89,13 +93,13 @@ abstract class $AssignmentDistributionCopyWith<$Res> {
     @JsonKey(name: 'late_policy') Map<String, dynamic>? latePolicy,
     @JsonKey(name: 'settings') Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') DateTime? createdAt,
-    String? subjectName,
     String? className,
     String? groupName,
     String? assignmentTitle,
-    int? recipientCount,
-    int? submittedCount,
-    int? gradedCount,
+    @JsonKey(name: 'recipient_count') int? recipientCount,
+    @JsonKey(name: 'submitted_count') int? submittedCount,
+    @JsonKey(name: 'graded_count') int? gradedCount,
+    @JsonKey(name: 'late_submission_count') int? lateSubmissionCount,
   });
 }
 
@@ -130,13 +134,13 @@ class _$AssignmentDistributionCopyWithImpl<
     Object? latePolicy = freezed,
     Object? settings = freezed,
     Object? createdAt = freezed,
-    Object? subjectName = freezed,
     Object? className = freezed,
     Object? groupName = freezed,
     Object? assignmentTitle = freezed,
     Object? recipientCount = freezed,
     Object? submittedCount = freezed,
     Object? gradedCount = freezed,
+    Object? lateSubmissionCount = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -192,10 +196,6 @@ class _$AssignmentDistributionCopyWithImpl<
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
                       as DateTime?,
-            subjectName: freezed == subjectName
-                ? _value.subjectName
-                : subjectName // ignore: cast_nullable_to_non_nullable
-                      as String?,
             className: freezed == className
                 ? _value.className
                 : className // ignore: cast_nullable_to_non_nullable
@@ -219,6 +219,10 @@ class _$AssignmentDistributionCopyWithImpl<
             gradedCount: freezed == gradedCount
                 ? _value.gradedCount
                 : gradedCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            lateSubmissionCount: freezed == lateSubmissionCount
+                ? _value.lateSubmissionCount
+                : lateSubmissionCount // ignore: cast_nullable_to_non_nullable
                       as int?,
           )
           as $Val,
@@ -249,13 +253,13 @@ abstract class _$$AssignmentDistributionImplCopyWith<$Res>
     @JsonKey(name: 'late_policy') Map<String, dynamic>? latePolicy,
     @JsonKey(name: 'settings') Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') DateTime? createdAt,
-    String? subjectName,
     String? className,
     String? groupName,
     String? assignmentTitle,
-    int? recipientCount,
-    int? submittedCount,
-    int? gradedCount,
+    @JsonKey(name: 'recipient_count') int? recipientCount,
+    @JsonKey(name: 'submitted_count') int? submittedCount,
+    @JsonKey(name: 'graded_count') int? gradedCount,
+    @JsonKey(name: 'late_submission_count') int? lateSubmissionCount,
   });
 }
 
@@ -287,13 +291,13 @@ class __$$AssignmentDistributionImplCopyWithImpl<$Res>
     Object? latePolicy = freezed,
     Object? settings = freezed,
     Object? createdAt = freezed,
-    Object? subjectName = freezed,
     Object? className = freezed,
     Object? groupName = freezed,
     Object? assignmentTitle = freezed,
     Object? recipientCount = freezed,
     Object? submittedCount = freezed,
     Object? gradedCount = freezed,
+    Object? lateSubmissionCount = freezed,
   }) {
     return _then(
       _$AssignmentDistributionImpl(
@@ -349,10 +353,6 @@ class __$$AssignmentDistributionImplCopyWithImpl<$Res>
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
                   as DateTime?,
-        subjectName: freezed == subjectName
-            ? _value.subjectName
-            : subjectName // ignore: cast_nullable_to_non_nullable
-                  as String?,
         className: freezed == className
             ? _value.className
             : className // ignore: cast_nullable_to_non_nullable
@@ -377,6 +377,10 @@ class __$$AssignmentDistributionImplCopyWithImpl<$Res>
             ? _value.gradedCount
             : gradedCount // ignore: cast_nullable_to_non_nullable
                   as int?,
+        lateSubmissionCount: freezed == lateSubmissionCount
+            ? _value.lateSubmissionCount
+            : lateSubmissionCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -399,13 +403,13 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
     @JsonKey(name: 'late_policy') final Map<String, dynamic>? latePolicy,
     @JsonKey(name: 'settings') final Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') this.createdAt,
-    this.subjectName,
     this.className,
     this.groupName,
     this.assignmentTitle,
-    this.recipientCount,
-    this.submittedCount,
-    this.gradedCount,
+    @JsonKey(name: 'recipient_count') this.recipientCount,
+    @JsonKey(name: 'submitted_count') this.submittedCount,
+    @JsonKey(name: 'graded_count') this.gradedCount,
+    @JsonKey(name: 'late_submission_count') this.lateSubmissionCount,
   }) : _studentIds = studentIds,
        _latePolicy = latePolicy,
        _settings = settings;
@@ -480,23 +484,27 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
   final DateTime? createdAt;
   // Extended fields từ join queries
   @override
-  final String? subjectName;
-  @override
   final String? className;
   @override
   final String? groupName;
   @override
   final String? assignmentTitle;
   @override
+  @JsonKey(name: 'recipient_count')
   final int? recipientCount;
   @override
+  @JsonKey(name: 'submitted_count')
   final int? submittedCount;
   @override
+  @JsonKey(name: 'graded_count')
   final int? gradedCount;
+  @override
+  @JsonKey(name: 'late_submission_count')
+  final int? lateSubmissionCount;
 
   @override
   String toString() {
-    return 'AssignmentDistribution(id: $id, assignmentId: $assignmentId, distributionType: $distributionType, classId: $classId, groupId: $groupId, studentIds: $studentIds, availableFrom: $availableFrom, dueAt: $dueAt, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePolicy: $latePolicy, settings: $settings, createdAt: $createdAt, subjectName: $subjectName, className: $className, groupName: $groupName, assignmentTitle: $assignmentTitle, recipientCount: $recipientCount, submittedCount: $submittedCount, gradedCount: $gradedCount)';
+    return 'AssignmentDistribution(id: $id, assignmentId: $assignmentId, distributionType: $distributionType, classId: $classId, groupId: $groupId, studentIds: $studentIds, availableFrom: $availableFrom, dueAt: $dueAt, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePolicy: $latePolicy, settings: $settings, createdAt: $createdAt, className: $className, groupName: $groupName, assignmentTitle: $assignmentTitle, recipientCount: $recipientCount, submittedCount: $submittedCount, gradedCount: $gradedCount, lateSubmissionCount: $lateSubmissionCount)';
   }
 
   @override
@@ -529,8 +537,6 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
             const DeepCollectionEquality().equals(other._settings, _settings) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
-            (identical(other.subjectName, subjectName) ||
-                other.subjectName == subjectName) &&
             (identical(other.className, className) ||
                 other.className == className) &&
             (identical(other.groupName, groupName) ||
@@ -542,7 +548,9 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
             (identical(other.submittedCount, submittedCount) ||
                 other.submittedCount == submittedCount) &&
             (identical(other.gradedCount, gradedCount) ||
-                other.gradedCount == gradedCount));
+                other.gradedCount == gradedCount) &&
+            (identical(other.lateSubmissionCount, lateSubmissionCount) ||
+                other.lateSubmissionCount == lateSubmissionCount));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -562,13 +570,13 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
     const DeepCollectionEquality().hash(_latePolicy),
     const DeepCollectionEquality().hash(_settings),
     createdAt,
-    subjectName,
     className,
     groupName,
     assignmentTitle,
     recipientCount,
     submittedCount,
     gradedCount,
+    lateSubmissionCount,
   ]);
 
   /// Create a copy of AssignmentDistribution
@@ -604,13 +612,13 @@ abstract class _AssignmentDistribution implements AssignmentDistribution {
     @JsonKey(name: 'late_policy') final Map<String, dynamic>? latePolicy,
     @JsonKey(name: 'settings') final Map<String, dynamic>? settings,
     @JsonKey(name: 'created_at') final DateTime? createdAt,
-    final String? subjectName,
     final String? className,
     final String? groupName,
     final String? assignmentTitle,
-    final int? recipientCount,
-    final int? submittedCount,
-    final int? gradedCount,
+    @JsonKey(name: 'recipient_count') final int? recipientCount,
+    @JsonKey(name: 'submitted_count') final int? submittedCount,
+    @JsonKey(name: 'graded_count') final int? gradedCount,
+    @JsonKey(name: 'late_submission_count') final int? lateSubmissionCount,
   }) = _$AssignmentDistributionImpl;
 
   factory _AssignmentDistribution.fromJson(Map<String, dynamic> json) =
@@ -657,19 +665,23 @@ abstract class _AssignmentDistribution implements AssignmentDistribution {
   @JsonKey(name: 'created_at')
   DateTime? get createdAt; // Extended fields từ join queries
   @override
-  String? get subjectName;
-  @override
   String? get className;
   @override
   String? get groupName;
   @override
   String? get assignmentTitle;
   @override
+  @JsonKey(name: 'recipient_count')
   int? get recipientCount;
   @override
+  @JsonKey(name: 'submitted_count')
   int? get submittedCount;
   @override
+  @JsonKey(name: 'graded_count')
   int? get gradedCount;
+  @override
+  @JsonKey(name: 'late_submission_count')
+  int? get lateSubmissionCount;
 
   /// Create a copy of AssignmentDistribution
   /// with the given fields replaced by the non-null parameter values.

@@ -1,4 +1,5 @@
 import 'package:ai_mls/core/services/supabase_service.dart';
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// DataSource cho submissions - các thao tác với bảng submissions.
@@ -117,6 +118,7 @@ class SubmissionDataSource {
   }
 
   /// Lấy danh sách submissions cho 1 distribution (teacher view).
+  /// Join work_sessions để lấy status (vì submissions table không có status column).
   Future<List<Map<String, dynamic>>> getSubmissionsByDistribution(
     String distributionId,
   ) async {
@@ -124,60 +126,109 @@ class SubmissionDataSource {
         .from('submissions')
         .select('''
           *,
+          assignment_distributions(
+            due_at
+          ),
           profiles!submissions_student_id_fkey(
             id,
             full_name,
             avatar_url
+          ),
+          work_sessions(
+            id,
+            status,
+            submitted_at
           )
         ''')
         .eq('assignment_distribution_id', distributionId)
         .order('submitted_at', ascending: false);
 
-    return List<Map<String, dynamic>>.from(result);
+    final submissions = List<Map<String, dynamic>>.from(result);
+
+    // Map work_sessions.status → status field for filter logic
+    for (final sub in submissions) {
+      final workSessions = sub['work_sessions'];
+      if (workSessions is List && workSessions.isNotEmpty) {
+        sub['status'] = (workSessions.first as Map<String, dynamic>)['status'] ?? 'submitted';
+      } else {
+        sub['status'] = 'submitted';
+      }
+      
+      // Tính is_late dựa vào due_at của bài tập
+      final dist = sub['assignment_distributions'] as Map<String, dynamic>?;
+      final dueAtStr = dist?['due_at'] as String?;
+      final submittedAtStr = sub['submitted_at'] as String?;
+      
+      if (dueAtStr != null && submittedAtStr != null) {
+        final dueAt = DateTime.parse(dueAtStr);
+        final submittedAt = DateTime.parse(submittedAtStr);
+        sub['is_late'] = submittedAt.isAfter(dueAt);
+      } else {
+        sub['is_late'] = false; // Mặc định không muộn nếu không có hạn
+      }
+    }
+
+    return submissions;
   }
 
   /// Lấy chi tiết một submission.
+  /// submissions → work_sessions → submission_answers (2-level FK)
+  /// Tách thành 2 query vì PostgREST không hỗ trợ join 2 cấp.
   Future<Map<String, dynamic>> getSubmissionById(String submissionId) async {
+    // Query 1: submission + related data
     final result = await _client
         .from('submissions')
         .select('''
           *,
           assignment_distributions(
             *,
-            assignments(*)
+            assignments(*),
+            classes(name)
           ),
           profiles!submissions_student_id_fkey(
             id,
             full_name,
             avatar_url
           ),
-          submission_answers(
+          work_sessions(
             id,
-            question_id,
-            ai_score,
-            ai_confidence,
-            ai_feedback,
-            teacher_feedback,
-            final_score,
-            graded_by,
-            graded_at,
-            created_at,
-            assignment_questions(
-              id,
-              question_text,
-              question_type,
-              points,
-              content,
-              answer,
-              rubric
-            )
+            status,
+            submitted_at
           )
         ''')
         .eq('id', submissionId)
-        .order('submission_answers(created_at)', ascending: true)
-        .single();
+        .maybeSingle();
 
-    return Map<String, dynamic>.from(result);
+    if (result == null) {
+      throw Exception('Submission not found: $submissionId');
+    }
+
+    final submission = Map<String, dynamic>.from(result);
+
+    // Query 2: submission_answers qua work_sessions
+    final sessionId = submission['session_id'] as String?;
+    if (sessionId != null) {
+      final answersRes = await _client
+          .from('submission_answers')
+          .select('''
+            *,
+            assignment_questions(
+              id,
+              question_id(
+                type
+              ),
+              points,
+              custom_content
+            )
+          ''')
+          .eq('session_id', sessionId)
+          .order('created_at', ascending: true);
+      submission['submission_answers'] = answersRes;
+    } else {
+      submission['submission_answers'] = <Map<String, dynamic>>[];
+    }
+
+    return submission;
   }
 
   /// Cập nhật điểm và phản hồi (teacher grading).
@@ -210,6 +261,9 @@ class SubmissionDataSource {
     final sessionId = submission['session_id'] as String?;
 
     if (sessionId == null) {
+      AppLogger.warning(
+        'getSubmissionAnswers: sessionId is null for submissionId=$submissionId',
+      );
       return [];
     }
 
@@ -219,8 +273,9 @@ class SubmissionDataSource {
           *,
           assignment_questions(
             id,
-            question_text,
-            question_type,
+            question_id(
+              type
+            ),
             points,
             custom_content
           )
@@ -243,7 +298,7 @@ class SubmissionDataSource {
     await _client.from('submission_answers').update({
       'final_score': finalScore,
       'teacher_feedback': teacherFeedback != null
-          ? {'comment': teacherFeedback}
+          ? {'text': teacherFeedback}
           : null,
       'graded_by': teacherId,
       'graded_at': now,

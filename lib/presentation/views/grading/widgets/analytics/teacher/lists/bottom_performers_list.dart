@@ -34,7 +34,7 @@ class BottomPerformersList extends StatelessWidget {
                 ),
                 SizedBox(width: DesignSpacing.sm),
                 Text(
-                  'Needs Attention',
+                  'Cần chú ý',
                   style: DesignTypography.titleSmall.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -74,7 +74,7 @@ class BottomPerformersList extends StatelessWidget {
                     borderRadius: BorderRadius.circular(DesignRadius.md),
                   ),
                   child: Text(
-                    '${performer.score.toStringAsFixed(1)}%',
+                    '${performer.score.toStringAsFixed(1)}/10',
                     style: DesignTypography.labelMedium.copyWith(
                       color: DesignColors.error,
                       fontWeight: FontWeight.w600,

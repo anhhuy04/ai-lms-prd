@@ -29,7 +29,7 @@ class ZeroSubmissionsState extends StatelessWidget {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: DesignSpacing.xl),
               child: Text(
-                'Take Diagnostic Test to map your skills',
+                'Làm bài kiểm tra để đánh giá kỹ năng của bạn',
                 style: DesignTypography.bodyMedium.copyWith(
                   color: DesignColors.textSecondary,
                 ),
@@ -44,7 +44,7 @@ class ZeroSubmissionsState extends StatelessWidget {
                   backgroundColor: DesignColors.primary,
                   foregroundColor: DesignColors.white,
                 ),
-                child: const Text('Start Diagnostic'),
+                child: const Text('Làm bài kiểm tra'),
               ),
             ],
           ],

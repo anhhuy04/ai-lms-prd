@@ -224,6 +224,11 @@ class AppRoute {
   static const String teacherAnalyticsOverview = 'teacher-analytics-overview';
   static const String teacherAnalyticsOverviewPath = '/teacher/analytics';
 
+  /// Teacher - Student Analytics (view a specific student's analytics)
+  static const String teacherStudentAnalytics = 'teacher-student-analytics';
+  static String teacherStudentAnalyticsPath(String studentId) =>
+      '/teacher/student/$studentId/analytics';
+
   /// Teacher - Submission list (ATC Dashboard - danh sách bài nộp)
   static const String teacherSubmissionList = 'teacher-submission-list';
   static String teacherSubmissionListPath(String distributionId) =>
@@ -357,6 +362,7 @@ class AppRoute {
       studentAssignmentWorkspace,
       studentSubmissionHistory,
       studentScores,
+      studentAnalytics,
       studentDashboard,
       profile,
       editProfile,
@@ -388,6 +394,10 @@ class AppRoute {
       teacherSubmissionList,
       teacherGradeSubmission,
       teacherAssignmentDetail,
+      teacherClassSubmissionList,
+      teacherAnalytics,
+      teacherAnalyticsOverview,
+      teacherStudentAnalytics,
       studentAssignmentDetail, // Allow teachers to preview assignment detail
       teacherDashboard,
       profile,

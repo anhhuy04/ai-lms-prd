@@ -154,6 +154,25 @@ class SubmissionFilterNotifier extends _$SubmissionFilterNotifier {
   }
 }
 
+/// Provider lấy grade override history cho audit trail
+@riverpod
+Future<List<Map<String, dynamic>>> gradeOverrideHistory(
+  Ref ref, {
+  required String submissionAnswerId,
+}) async {
+  final datasource = GradeOverrideDataSource();
+  try {
+    return await datasource.getOverrideHistory(submissionAnswerId);
+  } catch (e, stackTrace) {
+    AppLogger.error(
+      '🔴 [GRADE_OVERRIDE_HISTORY] Error loading history: $e',
+      error: e,
+      stackTrace: stackTrace,
+    );
+    rethrow;
+  }
+}
+
 /// Provider chi tiết một submission cho teacher
 @riverpod
 Future<Map<String, dynamic>> teacherSubmissionDetail(

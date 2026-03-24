@@ -169,7 +169,7 @@ class ClassViewModel extends ChangeNotifier with RefreshableViewModel {
     _setError(null);
 
     try {
-      _classes = await _repository.getClassesByStudent(studentId, approvedOnly: false);
+      _classes = await _repository.getClassesByStudent(studentId);
       // Clear error khi thành công (dù có dữ liệu hay không)
       _setError(null);
       _setLoading(false);

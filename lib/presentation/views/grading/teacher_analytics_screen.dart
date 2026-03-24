@@ -1,7 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/utils/score_display_utils.dart';
-import 'package:ai_mls/core/routes/route_constants.dart';
-import 'package:go_router/go_router.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/domain/entities/analytics/class_analytics.dart';
 import 'package:ai_mls/domain/entities/class.dart';
@@ -10,7 +8,7 @@ import 'package:ai_mls/presentation/views/grading/widgets/analytics/teacher/card
 import 'package:ai_mls/presentation/views/grading/widgets/analytics/teacher/charts/grade_distribution_heatmap.dart';
 import 'package:ai_mls/presentation/views/grading/widgets/analytics/teacher/lists/top_performers_list.dart';
 import 'package:ai_mls/presentation/views/grading/widgets/analytics/teacher/lists/bottom_performers_list.dart';
-import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/presentation/views/grading/teacher_student_analytics_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -60,10 +58,12 @@ class _TeacherAnalyticsScreenState
         elevation: 0,
       ),
       body: classesAsync.when(
-        loading: () => const ShimmerLoading(),
+        loading: () => const Center(
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
         error: (e, st) {
           AppLogger.error(
-            '[TeacherAnalytics] Error loading classes',
+            '[TeacherAnalytics] Lỗi tải danh sách lớp',
             error: e,
             stackTrace: st,
           );
@@ -140,76 +140,168 @@ class _TeacherAnalyticsScreenState
       },
       child: Container(
         margin: EdgeInsets.only(bottom: DesignSpacing.md),
-        padding: EdgeInsets.all(DesignSpacing.md),
         decoration: BoxDecoration(
           color: DesignColors.white,
           borderRadius: BorderRadius.circular(DesignRadius.lg),
-          border: Border.all(color: DesignColors.dividerLight),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: DesignColors.primary,
-                borderRadius: BorderRadius.circular(DesignRadius.md),
-              ),
-              child: Center(
-                child: analyticsAsync.when(
-                  data: (analytics) => Text(
-                    '${ScoreDisplayUtils.toRawString(analytics.classAverage)}/10',
-                    style: DesignTypography.titleMedium.copyWith(
-                      color: DesignColors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  loading: () => const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  error: (_, __) =>
-                      Icon(Icons.error, color: DesignColors.error),
-                ),
-              ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 12,
+              offset: Offset(0, 4),
             ),
-            SizedBox(width: DesignSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            BoxShadow(
+              color: Color(0x08000000),
+              blurRadius: 4,
+              offset: Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header - Avatar + Info
+            Container(
+              padding: EdgeInsets.all(DesignSpacing.md),
+              child: Row(
                 children: [
-                  Text(
-                    classItem.name,
-                    style: DesignTypography.titleMedium.copyWith(
-                      fontWeight: FontWeight.w600,
+                  // Avatar vuông màu xanh lá
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: DesignColors.info,
+                      borderRadius: BorderRadius.circular(DesignRadius.md),
+                    ),
+                    child: Center(
+                      child: analyticsAsync.when(
+                        data: (analytics) => Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              ScoreDisplayUtils.toRawString(analytics.classAverage),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                              ),
+                            ),
+                            const Text(
+                              '/10',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                        loading: () => const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                        error: (_, __) => const Icon(
+                          Icons.error,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
                     ),
                   ),
-                  SizedBox(height: DesignSpacing.xs),
-                  analyticsAsync.when(
-                    data: (analytics) => Text(
-                      '${analytics.totalStudents} học sinh • ${analytics.totalSubmissions} bài nộp',
-                      style: DesignTypography.bodySmall.copyWith(
-                        color: DesignColors.textSecondary,
-                      ),
+                  SizedBox(width: DesignSpacing.md),
+                  // Tên lớp + số HS
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          classItem.name,
+                          style: DesignTypography.titleMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: DesignSpacing.xs),
+                        analyticsAsync.when(
+                          data: (analytics) => Text(
+                            '${analytics.totalStudents} HỌC SINH',
+                            style: DesignTypography.bodySmall.copyWith(
+                              color: DesignColors.textSecondary,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          loading: () => Text(
+                            'Đang tải...',
+                            style: DesignTypography.bodySmall.copyWith(
+                              color: DesignColors.textSecondary,
+                            ),
+                          ),
+                          error: (_, __) => Text(
+                            'Lỗi tải dữ liệu',
+                            style: DesignTypography.bodySmall.copyWith(
+                              color: DesignColors.error,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    loading: () => Text(
-                      'Đang tải...',
-                      style: DesignTypography.bodySmall.copyWith(
-                        color: DesignColors.textSecondary,
-                      ),
+                  ),
+                  // Icon info
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: DesignColors.moonLight,
+                      borderRadius: BorderRadius.circular(DesignRadius.sm),
                     ),
-                    error: (_, __) => Text(
-                      'Lỗi tải dữ liệu',
-                      style: DesignTypography.bodySmall.copyWith(
-                        color: DesignColors.error,
-                      ),
+                    child: const Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color: DesignColors.textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: DesignColors.textSecondary),
+            // Divider
+            Container(
+              height: 1,
+              color: DesignColors.dividerLight,
+            ),
+            // Bottom - Xem chi tiết button
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedClassId = classItem.id;
+                });
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  vertical: DesignSpacing.sm + 2,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'XEM CHI TIẾT',
+                      style: DesignTypography.bodySmall.copyWith(
+                        color: DesignColors.primary,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    SizedBox(width: DesignSpacing.xs),
+                    const Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: DesignColors.primary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -252,10 +344,12 @@ class _TeacherAnalyticsScreenState
         ],
       ),
       body: analyticsAsync.when(
-        loading: () => const ShimmerTeacherAnalyticsLoading(),
+        loading: () => const Center(
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
         error: (e, st) {
           AppLogger.error(
-            '[TeacherAnalytics] Error loading analytics for class: $classId',
+            '[TeacherAnalytics] Lỗi tải phân tích lớp: $classId',
             error: e,
             stackTrace: st,
           );
@@ -301,6 +395,7 @@ class _TeacherAnalyticsScreenState
               highestScore: analytics.highestScore,
               lowestScore: analytics.lowestScore,
               totalStudents: analytics.totalStudents,
+              totalSubmissions: analytics.totalSubmissions,
               submissionRate: analytics.submissionRate,
               lateSubmissionRate: analytics.lateSubmissionRate,
               lateSubmissionCount: analytics.lateSubmissionCount,
@@ -324,10 +419,13 @@ class _TeacherAnalyticsScreenState
             TopPerformersList(
               performers: analytics.topPerformers,
               onTap: (studentId) {
-                context.pushNamed(
-                  AppRoute.teacherStudentAnalytics,
-                  pathParameters: {'studentId': studentId},
-                  extra: {'classId': classId},
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => TeacherStudentAnalyticsScreen(
+                      studentId: studentId,
+                      classId: classId,
+                    ),
+                  ),
                 );
               },
             ),
@@ -339,10 +437,13 @@ class _TeacherAnalyticsScreenState
             BottomPerformersList(
               performers: analytics.bottomPerformers,
               onTap: (studentId) {
-                context.pushNamed(
-                  AppRoute.teacherStudentAnalytics,
-                  pathParameters: {'studentId': studentId},
-                  extra: {'classId': classId},
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => TeacherStudentAnalyticsScreen(
+                      studentId: studentId,
+                      classId: classId,
+                    ),
+                  ),
                 );
               },
             ),

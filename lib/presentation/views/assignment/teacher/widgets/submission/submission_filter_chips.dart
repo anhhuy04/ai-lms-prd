@@ -31,11 +31,11 @@ class SubmissionFilterChips extends StatelessWidget {
                 label: Text(filter.label),
                 selected: isSelected,
                 onSelected: (_) => onFilterChanged(filter),
-                backgroundColor: const Color(0xFFF5F5F5),
+                backgroundColor: DesignColors.moonLight,
                 selectedColor: DesignColors.primary.withValues(alpha: 0.2),
                 checkmarkColor: DesignColors.primary,
                 labelStyle: DesignTypography.labelMedium?.copyWith(
-                  color: isSelected ? DesignColors.primary : const Color(0xFF616161),
+                  color: isSelected ? DesignColors.primary : DesignColors.textSecondary,
                 ),
               ),
             );

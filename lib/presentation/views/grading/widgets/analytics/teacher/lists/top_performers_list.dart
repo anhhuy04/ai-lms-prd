@@ -34,7 +34,7 @@ class TopPerformersList extends StatelessWidget {
                 ),
                 SizedBox(width: DesignSpacing.sm),
                 Text(
-                  'Top Performers',
+                  'Học sinh xuất sắc',
                   style: DesignTypography.titleSmall.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -74,7 +74,7 @@ class TopPerformersList extends StatelessWidget {
                     borderRadius: BorderRadius.circular(DesignRadius.md),
                   ),
                   child: Text(
-                    '${performer.score.toStringAsFixed(1)}%',
+                    '${performer.score.toStringAsFixed(1)}/10',
                     style: DesignTypography.labelMedium.copyWith(
                       color: DesignColors.success,
                       fontWeight: FontWeight.w600,

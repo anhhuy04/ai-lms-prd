@@ -28,9 +28,10 @@ class AssignmentDistribution with _$AssignmentDistribution {
     String? className,
     String? groupName,
     String? assignmentTitle,
-    int? recipientCount,
-    int? submittedCount,
-    int? gradedCount,
+    @JsonKey(name: 'recipient_count') int? recipientCount,
+    @JsonKey(name: 'submitted_count') int? submittedCount,
+    @JsonKey(name: 'graded_count') int? gradedCount,
+    @JsonKey(name: 'late_submission_count') int? lateSubmissionCount,
   }) = _AssignmentDistribution;
 
   factory AssignmentDistribution.fromJson(Map<String, dynamic> json) =>

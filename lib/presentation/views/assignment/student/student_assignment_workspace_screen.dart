@@ -1,4 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/presentation/providers/workspace_provider.dart';
 import 'package:ai_mls/presentation/views/assignment/student/widgets/essay_answer_field.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
@@ -414,11 +415,7 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   Widget _buildMultipleChoice(QuestionState question, dynamic answer) {
-    // DEBUG: Log để kiểm tra
-    print(
-      '🔵 [UI] _buildMultipleChoice: question.choices.length = ${question.choices.length}',
-    );
-    print('🔵 [UI] question.choices = ${question.choices}');
+    AppLogger.debug('[_buildMultipleChoice] question.choices.length = ${question.choices.length}, choices = $question.choices');
 
     if (question.choices.isEmpty) {
       return const SizedBox.shrink();

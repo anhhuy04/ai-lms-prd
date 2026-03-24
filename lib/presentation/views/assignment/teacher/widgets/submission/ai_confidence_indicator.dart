@@ -76,7 +76,7 @@ class AiConfidenceIndicator extends StatelessWidget {
             borderRadius: BorderRadius.circular(DesignRadius.sm),
             child: LinearProgressIndicator(
               value: confidence!,
-              backgroundColor: const Color(0xFFEEEEEE),
+              backgroundColor: DesignColors.disabledLight,
               valueColor: AlwaysStoppedAnimation<Color>(
                 isLowConfidence
                     ? DesignColors.warning

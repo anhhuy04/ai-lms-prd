@@ -377,6 +377,9 @@ class _StudentAnalyticsScreenState
               trendColor: metrics.onTimeRate >= 0.8
                   ? DesignColors.success
                   : DesignColors.warning,
+              trendText: metrics.onTimeRate >= 0.8
+                  ? 'Tốt'
+                  : 'Cần cải thiện',
             ),
             MetricCard(
               label: 'Thời gian học',

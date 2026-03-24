@@ -190,6 +190,31 @@ class _ClassSettingsDrawerState extends ConsumerState<ClassSettingsDrawer> {
                       showNotificationDot: pendingCount > 0,
                     ),
                   ),
+                  Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    indent: spacing.xxxxxl,
+                    endIndent: spacing.md,
+                    color: DesignColors.dividerLight,
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: spacing.md,
+                      vertical: spacing.xs,
+                    ),
+                    child: DrawerActionTile(
+                      icon: Icons.analytics_outlined,
+                      title: 'Phân tích lớp học',
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.pushNamed(
+                          AppRoute.teacherAnalytics,
+                          pathParameters: {'classId': widget.classItem.id},
+                        );
+                      },
+                      iconColor: DesignColors.drawerIcon,
+                    ),
+                  ),
                 ],
               ),
             ),

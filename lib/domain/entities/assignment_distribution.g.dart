@@ -30,13 +30,13 @@ _$AssignmentDistributionImpl _$$AssignmentDistributionImplFromJson(
   createdAt: json['created_at'] == null
       ? null
       : DateTime.parse(json['created_at'] as String),
-  subjectName: json['subjectName'] as String?,
   className: json['className'] as String?,
   groupName: json['groupName'] as String?,
   assignmentTitle: json['assignmentTitle'] as String?,
-  recipientCount: (json['recipientCount'] as num?)?.toInt(),
-  submittedCount: (json['submittedCount'] as num?)?.toInt(),
-  gradedCount: (json['gradedCount'] as num?)?.toInt(),
+  recipientCount: (json['recipient_count'] as num?)?.toInt(),
+  submittedCount: (json['submitted_count'] as num?)?.toInt(),
+  gradedCount: (json['graded_count'] as num?)?.toInt(),
+  lateSubmissionCount: (json['late_submission_count'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$$AssignmentDistributionImplToJson(
@@ -55,11 +55,11 @@ Map<String, dynamic> _$$AssignmentDistributionImplToJson(
   'late_policy': instance.latePolicy,
   'settings': instance.settings,
   'created_at': instance.createdAt?.toIso8601String(),
-  'subjectName': instance.subjectName,
   'className': instance.className,
   'groupName': instance.groupName,
   'assignmentTitle': instance.assignmentTitle,
-  'recipientCount': instance.recipientCount,
-  'submittedCount': instance.submittedCount,
-  'gradedCount': instance.gradedCount,
+  'recipient_count': instance.recipientCount,
+  'submitted_count': instance.submittedCount,
+  'graded_count': instance.gradedCount,
+  'late_submission_count': instance.lateSubmissionCount,
 };

@@ -69,9 +69,11 @@ Hoàn thiện Teacher Grading Workflow với 6 tasks:
 - AI Loading indicator khi đang chờ AI
 - Filter: Tất cả / Chưa chấm / Đã chấm / Nộp muộn
 
-### 2. Side-by-Side Layout
-- Desktop: 2 cột (bài làm | đáp án + rubric)
-- Mobile: Bottom Sheet + PageView
+### 2. All-in-One List Layout
+- Tất cả câu hỏi trong 1 ListView scroll (không còn side-by-side hay bottom sheet)
+- Header: Avatar HS + tên + lớp + deadline + thời gian nộp
+- MCQ tô màu: đỏ (sai), xanh (đúng), cảnh báo (chưa chọn)
+- AI Feedback box: hiển thị teacher_feedback > ai_feedback
 
 ### 3. Skepticism Thermometer
 - Hiển thị AI confidence (thanh confidence)
@@ -160,8 +162,31 @@ status: 'in_progress' | 'submitted' | 'graded'
 
 ---
 
+## Deviation Documentation
+
+### UI Redesign (2026-03-24)
+
+**Thay đổi lớn:** User đã custom lại UI Submission Detail thành all-in-one list layout thay vì side-by-side / bottom sheet.
+
+**Lý do:** User muốn tối ưu trải nghiệm, hiển thị tất cả câu hỏi trong 1 trang.
+
+### Issues Found (UAT)
+
+**1. [major] Teacher Feedback - Auto-expand & Persist**
+- **Issue:** Reload thì mục thêm nhận xét bị mất. Thoát ra vào lại thì mục đã thêm bị ẩn, bật lên thì không thấy gì.
+- **Yêu cầu:** Câu hỏi có nhận xét thì tự động hiển thị cùng nội dung.
+- **Status:** Diagnosing
+
+**2. [major] Publish Grades - Feedback rõ ràng**
+- **Issue:** Bấm "Hoàn thành" nhưng không rõ đã hoạt động hay chưa.
+- **Yêu cầu:** Cần cách để check.
+- **Status:** Diagnosing
+
+---
+
 ## Next Steps
 
+- Fix 2 issues từ UAT (Feedback auto-expand, Publish feedback)
 - Test toàn bộ flow với dữ liệu thực
 - Verify Supabase Realtime cho student app
 - Thêm notification cho HS khi có điểm mới

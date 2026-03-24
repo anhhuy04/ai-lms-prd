@@ -1,8 +1,8 @@
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/analytics/student_analytics.dart';
 import 'package:ai_mls/presentation/providers/analytics_providers.dart';
-import 'package:ai_mls/presentation/views/grading/student_analytics_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,14 +12,14 @@ class ScoresScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final analyticsAsync = ref.watch(studentAnalyticsNotifierProvider);
-    final emptyState = ref.watch(analyticsEmptyStateProvider);
+    final analyticsAsync = ref.watch(studentAnalyticsNotifierProvider());
+    final emptyState = ref.watch(analyticsEmptyStateProvider());
 
     return Scaffold(
-      backgroundColor: DesignColors.background,
+      backgroundColor: DesignColors.moonLight,
       appBar: AppBar(
         title: const Text('Điểm số'),
-        backgroundColor: DesignColors.surface,
+        backgroundColor: DesignColors.moonLight,
         elevation: 0,
       ),
       body: analyticsAsync.when(
@@ -131,7 +131,7 @@ class ScoresScreen extends ConsumerWidget {
     StudentAnalytics analytics,
   ) {
     return GestureDetector(
-      onTap: () => context.push('/student/analytics'),
+      onTap: () => context.pushNamed(AppRoute.studentAnalytics),
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -224,7 +224,7 @@ class ScoresScreen extends ConsumerWidget {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                '${analytics.basicMetrics.avgScore.toStringAsFixed(1)}',
+                                analytics.basicMetrics.avgScore.toStringAsFixed(1),
                                 style: DesignTypography.headlineMedium.copyWith(
                                   color: DesignColors.primary,
                                   fontWeight: FontWeight.bold,
@@ -371,7 +371,7 @@ class ScoresScreen extends ConsumerWidget {
     return Container(
       padding: EdgeInsets.all(DesignSpacing.md),
       decoration: BoxDecoration(
-        color: DesignColors.surface,
+        color: DesignColors.white,
         borderRadius: BorderRadius.circular(DesignRadius.lg),
         border: Border.all(color: DesignColors.dividerLight),
       ),
@@ -445,7 +445,7 @@ class ScoresScreen extends ConsumerWidget {
                 vertical: DesignSpacing.sm,
               ),
               decoration: BoxDecoration(
-                color: DesignColors.successLight,
+                color: DesignColors.success.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(DesignRadius.md),
               ),
               child: Row(
@@ -454,13 +454,13 @@ class ScoresScreen extends ConsumerWidget {
                   Icon(
                     Icons.star,
                     size: 16,
-                    color: DesignColors.successDark,
+                    color: DesignColors.success,
                   ),
                   SizedBox(width: DesignSpacing.xs),
                   Text(
                     skill.skillName,
                     style: DesignTypography.bodySmall.copyWith(
-                      color: DesignColors.successDark,
+                      color: DesignColors.success,
                       fontWeight: FontWeight.w500,
                     ),
                   ),

@@ -1,6 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
-import 'package:ai_mls/domain/entities/assignment.dart';
 import 'package:ai_mls/domain/entities/assignment_distribution.dart';
 import 'package:ai_mls/presentation/providers/teacher_assignment_hub_notifier.dart';
 import 'package:flutter/material.dart';
@@ -139,8 +138,7 @@ class _ClassSubmissionCard extends StatelessWidget {
     // Stats từ distribution (cần be đã có sẵn từ provider)
     final totalStudents = distribution.recipientCount ?? 0;
     final submittedCount = distribution.submittedCount ?? 0;
-    final gradedCount = distribution.gradedCount ?? 0;
-    final lateCount = distribution.lateCount ?? 0;
+    final lateCount = distribution.lateSubmissionCount ?? 0;
     final notSubmittedCount = totalStudents - submittedCount;
 
     return Card(

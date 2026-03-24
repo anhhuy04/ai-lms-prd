@@ -63,7 +63,7 @@ class QuestionAnswerCard extends StatelessWidget {
     if (selectedChoices != null) {
       return Wrap(
         spacing: DesignSpacing.sm,
-        children: selectedChoices.map((choice) => Chip(label: Text('${choice.id}'))).toList(),
+        children: selectedChoices.map((choice) => Chip(label: Text(choice.id.toString()))).toList(),
       );
     }
     final text = answerData['text'] as String?;

@@ -26,7 +26,7 @@ class GradingActionButtons extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(DesignSpacing.md),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA),
+        color: DesignColors.disabledLight,
         border: const Border(
           top: BorderSide(color: DesignColors.dividerMedium),
         ),
@@ -43,7 +43,7 @@ class GradingActionButtons extends StatelessWidget {
                   style: DesignTypography.bodyMedium?.copyWith(color: DesignColors.textSecondary),
                 ),
                 Text(
-                  '${aiScore.toStringAsFixed(1)}',
+                  aiScore.toStringAsFixed(1),
                   style: DesignTypography.titleLarge?.copyWith(
                     color: DesignColors.primary,
                     fontWeight: FontWeight.bold,

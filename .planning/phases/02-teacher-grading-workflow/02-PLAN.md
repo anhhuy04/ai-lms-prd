@@ -11,10 +11,9 @@
 | Model | Ý nghĩa |
 |-------|-----------|
 | **ATC (Air Traffic Control)** | Dashboard nhìn lướt biết bài nào có vấn đề |
-| **Side-by-Side** | Cột trái: Bài làm, Cột phải: Đáp án chuẩn |
+| **All-in-One List** | Tất cả câu hỏi trong 1 ListView scroll (UI hiện tại) |
 | **Human-in-the-loop** | AI là assistant, teacher là final approver |
 | **Stage Curtain** | Điểm chỉ hiện khi teacher "Publish" |
-| **Focus Lens** | Mobile: Bottom Sheet thay vì side-by-side |
 | **Skepticism Thermometer** | AI confidence < 0.7 → vàng cảnh báo |
 
 ---
@@ -54,40 +53,47 @@
 
 ---
 
-### Task 2: Submission Detail - Side-by-Side Layout
+### Task 2: Submission Detail - All-in-One List Layout
 
-**Mô tả:** Xem chi tiết bài nộp với "Focus Lens" - Mobile: Bottom Sheet
+**Mô tả:** Tất cả câu hỏi hiển thị trong 1 ListView scroll (không còn side-by-side hay bottom sheet)
 
 **Files:**
 - `lib/presentation/views/assignment/teacher/teacher_submission_detail_screen.dart`
 
-**Chức năng Desktop:**
-- 2 cột: Cột trái (Bài làm) | Cột phải (Đáp án + Rubric)
+**Header:**
+- Avatar HS + tên HS + lớp
+- Tên bài tập + deadline + thời gian nộp
+- Badge "Nộp muộn" nếu is_late = true
 
-**Chức năng Mobile:**
-- Câu hỏi + Câu trả lời HS + Ô nhập điểm (luôn hiển thị)
-- FAB/Button "Xem Rubric & Đáp án" → Bottom Sheet trượt lên
+**Mỗi câu hỏi card hiển thị:**
+1. **Header row**: Badge loại câu hỏi (TRẮC NGHIỆM / TỰ LUẬN / ĐÚNG/Sai) + ô điểm (màu xanh nếu đạt, đỏ nếu chưa)
+2. **Câu hỏi**: Nội dung câu hỏi
+3. **Bài làm HS**:
+   - Trắc nghiệm: Hiển thị tất cả lựa chọn, tô màu theo đúng/sai
+     - HS chọn sai → viền đỏ + nền đỏ + icon X
+     - Đáp án đúng → viền xanh + nền xanh + icon check
+     - HS chưa chọn → cảnh báo "Học sinh chưa chọn đáp án"
+   - Tự luận: Hiển thị text bài làm, hoặc "Học sinh không có câu trả lời"
+4. **AI Feedback box**: Hiển thị teacher_feedback nếu có, không thì hiển thị ai_feedback
+5. **AI Confidence indicator**: Thanh confidence + cảnh báo nếu < 0.7
+6. **Comment section**:
+   - Icon chat bubble (có feedback → icon filled, không → outline)
+   - **⚠️ QUAN TRỌNG**: Nếu có teacher_feedback → tự động expand + hiển thị nội dung
+   - Reload → comment vẫn expand + hiển thị nội dung đã lưu
+   - TextField với debounce 1 giây tự lưu
+7. **Action buttons**: Nút "Duyệt" + "Sửa điểm" (nếu có ai_score)
+8. **Grade Audit Trail**: Lịch sử override (điểm cũ → mới, lý do, thời gian)
 
-**Hiển thị:**
-- Câu hỏi + Đáp án học sinh chọn
-- File đính kèm (nếu có)
-
-**⚠️ QUAN TRỌNG: Skepticism Thermometer (AI Confidence)**
-- Database có sẵn cột `ai_confidence` trong `submission_answers`
-- **Bắt buộc hiển thị** thanh confidence indicator
-- Nếu `ai_confidence < 0.7`:
-  - Toàn bộ khung AI đổi sang viền vàng/đỏ
-  - Hiển thị dòng text: "AI phân vân (Độ tin cậy thấp) - Yêu cầu giáo viên kiểm tra kỹ"
+**Footer (Bottom Navigation Bar):**
+- Tổng điểm hiện tại (scale /10)
+- Nút "Hoàn thành" → Dialog xác nhận xuất bản → update work_sessions.status = 'graded'
+- Sau khi xuất bản → quay về màn trước
 
 ---
 
 ### Task 3: Grading Interface - Human-in-the-Loop
 
-**Mô tả:** Teacher chấm điểm với quyền lực tối thượng
-
-**Files:**
-- `lib/presentation/views/assignment/teacher/teacher_submission_detail_screen.dart`
-- `lib/data/repositories/submission_repository_impl.dart`
+**Mô tả:** Teacher chấm điểm với quyền lực tối thượng - mỗi câu hỏi có nút Duyệt/Sửa điểm riêng
 
 **Logic:**
 
@@ -100,29 +106,22 @@
 - **Approve**: Dùng điểm AI → `final_score = ai_score`
 - **Override**: Nhập điểm mới → INSERT vào `grade_overrides` (old_score, new_score, reason)
 
-**⚠️ QUAN TRỌNG #1: Feedback Override (Lời phê)**
+**⚠️ QUAN TRỌNG #1: Teacher Feedback - Auto-expand & Persist**
 - Database có 2 cột riêng: `ai_feedback` (jsonb) và `teacher_feedback` (jsonb)
 - **Bắt buộc có Textbox** cho phép giáo viên:
   - Sửa lời phê của AI
   - Thêm lời phê mới
-- UI mẫu:
-```
-📝 Feedback AI:
-"Lời giải chưa đầy đủ..."
+- **⚠️ QUAN TRỌNG**: Khi load dữ liệu:
+  - Nếu `teacher_feedback` có nội dung → comment tự động expand
+  - Reload / thoát ra vào lại → comment vẫn expand + hiển thị nội dung
+  - Không được để text mất sau reload
 
-✏️ Lời phê của giáo viên:
-[ Khung nhập liệu cho phép edit ]
-```
-
-**⚠️ QUAN TRỌNG #2: Publish Grades (Xuất bản điểm) - TỬ HUYỆT!**
+**⚠️ QUAN TRỌNG #2: Publish Grades (Xuất bản điểm)**
 - **THIẾU NÚT PUBLISH = LỖ HỔNG BẢO MẬT LỚN**
-- Khi teacher bấm "Duyệt" → Điểm lưu vào DB (status = 'submitted')
-- **Cần nút "Xuất bản"** riêng biệt:
-  - Nút màu xanh nổi bật trong Submission List
-  - Khi bấm: `UPDATE work_sessions SET status = 'graded'`
-  - Chỉ khi publish, học sinh mới thấy điểm
-- **Supabase Realtime**: Student app subscribe `work_sessions` changes
-  - Khi `status = 'graded'` → Student app tự động hiển thị điểm mới
+- Khi teacher bấm "Hoàn thành" → Dialog xác nhận
+- Confirm → `UPDATE work_sessions SET status = 'graded'`
+- Chỉ khi publish, học sinh mới thấy điểm
+- **Sau khi xuất bản**: SnackBar thông báo thành công + tự động quay về màn trước
 
 ---
 
@@ -156,22 +155,23 @@ CREATE TABLE grade_overrides (
 
 ---
 
-### Task 5: Publish Grades - Stage Curtain
+### Task 5: Publish Grades - Hoàn thành Button
 
 **Mô tả:** "Kéo rèm" - chỉ khi publish học sinh mới thấy điểm
 
 **Files:**
-- `lib/presentation/views/assignment/teacher/teacher_submission_list_screen.dart`
+- `lib/presentation/views/assignment/teacher/teacher_submission_detail_screen.dart`
 - `lib/data/datasources/submission_datasource.dart`
 
 **Logic:**
-1. Nút "Xuất bản điểm toàn lớp" trong submission list
-2. Backend: `UPDATE work_sessions SET status = 'graded' WHERE assignment_distribution_id = ?`
-3. Gửi notification cho học sinh
+1. Footer hiển thị nút "Hoàn thành" + tổng điểm
+2. Backend: `UPDATE work_sessions SET status = 'graded' WHERE id = ?`
+3. Sau khi xuất bản → thông báo + quay về màn trước
 
-**Settings:**
-- Kiểm tra `assignment_distributions.settings.show_score_immediately`
-- Nếu true + toàn bài trắc nghiệm → auto publish
+**⚠️ Feedback quan trọng:**
+- Sau khi bấm "Hoàn thành" → SnackBar "Đã xuất bản điểm" thành công
+- Nếu lỗi → SnackBar báo lỗi cụ thể
+- Không để teacher không biết đã xuất bản thành công hay chưa
 
 ---
 
@@ -183,8 +183,8 @@ CREATE TABLE grade_overrides (
 - `lib/presentation/views/assignment/teacher/teacher_submission_detail_screen.dart`
 
 **UI:**
-- Nút Next/Previous to đùng ở cuối màn hình
-- Hoặc swipe gesture
+- Nếu có `allSubmissionIds`: hiển thị nút ← / → trong AppBar hoặc footer
+- Swipe gesture để chuyển bài (nếu muốn)
 
 ---
 
@@ -199,13 +199,16 @@ flutter analyze
 - [ ] Teacher xem được danh sách submissions với ATC model
 - [ ] Badge "Nộp muộn" hiển thị đỏ
 - [ ] AI loading indicator khi đang chờ AI
-- [ ] Side-by-side (Desktop) / Bottom Sheet (Mobile) hoạt động
+- [ ] **All-in-One List**: tất cả câu hỏi trong 1 ListView
+- [ ] MCQ tô màu đúng/sai theo spec
 - [ ] AI confidence indicator hiển thị (thanh confidence)
 - [ ] AI confidence < 0.7 → nền vàng + cảnh báo text
-- [ ] Teacher approve/override điểm AI
+- [ ] Teacher approve/override điểm AI (nút mỗi câu hỏi)
 - [ ] **Teacher có thể sửa Feedback (teacher_feedback textbox)**
-- [ ] **Có nút "Xuất bản điểm" (Publish) riêng biệt**
+- [ ] **⚠️ Feedback auto-expand**: nếu có teacher_feedback → tự động expand + hiển thị nội dung sau reload
+- [ ] **⚠️ Feedback persist**: reload / thoát vào → comment vẫn expand + nội dung không mất
 - [ ] Grade override lưu audit trail vào bảng grade_overrides
+- [ ] **⚠️ Nút "Hoàn thành" + SnackBar feedback rõ ràng** sau khi xuất bản
 - [ ] Publish grades chỉ khi teacher bấm nút (status = 'graded')
-- [ ] Next/Prev navigation hoạt động
+- [ ] Next/Prev navigation hoạt động (nếu có allSubmissionIds)
 - [ ] Debounce autosave cho feedback (1000ms)

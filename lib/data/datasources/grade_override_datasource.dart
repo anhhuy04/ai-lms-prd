@@ -1,4 +1,5 @@
 import 'package:ai_mls/core/services/supabase_service.dart';
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// DataSource cho grade_overrides - lưu audit trail khi GV chỉnh sửa điểm.
@@ -30,47 +31,84 @@ class GradeOverrideDataSource {
   ) async {
     final result = await _client
         .from('grade_overrides')
-        .select('''
-          *,
-          profiles!grade_overrides_overridden_by_fkey(
-            id,
-            full_name
-          )
-        ''')
+        .select('*')
         .eq('submission_answer_id', submissionAnswerId)
         .order('created_at', ascending: false);
 
-    return List<Map<String, dynamic>>.from(result);
+    final overrides = List<Map<String, dynamic>>.from(result);
+    return await _populateProfiles(overrides);
   }
 
   /// Lấy tất cả overrides của một distribution (cho báo cáo).
   Future<List<Map<String, dynamic>>> getOverridesByDistribution(
     String distributionId,
   ) async {
-    final result = await _client
-        .from('grade_overrides')
-        .select('''
-          *,
-          submission_answers(
-            id,
-            session_id(
-              assignment_distribution_id
-            ),
-            assignment_questions(
-              question_text
+    try {
+      final result = await _client
+          .from('grade_overrides')
+          .select('''
+            *,
+            submission_answers(
+              id,
+              session_id(
+                assignment_distribution_id
+              ),
+              assignment_questions(
+                id,
+                question_id(
+                  content
+                ),
+                custom_content
+              )
             )
-          ),
-          profiles!grade_overrides_overridden_by_fkey(
-            id,
-            full_name
+          ''')
+          .eq(
+            'submission_answers.session_id.assignment_distribution_id',
+            distributionId,
           )
-        ''')
-        .eq(
-          'submission_answers.session_id.assignment_distribution_id',
-          distributionId,
-        )
-        .order('created_at', ascending: false);
+          .order('created_at', ascending: false);
 
-    return List<Map<String, dynamic>>.from(result);
+      final overrides = List<Map<String, dynamic>>.from(result);
+      return await _populateProfiles(overrides);
+    } catch (e, st) {
+      AppLogger.error(
+        '[GradeOverrideDataSource] getOverridesByDistribution error: $e',
+        error: e,
+        stackTrace: st,
+      );
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _populateProfiles(List<Map<String, dynamic>> overrides) async {
+    if (overrides.isEmpty) return overrides;
+
+    final teacherIds = overrides
+        .map((o) => o['overridden_by'] as String?)
+        .where((id) => id != null)
+        .toSet()
+        .toList();
+
+    if (teacherIds.isEmpty) return overrides;
+
+    try {
+      final profilesResp = await _client
+          .from('profiles')
+          .select('id, full_name')
+          .inFilter('id', teacherIds);
+
+      final profiles = List<Map<String, dynamic>>.from(profilesResp);
+      final profileMap = {for (var p in profiles) p['id']: p};
+
+      for (var o in overrides) {
+        if (o['overridden_by'] != null) {
+          o['profiles'] = profileMap[o['overridden_by']];
+        }
+      }
+    } catch (e) {
+      AppLogger.error('[GradeOverrideDataSource] Error fetching profiles: $e');
+    }
+
+    return overrides;
   }
 }

@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'dart:convert';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
