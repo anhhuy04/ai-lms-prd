@@ -43,6 +43,7 @@ import 'package:ai_mls/presentation/views/grading/scores_screen.dart';
 import 'package:ai_mls/presentation/views/grading/student_analytics_screen.dart';
 import 'package:ai_mls/presentation/views/grading/teacher_analytics_screen.dart';
 import 'package:ai_mls/presentation/views/recommendation/teacher/teacher_recommendations_screen.dart';
+import 'package:ai_mls/presentation/views/recommendation/student/student_recommendations_tab.dart';
 import 'package:ai_mls/presentation/views/network/no_internet_screen.dart';
 import 'package:ai_mls/presentation/views/profile/profile_screen.dart';
 import 'package:ai_mls/presentation/views/settings/api_key_setup_screen.dart';
@@ -213,6 +214,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: AppRoute.studentScores,
             pageBuilder: (context, state) =>
                 FadeTransitionPage(key: state.pageKey, child: ScoresScreen()),
+          ),
+          GoRoute(
+            path: AppRoute.studentRecommendationsTabPath,
+            name: AppRoute.studentRecommendationsTab,
+            pageBuilder: (context, state) => FadeTransitionPage(
+              key: state.pageKey,
+              child: const StudentRecommendationsTab(),
+            ),
           ),
           GoRoute(
             path: AppRoute.studentAnalyticsPath,
