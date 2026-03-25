@@ -6,14 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 
 /// StudentRecommendationsTab: "Hop thuoc dau giuong" pillbox (REC-02).
-/// Shows top 3 most urgent recommendations (LIMIT 3, priority ASC).
+/// Shows student recommendations (LIMIT 20).
 /// Compact cards, quick access to learning resources.
 class StudentRecommendationsTab extends ConsumerWidget {
   const StudentRecommendationsTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final recsAsync = ref.watch(top3RecommendationsProvider);
+    final recsAsync = ref.watch(studentRecommendationNotifierProvider());
 
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
@@ -34,7 +34,7 @@ class StudentRecommendationsTab extends ConsumerWidget {
 
           return RefreshIndicator(
             onRefresh: () async {
-              ref.invalidate(top3RecommendationsProvider);
+              ref.invalidate(studentRecommendationNotifierProvider());
             },
             child: ListView.builder(
               padding: EdgeInsets.all(DesignSpacing.md),
@@ -151,7 +151,7 @@ class StudentRecommendationsTab extends ConsumerWidget {
           Text(error, style: DesignTypography.bodySmall.copyWith(color: Colors.grey)),
           SizedBox(height: DesignSpacing.md),
           ElevatedButton(
-            onPressed: () => ref.invalidate(top3RecommendationsProvider),
+            onPressed: () => ref.invalidate(studentRecommendationNotifierProvider()),
             child: Text('Thu lai'),
           ),
         ],
