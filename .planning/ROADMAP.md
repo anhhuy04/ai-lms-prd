@@ -12,6 +12,7 @@
 **Status:** UAT Complete - All tests passed
 
 **Plans:**
+3/3 plans complete
 - [x] 01-PLAN.md — List view, detail view, routing, Submission entity
 - [x] 02-PLAN.md — Workspace, auto-save, file upload, submission
 - [x] 03-PLAN.md — Gap closure: fix assignment detail & workspace navigation
@@ -74,6 +75,7 @@
 3. Trends visualized correctly
 
 **Plans:**
+3/3 plans complete
 - [x] 04-01-PLAN.md — Data Layer: Entities, Datasource, Providers
 - [x] 04-02-PLAN.md — Student Analytics Dashboard UI
 - [x] 04-03-PLAN.md — Teacher Analytics Dashboard UI
@@ -93,8 +95,10 @@
 3. Peer comparison data available
 
 **Plans:**
-- [ ] 05-01-PLAN.md -- Data Layer: Recommendation entity, Datasource, Repository, Providers, RPC migration
-- [ ] 05-02-PLAN.md -- UI Layer: Widgets, Screens, Dashboard integration, Peer comparison
+3/3 plans complete
+
+- [x] 05-02-PLAN.md -- UI Layer: Widgets, Screens, Dashboard integration, Peer comparison
+- [x] 05-03-PLAN.md -- Gap closure: Add "Hoc tap" recommendations section to student home dashboard
 
 ---
 
