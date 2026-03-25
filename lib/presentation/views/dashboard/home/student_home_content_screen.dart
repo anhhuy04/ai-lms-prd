@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' show File, FileMode, Platform;
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/responsive_utils.dart';
 import 'package:ai_mls/presentation/providers/analytics_providers.dart';
@@ -14,6 +15,9 @@ import 'package:ai_mls/widgets/responsive/responsive_card.dart';
 import 'package:ai_mls/widgets/responsive/responsive_row.dart';
 import 'package:ai_mls/widgets/responsive/responsive_text.dart';
 import 'package:ai_mls/widgets/text/smart_marquee_text.dart';
+import 'package:ai_mls/presentation/views/recommendation/widgets/recommendation_card.dart';
+import 'package:ai_mls/presentation/views/recommendation/student/student_recommendations_tab.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -132,6 +136,8 @@ class StudentHomeContentScreen extends ConsumerWidget {
               _buildProgressCard(context),
               SizedBox(height: config.sectionSpacing),
               _buildPeerComparisonBadge(context, ref),
+              SizedBox(height: config.sectionSpacing),
+              _buildRecommendationsSection(context, ref),
               SizedBox(height: config.sectionSpacing),
               _buildStatsRow(context),
               SizedBox(height: config.sectionSpacing),
@@ -313,6 +319,40 @@ class StudentHomeContentScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildRecommendationsSection(BuildContext context, WidgetRef ref) {
+    final config = ResponsiveUtils.getLayoutConfig(context);
+    final recsAsync = ref.watch(top3RecommendationsProvider);
+
+    return recsAsync.when(
+      data: (recs) {
+        if (recs.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader(
+              context,
+              'Hoc tap',
+              actionLabel: 'Xem tat ca',
+              onAction: () => context.pushNamed(AppRoute.studentRecommendationsTab),
+            ),
+            SizedBox(height: config.itemSpacing),
+            ...recs.take(3).map((rec) => Padding(
+              padding: EdgeInsets.only(bottom: DesignSpacing.sm),
+              child: RecommendationCard(
+                recommendation: rec,
+                compact: true,
+                onDismiss: null, // No dismiss on home screen - use full tab
+              ),
+            )),
+          ],
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
   Widget _buildStatsRow(BuildContext context) {
     final config = ResponsiveUtils.getLayoutConfig(context);
     return ResponsiveRow(
@@ -394,6 +434,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
     BuildContext context,
     String title, {
     String? actionLabel,
+    VoidCallback? onAction,
   }) {
     return ResponsiveRow(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -406,7 +447,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
         ),
         if (actionLabel != null)
           TextButton(
-            onPressed: () {},
+            onPressed: onAction,
             child: ResponsiveText(
               actionLabel,
               style: const TextStyle(
