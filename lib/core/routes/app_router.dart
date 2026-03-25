@@ -42,6 +42,7 @@ import 'package:ai_mls/presentation/views/dashboard/teacher_dashboard_screen.dar
 import 'package:ai_mls/presentation/views/grading/scores_screen.dart';
 import 'package:ai_mls/presentation/views/grading/student_analytics_screen.dart';
 import 'package:ai_mls/presentation/views/grading/teacher_analytics_screen.dart';
+import 'package:ai_mls/presentation/views/recommendation/teacher/teacher_recommendations_screen.dart';
 import 'package:ai_mls/presentation/views/network/no_internet_screen.dart';
 import 'package:ai_mls/presentation/views/profile/profile_screen.dart';
 import 'package:ai_mls/presentation/views/settings/api_key_setup_screen.dart';
@@ -273,6 +274,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             child: TeacherAnalyticsScreen(classId: classId),
           );
         },
+      ),
+
+      // Teacher Recommendations screen (REC-01)
+      GoRoute(
+        path: AppRoute.teacherRecommendationsTabPath,
+        name: AppRoute.teacherRecommendationsTab,
+        pageBuilder: (context, state) => FadeTransitionPage(
+          key: state.pageKey,
+          child: const TeacherRecommendationsScreen(),
+        ),
       ),
 
       // ==================== TEACHER DASHBOARD SHELL ====================

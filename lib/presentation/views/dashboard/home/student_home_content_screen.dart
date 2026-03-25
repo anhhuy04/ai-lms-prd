@@ -4,8 +4,11 @@ import 'dart:io' show File, FileMode, Platform;
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/responsive_utils.dart';
+import 'package:ai_mls/presentation/providers/analytics_providers.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
+import 'package:ai_mls/presentation/providers/recommendation_providers.dart';
 import 'package:ai_mls/presentation/providers/student_dashboard_notifier.dart';
+import 'package:ai_mls/presentation/views/recommendation/widgets/peer_comparison_badge.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/responsive/responsive_card.dart';
 import 'package:ai_mls/widgets/responsive/responsive_row.dart';
@@ -128,6 +131,8 @@ class StudentHomeContentScreen extends ConsumerWidget {
               SizedBox(height: config.sectionSpacing),
               _buildProgressCard(context),
               SizedBox(height: config.sectionSpacing),
+              _buildPeerComparisonBadge(context, ref),
+              SizedBox(height: config.sectionSpacing),
               _buildStatsRow(context),
               SizedBox(height: config.sectionSpacing),
               _buildSectionHeader(
@@ -179,7 +184,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
             children: [
               ResponsiveText(
                 'Chào buổi sáng,',
-                style: const TextStyle(color: Colors.grey),
+                style: TextStyle(color: DesignColors.textSecondary),
                 fontSize: DesignTypography.bodySmallSize,
               ),
               SizedBox(height: DesignSpacing.xs),
@@ -197,7 +202,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(DesignRadius.md),
-            border: Border.all(color: Colors.grey.shade200),
+            border: Border.all(color: DesignColors.dividerLight),
           ),
           child: IconButton(
             onPressed: () {},
@@ -214,7 +219,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
     return ResponsiveCard(
       padding: EdgeInsets.all(config.cardPadding + 4),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
         gradient: const LinearGradient(
           colors: [Color(0xFF0EA5E9), DesignColors.primary],
           begin: Alignment.topLeft,
@@ -281,6 +286,33 @@ class StudentHomeContentScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildPeerComparisonBadge(BuildContext context, WidgetRef ref) {
+    final classesAsync = ref.watch(studentClassesForAnalyticsProvider);
+
+    return classesAsync.when(
+      data: (classes) {
+        if (classes.isEmpty) return const SizedBox.shrink();
+
+        final firstClass = classes.first;
+        final peerAsync = ref.watch(peerComparisonProvider(firstClass.id));
+
+        return peerAsync.when(
+          data: (peer) {
+            if (peer.totalStudents == 0) return const SizedBox.shrink();
+            return PeerComparisonBadge(
+              percentile: peer.percentile,
+              classAverage: peer.classAverage,
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => const SizedBox.shrink(),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
   Widget _buildStatsRow(BuildContext context) {
     final config = ResponsiveUtils.getLayoutConfig(context);
     return ResponsiveRow(
@@ -291,7 +323,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
             Icons.check_circle_outline,
             'Đã nộp',
             '12',
-            Colors.green,
+            DesignColors.success,
           ),
         ),
         SizedBox(width: config.itemSpacing),
@@ -301,7 +333,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
             Icons.hourglass_top_outlined,
             'Chờ chấm',
             '3',
-            Colors.orange,
+            DesignColors.warning,
           ),
         ),
       ],
@@ -320,7 +352,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
       padding: EdgeInsets.all(config.cardPadding),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
         border: Border.all(color: color.withValues(alpha: 0.1)),
       ),
       child: Column(
@@ -331,14 +363,14 @@ class StudentHomeContentScreen extends ConsumerWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: DesignColors.dividerLight),
             ),
             child: Icon(icon, color: color, size: DesignIcons.smSize),
           ),
           SizedBox(height: config.itemSpacing),
           ResponsiveText(
             title,
-            style: const TextStyle(color: Colors.grey),
+            style: TextStyle(color: DesignColors.textSecondary),
             fontSize: DesignTypography.bodySmallSize,
           ),
           const SizedBox(height: 2),
@@ -442,7 +474,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
       padding: EdgeInsets.all(config.cardPadding),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
       ),
       child: SizedBox(
         // Responsive width: mobile 240, tablet 280, desktop 320
@@ -460,7 +492,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
               children: [
                 Icon(
                   Icons.timer_outlined,
-                  color: Colors.grey.shade600,
+                  color: DesignColors.textSecondary,
                   size: DesignIcons.smSize,
                 ),
               ],
@@ -476,7 +508,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
             const SizedBox(height: 4),
             ResponsiveText(
               subtitle,
-              style: TextStyle(color: Colors.grey[700]),
+              style: TextStyle(color: DesignColors.textPrimary),
               fontSize: DesignTypography.bodySmallSize,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -544,14 +576,14 @@ class StudentHomeContentScreen extends ConsumerWidget {
       ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        border: Border.all(color: DesignColors.dividerLight),
       ),
       child: ResponsiveRow(
         children: [
           CircleAvatar(
-            backgroundColor: Colors.yellow.shade100.withValues(alpha: 0.5),
-            child: Icon(icon, color: Colors.orange.shade700),
+            backgroundColor: DesignColors.warning.withValues(alpha: 0.1),
+            child: Icon(icon, color: DesignColors.warning),
           ),
           SizedBox(width: config.itemSpacing),
           Expanded(
@@ -579,13 +611,13 @@ class StudentHomeContentScreen extends ConsumerWidget {
                 score,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: Colors.green,
+                  color: DesignColors.success,
                 ),
                 fontSize: DesignTypography.headlineMediumSize,
               ),
               ResponsiveText(
                 '/10',
-                style: const TextStyle(color: Colors.grey),
+                style: TextStyle(color: DesignColors.textSecondary),
                 fontSize: DesignTypography.labelSmallSize,
               ),
             ],

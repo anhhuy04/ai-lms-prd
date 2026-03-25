@@ -149,6 +149,20 @@ Future<List<SkillMastery>> skillMastery(Ref ref) async {
   }
 }
 
+/// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+/// Returns a map of objectiveId -> class average mastery (0.0-1.0).
+/// Returns empty map until the class_average_skill_mastery RPC is available.
+@riverpod
+Future<Map<String, double>> classAverageSkillMastery(
+  Ref ref,
+  String classId,
+) async {
+  // TODO(REC-03): Implement RPC call to get_class_average_skill_mastery
+  // When the RPC is available, call it and return the results.
+  // Until then, return empty map - DualRadarChart will show student-only data.
+  return {};
+}
+
 /// Grade Trends Provider (ANL-03 - for line chart)
 @riverpod
 Future<List<GradeTrend>> gradeTrends(Ref ref) async {

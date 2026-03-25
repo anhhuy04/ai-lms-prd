@@ -1,6 +1,7 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/teacher_dashboard_notifier.dart';
+import 'package:ai_mls/presentation/views/recommendation/widgets/intervention_badge.dart';
 import 'package:ai_mls/widgets/text/smart_marquee_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,6 +48,16 @@ class TeacherHomeContentScreen extends ConsumerWidget {
               _buildQuickStats(quickStats),
               SizedBox(height: DesignSpacing.lg),
               _buildPriorityCard(context),
+              SizedBox(height: DesignSpacing.lg),
+              // Recommendation badge (REC-01: intervention count)
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: DesignSpacing.lg),
+                child: const Row(
+                  children: [
+                    Expanded(child: InterventionBadge()),
+                  ],
+                ),
+              ),
               SizedBox(height: DesignSpacing.xxl),
               _buildSectionHeader(context, 'Lớp học của tôi', 'Xem tất cả'),
               SizedBox(height: DesignSpacing.md),
@@ -93,7 +104,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
             children: [
               const Text(
                 'Chào giáo viên,',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: TextStyle(color: DesignColors.textSecondary, fontSize: 14),
               ),
               SizedBox(height: DesignSpacing.xs),
               SmartMarqueeText(
@@ -110,7 +121,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(DesignRadius.md),
-            border: Border.all(color: Colors.grey.shade200),
+            border: Border.all(color: DesignColors.dividerLight),
           ),
           child: IconButton(
             onPressed: () {},
@@ -145,7 +156,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
-              side: BorderSide(color: Colors.grey.shade200),
+              side: BorderSide(color: DesignColors.dividerLight),
             ),
             padding: EdgeInsets.symmetric(horizontal: DesignSpacing.sm),
           );
@@ -159,11 +170,11 @@ class TeacherHomeContentScreen extends ConsumerWidget {
       padding: EdgeInsets.all(DesignSpacing.xl),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.shade100),
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border: Border.all(color: DesignColors.dividerLight),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.shade900.withValues(alpha: 0.05),
+            color: DesignColors.shadowLight,
             blurRadius: 10,
           ),
         ],
@@ -181,14 +192,14 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                       height: 8,
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.red,
+                        color: DesignColors.error,
                       ),
                     ),
                     const SizedBox(width: 8),
                     const Text(
                       'ƯU TIÊN',
                       style: TextStyle(
-                        color: Colors.red,
+                        color: DesignColors.error,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.5,
@@ -205,7 +216,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                 RichText(
                   text: TextSpan(
                     style: TextStyle(
-                      color: Colors.grey.shade600,
+                      color: DesignColors.textSecondary,
                       fontSize: 14,
                       fontFamily: 'Lexend',
                     ),
@@ -302,7 +313,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
           'Toán Học 10A',
           '35 Học sinh • Phòng B201',
           '5 bài chưa chấm',
-          Colors.orange,
+          DesignColors.warning,
           const LinearGradient(colors: [Colors.orange, Colors.pink]),
         ),
         const SizedBox(height: 12),
@@ -311,7 +322,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
           'Toán Học 11B',
           '32 Học sinh • Phòng A105',
           '2 bài chưa chấm',
-          Colors.blue,
+          DesignColors.primary,
           const LinearGradient(colors: [Colors.blue, Colors.cyan]),
         ),
       ],
@@ -330,11 +341,11 @@ class TeacherHomeContentScreen extends ConsumerWidget {
       padding: EdgeInsets.all(DesignSpacing.lg),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        border: Border.all(color: DesignColors.dividerLight),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: DesignColors.shadowLight,
             blurRadius: 5,
             offset: const Offset(0, 2),
           ),
@@ -347,7 +358,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
             height: 48,
             decoration: BoxDecoration(
               gradient: gradient,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(DesignRadius.sm),
               boxShadow: [
                 BoxShadow(
                   color: gradient.colors.first.withValues(alpha: 0.3),
@@ -382,7 +393,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                 const SizedBox(height: 4),
                 Text(
                   details,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                  style: TextStyle(color: DesignColors.textSecondary, fontSize: 14),
                 ),
                 const SizedBox(height: 8),
                 Chip(
@@ -405,7 +416,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
               ],
             ),
           ),
-          Icon(Icons.chevron_right, color: Colors.grey.shade400),
+          Icon(Icons.chevron_right, color: DesignColors.textTertiary),
         ],
       ),
     );
@@ -421,7 +432,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
           'Lớp 10A',
           '30/35 đã nộp',
           'Còn 2h',
-          Colors.red,
+          DesignColors.error,
         ),
         const SizedBox(height: 12),
         _buildAssignmentTile(
@@ -431,7 +442,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
           'Lớp 11B',
           '12/32 đã nộp',
           'Ngày mai',
-          Colors.orange,
+          DesignColors.warning,
         ),
       ],
     );
@@ -450,13 +461,13 @@ class TeacherHomeContentScreen extends ConsumerWidget {
       padding: EdgeInsets.all(DesignSpacing.md),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        border: Border.all(color: DesignColors.dividerLight),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Color(0x08000000),
             blurRadius: 5,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -467,7 +478,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
             height: 48,
             decoration: BoxDecoration(
               color: timeColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(DesignRadius.sm),
               border: Border.all(color: timeColor.withValues(alpha: 0.2)),
             ),
             child: Column(
@@ -534,23 +545,23 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                       label: Text(
                         className,
                         style: TextStyle(
-                          color: Colors.grey.shade700,
+                          color: DesignColors.textPrimary,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      backgroundColor: Colors.grey.shade100,
+                      backgroundColor: DesignColors.moonLight,
                       side: BorderSide.none,
                       padding: EdgeInsets.zero,
                       labelPadding: const EdgeInsets.symmetric(horizontal: 6),
                     ),
                     const SizedBox(width: 4),
-                    const Text('•', style: TextStyle(color: Colors.grey)),
+                    Text('•', style: TextStyle(color: DesignColors.textSecondary)),
                     const SizedBox(width: 4),
                     Text(
                       submissionStatus,
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color: DesignColors.textSecondary,
                         fontSize: 12,
                       ),
                     ),

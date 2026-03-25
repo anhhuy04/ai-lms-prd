@@ -47,27 +47,8 @@ final skillMasteryProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef SkillMasteryRef = AutoDisposeFutureProviderRef<List<SkillMastery>>;
-String _$gradeTrendsHash() => r'057d0651d0d1a59980bdea9f9349f5f0802e530a';
-
-/// Grade Trends Provider (ANL-03 - for line chart)
-///
-/// Copied from [gradeTrends].
-@ProviderFor(gradeTrends)
-final gradeTrendsProvider =
-    AutoDisposeFutureProvider<List<GradeTrend>>.internal(
-      gradeTrends,
-      name: r'gradeTrendsProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$gradeTrendsHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
-
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef GradeTrendsRef = AutoDisposeFutureProviderRef<List<GradeTrend>>;
-String _$classAnalyticsHash() => r'40f38c2f0a23074c9d24aa6a8b5264d81b849e80';
+String _$classAverageSkillMasteryHash() =>
+    r'2cf9629217fe180a6f705f1244eebe07e567fb00';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -89,6 +70,178 @@ class _SystemHash {
     return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
   }
 }
+
+/// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+/// Returns a map of objectiveId -> class average mastery (0.0-1.0).
+/// Returns empty map until the class_average_skill_mastery RPC is available.
+///
+/// Copied from [classAverageSkillMastery].
+@ProviderFor(classAverageSkillMastery)
+const classAverageSkillMasteryProvider = ClassAverageSkillMasteryFamily();
+
+/// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+/// Returns a map of objectiveId -> class average mastery (0.0-1.0).
+/// Returns empty map until the class_average_skill_mastery RPC is available.
+///
+/// Copied from [classAverageSkillMastery].
+class ClassAverageSkillMasteryFamily
+    extends Family<AsyncValue<Map<String, double>>> {
+  /// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+  /// Returns a map of objectiveId -> class average mastery (0.0-1.0).
+  /// Returns empty map until the class_average_skill_mastery RPC is available.
+  ///
+  /// Copied from [classAverageSkillMastery].
+  const ClassAverageSkillMasteryFamily();
+
+  /// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+  /// Returns a map of objectiveId -> class average mastery (0.0-1.0).
+  /// Returns empty map until the class_average_skill_mastery RPC is available.
+  ///
+  /// Copied from [classAverageSkillMastery].
+  ClassAverageSkillMasteryProvider call(String classId) {
+    return ClassAverageSkillMasteryProvider(classId);
+  }
+
+  @override
+  ClassAverageSkillMasteryProvider getProviderOverride(
+    covariant ClassAverageSkillMasteryProvider provider,
+  ) {
+    return call(provider.classId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'classAverageSkillMasteryProvider';
+}
+
+/// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+/// Returns a map of objectiveId -> class average mastery (0.0-1.0).
+/// Returns empty map until the class_average_skill_mastery RPC is available.
+///
+/// Copied from [classAverageSkillMastery].
+class ClassAverageSkillMasteryProvider
+    extends AutoDisposeFutureProvider<Map<String, double>> {
+  /// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+  /// Returns a map of objectiveId -> class average mastery (0.0-1.0).
+  /// Returns empty map until the class_average_skill_mastery RPC is available.
+  ///
+  /// Copied from [classAverageSkillMastery].
+  ClassAverageSkillMasteryProvider(String classId)
+    : this._internal(
+        (ref) => classAverageSkillMastery(
+          ref as ClassAverageSkillMasteryRef,
+          classId,
+        ),
+        from: classAverageSkillMasteryProvider,
+        name: r'classAverageSkillMasteryProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$classAverageSkillMasteryHash,
+        dependencies: ClassAverageSkillMasteryFamily._dependencies,
+        allTransitiveDependencies:
+            ClassAverageSkillMasteryFamily._allTransitiveDependencies,
+        classId: classId,
+      );
+
+  ClassAverageSkillMasteryProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.classId,
+  }) : super.internal();
+
+  final String classId;
+
+  @override
+  Override overrideWith(
+    FutureOr<Map<String, double>> Function(ClassAverageSkillMasteryRef provider)
+    create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: ClassAverageSkillMasteryProvider._internal(
+        (ref) => create(ref as ClassAverageSkillMasteryRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        classId: classId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<Map<String, double>> createElement() {
+    return _ClassAverageSkillMasteryProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ClassAverageSkillMasteryProvider &&
+        other.classId == classId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, classId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin ClassAverageSkillMasteryRef
+    on AutoDisposeFutureProviderRef<Map<String, double>> {
+  /// The parameter `classId` of this provider.
+  String get classId;
+}
+
+class _ClassAverageSkillMasteryProviderElement
+    extends AutoDisposeFutureProviderElement<Map<String, double>>
+    with ClassAverageSkillMasteryRef {
+  _ClassAverageSkillMasteryProviderElement(super.provider);
+
+  @override
+  String get classId => (origin as ClassAverageSkillMasteryProvider).classId;
+}
+
+String _$gradeTrendsHash() => r'057d0651d0d1a59980bdea9f9349f5f0802e530a';
+
+/// Grade Trends Provider (ANL-03 - for line chart)
+///
+/// Copied from [gradeTrends].
+@ProviderFor(gradeTrends)
+final gradeTrendsProvider =
+    AutoDisposeFutureProvider<List<GradeTrend>>.internal(
+      gradeTrends,
+      name: r'gradeTrendsProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$gradeTrendsHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef GradeTrendsRef = AutoDisposeFutureProviderRef<List<GradeTrend>>;
+String _$classAnalyticsHash() => r'40f38c2f0a23074c9d24aa6a8b5264d81b849e80';
 
 /// Class Analytics Provider (ANL-02 - for teacher view)
 ///

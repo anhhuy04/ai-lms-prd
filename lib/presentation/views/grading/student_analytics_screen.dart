@@ -6,7 +6,12 @@ import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/score_display_utils.dart';
 import 'package:ai_mls/domain/entities/analytics/student_analytics.dart';
+import 'package:ai_mls/domain/entities/analytics/skill_mastery.dart';
+import 'package:ai_mls/domain/entities/recommendation/recommendation.dart';
 import 'package:ai_mls/presentation/providers/analytics_providers.dart';
+import 'package:ai_mls/presentation/providers/recommendation_providers.dart';
+import 'package:ai_mls/presentation/views/recommendation/widgets/dual_radar_chart.dart';
+import 'package:ai_mls/presentation/views/recommendation/widgets/peer_comparison_badge.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart' as shimmers;
 import 'widgets/analytics/charts/radar_skill_chart.dart';
 import 'widgets/analytics/charts/line_trend_chart.dart';
@@ -214,7 +219,13 @@ class _StudentAnalyticsScreenState
               _buildStrengthWeaknessPlaceholder(),
             SizedBox(height: DesignSpacing.lg),
 
-            // Group 4: Grade Trends
+            // Group 4: Peer Comparison (REC-03)
+            _buildSectionTitle('So sanh voi lop'),
+            SizedBox(height: DesignSpacing.sm),
+            _buildPeerComparisonSection(),
+            SizedBox(height: DesignSpacing.lg),
+
+            // Group 5: Grade Trends
             _buildSectionTitle('Xu hướng điểm số'),
             SizedBox(height: DesignSpacing.sm),
             if (analytics.gradeTrends.isNotEmpty)
@@ -419,5 +430,335 @@ class _StudentAnalyticsScreenState
   String _formatTime(int minutes) {
     if (minutes < 60) return '${minutes}m';
     return '${minutes ~/ 60}h ${minutes % 60}m';
+  }
+
+  // REC-03: Peer Comparison Section
+  Widget _buildPeerComparisonSection() {
+    final classId = _selectedClassId;
+    if (classId == null) {
+      return _buildPeerComparisonPlaceholder('Chon lop de xem so sanh');
+    }
+
+    final peerAsync = ref.watch(peerComparisonProvider(classId));
+    final skillMasteries = ref.watch(skillMasteryProvider).value ?? [];
+
+    return peerAsync.when(
+      data: (peer) {
+        if (peer.totalStudents == 0) {
+          return _buildPeerComparisonPlaceholder('Chua co du lieu lop');
+        }
+
+        return Container(
+          padding: EdgeInsets.all(DesignSpacing.md),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(DesignRadius.lg),
+            boxShadow: [DesignElevation.level1],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'So sanh voi lop',
+                          style: DesignTypography.titleMedium,
+                        ),
+                        SizedBox(height: DesignSpacing.xs),
+                        PeerComparisonBadge(
+                          percentile: peer.percentile,
+                          classAverage: peer.classAverage,
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _showPeerComparisonBottomSheet(
+                      classId,
+                      peer,
+                      skillMasteries,
+                    ),
+                    icon: const Icon(Icons.radar),
+                    label: const Text('Xem chi tiet'),
+                  ),
+                ],
+              ),
+              SizedBox(height: DesignSpacing.md),
+              _buildPeerTrendMiniChart(peer),
+            ],
+          ),
+        );
+      },
+      loading: () => Container(
+        height: 120,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(DesignRadius.lg),
+        ),
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+      error: (_, __) => _buildPeerComparisonPlaceholder('Loi tai du lieu'),
+    );
+  }
+
+  Widget _buildPeerComparisonPlaceholder(String message) {
+    return Container(
+      padding: EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        boxShadow: [DesignElevation.level1],
+      ),
+      child: Center(
+        child: Text(
+          message,
+          style: DesignTypography.bodyMedium.copyWith(color: Colors.grey),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPeerTrendMiniChart(PeerComparison peer) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Diem cua ban',
+                style: DesignTypography.labelSmall.copyWith(color: Colors.grey),
+              ),
+              SizedBox(height: DesignSpacing.xs),
+              Text(
+                '-',
+                style: DesignTypography.titleMedium.copyWith(
+                  color: DesignColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          width: 1,
+          height: 40,
+          color: Colors.grey.shade200,
+        ),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Trung binh lop',
+                style: DesignTypography.labelSmall.copyWith(color: Colors.grey),
+              ),
+              SizedBox(height: DesignSpacing.xs),
+              Text(
+                peer.classAverage > 0
+                    ? peer.classAverage.toStringAsFixed(1)
+                    : '-',
+                style: DesignTypography.titleMedium.copyWith(
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showPeerComparisonBottomSheet(
+    String classId,
+    PeerComparison peer,
+    List<SkillMastery> studentSkills,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (bottomSheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.5,
+        builder: (sheetContext, scrollController) => Consumer(
+          builder: (sheetContext, sheetRef, _) {
+            final classAvgAsync = ref.watch(classAverageSkillMasteryProvider(classId));
+            final classAvgMap = classAvgAsync.value ?? {};
+
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: EdgeInsets.only(top: DesignSpacing.sm),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+
+                  // Header
+                  Padding(
+                    padding: EdgeInsets.all(DesignSpacing.md),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'So sanh ky nang',
+                                style: DesignTypography.titleLarge,
+                              ),
+                              Text(
+                                'So sanh muc do thanh thao cua ban voi trung binh lop',
+                                style: DesignTypography.bodySmall.copyWith(
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        PeerComparisonBadge(
+                          percentile: peer.percentile,
+                          classAverage: peer.classAverage,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Dual Radar Chart
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: DesignSpacing.md),
+                            child: DualRadarChart(
+                              studentSkills: studentSkills,
+                              classAverageSkills: classAvgMap,
+                              height: 300,
+                            ),
+                          ),
+
+                          // Legend
+                          Padding(
+                            padding: EdgeInsets.all(DesignSpacing.md),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _buildLegendItem(DesignColors.primary, 'Ky nang cua ban'),
+                                SizedBox(width: DesignSpacing.lg),
+                                _buildLegendItem(Colors.grey.shade400, 'Trung binh lop'),
+                              ],
+                            ),
+                          ),
+
+                          // Stats row
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: DesignSpacing.md),
+                            child: Row(
+                              children: [
+                                _buildStatCard(
+                                  'Thu ${peer.percentile.toStringAsFixed(0)}%',
+                                  'trong lop',
+                                  peer.totalStudents,
+                                ),
+                                SizedBox(width: DesignSpacing.sm),
+                                _buildStatCard(
+                                  peer.classAverage.toStringAsFixed(1),
+                                  'Trung binh lop',
+                                  null,
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          SizedBox(height: DesignSpacing.md),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(Color color, String label) {
+    return Row(
+      children: [
+        Container(
+          width: 16,
+          height: 3,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        SizedBox(width: DesignSpacing.xs),
+        Text(label, style: DesignTypography.labelSmall),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String value, String label, int? suffix) {
+    return Expanded(
+      child: Container(
+        padding: EdgeInsets.all(DesignSpacing.md),
+        decoration: BoxDecoration(
+          color: DesignColors.moonLight,
+          borderRadius: BorderRadius.circular(DesignRadius.md),
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  value,
+                  style: DesignTypography.titleLarge.copyWith(
+                    color: DesignColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (suffix != null) ...[
+                  SizedBox(width: DesignSpacing.xs),
+                  Padding(
+                    padding: EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      '/$suffix',
+                      style: DesignTypography.labelSmall.copyWith(
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            Text(
+              label,
+              style: DesignTypography.labelSmall.copyWith(color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
