@@ -66,45 +66,6 @@ class StudentRecommendationNotifier extends _$StudentRecommendationNotifier {
     });
   }
 
-  Future<void> markRead(String id) async {
-    try {
-      final repo = ref.read(recommendationRepositoryProvider);
-      await repo.markAsRead(id);
-      // Update local state
-      state = state.whenData((list) {
-        return list.map((r) {
-          if (r.id == id) {
-            return Recommendation(
-              id: r.id,
-              userId: r.userId,
-              role: r.role,
-              type: r.type,
-              priority: r.priority,
-              title: r.title,
-              description: r.description,
-              actionLabel: r.actionLabel,
-              actionPayload: r.actionPayload,
-              isRead: true,
-              isDismissed: r.isDismissed,
-              createdAt: r.createdAt,
-              expiresAt: r.expiresAt,
-              metadata: r.metadata,
-            );
-          }
-          return r;
-        }).toList();
-      });
-      // Invalidate unread count
-      ref.invalidate(studentUnreadRecommendationCountProvider);
-    } catch (e, st) {
-      AppLogger.error(
-        '[StudentRecommendationNotifier] markRead error',
-        error: e,
-        stackTrace: st,
-      );
-    }
-  }
-
   Future<void> dismiss(String id) async {
     try {
       final repo = ref.read(recommendationRepositoryProvider);
@@ -113,8 +74,6 @@ class StudentRecommendationNotifier extends _$StudentRecommendationNotifier {
       state = state.whenData((list) {
         return list.where((r) => r.id != id).toList();
       });
-      // Invalidate unread count
-      ref.invalidate(studentUnreadRecommendationCountProvider);
     } catch (e, st) {
       AppLogger.error(
         '[StudentRecommendationNotifier] dismiss error',
@@ -169,51 +128,14 @@ class TeacherRecommendationNotifier extends _$TeacherRecommendationNotifier {
     });
   }
 
-  Future<void> markRead(String id) async {
-    try {
-      final repo = ref.read(recommendationRepositoryProvider);
-      await repo.markAsRead(id);
-      state = state.whenData((list) {
-        return list.map((r) {
-          if (r.id == id) {
-            return Recommendation(
-              id: r.id,
-              userId: r.userId,
-              role: r.role,
-              type: r.type,
-              priority: r.priority,
-              title: r.title,
-              description: r.description,
-              actionLabel: r.actionLabel,
-              actionPayload: r.actionPayload,
-              isRead: true,
-              isDismissed: r.isDismissed,
-              createdAt: r.createdAt,
-              expiresAt: r.expiresAt,
-              metadata: r.metadata,
-            );
-          }
-          return r;
-        }).toList();
-      });
-      ref.invalidate(teacherUnreadRecommendationCountProvider);
-    } catch (e, st) {
-      AppLogger.error(
-        '[TeacherRecommendationNotifier] markRead error',
-        error: e,
-        stackTrace: st,
-      );
-    }
-  }
-
   Future<void> dismiss(String id) async {
     try {
       final repo = ref.read(recommendationRepositoryProvider);
       await repo.dismissRecommendation(id);
+      // Remove from local state
       state = state.whenData((list) {
         return list.where((r) => r.id != id).toList();
       });
-      ref.invalidate(teacherUnreadRecommendationCountProvider);
     } catch (e, st) {
       AppLogger.error(
         '[TeacherRecommendationNotifier] dismiss error',
@@ -221,44 +143,6 @@ class TeacherRecommendationNotifier extends _$TeacherRecommendationNotifier {
         stackTrace: st,
       );
     }
-  }
-}
-
-/// Unread student recommendation count
-@riverpod
-Future<int> studentUnreadRecommendationCount(Ref ref) async {
-  final userId = ref.watch(currentUserIdProvider);
-  if (userId == null) return 0;
-
-  try {
-    final repo = ref.watch(recommendationRepositoryProvider);
-    return repo.getUnreadCount(userId);
-  } catch (e, st) {
-    AppLogger.error(
-      '[studentUnreadRecommendationCount] Error',
-      error: e,
-      stackTrace: st,
-    );
-    return 0;
-  }
-}
-
-/// Unread teacher recommendation count
-@riverpod
-Future<int> teacherUnreadRecommendationCount(Ref ref) async {
-  final userId = ref.watch(currentUserIdProvider);
-  if (userId == null) return 0;
-
-  try {
-    final repo = ref.watch(recommendationRepositoryProvider);
-    return repo.getUnreadCount(userId);
-  } catch (e, st) {
-    AppLogger.error(
-      '[teacherUnreadRecommendationCount] Error',
-      error: e,
-      stackTrace: st,
-    );
-    return 0;
   }
 }
 
@@ -284,8 +168,8 @@ Future<PeerComparison> peerComparison(
   }
 }
 
-/// Intervention count provider for teacher dashboard (priority <= 2).
-/// Counts high-priority teacher recommendations.
+/// Intervention count provider for teacher dashboard.
+/// Counts high-priority recommendations (priority 1-2 = high).
 @riverpod
 Future<int> interventionCount(Ref ref) async {
   final userId = ref.watch(currentUserIdProvider);
@@ -296,11 +180,10 @@ Future<int> interventionCount(Ref ref) async {
     final recs = await repo.getRecommendations(
       userId: userId,
       role: 'teacher',
-      minPriority: RecommendationPriority.high,
       limit: 50,
     );
-    // Count urgent (high priority = 1)
-    return recs.where((r) => r.priority == RecommendationPriority.high).length;
+    // Count recommendations with high priority (priorityValue 1 = high)
+    return recs.where((r) => r.priorityValue <= 1).length;
   } catch (e, st) {
     AppLogger.error(
       '[interventionCount] Error',
@@ -311,7 +194,7 @@ Future<int> interventionCount(Ref ref) async {
   }
 }
 
-/// Top-3 student recommendations provider (pillbox).
+/// Top-3 student recommendations provider (pillbox on home).
 @riverpod
 Future<List<Recommendation>> top3Recommendations(Ref ref) async {
   final userId = ref.watch(currentUserIdProvider);
@@ -324,16 +207,7 @@ Future<List<Recommendation>> top3Recommendations(Ref ref) async {
       role: 'student',
       limit: 3,
     );
-    // Sort by priority (high first) then createdAt
-    recs.sort((a, b) {
-      final priorityCompare = a.priorityValue.compareTo(b.priorityValue);
-      if (priorityCompare != 0) return priorityCompare;
-      if (a.createdAt == null && b.createdAt == null) return 0;
-      if (a.createdAt == null) return 1;
-      if (b.createdAt == null) return -1;
-      return b.createdAt!.compareTo(a.createdAt!);
-    });
-    return recs.take(3).toList();
+    return recs;
   } catch (e, st) {
     AppLogger.error(
       '[top3Recommendations] Error',
@@ -358,9 +232,14 @@ class DismissRecommendation extends _$DismissRecommendation {
       final repo = ref.read(recommendationRepositoryProvider);
       final success = await repo.dismissRecommendation(recommendationId);
       state = AsyncData(success);
-      // Invalidate both teacher and student counts
-      ref.invalidate(teacherUnreadRecommendationCountProvider);
-      ref.invalidate(studentUnreadRecommendationCountProvider);
+      if (success) {
+        // Invalidate both teacher and student recommendation lists
+        ref.invalidate(teacherRecommendationNotifierProvider());
+        ref.invalidate(studentRecommendationNotifierProvider());
+        ref.invalidate(interventionCountProvider);
+        // Also invalidate top3RecommendationsProvider so home dashboard updates
+        ref.invalidate(top3RecommendationsProvider);
+      }
     } catch (e, st) {
       AppLogger.error(
         '[DismissRecommendation] dismiss error',

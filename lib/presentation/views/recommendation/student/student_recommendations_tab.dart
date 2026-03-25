@@ -68,7 +68,17 @@ class StudentRecommendationsTab extends ConsumerWidget {
                 return RecommendationCard(
                   recommendation: rec,
                   compact: true,
-                  onDismiss: () => _dismiss(ref, rec.id),
+                  onDismiss: () async {
+                    await _dismiss(ref, rec.id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Da xoa goi y'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
                 );
               },
             ),
@@ -153,5 +163,7 @@ class StudentRecommendationsTab extends ConsumerWidget {
     await ref.read(
       dismissRecommendationProvider(recommendationId: recommendationId).notifier,
     ).dismiss();
+    // Also invalidate top3RecommendationsProvider so home dashboard updates
+    ref.invalidate(top3RecommendationsProvider);
   }
 }

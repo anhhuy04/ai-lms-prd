@@ -16,7 +16,6 @@ import 'package:ai_mls/widgets/responsive/responsive_row.dart';
 import 'package:ai_mls/widgets/responsive/responsive_text.dart';
 import 'package:ai_mls/widgets/text/smart_marquee_text.dart';
 import 'package:ai_mls/presentation/views/recommendation/widgets/recommendation_card.dart';
-import 'package:ai_mls/presentation/views/recommendation/student/student_recommendations_tab.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
