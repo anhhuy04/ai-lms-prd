@@ -1,48 +1,119 @@
 {
   "version": "1.0",
-  "timestamp": "2026-03-23T14:19:36.800Z",
-  "phase": "02",
-  "phase_name": "teacher-grading-workflow",
-  "phase_dir": ".planning/phases/02-teacher-grading-workflow",
-  "plan": "UAT",
-  "task": 6,
-  "total_tasks": 9,
+  "timestamp": "2026-03-25T16:00:34.658Z",
+  "phase": "05",
+  "phase_name": "personalized-recommendations",
+  "phase_dir": ".planning/phases/05-personalized-recommendations",
+  "plan": 5,
+  "task": 1,
+  "total_tasks": 5,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "ATC Dashboard - View Submission List", "status": "pass"},
-    {"id": 2, "name": "ATC Dashboard - Filter by Status", "status": "skipped", "reason": "Data source cần review"},
-    {"id": 3, "name": "Submission Detail - Side-by-Side Layout", "status": "pass"},
-    {"id": 4, "name": "Skepticism Thermometer - AI Confidence", "status": "skipped", "reason": "Chưa có AI data"},
-    {"id": 5, "name": "Human-in-the-Loop - Approve Grade", "status": "skipped", "reason": "User skip"}
+    {
+      "id": 1,
+      "name": "Phase 05 UAT execution",
+      "status": "done",
+      "commit": "f7011c4"
+    },
+    {
+      "id": 2,
+      "name": "Fix recommendation datasource schema mismatch",
+      "status": "done",
+      "commit": "local-uncommitted"
+    },
+    {
+      "id": 3,
+      "name": "Fix teacher recommendations UX regressions (back/filter/dismiss)",
+      "status": "done",
+      "commit": "local-uncommitted"
+    },
+    {
+      "id": 4,
+      "name": "Create gap closure plan 05-05",
+      "status": "done",
+      "commit": "local-uncommitted"
+    }
   ],
   "remaining_tasks": [
-    {"id": 6, "name": "Human-in-the-Loop - Override Grade", "status": "pending"},
-    {"id": 7, "name": "Feedback Override - Edit Teacher Feedback", "status": "pending"},
-    {"id": 8, "name": "Stage Curtain - Publish Grades", "status": "pending"},
-    {"id": 9, "name": "Quick Navigation - Next/Previous", "status": "pending"}
+    {
+      "id": 1,
+      "name": "Execute 05-05 gap plan: add Student Home 'Hoc tap' entry-point",
+      "status": "not_started"
+    },
+    {
+      "id": 2,
+      "name": "Wire student recommendations route constants and app router",
+      "status": "not_started"
+    },
+    {
+      "id": 3,
+      "name": "Invalidate top3Recommendations after student dismiss",
+      "status": "not_started"
+    },
+    {
+      "id": 4,
+      "name": "Run analyzer/tests and regenerate providers",
+      "status": "not_started"
+    },
+    {
+      "id": 5,
+      "name": "Re-run UAT tests 7/8 and close phase gap",
+      "status": "not_started"
+    }
   ],
   "blockers": [
-    {"description": "Test 2 Filter by Status: Stats chưa đúng - cần verify data source", "type": "technical", "workaround": "Skip cho đến khi có data thực tế để test"}
+    {
+      "description": "Subagent worktree creation failing: could not lock .git/config (File exists)",
+      "type": "technical",
+      "workaround": "Run planning/execution without worktree isolation until git config lock clears"
+    },
+    {
+      "description": "PeerComparison badge test requires submissions/analytics data, not only ai_recommendations seed",
+      "type": "external",
+      "workaround": "Create real submissions data for class before validating REC-03 badge"
+    }
   ],
   "human_actions_pending": [
-    {"action": "Test Override Grade (Test 6)", "context": "Nhấn Sửa điểm -> nhập điểm mới + lý do -> verify grade_overrides", "blocking": false},
-    {"action": "Test Feedback Editor (Test 7)", "context": "Textbox sửa feedback, debounce 1000ms, nút Lưu ngay", "blocking": false},
-    {"action": "Test Publish Grades (Test 8)", "context": "Nút Xuất bản điểm -> dialog -> work_sessions.status='graded'", "blocking": false},
-    {"action": "Test Quick Navigation (Test 9)", "context": "Next/Previous buttons trong AppBar", "blocking": false}
+    {
+      "action": "Run mobile UAT after implementing Student Home 'Hoc tap' entry-point",
+      "context": "User validates UX flow on real device",
+      "blocking": true
+    },
+    {
+      "action": "Optionally seed submissions/analytics data for peer comparison badge verification",
+      "context": "Needed to unblock Test 7 (REC-03)",
+      "blocking": false
+    }
   ],
   "decisions": [
-    {"decision": "Dùng work_sessions làm nguồn dữ liệu chính cho grading status", "rationale": "submissions table không có status column, work_sessions có status IN (in_progress, submitted, graded)", "phase": "02"},
-    {"decision": "Tách 2 queries trong getSubmissionById", "rationale": "FK submissions -> submission_answers không tồn tại, phải join qua work_sessions", "phase": "02"},
-    {"decision": "submitted = work_sessions.submitted_at IS NOT NULL, graded = work_sessions.status = 'graded'", "rationale": "Đúng với schema trong schema_03_submissions_ai_analytics.sql", "phase": "02"}
+    {
+      "decision": "Keep Recommendation entity as plain class (not Freezed)",
+      "rationale": "metadata is schema-flexible Map<String,dynamic>; migration blast radius not justified",
+      "phase": "05"
+    },
+    {
+      "decision": "Use context.pushNamed for navigation from InterventionBadge",
+      "rationale": "goNamed replaced stack and broke back behavior",
+      "phase": "05"
+    },
+    {
+      "decision": "Use local notifier dismiss for smooth UX",
+      "rationale": "remove card instantly without full reload, then sync DB",
+      "phase": "05"
+    }
   ],
   "uncommitted_files": [
-    "lib/presentation/views/assignment/teacher/teacher_assignment_hub_screen.dart",
-    "lib/presentation/views/assignment/teacher/teacher_grading_hub_screen.dart",
-    "lib/presentation/views/assignment/teacher/widgets/grading_hub/*.dart",
-    "lib/data/datasources/assignment_datasource.dart",
-    "lib/data/datasources/submission_datasource.dart",
-    ".planning/phases/02-teacher-grading-workflow/02-UAT.md"
+    ".planning/phases/05-personalized-recommendations/05-UAT.md",
+    ".planning/phases/05-personalized-recommendations/05-05-PLAN.md",
+    "lib/data/datasources/recommendation_datasource.dart",
+    "lib/data/repositories/recommendation_repository_impl.dart",
+    "lib/domain/repositories/recommendation_repository.dart",
+    "lib/presentation/providers/recommendation_providers.dart",
+    "lib/presentation/providers/recommendation_providers.g.dart",
+    "lib/presentation/views/recommendation/teacher/teacher_recommendations_screen.dart",
+    "lib/presentation/views/recommendation/widgets/intervention_badge.dart",
+    "db/seed_05_recommendations_test_data.sql"
   ],
-  "next_action": "Resume UAT Test 6: Vào Submission Detail -> bấm 'Sửa điểm' -> nhập điểm mới + lý do -> verify lưu vào grade_overrides table",
-  "context_notes": "Phase 2 UAT: 2 pass, 3 skipped, 4 pending. Đã fix nhiều lỗi database schema. Filter by Status (Test 2) cần verify lại - stats trên card và filter logic chưa đúng data source."
+  "next_action": "Execute 05-05-PLAN task 1: add Student Home 'Hoc tap' section + route entry-point, then rerun UAT test 8.",
+  "context_notes": "Phase 05 UAT mostly passed (6 pass, 1 issue, 1 blocked). Remaining real gap: Student Home lacks 'Hoc tap' entry-point even though StudentRecommendationsTab exists. Gap plan 05-05 was created but not executed yet."
 }
