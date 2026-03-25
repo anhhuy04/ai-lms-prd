@@ -92,6 +92,10 @@
 2. Student sees personalized learning resources
 3. Peer comparison data available
 
+**Plans:**
+- [ ] 05-01-PLAN.md -- Data Layer: Recommendation entity, Datasource, Repository, Providers, RPC migration
+- [ ] 05-02-PLAN.md -- UI Layer: Widgets, Screens, Dashboard integration, Peer comparison
+
 ---
 
 ## Phase 6: AI Grading (FINAL PHASE)
