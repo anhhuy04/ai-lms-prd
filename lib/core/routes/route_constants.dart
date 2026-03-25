@@ -113,6 +113,10 @@ class AppRoute {
   static const String studentAnalytics = 'student-analytics';
   static const String studentAnalyticsPath = '/student/analytics';
 
+  /// Student - Recommendations/Hoc tap view
+  static const String studentRecommendationsTab = 'student-recommendations-tab';
+  static const String studentRecommendationsTabPath = '/student/recommendations';
+
   // ==================== TEACHER ROUTES ====================
   // Routes specific to teacher role
 
@@ -367,6 +371,7 @@ class AppRoute {
       studentSubmissionHistory,
       studentScores,
       studentAnalytics,
+      studentRecommendationsTab,
       studentDashboard,
       profile,
       editProfile,
