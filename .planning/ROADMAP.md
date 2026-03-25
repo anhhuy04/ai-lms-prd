@@ -1,11 +1,11 @@
 # Roadmap: AI LMS PRD
 
 **Created:** 2026-03-05
-**Core Value:** Efficiently manage the complete assignment lifecycle: teachers create → distribute → students complete → AI grades → analytics provide insights
+**Core Value:** Efficiently manage the complete assignment lifecycle: teachers create -> distribute -> students complete -> AI grades -> analytics provide insights
 
 ---
 
-## Phase 1: Student Assignment Workflow ✅ COMPLETE
+## Phase 1: Student Assignment Workflow COMPLETE
 
 **Goal:** Enable students to view and complete assignments
 
@@ -13,15 +13,15 @@
 
 **Plans:**
 3/3 plans complete
-- [x] 01-PLAN.md — List view, detail view, routing, Submission entity
-- [x] 02-PLAN.md — Workspace, auto-save, file upload, submission
-- [x] 03-PLAN.md — Gap closure: fix assignment detail & workspace navigation
-- [x] 04-PLAN.md — Gap closure: add file upload UI, fix submit success screen
-- [x] 05-PLAN.md — Gap closure: add navigation to submission history screen
+- [x] 01-PLAN.md -- List view, detail view, routing, Submission entity
+- [x] 02-PLAN.md -- Workspace, auto-save, file upload, submission
+- [x] 03-PLAN.md -- Gap closure: fix assignment detail & workspace navigation
+- [x] 04-PLAN.md -- Gap closure: add file upload UI, fix submit success screen
+- [x] 05-PLAN.md -- Gap closure: add navigation to submission history screen
 
 ---
 
-## Phase 2: Teacher Grading Workflow ✅ PLANNED
+## Phase 2: Teacher Grading Workflow COMPLETE
 
 **Goal:** Enable teachers to view submissions and grade student work
 
@@ -29,12 +29,12 @@
 - TEA-01 to TEA-06
 
 **Mô hình tư duy:**
-- ATC (Air Traffic Control): Dashboard nhìn lướt biết vấn đề
-- Side-by-Side: Cột trái bài làm, cột phải đáp án
-- Human-in-the-loop: AI là assistant, teacher final approver
-- Stage Curtain: Điểm chỉ hiện khi Publish
-- Focus Lens: Mobile dùng Bottom Sheet
-- Skepticism Thermometer: AI confidence < 0.7 → vàng cảnh báo
+- ATC (Air Traffic Control): Dashboard nhin luot biet van de
+- Side-by-Side: Cot trai bai lam, cot phai dap an
+- Human-in-the-loop: AI la assistant, teacher final approver
+- Stage Curtain: Diem chi hien khi Publish
+- Focus Lens: Mobile dung Bottom Sheet
+- Skepticism Thermometer: AI confidence < 0.7 -> vang canh bao
 
 **Tasks (6):**
 1. Teacher Submission List (ATC Dashboard)
@@ -44,7 +44,7 @@
 5. Publish Grades (Stage Curtain)
 6. Quick Navigation
 
-**Status:** Ready to execute
+**Status:** UAT Complete - 9/9 tests passed
 
 ---
 
@@ -62,7 +62,7 @@
 
 ---
 
-## Phase 4: Learning Analytics
+## Phase 4: Learning Analytics COMPLETE
 
 **Goal:** Provide actionable insights on student learning progress
 
@@ -76,9 +76,9 @@
 
 **Plans:**
 3/3 plans complete
-- [x] 04-01-PLAN.md — Data Layer: Entities, Datasource, Providers
-- [x] 04-02-PLAN.md — Student Analytics Dashboard UI
-- [x] 04-03-PLAN.md — Teacher Analytics Dashboard UI
+- [x] 04-01-PLAN.md -- Data Layer: Entities, Datasource, Providers
+- [x] 04-02-PLAN.md -- Student Analytics Dashboard UI
+- [x] 04-03-PLAN.md -- Teacher Analytics Dashboard UI
 
 ---
 
@@ -95,10 +95,11 @@
 3. Peer comparison data available
 
 **Plans:**
-3/3 plans complete
-
+4/4 plans
+- [x] 05-01-PLAN.md -- Data Layer: Recommendation entity, datasource, repository, providers
 - [x] 05-02-PLAN.md -- UI Layer: Widgets, Screens, Dashboard integration, Peer comparison
-- [x] 05-03-PLAN.md -- Gap closure: Add "Hoc tap" recommendations section to student home dashboard
+- [x] 05-03-PLAN.md -- Gap closure: Add "Hoc tap" recommendations section (superseded by 05-04)
+- [ ] 05-04-PLAN.md -- Gap closure (UAT): Fix missing "Hoc tap" entry-point, routes, dismiss pattern
 
 ---
 
@@ -124,4 +125,4 @@
 ---
 
 *Roadmap created: 2026-03-05*
-*Last updated: 2026-03-18 - Phase 4 plans added (04-01, 04-02, 04-03)*
+*Last updated: 2026-03-25 - Phase 5 gap closure plan 05-04 added*
