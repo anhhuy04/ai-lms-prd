@@ -1,119 +1,41 @@
 {
   "version": "1.0",
-  "timestamp": "2026-03-25T16:00:34.658Z",
-  "phase": "05",
-  "phase_name": "personalized-recommendations",
-  "phase_dir": ".planning/phases/05-personalized-recommendations",
-  "plan": 5,
-  "task": 1,
-  "total_tasks": 5,
+  "timestamp": "2026-04-01T06:11:00Z",
+  "phase": "02",
+  "phase_name": "teacher-grading-workflow",
+  "phase_dir": ".planning/phases/02-teacher-grading-workflow",
+  "plan": null,
+  "task": "bug-testing",
   "status": "paused",
   "completed_tasks": [
-    {
-      "id": 1,
-      "name": "Phase 05 UAT execution",
-      "status": "done",
-      "commit": "f7011c4"
-    },
-    {
-      "id": 2,
-      "name": "Fix recommendation datasource schema mismatch",
-      "status": "done",
-      "commit": "local-uncommitted"
-    },
-    {
-      "id": 3,
-      "name": "Fix teacher recommendations UX regressions (back/filter/dismiss)",
-      "status": "done",
-      "commit": "local-uncommitted"
-    },
-    {
-      "id": 4,
-      "name": "Create gap closure plan 05-05",
-      "status": "done",
-      "commit": "local-uncommitted"
-    }
+    {"id": 1, "name": "Fix stat cards data mapping (implementation)", "status": "done_with_bugs"},
+    {"id": 2, "name": "Warning dialog Sua de + Cau hinh", "status": "done"},
+    {"id": 3, "name": "Edit mode UI Cau hinh phan phoi", "status": "done_with_bugs"}
   ],
   "remaining_tasks": [
-    {
-      "id": 1,
-      "name": "Execute 05-05 gap plan: add Student Home 'Hoc tap' entry-point",
-      "status": "not_started"
-    },
-    {
-      "id": 2,
-      "name": "Wire student recommendations route constants and app router",
-      "status": "not_started"
-    },
-    {
-      "id": 3,
-      "name": "Invalidate top3Recommendations after student dismiss",
-      "status": "not_started"
-    },
-    {
-      "id": 4,
-      "name": "Run analyzer/tests and regenerate providers",
-      "status": "not_started"
-    },
-    {
-      "id": 5,
-      "name": "Re-run UAT tests 7/8 and close phase gap",
-      "status": "not_started"
-    }
+    {"id": 4, "name": "Fix Sy so = 0 bug (class_members RLS/query)", "status": "not_started"},
+    {"id": 5, "name": "Test Luu cau hinh PATCH end-to-end", "status": "not_started"},
+    {"id": 6, "name": "Fix form prefill trong Edit mode", "status": "not_started"}
   ],
   "blockers": [
-    {
-      "description": "Subagent worktree creation failing: could not lock .git/config (File exists)",
-      "type": "technical",
-      "workaround": "Run planning/execution without worktree isolation until git config lock clears"
-    },
-    {
-      "description": "PeerComparison badge test requires submissions/analytics data, not only ai_recommendations seed",
-      "type": "external",
-      "workaround": "Create real submissions data for class before validating REC-03 badge"
-    }
+    {"description": "Sy so = 0: class_members query trả về 0 dù có HS", "type": "technical", "workaround": "Cần debug log classId và kiểm tra RLS"},
+    {"description": "Form prefill trống: key mismatch giữa distributionConfig map và loadDistributionConfig()", "type": "technical", "workaround": "Log keys để đối chiếu"}
   ],
-  "human_actions_pending": [
-    {
-      "action": "Run mobile UAT after implementing Student Home 'Hoc tap' entry-point",
-      "context": "User validates UX flow on real device",
-      "blocking": true
-    },
-    {
-      "action": "Optionally seed submissions/analytics data for peer comparison badge verification",
-      "context": "Needed to unblock Test 7 (REC-03)",
-      "blocking": false
-    }
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {
-      "decision": "Keep Recommendation entity as plain class (not Freezed)",
-      "rationale": "metadata is schema-flexible Map<String,dynamic>; migration blast radius not justified",
-      "phase": "05"
-    },
-    {
-      "decision": "Use context.pushNamed for navigation from InterventionBadge",
-      "rationale": "goNamed replaced stack and broke back behavior",
-      "phase": "05"
-    },
-    {
-      "decision": "Use local notifier dismiss for smooth UX",
-      "rationale": "remove card instantly without full reload, then sync DB",
-      "phase": "05"
-    }
+    {"decision": "updateDistribution dùng PATCH lên assignment_distributions", "rationale": "Chỉ update config, không tạo distribution mới"},
+    {"decision": "isEditMode + distributionId + distributionConfig truyền qua GoRouter extra", "rationale": "Tương thích với route builder hiện tại"},
+    {"decision": "loadDistributionConfig gọi trong didChangeDependencies với _configLoaded flag", "rationale": "Tránh gọi lại khi rebuild"}
   ],
   "uncommitted_files": [
-    ".planning/phases/05-personalized-recommendations/05-UAT.md",
-    ".planning/phases/05-personalized-recommendations/05-05-PLAN.md",
-    "lib/data/datasources/recommendation_datasource.dart",
-    "lib/data/repositories/recommendation_repository_impl.dart",
-    "lib/domain/repositories/recommendation_repository.dart",
-    "lib/presentation/providers/recommendation_providers.dart",
-    "lib/presentation/providers/recommendation_providers.g.dart",
-    "lib/presentation/views/recommendation/teacher/teacher_recommendations_screen.dart",
-    "lib/presentation/views/recommendation/widgets/intervention_badge.dart",
-    "db/seed_05_recommendations_test_data.sql"
+    "lib/core/routes/app_router.dart",
+    "lib/data/datasources/assignment_datasource.dart",
+    "lib/data/repositories/assignment_repository_impl.dart",
+    "lib/domain/repositories/assignment_repository.dart",
+    "lib/presentation/providers/distribute_assignment_notifier.dart",
+    "lib/presentation/views/assignment/teacher/teacher_distribute_assignment_screen.dart",
+    "lib/presentation/views/class/teacher/teacher_assignment_detail_screen.dart"
   ],
-  "next_action": "Execute 05-05-PLAN task 1: add Student Home 'Hoc tap' section + route entry-point, then rerun UAT test 8.",
-  "context_notes": "Phase 05 UAT mostly passed (6 pass, 1 issue, 1 blocked). Remaining real gap: Student Home lacks 'Hoc tap' entry-point even though StudentRecommendationsTab exists. Gap plan 05-05 was created but not executed yet."
+  "next_action": "1) Run app emulator-5556, 2) Vào lớp 4 bài tập ai, 3) Debug Sy so=0 bằng AppLogger trong getDistributionDetail, 4) Test Luu cau hinh PATCH, 5) Fix form prefill",
+  "context_notes": "Test account: giao vien Ho Ngoc Ha. Emulator 700x1600. ADB: $LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe. Task 2 (dialog) working. Task 1 + 3 có bugs cần fix."
 }
