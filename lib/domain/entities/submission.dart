@@ -59,6 +59,29 @@ class Submission with _$Submission {
 
     /// Thời điểm cập nhật cuối cùng
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
+
+    // === Extended fields from JOIN queries ===
+
+    /// ID của session (work_sessions) - dùng để query submission_answers
+    @JsonKey(name: 'session_id') String? sessionId,
+
+    /// Computed: có nộp muộn không
+    @JsonKey(name: 'is_late') bool? isLate,
+
+    /// Tổng điểm
+    @JsonKey(name: 'total_score') double? totalScore,
+
+    /// Profile học sinh (từ JOIN profiles)
+    Map<String, dynamic>? profiles,
+
+    /// Distribution + assignment + class info (từ JOIN assignment_distributions)
+    Map<String, dynamic>? assignmentDistributions,
+
+    /// Work session status (từ JOIN work_sessions)
+    Map<String, dynamic>? workSessions,
+
+    /// Danh sách câu trả lời (từ query riêng via session_id)
+    @JsonKey(name: 'submission_answers') List<Map<String, dynamic>>? submissionAnswers,
   }) = _Submission;
 
   factory Submission.fromJson(Map<String, dynamic> json) =>

@@ -3,7 +3,11 @@ import 'package:ai_mls/presentation/providers/recommendation_providers.dart';
 import 'package:ai_mls/presentation/views/recommendation/widgets/recommendation_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
+
+/// Filter mode for teacher recommendations
+enum _FilterMode { all, urgent }
 
 /// TeacherRecommendationsScreen: Full recommendations list for teachers (REC-01).
 /// Shows all intervention suggestions across all classes.
@@ -19,6 +23,7 @@ class TeacherRecommendationsScreen extends ConsumerStatefulWidget {
 class _TeacherRecommendationsScreenState
     extends ConsumerState<TeacherRecommendationsScreen> {
   String? _selectedClassId;
+  _FilterMode _filterMode = _FilterMode.all;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +42,7 @@ class _TeacherRecommendationsScreenState
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
         ),
       ),
       body: Column(
@@ -50,8 +55,13 @@ class _TeacherRecommendationsScreenState
                   return _buildEmptyState();
                 }
 
+                // Apply filter: urgent = priorityValue <= 2 (high + medium)
                 final urgent = recs.where((r) => r.priorityValue <= 2).toList();
                 final normal = recs.where((r) => r.priorityValue > 2).toList();
+
+                // Filter display based on mode
+                final showUrgent = _filterMode == _FilterMode.all || _filterMode == _FilterMode.urgent;
+                final showNormal = _filterMode == _FilterMode.all;
 
                 return RefreshIndicator(
                   onRefresh: () async {
@@ -62,7 +72,7 @@ class _TeacherRecommendationsScreenState
                   child: ListView(
                     padding: EdgeInsets.all(DesignSpacing.md),
                     children: [
-                      if (urgent.isNotEmpty) ...[
+                      if (showUrgent && urgent.isNotEmpty) ...[
                         _buildSectionHeader('Can chu y', DesignColors.error, urgent.length),
                         ...urgent.map((rec) => RecommendationCard(
                           recommendation: rec,
@@ -70,7 +80,7 @@ class _TeacherRecommendationsScreenState
                         )),
                         SizedBox(height: DesignSpacing.lg),
                       ],
-                      if (normal.isNotEmpty) ...[
+                      if (showNormal && normal.isNotEmpty) ...[
                         _buildSectionHeader('Goi y khac', DesignColors.primary, normal.length),
                         ...normal.map((rec) => RecommendationCard(
                           recommendation: rec,
@@ -101,20 +111,24 @@ class _TeacherRecommendationsScreenState
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _buildFilterChip('Tat ca', _selectedClassId == null),
+            _buildFilterChip('Tat ca', _filterMode == _FilterMode.all, _FilterMode.all),
             SizedBox(width: DesignSpacing.sm),
-            _buildFilterChip('Khan cap', false),
+            _buildFilterChip('Khan cap', _filterMode == _FilterMode.urgent, _FilterMode.urgent),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, bool selected) {
+  Widget _buildFilterChip(String label, bool selected, _FilterMode mode) {
     return FilterChip(
       label: Text(label, style: DesignTypography.labelMedium),
       selected: selected,
-      onSelected: (_) {},
+      onSelected: (_) {
+        setState(() {
+          _filterMode = mode;
+        });
+      },
       backgroundColor: Colors.white,
       selectedColor: DesignColors.primary.withValues(alpha: 0.1),
       checkmarkColor: DesignColors.primary,
@@ -216,8 +230,15 @@ class _TeacherRecommendationsScreenState
   }
 
   Future<void> _dismiss(String recommendationId) async {
-    await ref.read(
-      dismissRecommendationProvider(recommendationId: recommendationId).notifier,
-    ).dismiss();
+    // Use notifier dismiss → updates local state immediately for smooth UX
+    await ref.read(teacherRecommendationNotifierProvider(classId: _selectedClassId).notifier).dismiss(recommendationId);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã xóa gợi ý'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 }

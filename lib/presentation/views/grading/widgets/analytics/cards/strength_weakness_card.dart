@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
+
 import '../../../../../../core/constants/design_tokens.dart';
 import '../../../../../../domain/entities/analytics/skill_mastery.dart';
+
+/// Truncate skill label for chips to prevent overflow
+String _truncateSkillLabel(String label, {int maxLength = 25}) {
+  if (label.length <= maxLength) return label;
+  return '${label.substring(0, maxLength)}...';
+}
 
 class StrengthWeaknessCard extends StatelessWidget {
   final List<SkillMastery> strengths;
   final List<SkillMastery> weaknesses;
-  final Function(String skillName)? onWeaknessTap;
+
+  /// Callback when weakness chip is tapped - receives the skill's semantic label for AI context
+  final Function(String semanticLabel)? onWeaknessTap;
 
   const StrengthWeaknessCard({
     super.key,
@@ -39,11 +48,18 @@ class StrengthWeaknessCard extends StatelessWidget {
             Wrap(
               spacing: DesignSpacing.sm,
               runSpacing: DesignSpacing.sm,
-              children: strengths.map((skill) => _buildChip(
-                skill.skillName,
-                DesignColors.success.withValues(alpha: 0.1),
-                DesignColors.success,
-              )).toList(),
+              children: strengths
+                  .map(
+                    (skill) => _buildChip(
+                      _truncateSkillLabel(
+                        skill.uiLabel,
+                        maxLength: 25,
+                      ), // Use description with truncation
+                      DesignColors.success.withValues(alpha: 0.1),
+                      DesignColors.success,
+                    ),
+                  )
+                  .toList(),
             ),
           ],
 
@@ -61,9 +77,9 @@ class StrengthWeaknessCard extends StatelessWidget {
             Wrap(
               spacing: DesignSpacing.sm,
               runSpacing: DesignSpacing.sm,
-              children: weaknesses.map((skill) => _buildWeaknessChip(
-                skill.skillName,
-              )).toList(),
+              children: weaknesses
+                  .map((skill) => _buildWeaknessChip(skill))
+                  .toList(),
             ),
           ],
         ],
@@ -91,9 +107,9 @@ class StrengthWeaknessCard extends StatelessWidget {
     );
   }
 
-  Widget _buildWeaknessChip(String skillName) {
+  Widget _buildWeaknessChip(SkillMastery skill) {
     return GestureDetector(
-      onTap: () => onWeaknessTap?.call(skillName),
+      onTap: () => onWeaknessTap?.call(skill.aiLabel),
       child: Container(
         padding: EdgeInsets.symmetric(
           horizontal: DesignSpacing.sm,
@@ -108,7 +124,10 @@ class StrengthWeaknessCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              skillName,
+              _truncateSkillLabel(
+                skill.uiLabel,
+                maxLength: 25,
+              ), // Display description with truncation
               style: DesignTypography.caption.copyWith(
                 color: DesignColors.warning,
                 fontWeight: FontWeight.w500,

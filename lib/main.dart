@@ -32,6 +32,7 @@ import 'package:ai_mls/widgets/navigation/back_button_handler.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:marionette_flutter/marionette_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -111,6 +112,14 @@ void _log(
 // #endregion
 
 void main() async {
+  // Khởi tạo MarionetteBinding ĐẦU TIÊN trong debug mode
+  // Cho phép AI agent (Claude Code) tương tác với app đang chạy:
+  // tap, scroll, nhập text, chụp screenshot, đọc widget tree, hot reload.
+  // MarionetteBinding PHẢI là binding duy nhất - gọi trước Sentry/WidgetsFlutterBinding.
+  if (kDebugMode) {
+    MarionetteBinding.ensureInitialized();
+  }
+
   // #region agent log
   _log('main.dart:17', 'App startup', {}, 'G');
   // #endregion

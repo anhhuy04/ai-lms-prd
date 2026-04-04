@@ -1,5 +1,4 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/presentation/views/assignment/teacher/widgets/assignment_list/assignment_date_formatter.dart';
 import 'package:flutter/material.dart';
 
 /// Enum định nghĩa chế độ xem danh sách bài tập
@@ -241,39 +240,28 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
     );
   }
 
-  /// Row metadata: hạn nộp & điểm
+  /// Row metadata: chỉ hạn nộp (điểm đưa xuống footer)
   Widget _buildMetadataRow(bool isDark) {
     final metaColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
-
-    return Row(
-      children: [
-        if (_dueAt != null) ...[
-          Flexible(
-            child: Text(
-              'Hạn: ${AssignmentDateFormatter.formatDueDate(_dueAt!)} (${_dueAt!.hour.toString().padLeft(2, '0')}:${_dueAt!.minute.toString().padLeft(2, '0')} - ${_dueAt!.day.toString().padLeft(2, '0')}/${_dueAt!.month.toString().padLeft(2, '0')}/${_dueAt!.year})',
-              style: DesignTypography.bodySmall.copyWith(color: metaColor),
-              overflow: TextOverflow.ellipsis,
-            ),
+    return Row(children: [
+      Icon(
+        _isExpired ? Icons.event_busy_outlined : Icons.access_time_outlined,
+        size: 13,
+        color: _isExpired ? Colors.red[400] : metaColor,
+      ),
+      const SizedBox(width: 4),
+      Flexible(
+        child: Text(
+          _dueAt != null
+            ? 'Hạn: ${_dueAt!.day.toString().padLeft(2, '0')}/${_dueAt!.month.toString().padLeft(2, '0')}/${_dueAt!.year} ${_dueAt!.hour.toString().padLeft(2, '0')}:${_dueAt!.minute.toString().padLeft(2, '0')}'
+            : 'Không có hạn nộp',
+          style: DesignTypography.bodySmall.copyWith(
+            color: _isExpired ? Colors.red[400] : metaColor,
           ),
-        ] else ...[
-          Flexible(
-            child: Text(
-              'Không có hạn nộp',
-              style: DesignTypography.bodySmall.copyWith(color: metaColor),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-
-        if (_totalPoints > 0) ...[
-          const SizedBox(width: DesignSpacing.md),
-          Text(
-            '• ${_totalPoints.toStringAsFixed(_totalPoints % 1 == 0 ? 0 : 1)} điểm',
-            style: DesignTypography.bodySmall.copyWith(color: metaColor),
-          ),
-        ],
-      ],
-    );
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    ]);
   }
 
   /// Teacher footer: Số học sinh đã mộp / Chấm bài & Badge Trạng thái
@@ -345,95 +333,83 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
     );
   }
 
-  /// Student: action button + status badge
+  /// Student: status badge + điểm chip + action button
   Widget _buildStudentFooter() {
-    final studentStatus =
-        (assignment['student_status'] as String?) ?? 'not_submitted';
-    final score = assignment['score'];
+    final status = (assignment['submission_status'] as String?) ?? 'not_submitted';
+    final settings = assignment['distribution_settings'] as Map<String, dynamic>? ?? {};
+    final showScore = settings['show_score_immediately'] as bool? ?? true;
+    final score = showScore ? assignment['score'] : null;
+    final pts = _totalPoints > 0 ? _totalPoints.toStringAsFixed(_totalPoints % 1 == 0 ? 0 : 1) : null;
 
-    final Map<String, dynamic> btnConfig = switch (studentStatus) {
-      'submitted' => {
-        'label': 'Xem bài đã nộp',
-        'icon': Icons.visibility_outlined,
-        'bg': Colors.grey[200],
-        'fg': Colors.grey[700],
-      },
-      'graded' => {
-        'label': 'Xem điểm',
-        'icon': Icons.star_outline,
-        'bg': Colors.green[100],
-        'fg': Colors.green[800],
-      },
-      _ => {
-        'label': 'Làm bài ngay',
-        'icon': Icons.edit_outlined,
-        'bg': DesignColors.primary,
-        'fg': Colors.white,
-      },
+    // ── Badge trạng thái ──
+    final ({String label, Color bg, Color border, Color text}) badge = switch (status) {
+      'submitted' => (
+        label: 'Đã nộp',
+        bg: Colors.orange.withValues(alpha: 0.08),
+        border: Colors.orange.withValues(alpha: 0.4),
+        text: Colors.orange[700]!,
+      ),
+      'graded' => (
+        label: score != null ? '$score / $pts đ' : 'Đã chấm',
+        bg: Colors.green.withValues(alpha: 0.08),
+        border: Colors.green.withValues(alpha: 0.4),
+        text: Colors.green[700]!,
+      ),
+      'in_progress' => (
+        label: 'Đang làm',
+        bg: Colors.blue.withValues(alpha: 0.08),
+        border: Colors.blue.withValues(alpha: 0.4),
+        text: Colors.blue[700]!,
+      ),
+      _ => (
+        label: 'Chưa nộp',
+        bg: Colors.red.withValues(alpha: 0.08),
+        border: Colors.red.withValues(alpha: 0.4),
+        text: Colors.red[700]!,
+      ),
     };
 
-    final ({String label, Color bg, Color border, Color text}) statusBadge =
-        switch (studentStatus) {
-          'submitted' => (
-            label: score != null ? 'Đã nộp • $score đ' : 'Đã nộp',
-            bg: Colors.orange.withValues(alpha: 0.08),
-            border: Colors.orange.withValues(alpha: 0.4),
-            text: Colors.orange[700]!,
-          ),
-          'graded' => (
-            label: score != null ? '$score điểm' : 'Đã chấm',
-            bg: Colors.green.withValues(alpha: 0.08),
-            border: Colors.green.withValues(alpha: 0.4),
-            text: Colors.green[700]!,
-          ),
-          _ => (
-            label: 'Chưa nộp',
-            bg: Colors.red.withValues(alpha: 0.08),
-            border: Colors.red.withValues(alpha: 0.4),
-            text: Colors.red[700]!,
-          ),
-        };
+    // ── Nút hành động ──
+    final ({String label, IconData icon, Color bg, Color fg}) btn = switch ((status, showScore)) {
+      ('graded', true) => (label: 'Xem điểm', icon: Icons.star_outline, bg: Colors.green[100]!, fg: Colors.green[800]!),
+      ('graded', false) => (label: 'Xem bài làm', icon: Icons.visibility_outlined, bg: Colors.grey[200]!, fg: Colors.grey[700]!),
+      ('submitted', _) => (label: 'Xem bài đã nộp', icon: Icons.visibility_outlined, bg: Colors.grey[200]!, fg: Colors.grey[700]!),
+      ('in_progress', _) => (label: 'Tiếp tục làm', icon: Icons.play_circle_outline, bg: DesignColors.primary, fg: Colors.white),
+      _ => (label: 'Làm bài ngay', icon: Icons.edit_outlined, bg: DesignColors.primary, fg: Colors.white),
+    };
 
-    return Row(
-      children: [
-        // Status badge
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: statusBadge.bg,
-            borderRadius: BorderRadius.circular(DesignRadius.sm),
-            border: Border.all(color: statusBadge.border),
-          ),
-          child: Text(
-            statusBadge.label,
-            style: DesignTypography.caption.copyWith(
-              color: statusBadge.text,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+    return Row(children: [
+      // Status badge
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: badge.bg,
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+          border: Border.all(color: badge.border),
         ),
-        const Spacer(),
-        // Action button
-        ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: btnConfig['bg'] as Color?,
-            foregroundColor: btnConfig['fg'] as Color?,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(DesignRadius.sm),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            minimumSize: const Size(0, 32),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          onPressed: onTap,
-          icon: Icon(btnConfig['icon'] as IconData, size: 15),
-          label: Text(
-            btnConfig['label'] as String,
-            style: const TextStyle(fontSize: 12),
-          ),
-        ),
+        child: Text(badge.label, style: DesignTypography.caption.copyWith(color: badge.text, fontWeight: FontWeight.bold)),
+      ),
+      // Tổng điểm (chỉ khi chưa nộp / đang làm)
+      if (pts != null && (status == 'not_submitted' || status == 'in_progress')) ...[
+        const SizedBox(width: 6),
+        Text('/ $pts đ', style: DesignTypography.caption.copyWith(color: Colors.grey[500])),
       ],
-    );
+      const Spacer(),
+      // Action button
+      ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: btn.bg,
+          foregroundColor: btn.fg,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DesignRadius.sm)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          minimumSize: const Size(0, 32),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        onPressed: onTap,
+        icon: Icon(btn.icon, size: 15),
+        label: Text(btn.label, style: const TextStyle(fontSize: 12)),
+      ),
+    ]);
   }
 }

@@ -14,11 +14,17 @@ import 'package:go_router/go_router.dart';
 class TeacherDistributeAssignmentScreen extends ConsumerStatefulWidget {
   final String? assignmentId;
   final String? selectedClassId;
+  final bool isEditMode;
+  final String? distributionId;
+  final Map<String, dynamic>? distributionConfig;
 
   const TeacherDistributeAssignmentScreen({
     super.key,
     this.assignmentId,
     this.selectedClassId,
+    this.isEditMode = false,
+    this.distributionId,
+    this.distributionConfig,
   });
 
   @override
@@ -29,6 +35,23 @@ class TeacherDistributeAssignmentScreen extends ConsumerStatefulWidget {
 class _TeacherDistributeAssignmentScreenState
     extends ConsumerState<TeacherDistributeAssignmentScreen> {
   final ScrollController _recipientScrollController = ScrollController();
+  bool _configLoaded = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.isEditMode && !_configLoaded && widget.distributionConfig != null) {
+      _configLoaded = true;
+      final notifierProvider = distributeAssignmentNotifierProvider(
+        assignmentId: widget.assignmentId,
+      );
+      Future.microtask(() {
+        if (mounted) {
+          ref.read(notifierProvider.notifier).loadDistributionConfig(widget.distributionConfig!);
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -143,7 +166,7 @@ class _TeacherDistributeAssignmentScreenState
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'Giao Bài Tập',
+          widget.isEditMode ? 'Cấu hình phân phối' : 'Giao Bài Tập',
           style: TextStyle(
             color: tMain,
             fontSize: 18,
@@ -173,22 +196,25 @@ class _TeacherDistributeAssignmentScreenState
               child: Column(
                 children: [
                   InkWell(
-                    onTap: () async {
-                      final selectedIds = await context.pushNamed<List<String>>(
-                        AppRoute.teacherAssignmentSelection,
-                        extra: {
-                          'isSelectionOnly': true,
-                          'initialSelectedIds': state.selectedAssignments
-                              .map((a) => a.id)
-                              .toList(),
-                          if (widget.selectedClassId != null)
-                            'selectedClassId': widget.selectedClassId,
-                        },
-                      );
-                      if (selectedIds != null && context.mounted) {
-                        notifier.loadAssignmentsByIds(selectedIds);
-                      }
-                    },
+                    onTap: widget.isEditMode
+                        ? null
+                        : () async {
+                            final selectedIds =
+                                await context.pushNamed<List<String>>(
+                              AppRoute.teacherAssignmentSelection,
+                              extra: {
+                                'isSelectionOnly': true,
+                                'initialSelectedIds': state.selectedAssignments
+                                    .map((a) => a.id)
+                                    .toList(),
+                                if (widget.selectedClassId != null)
+                                  'selectedClassId': widget.selectedClassId,
+                              },
+                            );
+                            if (selectedIds != null && context.mounted) {
+                              notifier.loadAssignmentsByIds(selectedIds);
+                            }
+                          },
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -196,22 +222,30 @@ class _TeacherDistributeAssignmentScreenState
                         vertical: 10,
                       ),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? primaryColor.withValues(alpha: 0.1)
-                            : primarySoft,
+                        color: widget.isEditMode
+                            ? (isDark ? Colors.grey[800] : Colors.grey[100])
+                            : (isDark
+                                ? primaryColor.withValues(alpha: 0.1)
+                                : primarySoft),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: primaryColor.withValues(alpha: 0.3),
+                          color: widget.isEditMode
+                              ? (isDark ? Colors.grey[600]! : Colors.grey[300]!)
+                              : primaryColor.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            state.selectedAssignments.isEmpty
-                                ? Icons.add_circle_outline
-                                : Icons.assignment,
-                            color: primaryColor,
+                            widget.isEditMode
+                                ? Icons.lock_outline
+                                : (state.selectedAssignments.isEmpty
+                                    ? Icons.add_circle_outline
+                                    : Icons.assignment),
+                            color: widget.isEditMode
+                                ? (isDark ? Colors.grey[400] : Colors.grey[500])
+                                : primaryColor,
                             size: 20,
                           ),
                           const SizedBox(width: 8),
@@ -228,15 +262,19 @@ class _TeacherDistributeAssignmentScreenState
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: primaryColor,
+                                color: widget.isEditMode
+                                    ? (isDark ? Colors.grey[400] : Colors.grey[600])
+                                    : primaryColor,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Icon(
-                            Icons.chevron_right,
-                            color: primaryColor,
+                            widget.isEditMode ? Icons.lock_outline : Icons.chevron_right,
+                            color: widget.isEditMode
+                                ? (isDark ? Colors.grey[600] : Colors.grey[400])
+                                : primaryColor,
                             size: 20,
                           ),
                         ],
@@ -286,6 +324,7 @@ class _TeacherDistributeAssignmentScreenState
                   classHierarchyAsync,
                   isClassHierarchyLoading,
                   classHierarchyError,
+                  isEditMode: widget.isEditMode,
                 ),
                 const SizedBox(height: 24),
                 _buildScheduleSection(
@@ -332,7 +371,15 @@ class _TeacherDistributeAssignmentScreenState
           width: double.infinity,
           height: 56,
           child: ElevatedButton(
-            onPressed: state.isLoading ? null : () => notifier.distributeNow(),
+            onPressed: state.isLoading
+                ? null
+                : () {
+                    if (widget.isEditMode && widget.distributionId != null) {
+                      notifier.updateDistribution(widget.distributionId!);
+                    } else {
+                      notifier.distributeNow();
+                    }
+                  },
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryColor,
               foregroundColor: Colors.white,
@@ -351,14 +398,14 @@ class _TeacherDistributeAssignmentScreenState
                       strokeWidth: 2,
                     ),
                   )
-                : const Row(
+                : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.send),
-                      SizedBox(width: 8),
+                      Icon(widget.isEditMode ? Icons.save_outlined : Icons.send),
+                      const SizedBox(width: 8),
                       Text(
-                        'Giao Bài Ngay',
-                        style: TextStyle(
+                        widget.isEditMode ? 'Lưu cấu hình' : 'Giao Bài Ngay',
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -446,8 +493,9 @@ class _TeacherDistributeAssignmentScreenState
     List<ClassNode> classHierarchy,
     AsyncValue<List<ClassNode>> classHierarchyAsync,
     bool isClassHierarchyLoading,
-    String? classHierarchyError,
-  ) {
+    String? classHierarchyError, {
+    bool isEditMode = false,
+  }) {
     final selectionCountText = _getSelectionCountText(state.recipientSelection);
     final hasSelectedRecipients =
         state.recipientSelection != null && !state.recipientSelection!.isEmpty;
@@ -537,6 +585,7 @@ class _TeacherDistributeAssignmentScreenState
                 tSec,
                 isDark,
                 classHierarchy,
+                isEditMode: isEditMode,
               ),
             ),
           ),
@@ -574,48 +623,51 @@ class _TeacherDistributeAssignmentScreenState
       child: Column(
         children: [
           centerContent,
-          // Nút Add - luôn hiển thị
-          InkWell(
-            onTap: () async {
-              final result = await RecipientTreeSelectorModal.show(
-                context,
-                data: classHierarchy,
-                initialSelection: state.recipientSelection,
-              );
-              if (result != null && mounted) {
-                notifier.setRecipientSelection(result);
-              }
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: DesignColors.primary.withValues(alpha: 0.4),
-                  style: BorderStyle.solid,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                color: isDark
-                    ? DesignColors.primary.withValues(alpha: 0.05)
-                    : Colors.transparent,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add_circle, color: DesignColors.primary, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Thêm Lớp / Nhóm / Học sinh',
-                    style: TextStyle(
-                      color: DesignColors.primary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
+          // Nút Add - ẩn trong editMode
+          if (!isEditMode) ...[
+            if (centerContent is! SizedBox) const SizedBox(height: 12),
+            InkWell(
+              onTap: () async {
+                final result = await RecipientTreeSelectorModal.show(
+                  context,
+                  data: classHierarchy,
+                  initialSelection: state.recipientSelection,
+                );
+                if (result != null && mounted) {
+                  notifier.setRecipientSelection(result);
+                }
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: DesignColors.primary.withValues(alpha: 0.4),
+                    style: BorderStyle.solid,
                   ),
-                ],
+                  borderRadius: BorderRadius.circular(12),
+                  color: isDark
+                      ? DesignColors.primary.withValues(alpha: 0.05)
+                      : Colors.transparent,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_circle, color: DesignColors.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Thêm Lớp / Nhóm / Học sinh',
+                      style: TextStyle(
+                        color: DesignColors.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -627,8 +679,9 @@ class _TeacherDistributeAssignmentScreenState
     Color tMain,
     Color tSec,
     bool isDark,
-    List<ClassNode> classHierarchy,
-  ) {
+    List<ClassNode> classHierarchy, {
+    bool isEditMode = false,
+  }) {
     if (selection.isEmpty) return [];
 
     final result = <Widget>[];
@@ -660,6 +713,7 @@ class _TeacherDistributeAssignmentScreenState
           tMain: tMain,
           tSec: tSec,
           isDark: isDark,
+          isEditMode: isEditMode,
         ),
       );
       result.add(const SizedBox(height: 12));
@@ -837,15 +891,104 @@ class _TeacherDistributeAssignmentScreenState
             ),
           ],
           Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
-          _buildToggleRow(
-            icon: Icons.visibility,
-            title: 'Hiển thị điểm ngay',
-            subtitle: 'Học sinh xem điểm ngay sau khi nộp bài',
-            value: state.showScoreImmediately,
-            onChanged: notifier.setShowScoreImmediately,
-            tMain: tMain,
-            tSec: tSec,
-            isDark: isDark,
+          // Student Review Mode
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? DesignColors.primary.withValues(alpha: 0.15)
+                            : Colors.blue[50],
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.visibility, color: DesignColors.primary, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Chế độ xem kết quả',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: tMain,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Học sinh xem được gì sau khi nộp bài',
+                            style: TextStyle(fontSize: 12, color: tSec),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'none',
+                        icon: Icon(Icons.visibility_off_outlined, size: 15),
+                        label: Text('Ẩn hết', style: TextStyle(fontSize: 11)),
+                      ),
+                      ButtonSegment(
+                        value: 'score_only',
+                        icon: Icon(Icons.stars_outlined, size: 15),
+                        label: Text('Chỉ điểm', style: TextStyle(fontSize: 11)),
+                      ),
+                      ButtonSegment(
+                        value: 'full_review',
+                        icon: Icon(Icons.fact_check_outlined, size: 15),
+                        label: Text('Xem lại', style: TextStyle(fontSize: 11)),
+                      ),
+                    ],
+                    selected: {state.studentReviewMode},
+                    onSelectionChanged: (s) => notifier.setStudentReviewMode(s.first),
+                    style: const ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildReviewModeHint(state.studentReviewMode, isDark),
+              ],
+            ),
+          ),
+          Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
+          // Max Attempts
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(children: [
+              Icon(Icons.repeat, size: 22, color: tSec),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Số lần làm tối đa', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: tMain)),
+                Text('null = không giới hạn', style: TextStyle(fontSize: 12, color: tSec)),
+              ])),
+              DropdownButton<int?>(
+                value: state.maxAttempts,
+                underline: const SizedBox(),
+                isDense: true,
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('Không giới hạn')),
+                  ...List.generate(5, (i) => DropdownMenuItem(value: i + 1, child: Text('${i + 1} lần'))),
+                ],
+                onChanged: notifier.setMaxAttempts,
+              ),
+            ]),
           ),
           Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
           _buildToggleRow(
@@ -1068,6 +1211,53 @@ class _TeacherDistributeAssignmentScreenState
                 (s) => s.contains(WidgetState.selected)
                     ? DesignColors.primary
                     : Colors.grey[300],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===================== Review mode hint =====================
+
+  Widget _buildReviewModeHint(String mode, bool isDark) {
+    final (IconData icon, String text, Color color) = switch (mode) {
+      'none' => (
+          Icons.visibility_off_outlined,
+          'Học sinh không thấy điểm số và không được xem lại bài làm',
+          const Color(0xFFDC2626),
+        ),
+      'score_only' => (
+          Icons.stars_outlined,
+          'Học sinh chỉ thấy điểm số, không xem chi tiết từng câu trả lời',
+          const Color(0xFFD97706),
+        ),
+      _ => (
+          Icons.fact_check_outlined,
+          'Học sinh thấy điểm, nhận xét AI và có thể xem lại từng câu trả lời',
+          const Color(0xFF16A34A),
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.15 : 0.07),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 12,
+                color: color,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -1303,6 +1493,7 @@ class _ClassRecipientAccordion extends StatelessWidget {
   final Color tMain;
   final Color tSec;
   final bool isDark;
+  final bool isEditMode;
 
   const _ClassRecipientAccordion({
     required this.classNode,
@@ -1315,6 +1506,7 @@ class _ClassRecipientAccordion extends StatelessWidget {
     required this.tMain,
     required this.tSec,
     required this.isDark,
+    this.isEditMode = false,
   });
 
   @override
@@ -1349,44 +1541,47 @@ class _ClassRecipientAccordion extends StatelessWidget {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        onTap: () async {
-          final result = await RecipientTreeSelectorModal.show(
-            context,
-            data: [classNode],
-            initialSelection: selection,
-            title: 'Chi tiết ${classNode.name}',
-            confirmText: 'Cập nhật danh sách',
-          );
-          if (result != null) {
-            final fullySelected = Set.of(selection.fullySelectedClassIds);
-            final groups = Map.of(selection.selectedGroupIdsByClass);
-            final students = Map.of(selection.selectedStudentIdsByClass);
+        onTap: isEditMode
+            ? null
+            : () async {
+                final result = await RecipientTreeSelectorModal.show(
+                  context,
+                  data: [classNode],
+                  initialSelection: selection,
+                  title: 'Chi tiết ${classNode.name}',
+                  confirmText: 'Cập nhật danh sách',
+                );
+                if (result != null) {
+                  final fullySelected = Set.of(selection.fullySelectedClassIds);
+                  final groups = Map.of(selection.selectedGroupIdsByClass);
+                  final students = Map.of(selection.selectedStudentIdsByClass);
 
-            fullySelected.remove(classNode.id);
-            groups.remove(classNode.id);
-            students.remove(classNode.id);
+                  fullySelected.remove(classNode.id);
+                  groups.remove(classNode.id);
+                  students.remove(classNode.id);
 
-            if (result.fullySelectedClassIds.contains(classNode.id)) {
-              fullySelected.add(classNode.id);
-            }
-            if (result.selectedGroupIdsByClass.containsKey(classNode.id)) {
-              groups[classNode.id] =
-                  result.selectedGroupIdsByClass[classNode.id]!;
-            }
-            if (result.selectedStudentIdsByClass.containsKey(classNode.id)) {
-              students[classNode.id] =
-                  result.selectedStudentIdsByClass[classNode.id]!;
-            }
+                  if (result.fullySelectedClassIds.contains(classNode.id)) {
+                    fullySelected.add(classNode.id);
+                  }
+                  if (result.selectedGroupIdsByClass.containsKey(classNode.id)) {
+                    groups[classNode.id] =
+                        result.selectedGroupIdsByClass[classNode.id]!;
+                  }
+                  if (result.selectedStudentIdsByClass
+                      .containsKey(classNode.id)) {
+                    students[classNode.id] =
+                        result.selectedStudentIdsByClass[classNode.id]!;
+                  }
 
-            notifier.setRecipientSelection(
-              selection.copyWith(
-                fullySelectedClassIds: fullySelected,
-                selectedGroupIdsByClass: groups,
-                selectedStudentIdsByClass: students,
-              ),
-            );
-          }
-        },
+                  notifier.setRecipientSelection(
+                    selection.copyWith(
+                      fullySelectedClassIds: fullySelected,
+                      selectedGroupIdsByClass: groups,
+                      selectedStudentIdsByClass: students,
+                    ),
+                  );
+                }
+              },
         leading: Container(
           width: 40,
           height: 40,
@@ -1420,31 +1615,32 @@ class _ClassRecipientAccordion extends StatelessWidget {
                     : 'Đã chọn: $totalSelectedStudentsNum học sinh'),
           style: TextStyle(fontSize: 12, color: tSec),
         ),
-        trailing: IconButton(
-          icon: Icon(
-            Icons.close,
-            color: isDark ? Colors.red[300] : Colors.red,
-            size: 20,
-          ),
-          onPressed: () {
-            notifier.removeClassSelection(classNode.id);
-            // Clear children as normal
-            for (var g in selectedGroupIds) {
-              notifier.removeGroupSelection(classNode.id, g);
-            }
-            for (var s in selectedStudentIds) {
-              notifier.removeStudentSelection(classNode.id, s);
-            }
-          },
-          style: IconButton.styleFrom(
-            backgroundColor: isDark
-                ? Colors.red.withValues(alpha: 0.1)
-                : Colors.red[50],
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
-            ),
-          ),
-        ),
+        trailing: isEditMode
+            ? Icon(Icons.lock_outline, size: 18, color: Colors.grey[400])
+            : IconButton(
+                icon: Icon(
+                  Icons.close,
+                  color: isDark ? Colors.red[300] : Colors.red,
+                  size: 20,
+                ),
+                onPressed: () {
+                  notifier.removeClassSelection(classNode.id);
+                  for (var g in selectedGroupIds) {
+                    notifier.removeGroupSelection(classNode.id, g);
+                  }
+                  for (var s in selectedStudentIds) {
+                    notifier.removeStudentSelection(classNode.id, s);
+                  }
+                },
+                style: IconButton.styleFrom(
+                  backgroundColor: isDark
+                      ? Colors.red.withValues(alpha: 0.1)
+                      : Colors.red[50],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
       ),
     );
   }

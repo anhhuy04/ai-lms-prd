@@ -1,0 +1,1 @@
+SELECT COUNT(*) AS total_identities, COUNT(DISTINCT user_id) AS distinct_users FROM auth.identities; SELECT user_id, COUNT(*) FROM auth.identities GROUP BY user_id HAVING COUNT(*)  LIMIT 5; SELECT COUNT(*) FROM auth.users WHERE encrypted_password IS NULL; 

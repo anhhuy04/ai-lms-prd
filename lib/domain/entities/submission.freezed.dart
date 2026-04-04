@@ -70,7 +70,33 @@ mixin _$Submission {
 
   /// Thời điểm cập nhật cuối cùng
   @JsonKey(name: 'updated_at')
-  DateTime? get updatedAt => throw _privateConstructorUsedError;
+  DateTime? get updatedAt => throw _privateConstructorUsedError; // === Extended fields from JOIN queries ===
+  /// ID của session (work_sessions) - dùng để query submission_answers
+  @JsonKey(name: 'session_id')
+  String? get sessionId => throw _privateConstructorUsedError;
+
+  /// Computed: có nộp muộn không
+  @JsonKey(name: 'is_late')
+  bool? get isLate => throw _privateConstructorUsedError;
+
+  /// Tổng điểm
+  @JsonKey(name: 'total_score')
+  double? get totalScore => throw _privateConstructorUsedError;
+
+  /// Profile học sinh (từ JOIN profiles)
+  Map<String, dynamic>? get profiles => throw _privateConstructorUsedError;
+
+  /// Distribution + assignment + class info (từ JOIN assignment_distributions)
+  Map<String, dynamic>? get assignmentDistributions =>
+      throw _privateConstructorUsedError;
+
+  /// Work session status (từ JOIN work_sessions)
+  Map<String, dynamic>? get workSessions => throw _privateConstructorUsedError;
+
+  /// Danh sách câu trả lời (từ query riêng via session_id)
+  @JsonKey(name: 'submission_answers')
+  List<Map<String, dynamic>>? get submissionAnswers =>
+      throw _privateConstructorUsedError;
 
   /// Serializes this Submission to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -104,6 +130,14 @@ abstract class $SubmissionCopyWith<$Res> {
     @JsonKey(name: 'uploaded_files') List<String> uploadedFiles,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
+    @JsonKey(name: 'session_id') String? sessionId,
+    @JsonKey(name: 'is_late') bool? isLate,
+    @JsonKey(name: 'total_score') double? totalScore,
+    Map<String, dynamic>? profiles,
+    Map<String, dynamic>? assignmentDistributions,
+    Map<String, dynamic>? workSessions,
+    @JsonKey(name: 'submission_answers')
+    List<Map<String, dynamic>>? submissionAnswers,
   });
 }
 
@@ -135,6 +169,13 @@ class _$SubmissionCopyWithImpl<$Res, $Val extends Submission>
     Object? uploadedFiles = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
+    Object? sessionId = freezed,
+    Object? isLate = freezed,
+    Object? totalScore = freezed,
+    Object? profiles = freezed,
+    Object? assignmentDistributions = freezed,
+    Object? workSessions = freezed,
+    Object? submissionAnswers = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -190,6 +231,34 @@ class _$SubmissionCopyWithImpl<$Res, $Val extends Submission>
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
                       as DateTime?,
+            sessionId: freezed == sessionId
+                ? _value.sessionId
+                : sessionId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            isLate: freezed == isLate
+                ? _value.isLate
+                : isLate // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            totalScore: freezed == totalScore
+                ? _value.totalScore
+                : totalScore // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            profiles: freezed == profiles
+                ? _value.profiles
+                : profiles // ignore: cast_nullable_to_non_nullable
+                      as Map<String, dynamic>?,
+            assignmentDistributions: freezed == assignmentDistributions
+                ? _value.assignmentDistributions
+                : assignmentDistributions // ignore: cast_nullable_to_non_nullable
+                      as Map<String, dynamic>?,
+            workSessions: freezed == workSessions
+                ? _value.workSessions
+                : workSessions // ignore: cast_nullable_to_non_nullable
+                      as Map<String, dynamic>?,
+            submissionAnswers: freezed == submissionAnswers
+                ? _value.submissionAnswers
+                : submissionAnswers // ignore: cast_nullable_to_non_nullable
+                      as List<Map<String, dynamic>>?,
           )
           as $Val,
     );
@@ -220,6 +289,14 @@ abstract class _$$SubmissionImplCopyWith<$Res>
     @JsonKey(name: 'uploaded_files') List<String> uploadedFiles,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
+    @JsonKey(name: 'session_id') String? sessionId,
+    @JsonKey(name: 'is_late') bool? isLate,
+    @JsonKey(name: 'total_score') double? totalScore,
+    Map<String, dynamic>? profiles,
+    Map<String, dynamic>? assignmentDistributions,
+    Map<String, dynamic>? workSessions,
+    @JsonKey(name: 'submission_answers')
+    List<Map<String, dynamic>>? submissionAnswers,
   });
 }
 
@@ -250,6 +327,13 @@ class __$$SubmissionImplCopyWithImpl<$Res>
     Object? uploadedFiles = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
+    Object? sessionId = freezed,
+    Object? isLate = freezed,
+    Object? totalScore = freezed,
+    Object? profiles = freezed,
+    Object? assignmentDistributions = freezed,
+    Object? workSessions = freezed,
+    Object? submissionAnswers = freezed,
   }) {
     return _then(
       _$SubmissionImpl(
@@ -305,6 +389,34 @@ class __$$SubmissionImplCopyWithImpl<$Res>
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
                   as DateTime?,
+        sessionId: freezed == sessionId
+            ? _value.sessionId
+            : sessionId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        isLate: freezed == isLate
+            ? _value.isLate
+            : isLate // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        totalScore: freezed == totalScore
+            ? _value.totalScore
+            : totalScore // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        profiles: freezed == profiles
+            ? _value._profiles
+            : profiles // ignore: cast_nullable_to_non_nullable
+                  as Map<String, dynamic>?,
+        assignmentDistributions: freezed == assignmentDistributions
+            ? _value._assignmentDistributions
+            : assignmentDistributions // ignore: cast_nullable_to_non_nullable
+                  as Map<String, dynamic>?,
+        workSessions: freezed == workSessions
+            ? _value._workSessions
+            : workSessions // ignore: cast_nullable_to_non_nullable
+                  as Map<String, dynamic>?,
+        submissionAnswers: freezed == submissionAnswers
+            ? _value._submissionAnswers
+            : submissionAnswers // ignore: cast_nullable_to_non_nullable
+                  as List<Map<String, dynamic>>?,
       ),
     );
   }
@@ -329,8 +441,20 @@ class _$SubmissionImpl implements _Submission {
     final List<String> uploadedFiles = const [],
     @JsonKey(name: 'created_at') this.createdAt,
     @JsonKey(name: 'updated_at') this.updatedAt,
+    @JsonKey(name: 'session_id') this.sessionId,
+    @JsonKey(name: 'is_late') this.isLate,
+    @JsonKey(name: 'total_score') this.totalScore,
+    final Map<String, dynamic>? profiles,
+    final Map<String, dynamic>? assignmentDistributions,
+    final Map<String, dynamic>? workSessions,
+    @JsonKey(name: 'submission_answers')
+    final List<Map<String, dynamic>>? submissionAnswers,
   }) : _answers = answers,
-       _uploadedFiles = uploadedFiles;
+       _uploadedFiles = uploadedFiles,
+       _profiles = profiles,
+       _assignmentDistributions = assignmentDistributions,
+       _workSessions = workSessions,
+       _submissionAnswers = submissionAnswers;
 
   factory _$SubmissionImpl.fromJson(Map<String, dynamic> json) =>
       _$$SubmissionImplFromJson(json);
@@ -413,10 +537,80 @@ class _$SubmissionImpl implements _Submission {
   @override
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
+  // === Extended fields from JOIN queries ===
+  /// ID của session (work_sessions) - dùng để query submission_answers
+  @override
+  @JsonKey(name: 'session_id')
+  final String? sessionId;
+
+  /// Computed: có nộp muộn không
+  @override
+  @JsonKey(name: 'is_late')
+  final bool? isLate;
+
+  /// Tổng điểm
+  @override
+  @JsonKey(name: 'total_score')
+  final double? totalScore;
+
+  /// Profile học sinh (từ JOIN profiles)
+  final Map<String, dynamic>? _profiles;
+
+  /// Profile học sinh (từ JOIN profiles)
+  @override
+  Map<String, dynamic>? get profiles {
+    final value = _profiles;
+    if (value == null) return null;
+    if (_profiles is EqualUnmodifiableMapView) return _profiles;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
+  /// Distribution + assignment + class info (từ JOIN assignment_distributions)
+  final Map<String, dynamic>? _assignmentDistributions;
+
+  /// Distribution + assignment + class info (từ JOIN assignment_distributions)
+  @override
+  Map<String, dynamic>? get assignmentDistributions {
+    final value = _assignmentDistributions;
+    if (value == null) return null;
+    if (_assignmentDistributions is EqualUnmodifiableMapView)
+      return _assignmentDistributions;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
+  /// Work session status (từ JOIN work_sessions)
+  final Map<String, dynamic>? _workSessions;
+
+  /// Work session status (từ JOIN work_sessions)
+  @override
+  Map<String, dynamic>? get workSessions {
+    final value = _workSessions;
+    if (value == null) return null;
+    if (_workSessions is EqualUnmodifiableMapView) return _workSessions;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
+  /// Danh sách câu trả lời (từ query riêng via session_id)
+  final List<Map<String, dynamic>>? _submissionAnswers;
+
+  /// Danh sách câu trả lời (từ query riêng via session_id)
+  @override
+  @JsonKey(name: 'submission_answers')
+  List<Map<String, dynamic>>? get submissionAnswers {
+    final value = _submissionAnswers;
+    if (value == null) return null;
+    if (_submissionAnswers is EqualUnmodifiableListView)
+      return _submissionAnswers;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
 
   @override
   String toString() {
-    return 'Submission(id: $id, assignmentDistributionId: $assignmentDistributionId, studentId: $studentId, status: $status, submittedAt: $submittedAt, gradedAt: $gradedAt, score: $score, feedback: $feedback, totalPoints: $totalPoints, answers: $answers, uploadedFiles: $uploadedFiles, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Submission(id: $id, assignmentDistributionId: $assignmentDistributionId, studentId: $studentId, status: $status, submittedAt: $submittedAt, gradedAt: $gradedAt, score: $score, feedback: $feedback, totalPoints: $totalPoints, answers: $answers, uploadedFiles: $uploadedFiles, createdAt: $createdAt, updatedAt: $updatedAt, sessionId: $sessionId, isLate: $isLate, totalScore: $totalScore, profiles: $profiles, assignmentDistributions: $assignmentDistributions, workSessions: $workSessions, submissionAnswers: $submissionAnswers)';
   }
 
   @override
@@ -450,12 +644,30 @@ class _$SubmissionImpl implements _Submission {
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
-                other.updatedAt == updatedAt));
+                other.updatedAt == updatedAt) &&
+            (identical(other.sessionId, sessionId) ||
+                other.sessionId == sessionId) &&
+            (identical(other.isLate, isLate) || other.isLate == isLate) &&
+            (identical(other.totalScore, totalScore) ||
+                other.totalScore == totalScore) &&
+            const DeepCollectionEquality().equals(other._profiles, _profiles) &&
+            const DeepCollectionEquality().equals(
+              other._assignmentDistributions,
+              _assignmentDistributions,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._workSessions,
+              _workSessions,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._submissionAnswers,
+              _submissionAnswers,
+            ));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     id,
     assignmentDistributionId,
@@ -470,7 +682,14 @@ class _$SubmissionImpl implements _Submission {
     const DeepCollectionEquality().hash(_uploadedFiles),
     createdAt,
     updatedAt,
-  );
+    sessionId,
+    isLate,
+    totalScore,
+    const DeepCollectionEquality().hash(_profiles),
+    const DeepCollectionEquality().hash(_assignmentDistributions),
+    const DeepCollectionEquality().hash(_workSessions),
+    const DeepCollectionEquality().hash(_submissionAnswers),
+  ]);
 
   /// Create a copy of Submission
   /// with the given fields replaced by the non-null parameter values.
@@ -502,6 +721,14 @@ abstract class _Submission implements Submission {
     @JsonKey(name: 'uploaded_files') final List<String> uploadedFiles,
     @JsonKey(name: 'created_at') final DateTime? createdAt,
     @JsonKey(name: 'updated_at') final DateTime? updatedAt,
+    @JsonKey(name: 'session_id') final String? sessionId,
+    @JsonKey(name: 'is_late') final bool? isLate,
+    @JsonKey(name: 'total_score') final double? totalScore,
+    final Map<String, dynamic>? profiles,
+    final Map<String, dynamic>? assignmentDistributions,
+    final Map<String, dynamic>? workSessions,
+    @JsonKey(name: 'submission_answers')
+    final List<Map<String, dynamic>>? submissionAnswers,
   }) = _$SubmissionImpl;
 
   factory _Submission.fromJson(Map<String, dynamic> json) =
@@ -569,7 +796,38 @@ abstract class _Submission implements Submission {
   /// Thời điểm cập nhật cuối cùng
   @override
   @JsonKey(name: 'updated_at')
-  DateTime? get updatedAt;
+  DateTime? get updatedAt; // === Extended fields from JOIN queries ===
+  /// ID của session (work_sessions) - dùng để query submission_answers
+  @override
+  @JsonKey(name: 'session_id')
+  String? get sessionId;
+
+  /// Computed: có nộp muộn không
+  @override
+  @JsonKey(name: 'is_late')
+  bool? get isLate;
+
+  /// Tổng điểm
+  @override
+  @JsonKey(name: 'total_score')
+  double? get totalScore;
+
+  /// Profile học sinh (từ JOIN profiles)
+  @override
+  Map<String, dynamic>? get profiles;
+
+  /// Distribution + assignment + class info (từ JOIN assignment_distributions)
+  @override
+  Map<String, dynamic>? get assignmentDistributions;
+
+  /// Work session status (từ JOIN work_sessions)
+  @override
+  Map<String, dynamic>? get workSessions;
+
+  /// Danh sách câu trả lời (từ query riêng via session_id)
+  @override
+  @JsonKey(name: 'submission_answers')
+  List<Map<String, dynamic>>? get submissionAnswers;
 
   /// Create a copy of Submission
   /// with the given fields replaced by the non-null parameter values.

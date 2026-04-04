@@ -1,7 +1,10 @@
+import 'package:ai_mls/domain/entities/submission.dart';
+import 'package:ai_mls/domain/entities/submission_answer.dart';
+
 /// Contract cho Submissions - quản lý bài nộp của học sinh.
 abstract class SubmissionRepository {
   /// Lấy hoặc tạo bài nộp draft cho một distribution.
-  Future<Map<String, dynamic>?> getOrCreateSubmission(
+  Future<Submission?> getOrCreateSubmission(
     String distributionId,
     String studentId,
   );
@@ -15,13 +18,13 @@ abstract class SubmissionRepository {
   );
 
   /// Nộp bài tập.
-  Future<Map<String, dynamic>> submitAssignment(
+  Future<Submission> submitAssignment(
     String distributionId,
     String studentId,
   );
 
   /// Lấy lịch sử nộp bài của học sinh.
-  Future<List<Map<String, dynamic>>> getStudentSubmissionHistory(String studentId);
+  Future<List<Submission>> getStudentSubmissionHistory(String studentId);
 
   /// Lấy danh sách submissions cho 1 distribution (teacher view).
   Future<List<Map<String, dynamic>>> getSubmissionsByDistribution(
@@ -39,7 +42,7 @@ abstract class SubmissionRepository {
   });
 
   /// Lấy câu trả lời của một submission (cho teacher grading).
-  Future<List<Map<String, dynamic>>> getSubmissionAnswers(String submissionId);
+  Future<List<SubmissionAnswer>> getSubmissionAnswers(String submissionId);
 
   /// Cập nhật điểm cho một câu trả lời.
   Future<void> updateSubmissionAnswerGrade({

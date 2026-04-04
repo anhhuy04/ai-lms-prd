@@ -28,6 +28,7 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
   List<Assignment> _displayedTeacherAssignments = [];
   List<Map<String, dynamic>> _displayedStudentAssignments = [];
   bool _isLoadingMore = false;
+  String _studentStatusFilter = 'all'; // 'all', 'not_submitted', 'submitted', 'graded'
   final ScrollController _scrollControllerTeacher = ScrollController();
   final ScrollController _scrollControllerStudent = ScrollController();
 
@@ -285,65 +286,147 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
           ],
         ),
       ),
-      data: (assignments) {
-        if (assignments.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.assignment_outlined,
-                  size: 64,
-                  color: DesignColors.textTertiary,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Chưa có bài tập nào',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: DesignColors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Bài tập sẽ hiển thị khi được giao',
-                  style: TextStyle(
-                    fontSize: DesignTypography.bodyMediumSize,
-                    color: DesignColors.textTertiary,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    context.goNamed(AppRoute.studentClassList);
-                  },
-                  icon: const Icon(Icons.class_outlined),
-                  label: const Text('Xem lớp học'),
-                ),
-              ],
+      data: (allAssignments) {
+        // Lọc bài tập theo status
+        final assignments = allAssignments.where((a) {
+          if (_studentStatusFilter == 'all') return true;
+          final status = a['submission_status'] as String? ?? 'not_submitted';
+          if (_studentStatusFilter == 'not_submitted') {
+            return status == 'not_submitted' || status == 'in_progress';
+          }
+          if (_studentStatusFilter == 'submitted') {
+            return status == 'submitted' || status == 'returned';
+          }
+          if (_studentStatusFilter == 'graded') {
+            return status == 'graded';
+          }
+          return true;
+        }).toList();
+
+        return Column(
+          children: [
+            // Filter section
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: DesignSpacing.md, vertical: DesignSpacing.sm),
+              child: Row(
+                children: [
+                  _buildFilterChip('Tất cả', 'all'),
+                  const SizedBox(width: DesignSpacing.sm),
+                  _buildFilterChip('Chưa nộp', 'not_submitted'),
+                  const SizedBox(width: DesignSpacing.sm),
+                  _buildFilterChip('Đã nộp', 'submitted'),
+                  const SizedBox(width: DesignSpacing.sm),
+                  _buildFilterChip('Đã chấm', 'graded'),
+                ],
+              ),
             ),
-          );
-        }
+            // Content section
+            Expanded(
+              child: _buildStudentAssignmentContent(assignments),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
-        // Initialize pagination if needed
-        if (_displayedStudentAssignments.isEmpty && assignments.isNotEmpty) {
-          final endIndex = _pageSize.clamp(0, assignments.length);
-          _displayedStudentAssignments = assignments.take(endIndex).toList();
+  Widget _buildFilterChip(String label, String value) {
+    final isSelected = _studentStatusFilter == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        if (selected) {
+          setState(() {
+            _studentStatusFilter = value;
+            _displayedStudentAssignments = [];
+            _currentPageStudent = 0;
+          });
+        }
+      },
+      selectedColor: DesignColors.primary.withValues(alpha: 0.2),
+      labelStyle: TextStyle(
+        color: isSelected ? DesignColors.primary : DesignColors.textSecondary,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      ),
+      side: BorderSide(
+        color: isSelected ? DesignColors.primary : DesignColors.dividerMedium,
+      ),
+    );
+  }
+
+  Widget _buildStudentAssignmentContent(List<Map<String, dynamic>> assignments) {
+    if (assignments.isEmpty && _studentStatusFilter != 'all') {
+      return Center(
+        child: Text(
+          'Không có bài tập nào ở trạng thái này',
+          style: TextStyle(
+            fontSize: DesignTypography.bodyLargeSize,
+            color: DesignColors.textSecondary,
+          ),
+        ),
+      );
+    }
+
+    if (assignments.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.assignment_outlined,
+              size: 64,
+              color: DesignColors.textTertiary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Chưa có bài tập nào',
+              style: TextStyle(
+                fontSize: 16,
+                color: DesignColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Bài tập sẽ hiển thị khi được giao',
+              style: TextStyle(
+                fontSize: DesignTypography.bodyMediumSize,
+                color: DesignColors.textTertiary,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                context.goNamed(AppRoute.studentClassList);
+              },
+              icon: const Icon(Icons.class_outlined),
+              label: const Text('Xem lớp học'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Initialize pagination if needed
+    if (_displayedStudentAssignments.isEmpty && assignments.isNotEmpty) {
+      final endIndex = _pageSize.clamp(0, assignments.length);
+      _displayedStudentAssignments = assignments.take(endIndex).toList();
+      _currentPageStudent = 0;
+    }
+
+    final hasMore = _displayedStudentAssignments.length < assignments.length;
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(studentAssignmentListProvider);
+        setState(() {
+          _displayedStudentAssignments = [];
           _currentPageStudent = 0;
-        }
-
-        final hasMore = _displayedStudentAssignments.length < assignments.length;
-
-        return RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(studentAssignmentListProvider);
-            setState(() {
-              _displayedStudentAssignments = [];
-              _currentPageStudent = 0;
-            });
-          },
-          child: ListView.builder(
+        });
+      },
+      child: ListView.builder(
             controller: _scrollControllerStudent,
             padding: const EdgeInsets.all(DesignSpacing.md),
             itemCount: _displayedStudentAssignments.length + (hasMore ? 1 : 0),
@@ -379,8 +462,6 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
             },
           ),
         );
-      },
-    );
   }
 
   void _loadMoreStudent(List<Map<String, dynamic>> allAssignments) {

@@ -1,5 +1,6 @@
 import 'package:ai_mls/data/datasources/submission_datasource.dart';
 import 'package:ai_mls/data/repositories/submission_repository_impl.dart';
+import 'package:ai_mls/domain/entities/submission.dart';
 import 'package:ai_mls/domain/repositories/submission_repository.dart'
     as domain;
 import 'package:flutter_test/flutter_test.dart';
@@ -31,8 +32,8 @@ void main() {
       final result = await repository.getOrCreateSubmission('dist-001', 'student-001');
 
       expect(result, isNotNull);
-      expect(result!['id'], 'new-sub-001');
-      expect(result['status'], 'draft');
+      expect(result!.id, 'new-sub-001');
+      expect(result.status, SubmissionStatus.draft);
       verify(() => mockDataSource.getOrCreateSubmission('dist-001', 'student-001'))
           .called(1);
     });
@@ -51,8 +52,8 @@ void main() {
       final result = await repository.getOrCreateSubmission('dist-001', 'student-001');
 
       expect(result, isNotNull);
-      expect(result!['id'], 'existing-sub-001');
-      expect(result['answers'], {'q1': 'answer 1'});
+      expect(result!.id, 'existing-sub-001');
+      expect(result.answers, {'q1': 'answer 1'});
     });
 
     test('saveSubmissionDraft - saves answers correctly', () async {
@@ -82,14 +83,16 @@ void main() {
       when(() => mockDataSource.submitAssignment(any(), any()))
           .thenAnswer((_) async => {
                 'id': 'sub-001',
+                'assignment_distribution_id': 'dist-001',
+                'student_id': 'student-001',
                 'status': 'submitted',
                 'submitted_at': '2026-03-23T10:00:00Z',
               });
 
       final result = await repository.submitAssignment('dist-001', 'student-001');
 
-      expect(result['status'], 'submitted');
-      expect(result['submitted_at'], isNotNull);
+      expect(result.status, SubmissionStatus.submitted);
+      expect(result.submittedAt, isNotNull);
     });
 
     test('updateSubmissionGrade - updates score and feedback', () async {

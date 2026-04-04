@@ -94,6 +94,12 @@ abstract class AssignmentRepository {
   /// Get all distributions for a teacher (across all their assignments)
   Future<List<AssignmentDistribution>> getDistributionsByTeacher(String teacherId);
 
+  /// Cập nhật cấu hình distribution hiện có (PATCH).
+  Future<void> updateDistribution(
+    String distributionId,
+    Map<String, dynamic> patch,
+  );
+
   /// Lấy chi tiết distribution kèm assignment info.
   Future<Map<String, dynamic>> getDistributionDetail(String distributionId);
 

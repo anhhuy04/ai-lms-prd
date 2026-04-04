@@ -37,24 +37,22 @@ class StudentClassInteractionHandler {
   ///
   /// [context] - BuildContext để điều hướng hoặc hiển thị thông báo
   /// [classItem] - Lớp học được tap
-  /// [onNavigate] - Callback để điều hướng đến chi tiết lớp (chỉ gọi nếu lớp đã được duyệt)
+  /// [onNavigate] - Callback để điều hướng đến chi tiết lớp (chỉ gọi nếu lớp không chờ duyệt)
   ///
-  /// Trả về true nếu đã xử lý thành công, false nếu lớp đang chờ duyệt
+  /// Trả về true nếu đã điều hướng thành công, false nếu lớp đang chờ duyệt
   static bool handleClassTap(
     BuildContext context,
     Class classItem, {
     required VoidCallback onNavigate,
   }) {
+    // Chỉ block khi lớp đang chờ duyệt
     if (classItem.isPending) {
       showPendingClassMessage(context, classItem.name);
       return false;
     }
 
-    if (classItem.canAccess) {
-      onNavigate();
-      return true;
-    }
-
-    return false;
+    // Cho phép điều hướng nếu đã duyệt hoặc memberStatus null (fallback)
+    onNavigate();
+    return true;
   }
 }

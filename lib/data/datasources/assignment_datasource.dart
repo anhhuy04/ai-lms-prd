@@ -142,9 +142,54 @@ class AssignmentDataSource {
       }
     }).toList();
 
-    // Flatten thành danh sách assignments
+    // Fetch work_sessions của student cho các distributions này
+    final distIds = visibleDistributions.map((d) => d['id'] as String).toList();
+    Map<String, Map<String, dynamic>> sessionByDistId = {};
+    Map<String, num?> scoreByDistId = {};
+    if (distIds.isNotEmpty) {
+      // Lấy session status từ work_sessions (không có total_score ở bảng này)
+      final sessionsRes = await _client
+          .from('work_sessions')
+          .select('assignment_distribution_id, status, submitted_at')
+          .inFilter('assignment_distribution_id', distIds)
+          .eq('student_id', studentId)
+          .order('submitted_at', ascending: false);
+      for (final s in List<Map<String, dynamic>>.from(sessionsRes)) {
+        final distId = s['assignment_distribution_id'] as String;
+        // Ưu tiên status cao hơn: graded > submitted > in_progress
+        if (!sessionByDistId.containsKey(distId)) {
+          sessionByDistId[distId] = s;
+        } else {
+          final existing = sessionByDistId[distId]!['status'] as String?;
+          final current = s['status'] as String?;
+          if (existing != 'graded' && current == 'graded') {
+            sessionByDistId[distId] = s;
+          } else if (existing == 'in_progress' && current == 'submitted') {
+            sessionByDistId[distId] = s;
+          }
+        }
+      }
+
+      // Lấy total_score từ submissions (total_score nằm ở bảng submissions, không phải work_sessions)
+      // NOTE: is_voided mặc định là NULL (không phải false), nên không filter is_voided=false
+      final submissionsRes = await _client
+          .from('submissions')
+          .select('assignment_distribution_id, total_score')
+          .inFilter('assignment_distribution_id', distIds)
+          .eq('student_id', studentId)
+          .not('is_voided', 'eq', true);
+      for (final sub in List<Map<String, dynamic>>.from(submissionsRes)) {
+        final distId = sub['assignment_distribution_id'] as String?;
+        if (distId == null) continue;
+        final score = sub['total_score'] as num?;
+        if (score != null) scoreByDistId[distId] = score;
+      }
+    }
+
+    // Flatten thành danh sách assignments + merge submission status
     return visibleDistributions.map((dist) {
       final assignment = Map<String, dynamic>.from(dist['assignments'] as Map);
+      final session = sessionByDistId[dist['id'] as String];
       return <String, dynamic>{
         ...assignment,
         'assignment_distribution_id': dist['id'],
@@ -154,6 +199,9 @@ class AssignmentDataSource {
         'distribution_time_limit_minutes': dist['time_limit_minutes'],
         'distribution_allow_late': dist['allow_late'],
         'distribution_settings': dist['settings'],
+        'submission_status': session?['status'] ?? 'not_submitted',
+        'submission_submitted_at': session?['submitted_at'],
+        'score': scoreByDistId[dist['id'] as String],
       };
     }).toList();
   }
@@ -257,6 +305,12 @@ class AssignmentDataSource {
   Future<Map<String, dynamic>> insertDistribution(
     Map<String, dynamic> payload,
   ) => _assignmentDistributions.insert(payload);
+
+  /// Cập nhật cấu hình distribution (PATCH) — chỉ update các field liên quan đến config.
+  Future<Map<String, dynamic>> updateDistribution(
+    String distributionId,
+    Map<String, dynamic> patch,
+  ) => _assignmentDistributions.update(distributionId, patch);
 
   /// Replace toàn bộ questions của assignment (simple & predictable).
   /// Chỉ cho phép replace nếu CHƯA có submission.
@@ -647,9 +701,30 @@ class AssignmentDataSource {
 
       }
 
+      // Đếm sĩ số lớp từ class_members (chỉ học sinh đã duyệt)
+      int totalStudents = 0;
+      final classId = rawData['class_id'] as String?;
+      if (classId != null) {
+        try {
+          final members = await _client
+              .from('class_members')
+              .select('student_id')
+              .eq('class_id', classId)
+              .eq('status', 'approved');
+          totalStudents = (members as List).length;
+        } catch (e, st) {
+          AppLogger.error(
+            '[AssignmentDS] getDistributionDetail: failed to count class_members for class=$classId',
+            error: e,
+            stackTrace: st,
+          );
+        }
+      }
+
       // Build response với cấu trúc expected bởi UI
       return {
         'assignment': {
+          'id': assignmentId,
           'title': assignments?['title'] ?? 'Bài tập',
           'description': assignments?['description'],
           'total_points': assignments?['total_points'] ?? 0,
@@ -660,6 +735,11 @@ class AssignmentDataSource {
           'status': rawData['status'],
           'available_from': rawData['available_from'],
           'time_limit_minutes': rawData['time_limit_minutes'],
+          'settings': rawData['settings'],
+          'allow_late': rawData['allow_late'],
+          'late_policy': rawData['late_policy'],
+          'class_id': classId,
+          'total_students': totalStudents,
         },
       };
     } catch (e, st) {
@@ -682,24 +762,43 @@ class AssignmentDataSource {
   }
 
   /// Lấy danh sách submissions cho 1 distribution.
-  /// Join profiles để có tên + avatar học sinh.
+  /// Query submissions với assignment_distribution_id để lấy total_score.
+  /// Query profiles riêng để tránh RLS block khi dùng embedded join.
   Future<List<Map<String, dynamic>>> getSubmissionsByDistribution(
     String distributionId,
   ) async {
-    // Lấy distribution để biết assignment_id
-    final dist = await _client
-        .from('assignment_distributions')
-        .select('assignment_id')
-        .eq('id', distributionId)
-        .single();
-    final assignmentId = dist['assignment_id'] as String;
-
     final res = await _client
-        .from('work_sessions')
-        .select('*, profiles:student_id(id, full_name, avatar_url)')
-        .eq('assignment_id', assignmentId)
-        .order('submitted_at', ascending: true);
-    return List<Map<String, dynamic>>.from(res);
+        .from('submissions')
+        .select('id, student_id, submitted_at, is_late, total_score, assignment_distribution_id')
+        .eq('assignment_distribution_id', distributionId)
+        .order('submitted_at', ascending: false);
+
+    final submissions = List<Map<String, dynamic>>.from(res);
+
+    final studentIds = submissions
+        .map((s) => s['student_id'] as String?)
+        .whereType<String>()
+        .toSet()
+        .toList();
+
+    if (studentIds.isNotEmpty) {
+      final profilesRes = await _client
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .inFilter('id', studentIds);
+
+      final profilesMap = <String, Map<String, dynamic>>{
+        for (final p in List<Map<String, dynamic>>.from(profilesRes))
+          p['id'] as String: p,
+      };
+
+      for (final sub in submissions) {
+        final sid = sub['student_id'] as String?;
+        sub['profiles'] = sid != null ? profilesMap[sid] : null;
+      }
+    }
+
+    return submissions;
   }
 
   /// Lấy danh sách tất cả bài tập của học sinh (từ tất cả các lớp)
@@ -724,7 +823,7 @@ class AssignmentDataSource {
         .from('class_members')
         .select('class_id')
         .eq('student_id', studentId)
-        .eq('status', 'active');
+        .eq('status', 'approved');
     final classIds = List<Map<String, dynamic>>.from(
       classMembersRes,
     ).map((c) => c['class_id'] as String).toList();
@@ -786,26 +885,92 @@ class AssignmentDataSource {
         .eq('student_id', studentId)
         .maybeSingle();
 
-    if (existingRes != null) {
-      // Fetch answers from autosave_answers table
-      final autosaveAnswers = await _client
-          .from('autosave_answers')
-          .select()
-          .eq('session_id', existingRes['id']);
+    // Đếm số lần đã nộp (submitted/graded) cho distribution này
+    final completedSessions = await _client
+        .from('work_sessions')
+        .select('id')
+        .eq('assignment_distribution_id', distributionId)
+        .eq('student_id', studentId)
+        .inFilter('status', ['submitted', 'graded']);
+    final attemptCount = (completedSessions as List).length;
 
-      // Convert to answers map
+    if (existingRes != null) {
+      final sessionId = existingRes['id'] as String;
+      final sessionStatus = existingRes['status'] as String? ?? 'in_progress';
+      final isSubmitted = sessionStatus == 'submitted' || sessionStatus == 'graded';
+
       final Map<String, dynamic> answersMap = {};
-      for (final aa in autosaveAnswers) {
-        final qId = aa['assignment_question_id'] as String?;
-        if (qId != null) {
-          answersMap[qId] = aa['answer_content'];
+      int correctCount = 0;
+      int wrongCount = 0;
+
+      if (isSubmitted) {
+        // Bài đã nộp: autosave_answers bị xóa sau khi submit
+        // → load từ submission_answers để xem lại đáp án
+        final submissionAnswers = await _client
+            .from('submission_answers')
+            .select('assignment_question_id, answer, final_score, ai_score')
+            .eq('session_id', sessionId);
+
+        for (final sa in submissionAnswers) {
+          final qId = sa['assignment_question_id'] as String?;
+          if (qId != null) {
+            answersMap[qId] = sa['answer'];
+          }
+          // Tính đúng/sai từ final_score hoặc ai_score
+          final score = (sa['final_score'] as num?) ?? (sa['ai_score'] as num?);
+          if (score != null) {
+            if (score > 0) {
+              correctCount++;
+            } else {
+              wrongCount++;
+            }
+          }
+        }
+      } else {
+        // Đang làm: load từ autosave_answers
+        final autosaveAnswers = await _client
+            .from('autosave_answers')
+            .select()
+            .eq('session_id', sessionId);
+
+        for (final aa in autosaveAnswers) {
+          final qId = aa['assignment_question_id'] as String?;
+          if (qId != null) {
+            answersMap[qId] = aa['answer_content'];
+          }
         }
       }
 
-      // Add answers to the result
       final result = Map<String, dynamic>.from(existingRes);
       result['answers'] = answersMap;
       result['uploaded_files'] = <String>[];
+      result['attempt_count'] = attemptCount;
+      result['time_taken_seconds'] = existingRes['time_spent_seconds'];
+      if (isSubmitted) {
+        result['correct_count'] = correctCount;
+        result['wrong_count'] = wrongCount;
+      }
+
+      // Lấy total_score, submitted_at từ submissions (nếu đã nộp)
+      if (isSubmitted) {
+        try {
+          final submissionRow = await _client
+              .from('submissions')
+              .select('total_score, submitted_at')
+              .eq('assignment_distribution_id', distributionId)
+              .eq('student_id', studentId)
+              .not('is_voided', 'eq', true)
+              .order('created_at', ascending: false)
+              .maybeSingle();
+          if (submissionRow != null) {
+            result['score'] = submissionRow['total_score'];
+            result['submitted_at'] ??= submissionRow['submitted_at'];
+          }
+        } catch (e) {
+          AppLogger.warning('[AssignmentDS] Cannot fetch submission score: $e');
+        }
+      }
+
       return result;
     }
 
@@ -822,7 +987,9 @@ class AssignmentDataSource {
         .select()
         .single();
 
-    return Map<String, dynamic>.from(newSubmission);
+    final result = Map<String, dynamic>.from(newSubmission);
+    result['attempt_count'] = attemptCount;
+    return result;
   }
 
   /// Lưu bản nháp bài nộp

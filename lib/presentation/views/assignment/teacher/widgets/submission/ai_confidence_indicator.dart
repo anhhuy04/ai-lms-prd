@@ -50,7 +50,7 @@ class AiConfidenceIndicator extends StatelessWidget {
               const SizedBox(width: DesignSpacing.sm),
               Text(
                 'AI Confidence',
-                style: DesignTypography.bodyMedium?.copyWith(
+                style: DesignTypography.bodyMedium.copyWith(
                   fontWeight: FontWeight.w600,
                   color: isLowConfidence
                       ? DesignColors.warning
@@ -60,7 +60,7 @@ class AiConfidenceIndicator extends StatelessWidget {
               const Spacer(),
               Text(
                 '$confidencePercent%',
-                style: DesignTypography.titleMedium?.copyWith(
+                style: DesignTypography.titleMedium.copyWith(
                   color: isLowConfidence
                       ? DesignColors.warning
                       : DesignColors.success,
@@ -106,7 +106,7 @@ class AiConfidenceIndicator extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'AI phân vân (Độ tin cậy thấp) - Yêu cầu giáo viên kiểm tra kỹ',
-                      style: DesignTypography.bodySmall?.copyWith(
+                      style: DesignTypography.bodySmall.copyWith(
                         color: DesignColors.warning,
                       ),
                     ),

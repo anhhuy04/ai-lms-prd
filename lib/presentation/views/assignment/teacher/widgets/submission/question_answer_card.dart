@@ -30,25 +30,25 @@ class QuestionAnswerCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (questionContent != null) ...[
-              Text('Câu hỏi', style: DesignTypography.bodySmall?.copyWith(color: DesignColors.textSecondary)),
+              Text('Câu hỏi', style: DesignTypography.bodySmall.copyWith(color: DesignColors.textSecondary)),
               const SizedBox(height: DesignSpacing.xs),
               Text(questionContent['text']?.toString() ?? questionContent['override_text']?.toString() ?? '', style: DesignTypography.bodyMedium),
               const Divider(height: DesignSpacing.lg),
             ],
             if (showStudentAnswer && studentAnswer != null) ...[
-              Text('Câu trả lời của học sinh', style: DesignTypography.bodySmall?.copyWith(color: DesignColors.textSecondary)),
+              Text('Câu trả lời của học sinh', style: DesignTypography.bodySmall.copyWith(color: DesignColors.textSecondary)),
               const SizedBox(height: DesignSpacing.xs),
               _buildAnswerContent(studentAnswer),
               const Divider(height: DesignSpacing.lg),
             ],
             if (showCorrectAnswer && correctAnswer != null) ...[
-              Text('Đáp án đúng', style: DesignTypography.bodySmall?.copyWith(color: DesignColors.success)),
+              Text('Đáp án đúng', style: DesignTypography.bodySmall.copyWith(color: DesignColors.success)),
               const SizedBox(height: DesignSpacing.xs),
               _buildAnswerContent(correctAnswer),
               const Divider(height: DesignSpacing.lg),
             ],
             if (showRubric) ...[
-              Text('Rubric', style: DesignTypography.bodySmall?.copyWith(color: DesignColors.textSecondary)),
+              Text('Rubric', style: DesignTypography.bodySmall.copyWith(color: DesignColors.textSecondary)),
               const SizedBox(height: DesignSpacing.xs),
               _buildRubric(answer['rubric']),
             ],
@@ -78,10 +78,10 @@ class QuestionAnswerCard extends StatelessWidget {
   }
 
   Widget _buildRubric(dynamic rubric) {
-    if (rubric == null) return Text('Không có rubric', style: DesignTypography.bodyMedium?.copyWith(color: DesignColors.textTertiary));
+    if (rubric == null) return Text('Không có rubric', style: DesignTypography.bodyMedium.copyWith(color: DesignColors.textTertiary));
     final rubricData = rubric as Map<String, dynamic>;
     final criteria = rubricData['criteria'] as List<dynamic>?;
-    if (criteria == null || criteria.isEmpty) return Text('Không có tiêu chí', style: DesignTypography.bodyMedium?.copyWith(color: DesignColors.textTertiary));
+    if (criteria == null || criteria.isEmpty) return Text('Không có tiêu chí', style: DesignTypography.bodyMedium.copyWith(color: DesignColors.textTertiary));
     return Column(
       children: criteria.map((c) {
         final criterion = c as Map<String, dynamic>;
@@ -91,7 +91,7 @@ class QuestionAnswerCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(child: Text(criterion['name']?.toString() ?? '', style: DesignTypography.bodyMedium)),
-              Text('${criterion['score'] ?? 0}/${criterion['max_score'] ?? 0}', style: DesignTypography.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+              Text('${criterion['score'] ?? 0}/${criterion['max_score'] ?? 0}', style: DesignTypography.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
             ],
           ),
         );

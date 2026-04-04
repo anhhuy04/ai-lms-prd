@@ -100,7 +100,7 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
         questions: questions.map((q) => QuestionState.fromJson(q as Map<String, dynamic>)).toList(),
         answers: Map<String, dynamic>.from(existingAnswers),
         uploadedFiles: List<String>.from(uploadedFiles),
-        submissionStatus: submission?['status'] == 'submitted'
+        submissionStatus: (submission?['status'] == 'submitted' || submission?['status'] == 'graded')
             ? WorkspaceSubmissionStatus.submitted
             : WorkspaceSubmissionStatus.inProgress,
         savingStatus: SavingStatus.idle,

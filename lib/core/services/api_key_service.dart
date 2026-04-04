@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:ai_mls/core/env/env.dart';
 import 'package:ai_mls/core/services/profile_metadata_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
@@ -28,10 +30,12 @@ class ApiKeyService {
   // Providers
   static const String providerGemini = 'gemini';
   static const String providerGroq = 'groq';
+  static const String providerOllama = 'ollama';
 
   // Default models (fallback)
   static const String defaultGeminiModel = 'gemini-1.5-flash';
   static const String defaultGroqModel = 'llama-3.1-8b-instant';
+  static const String defaultOllamaModel = 'mistral'; // Default Ollama model
 
   static const FlutterSecureStorage _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -43,7 +47,10 @@ class ApiKeyService {
   // Keys cho Secure Storage (fallback)
   static const String _geminiApiKeyKey = 'gemini_api_key';
   static const String _groqApiKeyKey = 'groq_api_key';
+  static const String _ollamaBaseUrlKey = 'ollama_base_url';
   static const String _aiApiKeyKey = 'ai_api_key';
+
+  // Ollama - NO default base URL (user must enter manually)
 
   static const String _geminiBaseUrl =
       'https://generativelanguage.googleapis.com/v1beta';
@@ -609,19 +616,23 @@ Web: Browser's secure storage (if supported)
       final model = await ProfileMetadataService.getAiModel();
       if (model != null && model.isNotEmpty) return model;
     }
-    return provider == providerGroq ? defaultGroqModel : defaultGeminiModel;
+    if (provider == providerGroq) return defaultGroqModel;
+    if (provider == providerOllama) return defaultOllamaModel;
+    return defaultGeminiModel;
   }
 
   /// Set provider/model đang active (không đụng đến API key).
   ///
-  /// Dùng cho UI Settings: user có thể lưu cả Gemini và Groq key,
+  /// Dùng cho UI Settings: user có thể lưu cả Gemini, Groq, Ollama key,
   /// rồi chọn provider/model nào sẽ được dùng cho toàn dự án.
   static Future<bool> setActiveAiConfig({
     required String provider,
     required String model,
   }) async {
     try {
-      if (provider != providerGemini && provider != providerGroq) {
+      if (provider != providerGemini &&
+          provider != providerGroq &&
+          provider != providerOllama) {
         throw Exception('Provider không hợp lệ: $provider');
       }
       if (model.trim().isEmpty) {
@@ -635,6 +646,377 @@ Web: Browser's secure storage (if supported)
     } catch (e) {
       AppLogger.error('❌ [API Key Service] setActiveAiConfig failed: $e');
       return false;
+    }
+  }
+
+  // ── Analytics AI config ─────────────────────────────────────────────────
+
+  /// Provider đang dùng cho tính năng phân tích dữ liệu.
+  /// Default: providerGemini nếu chưa cấu hình.
+  static Future<String> getAnalyticsProvider() async {
+    final provider = await ProfileMetadataService.getAnalyticsProvider();
+    return provider?.isNotEmpty == true ? provider! : providerGemini;
+  }
+
+  /// Model đang dùng cho phân tích dữ liệu (tuỳ provider).
+  static Future<String> getAnalyticsModel() async {
+    final provider = await getAnalyticsProvider();
+    return getAnalyticsModelFor(provider);
+  }
+
+  /// Model cho analytics ứng với [provider] cụ thể.
+  static Future<String> getAnalyticsModelFor(String provider) async {
+    final activeProvider = await getAnalyticsProvider();
+    if (activeProvider == provider) {
+      final model = await ProfileMetadataService.getAnalyticsModel();
+      if (model != null && model.isNotEmpty) return model;
+    }
+    if (provider == providerGroq) return defaultGroqModel;
+    if (provider == providerOllama) return defaultOllamaModel;
+    return defaultGeminiModel;
+  }
+
+  /// Set provider/model cho phân tích dữ liệu (không đụng đến API key).
+  static Future<bool> setAnalyticsConfig({
+    required String provider,
+    required String model,
+  }) async {
+    try {
+      if (provider != providerGemini &&
+          provider != providerGroq &&
+          provider != providerOllama) {
+        throw Exception('Provider không hợp lệ: $provider');
+      }
+      if (model.trim().isEmpty) throw Exception('Model không được để trống');
+      await ProfileMetadataService.setAnalyticsConfig(
+        provider: provider,
+        model: model.trim(),
+      );
+      return true;
+    } catch (e) {
+      AppLogger.error('❌ [API Key Service] setAnalyticsConfig failed: $e');
+      return false;
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+
+  /// Lấy Ollama base URL (mặc định: http://localhost:11434)
+  ///
+  /// Priority:
+  /// 1. Từ ProfileMetadataService (user custom)
+  /// 2. Từ Secure Storage (fallback)
+  /// 3. Default: http://localhost:11434
+  static Future<String> getOllamaBaseUrl() async {
+    try {
+      // 1. Ưu tiên lấy từ metadata
+      try {
+        final url = await ProfileMetadataService.getOllamaBaseUrl();
+        if (url != null && url.isNotEmpty) {
+          AppLogger.debug(
+            '🔗 [API Key Service] Using Ollama URL from profile metadata: $url',
+          );
+          return url;
+        }
+      } catch (e) {
+        AppLogger.debug('🔵 [API Key Service] Could not get Ollama URL from metadata: $e');
+      }
+
+      // 2. Fallback về Secure Storage
+      final storedUrl = await _storage.read(key: _ollamaBaseUrlKey);
+      if (storedUrl != null && storedUrl.isNotEmpty) {
+        AppLogger.debug(
+          '🔗 [API Key Service] Using Ollama URL from Secure Storage: $storedUrl',
+        );
+        return storedUrl;
+      }
+
+      // 3. No default - return empty
+      AppLogger.debug(
+        '🔗 [API Key Service] No Ollama URL configured (user must enter manually)',
+      );
+      return '';
+    } catch (e) {
+      AppLogger.error('❌ [API Key Service] Error reading Ollama base URL: $e');
+      return '';
+    }
+  }
+
+  /// Lưu Ollama base URL
+  ///
+  /// [baseUrl] - URL của Ollama server (e.g., http://localhost:11434 hoặc http://192.168.1.100:11434)
+  /// [model] - Model Ollama mặc định (optional)
+  /// [setActive] - Nếu true, set Ollama làm active provider
+  ///
+  /// Returns: Map với 'saved' (bool), 'tested' (bool), 'testSuccess' (bool?), 'error' (String?)
+  static Future<Map<String, dynamic>> setOllamaBaseUrl(
+    String baseUrl, {
+    String? model,
+    bool setActive = false,
+  }) async {
+    try {
+      if (baseUrl.trim().isEmpty) {
+        return {
+          'saved': false,
+          'tested': false,
+          'error': 'Ollama URL không được để trống',
+        };
+      }
+
+      // Normalize URL (remove trailing slash)
+      final normalizedUrl = baseUrl.trim().replaceAll(RegExp(r'/$'), '');
+
+      // Test Ollama connection
+      final testResult = await testOllamaConnection(normalizedUrl);
+      final testSuccess = testResult['success'] as bool;
+      final testError = testResult['error'] as String?;
+      final availableModels =
+          testResult['models'] as List<String>? ?? [];
+
+      // Lưu vào metadata (thông qua ProfileMetadataService)
+      try {
+        final saved = await ProfileMetadataService.setOllamaBaseUrl(normalizedUrl);
+        if (saved) {
+          if (setActive) {
+            final selectedModel =
+                model ?? (availableModels.isNotEmpty ? availableModels.first
+                : defaultOllamaModel);
+            await ProfileMetadataService.setAiConfig(
+              provider: providerOllama,
+              model: selectedModel,
+            );
+          }
+          AppLogger.info(
+            '✅ [API Key Service] Ollama base URL saved: $normalizedUrl',
+          );
+          return {
+            'saved': true,
+            'tested': true,
+            'testSuccess': testSuccess,
+            'error': testError,
+            'models': availableModels,
+          };
+        }
+      } catch (e) {
+        AppLogger.warning(
+          '⚠️ [API Key Service] Could not save to metadata: $e, using Secure Storage',
+        );
+      }
+
+      // Fallback về Secure Storage
+      await _storage.write(key: _ollamaBaseUrlKey, value: normalizedUrl);
+      if (setActive) {
+        final selectedModel =
+            model ?? (availableModels.isNotEmpty ? availableModels.first
+            : defaultOllamaModel);
+        await ProfileMetadataService.setAiConfig(
+          provider: providerOllama,
+          model: selectedModel,
+        );
+      }
+      AppLogger.info(
+        '✅ [API Key Service] Ollama base URL saved to Secure Storage',
+      );
+      return {
+        'saved': true,
+        'tested': true,
+        'testSuccess': testSuccess,
+        'error': testError,
+        'models': availableModels,
+      };
+    } catch (e) {
+      AppLogger.error('❌ [API Key Service] Error saving Ollama base URL: $e');
+      return {
+        'saved': false,
+        'tested': false,
+        'error': 'Lỗi khi lưu: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Test kết nối đến Ollama server bằng cách gọi /api/tags
+  ///
+  /// [baseUrl] - Base URL của Ollama server (e.g., http://localhost:11434)
+  ///
+  /// Returns: Map với keys 'success' (bool), 'error' (String), 'models' (List of Strings)
+  static Future<Map<String, dynamic>> testOllamaConnection(String baseUrl) async {
+    try {
+      if (baseUrl.trim().isEmpty) {
+        return {
+          'success': false,
+          'error': 'Base URL không được để trống',
+          'models': <String>[],
+        };
+      }
+
+      final clonedUrl = baseUrl.trim().replaceAll(RegExp(r'/$'), '');
+      final endpoint = '$clonedUrl/api/tags';
+
+      AppLogger.debug('🔗 [API Key Service] Testing Ollama connection to: $endpoint');
+
+      final dio = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 5),
+          receiveTimeout: const Duration(seconds: 10),
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+
+      final response = await dio.get(
+        endpoint,
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+        ),
+      );
+
+      AppLogger.debug('🔗 [API Key Service] Response status: ${response.statusCode}');
+      AppLogger.debug('🔗 [API Key Service] Response data type: ${response.data.runtimeType}');
+
+      if (response.statusCode == 200) {
+        try {
+          AppLogger.debug('🔗 [API Key Service] Response.data: ${response.data}');
+          AppLogger.debug('🔗 [API Key Service] Response.data runtime type: ${response.data.runtimeType}');
+          
+          // Parse response - handle both Map and String responses
+          Map<String, dynamic>? responseData;
+          if (response.data is Map<String, dynamic>) {
+            responseData = response.data as Map<String, dynamic>;
+          } else if (response.data is String) {
+            try {
+              responseData = jsonDecode(response.data) as Map<String, dynamic>;
+            } catch (e) {
+              AppLogger.error('❌ [API Key Service] Failed to parse string response as JSON: $e');
+              return {
+                'success': false,
+                'error': 'Lỗi parse JSON: ${e.toString()}',
+                'models': <String>[],
+              };
+            }
+          }
+          
+          final modelsList = responseData?['models'] as List?;
+          AppLogger.debug('🔗 [API Key Service] Models list: $modelsList');
+          AppLogger.debug('🔗 [API Key Service] Models list length: ${modelsList?.length ?? 0}');
+          
+          final models = <String>[];
+          if (modelsList != null) {
+            for (int i = 0; i < modelsList.length; i++) {
+              try {
+                final m = modelsList[i];
+                AppLogger.debug('🔗 [API Key Service] Processing model [$i]: $m (type: ${m.runtimeType})');
+                
+                if (m is Map<String, dynamic>) {
+                  final modelName = m['name'] as String?;
+                  AppLogger.debug('🔗 [API Key Service] Model name from map: $modelName');
+                  if (modelName != null && modelName.isNotEmpty) {
+                    models.add(modelName);
+                  }
+                } else {
+                  AppLogger.warning('⚠️ [API Key Service] Model is not a Map: $m');
+                  models.add(m.toString());
+                }
+              } catch (e) {
+                AppLogger.error('❌ [API Key Service] Error processing model: $e', error: e);
+              }
+            }
+          }
+          
+          AppLogger.info(
+            '✅ [API Key Service] Ollama connection test successful. Found ${models.length} models: $models',
+          );
+          return {
+            'success': true,
+            'error': null,
+            'models': models,
+          };
+        } catch (parseError) {
+          AppLogger.error('❌ [API Key Service] Error parsing Ollama response: $parseError', error: parseError);
+          return {
+            'success': false,
+            'error': 'Lỗi parse response: ${parseError.toString()}',
+            'models': <String>[],
+          };
+        }
+      } else {
+        AppLogger.error('❌ [API Key Service] Ollama returned status ${response.statusCode}');
+        return {
+          'success': false,
+          'error':
+              'Ollama trả về status ${response.statusCode}. Response: ${response.data}',
+          'models': <String>[],
+        };
+      }
+    } on DioException catch (e) {
+      String errorMessage = 'Lỗi không xác định';
+
+      if (e.response != null) {
+        final statusCode = e.response!.statusCode;
+        errorMessage = 'Lỗi $statusCode: ${e.response?.data?.toString() ?? e.message ?? 'Unknown error'}';
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage =
+            'Timeout: Không thể kết nối đến Ollama. Vui lòng kiểm tra URL và kết nối internet.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage =
+            'Lỗi kết nối: Không thể kết nối đến Ollama server. Vui lòng kiểm tra:\n'
+            '• URL có chính xác không (e.g., http://localhost:11434)\n'
+            '• Ollama đang chạy không\n'
+            '• Firewall/Network policy';
+      } else {
+        errorMessage = e.message ?? 'Lỗi kết nối không xác định';
+      }
+
+      AppLogger.error(
+        '❌ [API Key Service] Ollama connection test failed: $errorMessage',
+        error: e,
+      );
+
+      return {
+        'success': false,
+        'error': errorMessage,
+        'models': <String>[],
+      };
+    } catch (e) {
+      AppLogger.error(
+        '❌ [API Key Service] Unexpected error testing Ollama: $e',
+        error: e,
+      );
+      return {
+        'success': false,
+        'error': 'Lỗi không xác định: ${e.toString()}',
+        'models': <String>[],
+      };
+    }
+  }
+
+  /// Xóa Ollama base URL khỏi storage
+  static Future<bool> clearOllamaBaseUrl() async {
+    try {
+      try {
+        await ProfileMetadataService.removeOllamaBaseUrl();
+      } catch (_) {}
+      await _storage.delete(key: _ollamaBaseUrlKey);
+      AppLogger.info('✅ [API Key Service] Ollama base URL cleared');
+      return true;
+    } catch (e) {
+      AppLogger.error('❌ [API Key Service] Error clearing Ollama base URL: $e');
+      return false;
+    }
+  }
+
+  /// Lấy danh sách models available từ Ollama server
+  ///
+  /// Returns: List of models (String) hoặc empty list nếu không thể kết nối
+  static Future<List<String>> getOllamaAvailableModels() async {
+    try {
+      final baseUrl = await getOllamaBaseUrl();
+      final result = await testOllamaConnection(baseUrl);
+      return result['models'] as List<String>;
+    } catch (e) {
+      AppLogger.error(
+        '❌ [API Key Service] Error getting Ollama models: $e',
+      );
+      return [];
     }
   }
 
@@ -775,6 +1157,8 @@ Web: Browser's secure storage (if supported)
   static Future<bool> clearAllApiKeys() async {
     try {
       await _storage.delete(key: _geminiApiKeyKey);
+      await _storage.delete(key: _groqApiKeyKey);
+      await _storage.delete(key: _ollamaBaseUrlKey);
       await _storage.delete(key: _aiApiKeyKey);
       AppLogger.info('✅ [API Key Service] All API keys cleared');
       return true;

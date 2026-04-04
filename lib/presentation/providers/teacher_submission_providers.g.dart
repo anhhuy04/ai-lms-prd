@@ -7,7 +7,7 @@ part of 'teacher_submission_providers.dart';
 // **************************************************************************
 
 String _$submissionRepositoryHash() =>
-    r'075e7e03153d0a1ef19348717e931b62f64da24a';
+    r'cce64da4fbe329d3ca0fc10e1b761d75c46763a2';
 
 /// Provider cho SubmissionRepository
 ///
@@ -28,7 +28,7 @@ final submissionRepositoryProvider =
 // ignore: unused_element
 typedef SubmissionRepositoryRef = AutoDisposeProviderRef<SubmissionRepository>;
 String _$teacherSubmissionListHash() =>
-    r'9055f099ed48ca94c0ccc01acad2cf2616989542';
+    r'a33f0f5172506c7b11c530b1caefd0d40ebe9459';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -217,7 +217,7 @@ class _TeacherSubmissionListProviderElement
 }
 
 String _$gradeOverrideHistoryHash() =>
-    r'6f447e718b9bd2ea745187e0df82e3c879e1308b';
+    r'26eb175c85a9f580c143e5ef9de6a8d96a113bb5';
 
 /// Provider lấy grade override history cho audit trail
 ///
@@ -229,7 +229,7 @@ const gradeOverrideHistoryProvider = GradeOverrideHistoryFamily();
 ///
 /// Copied from [gradeOverrideHistory].
 class GradeOverrideHistoryFamily
-    extends Family<AsyncValue<List<Map<String, dynamic>>>> {
+    extends Family<AsyncValue<List<GradeOverride>>> {
   /// Provider lấy grade override history cho audit trail
   ///
   /// Copied from [gradeOverrideHistory].
@@ -268,7 +268,7 @@ class GradeOverrideHistoryFamily
 ///
 /// Copied from [gradeOverrideHistory].
 class GradeOverrideHistoryProvider
-    extends AutoDisposeFutureProvider<List<Map<String, dynamic>>> {
+    extends AutoDisposeFutureProvider<List<GradeOverride>> {
   /// Provider lấy grade override history cho audit trail
   ///
   /// Copied from [gradeOverrideHistory].
@@ -303,9 +303,7 @@ class GradeOverrideHistoryProvider
 
   @override
   Override overrideWith(
-    FutureOr<List<Map<String, dynamic>>> Function(
-      GradeOverrideHistoryRef provider,
-    )
+    FutureOr<List<GradeOverride>> Function(GradeOverrideHistoryRef provider)
     create,
   ) {
     return ProviderOverride(
@@ -323,7 +321,7 @@ class GradeOverrideHistoryProvider
   }
 
   @override
-  AutoDisposeFutureProviderElement<List<Map<String, dynamic>>> createElement() {
+  AutoDisposeFutureProviderElement<List<GradeOverride>> createElement() {
     return _GradeOverrideHistoryProviderElement(this);
   }
 
@@ -345,13 +343,13 @@ class GradeOverrideHistoryProvider
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 mixin GradeOverrideHistoryRef
-    on AutoDisposeFutureProviderRef<List<Map<String, dynamic>>> {
+    on AutoDisposeFutureProviderRef<List<GradeOverride>> {
   /// The parameter `submissionAnswerId` of this provider.
   String get submissionAnswerId;
 }
 
 class _GradeOverrideHistoryProviderElement
-    extends AutoDisposeFutureProviderElement<List<Map<String, dynamic>>>
+    extends AutoDisposeFutureProviderElement<List<GradeOverride>>
     with GradeOverrideHistoryRef {
   _GradeOverrideHistoryProviderElement(super.provider);
 
@@ -361,7 +359,7 @@ class _GradeOverrideHistoryProviderElement
 }
 
 String _$teacherSubmissionDetailHash() =>
-    r'dd60fd14bdcadbb0b70d9eb9d231ba5b664d3d52';
+    r'9f141d9fd8ff30222959d11927d2ba7f6843cf87';
 
 /// Provider chi tiết một submission cho teacher
 ///
@@ -372,8 +370,7 @@ const teacherSubmissionDetailProvider = TeacherSubmissionDetailFamily();
 /// Provider chi tiết một submission cho teacher
 ///
 /// Copied from [teacherSubmissionDetail].
-class TeacherSubmissionDetailFamily
-    extends Family<AsyncValue<Map<String, dynamic>>> {
+class TeacherSubmissionDetailFamily extends Family<AsyncValue<Submission>> {
   /// Provider chi tiết một submission cho teacher
   ///
   /// Copied from [teacherSubmissionDetail].
@@ -412,7 +409,7 @@ class TeacherSubmissionDetailFamily
 ///
 /// Copied from [teacherSubmissionDetail].
 class TeacherSubmissionDetailProvider
-    extends AutoDisposeFutureProvider<Map<String, dynamic>> {
+    extends AutoDisposeFutureProvider<Submission> {
   /// Provider chi tiết một submission cho teacher
   ///
   /// Copied from [teacherSubmissionDetail].
@@ -447,8 +444,7 @@ class TeacherSubmissionDetailProvider
 
   @override
   Override overrideWith(
-    FutureOr<Map<String, dynamic>> Function(TeacherSubmissionDetailRef provider)
-    create,
+    FutureOr<Submission> Function(TeacherSubmissionDetailRef provider) create,
   ) {
     return ProviderOverride(
       origin: this,
@@ -465,7 +461,7 @@ class TeacherSubmissionDetailProvider
   }
 
   @override
-  AutoDisposeFutureProviderElement<Map<String, dynamic>> createElement() {
+  AutoDisposeFutureProviderElement<Submission> createElement() {
     return _TeacherSubmissionDetailProviderElement(this);
   }
 
@@ -486,14 +482,13 @@ class TeacherSubmissionDetailProvider
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-mixin TeacherSubmissionDetailRef
-    on AutoDisposeFutureProviderRef<Map<String, dynamic>> {
+mixin TeacherSubmissionDetailRef on AutoDisposeFutureProviderRef<Submission> {
   /// The parameter `submissionId` of this provider.
   String get submissionId;
 }
 
 class _TeacherSubmissionDetailProviderElement
-    extends AutoDisposeFutureProviderElement<Map<String, dynamic>>
+    extends AutoDisposeFutureProviderElement<Submission>
     with TeacherSubmissionDetailRef {
   _TeacherSubmissionDetailProviderElement(super.provider);
 
@@ -502,7 +497,7 @@ class _TeacherSubmissionDetailProviderElement
       (origin as TeacherSubmissionDetailProvider).submissionId;
 }
 
-String _$submissionAnswersHash() => r'6d6b15cb521aeeaf1eb6c3e48f6790078a141757';
+String _$submissionAnswersHash() => r'357e414435ee3abfe79349eac6b4ecd058b0ae35';
 
 /// Provider lấy danh sách câu trả lời của một submission (cho teacher grading)
 ///
@@ -514,7 +509,7 @@ const submissionAnswersProvider = SubmissionAnswersFamily();
 ///
 /// Copied from [submissionAnswers].
 class SubmissionAnswersFamily
-    extends Family<AsyncValue<List<Map<String, dynamic>>>> {
+    extends Family<AsyncValue<List<SubmissionAnswer>>> {
   /// Provider lấy danh sách câu trả lời của một submission (cho teacher grading)
   ///
   /// Copied from [submissionAnswers].
@@ -553,7 +548,7 @@ class SubmissionAnswersFamily
 ///
 /// Copied from [submissionAnswers].
 class SubmissionAnswersProvider
-    extends AutoDisposeFutureProvider<List<Map<String, dynamic>>> {
+    extends AutoDisposeFutureProvider<List<SubmissionAnswer>> {
   /// Provider lấy danh sách câu trả lời của một submission (cho teacher grading)
   ///
   /// Copied from [submissionAnswers].
@@ -588,7 +583,7 @@ class SubmissionAnswersProvider
 
   @override
   Override overrideWith(
-    FutureOr<List<Map<String, dynamic>>> Function(SubmissionAnswersRef provider)
+    FutureOr<List<SubmissionAnswer>> Function(SubmissionAnswersRef provider)
     create,
   ) {
     return ProviderOverride(
@@ -606,7 +601,7 @@ class SubmissionAnswersProvider
   }
 
   @override
-  AutoDisposeFutureProviderElement<List<Map<String, dynamic>>> createElement() {
+  AutoDisposeFutureProviderElement<List<SubmissionAnswer>> createElement() {
     return _SubmissionAnswersProviderElement(this);
   }
 
@@ -628,13 +623,13 @@ class SubmissionAnswersProvider
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 mixin SubmissionAnswersRef
-    on AutoDisposeFutureProviderRef<List<Map<String, dynamic>>> {
+    on AutoDisposeFutureProviderRef<List<SubmissionAnswer>> {
   /// The parameter `submissionId` of this provider.
   String get submissionId;
 }
 
 class _SubmissionAnswersProviderElement
-    extends AutoDisposeFutureProviderElement<List<Map<String, dynamic>>>
+    extends AutoDisposeFutureProviderElement<List<SubmissionAnswer>>
     with SubmissionAnswersRef {
   _SubmissionAnswersProviderElement(super.provider);
 
@@ -665,7 +660,7 @@ final submissionFilterNotifierProvider =
 
 typedef _$SubmissionFilterNotifier = AutoDisposeNotifier<SubmissionFilter>;
 String _$submissionGradingNotifierHash() =>
-    r'8d8ff0462659b2d22795c31134157f949c60312a';
+    r'c36f0e89703e3fe797c705faca916698a0ea09f1';
 
 /// Provider cập nhật điểm và feedback của submission
 ///

@@ -45,9 +45,9 @@ class _TeacherSubmissionDetailScreenState
           onPressed: () => context.pop(),
         ),
         title: detailAsync.when(
-          data: (data) {
-            final student = data['profiles'] as Map<String, dynamic>?;
-            final distribution = data['assignment_distributions'] as Map<String, dynamic>?;
+          data: (submission) {
+            final student = submission.profiles;
+            final distribution = submission.assignmentDistributions;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -97,17 +97,17 @@ class _TeacherSubmissionDetailScreenState
       body: Container(
         color: DesignColors.moonLight,
         child: detailAsync.when(
-          data: (data) {
-            final student = data['profiles'] as Map<String, dynamic>?;
-            final distribution = data['assignment_distributions'] as Map<String, dynamic>?;
+          data: (submission) {
+            final student = submission.profiles;
+            final distribution = submission.assignmentDistributions;
             final assignment = distribution?['assignments'] as Map<String, dynamic>?;
-            final answers = data['submission_answers'] as List<Map<String, dynamic>>? ?? [];
+            final answers = submission.submissionAnswers ?? [];
 
             // Auto-grade logic for 100% objective assignments
-            final workSession = data['work_sessions'] as Map<String, dynamic>?;
+            final workSession = submission.workSessions;
             final status = workSession?['status'] as String?;
             final submittedAt = workSession?['submitted_at'] as String?;
-            
+
             if (status == 'submitted' && answers.isNotEmpty) {
               bool allObjective = true;
               for (final answer in answers) {
@@ -118,7 +118,7 @@ class _TeacherSubmissionDetailScreenState
                   break;
                 }
               }
-              
+
               if (allObjective) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   _autoPublishGrades();
@@ -185,7 +185,7 @@ class _TeacherSubmissionDetailScreenState
       padding: const EdgeInsets.all(DesignSpacing.md),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(DesignRadius.md),
         border: Border.all(color: DesignColors.dividerLight),
         boxShadow: const [
           BoxShadow(
@@ -585,9 +585,9 @@ class _TeacherSubmissionDetailScreenState
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.orange.withValues(alpha: 0.1),
+          color: DesignColors.warning.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orange.withValues(alpha: 0.5), width: 1.5),
+          border: Border.all(color: DesignColors.warning.withValues(alpha: 0.5), width: 1.5),
         ),
         child: Row(
           children: [
@@ -599,7 +599,7 @@ class _TeacherSubmissionDetailScreenState
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Colors.orange,
+                  color: DesignColors.warning,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -982,9 +982,9 @@ class _TeacherSubmissionDetailScreenState
     ));
 
     return detailAsync.when(
-      data: (data) {
+      data: (submission) {
         double totalScore = 0;
-        final answers = data['submission_answers'] as List<Map<String, dynamic>>? ?? [];
+        final answers = submission.submissionAnswers ?? [];
         int totalMaxScore = 0;
         for (final answer in answers) {
           final question = answer['assignment_questions'] as Map<String, dynamic>?;
@@ -995,7 +995,7 @@ class _TeacherSubmissionDetailScreenState
         }
 
         final percentage = totalMaxScore > 0 ? (totalScore / totalMaxScore * 10).clamp(0.0, 10.0) : 0.0;
-        final workSession = data['work_sessions'] as Map<String, dynamic>?;
+        final workSession = submission.workSessions;
         final isPublished = workSession?['status'] == 'graded';
 
         return Container(
@@ -1012,7 +1012,7 @@ class _TeacherSubmissionDetailScreenState
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0x0A000000).withValues(alpha: 0.05),
+                color: DesignColors.shadowLight,
                 blurRadius: 10,
                 offset: const Offset(0, -4),
               ),

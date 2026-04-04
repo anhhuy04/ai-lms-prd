@@ -1,4 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/presentation/providers/teacher_submission_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/submission_filter_chips.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/submission_list_item.dart';
@@ -100,9 +101,7 @@ class _TeacherSubmissionListScreenState
                   ),
                 );
               },
-              loading: () => const Center(
-                child: CircularProgressIndicator(),
-              ),
+              loading: () => const ShimmerListTileLoading(),
               error: (error, stack) => Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -158,14 +157,14 @@ class _TeacherSubmissionListScreenState
           const SizedBox(height: DesignSpacing.md),
           Text(
             'Chưa có bài nộp nào',
-            style: DesignTypography.titleMedium?.copyWith(
+            style: DesignTypography.titleMedium.copyWith(
               color: DesignColors.textSecondary,
             ),
           ),
           const SizedBox(height: DesignSpacing.sm),
           Text(
             'Học sinh chưa nộp bài',
-            style: DesignTypography.bodyMedium?.copyWith(
+            style: DesignTypography.bodyMedium.copyWith(
               color: DesignColors.textTertiary,
             ),
           ),

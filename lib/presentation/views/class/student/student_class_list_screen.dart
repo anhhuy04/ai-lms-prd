@@ -363,127 +363,131 @@ class _StudentClassListScreenState
         // Áp dụng sort giống teacher (mặc định mới nhất trước)
         final sorted = SortingUtils.sortClasses(filtered, sortOption);
 
-        if (sorted.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+        // Header filter/sort luôn hiển thị dù list rỗng
+        final isFilterActive = filterOption != StudentClassFilterOption.all;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(
-                    Icons.school_outlined,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
                   Text(
-                    'Chưa tham gia lớp học nào',
-                    style: TextStyle(
-                      fontSize: 16,
+                    'Danh sách lớp (${sorted.length})',
+                    style: const TextStyle(
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: Colors.grey[700],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Tham gia lớp học để bắt đầu học tập',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.filter_list,
+                          size: 18,
+                          color: isFilterActive ? DesignColors.primary : Colors.grey[600],
+                        ),
+                        onPressed: () => _showFilterDialog(context),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.sort,
+                          size: 18,
+                          color: Colors.grey[600],
+                        ),
+                        onPressed: () => _showSortDialog(context),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: _loadClasses,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Danh sách lớp (${sorted.length})',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+            const SizedBox(height: 6),
+            Expanded(
+              child: sorted.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              filterOption == StudentClassFilterOption.pending
+                                  ? Icons.hourglass_empty
+                                  : Icons.school_outlined,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              filterOption == StudentClassFilterOption.pending
+                                  ? 'Không có lớp đang chờ duyệt'
+                                  : filterOption == StudentClassFilterOption.approved
+                                      ? 'Không có lớp đã vào'
+                                      : 'Chưa tham gia lớp học nào',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              filterOption == StudentClassFilterOption.pending
+                                  ? 'Tham gia lớp học để thấy các yêu cầu đang chờ'
+                                  : 'Tham gia lớp học để bắt đầu học tập',
+                              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadClasses,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: sorted.length,
+                        itemBuilder: (context, index) {
+                          final classItem = sorted[index];
+                          final studentName =
+                              ref.read(authNotifierProvider).value?.fullName ??
+                              'Học sinh';
+                          return ClassItemWidget(
+                            className: classItem.name,
+                            roomInfo: classItem.subject ?? 'Chưa có môn học',
+                            schedule: classItem.academicYear ?? 'Chưa có năm học',
+                            teacherName: classItem.teacherName,
+                            studentCount: classItem.studentCount ?? 0,
+                            ungradedCount: null,
+                            memberStatus: classItem.memberStatus,
+                            iconName: 'school',
+                            iconColor: Colors.blue,
+                            hasAssignments: true,
+                            onTap: () {
+                              StudentClassInteractionHandler.handleClassTap(
+                                context,
+                                classItem,
+                                onNavigate: () {
+                                  context.pushNamed(
+                                    AppRoute.studentClassDetail,
+                                    pathParameters: {'classId': classItem.id},
+                                    extra: {
+                                      'className': classItem.name,
+                                      'semesterInfo':
+                                          classItem.academicYear ?? 'Chưa có năm học',
+                                      'studentName': studentName,
+                                    },
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
                       ),
                     ),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.filter_list,
-                            size: 18,
-                            color: Colors.grey[600],
-                          ),
-                          onPressed: () {
-                            _showFilterDialog(context);
-                          },
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.sort,
-                            size: 18,
-                            color: Colors.grey[600],
-                          ),
-                          onPressed: () {
-                            _showSortDialog(context);
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 6),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: sorted.length,
-                  itemBuilder: (context, index) {
-                    final classItem = sorted[index];
-                    final studentName =
-                        ref.read(authNotifierProvider).value?.fullName ??
-                        'Học sinh';
-                    return ClassItemWidget(
-                      className: classItem.name,
-                      roomInfo: classItem.subject ?? 'Chưa có môn học',
-                      schedule: classItem.academicYear ?? 'Chưa có năm học',
-                      teacherName: classItem.teacherName,
-                      studentCount: classItem.studentCount ?? 0,
-                      ungradedCount: null, // TODO: Lấy từ assignments
-                      memberStatus: classItem.memberStatus,
-                      iconName: 'school',
-                      iconColor: Colors.blue,
-                      hasAssignments: true,
-                      onTap: () {
-                        StudentClassInteractionHandler.handleClassTap(
-                          context,
-                          classItem,
-                          onNavigate: () {
-                            context.pushNamed(
-                              AppRoute.studentClassDetail,
-                              pathParameters: {'classId': classItem.id},
-                              extra: {
-                                'className': classItem.name,
-                                'semesterInfo':
-                                    classItem.academicYear ?? 'Chưa có năm học',
-                                'studentName': studentName,
-                              },
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );

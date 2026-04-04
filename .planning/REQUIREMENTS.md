@@ -40,9 +40,9 @@
 
 ### Recommendations
 
-- [ ] **REC-01**: User can receive intervention suggestions (teacher)
-- [ ] **REC-02**: User can receive learning resource suggestions (student)
-- [ ] **REC-03**: User can view peer comparison data
+- [x] **REC-01**: User can receive intervention suggestions (teacher)
+- [x] **REC-02**: User can receive learning resource suggestions (student)
+- [x] **REC-03**: User can view peer comparison data
 
 ## v2 Requirements
 

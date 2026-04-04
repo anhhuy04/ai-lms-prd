@@ -50,48 +50,6 @@ final recommendationRepositoryProvider =
 // ignore: unused_element
 typedef RecommendationRepositoryRef =
     AutoDisposeProviderRef<RecommendationRepository>;
-String _$studentUnreadRecommendationCountHash() =>
-    r'd704fed4ff7f7c2ab9b8e935742ae6e93027e10b';
-
-/// Unread student recommendation count
-///
-/// Copied from [studentUnreadRecommendationCount].
-@ProviderFor(studentUnreadRecommendationCount)
-final studentUnreadRecommendationCountProvider =
-    AutoDisposeFutureProvider<int>.internal(
-      studentUnreadRecommendationCount,
-      name: r'studentUnreadRecommendationCountProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$studentUnreadRecommendationCountHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
-
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef StudentUnreadRecommendationCountRef = AutoDisposeFutureProviderRef<int>;
-String _$teacherUnreadRecommendationCountHash() =>
-    r'9d522e1efc0291f11e938c1d5d98102d0afca04e';
-
-/// Unread teacher recommendation count
-///
-/// Copied from [teacherUnreadRecommendationCount].
-@ProviderFor(teacherUnreadRecommendationCount)
-final teacherUnreadRecommendationCountProvider =
-    AutoDisposeFutureProvider<int>.internal(
-      teacherUnreadRecommendationCount,
-      name: r'teacherUnreadRecommendationCountProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$teacherUnreadRecommendationCountHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
-
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef TeacherUnreadRecommendationCountRef = AutoDisposeFutureProviderRef<int>;
 String _$peerComparisonHash() => r'bfb700472ca5355ed02b49f4125ecc0d6285a9dc';
 
 /// Copied from Dart SDK
@@ -245,10 +203,10 @@ class _PeerComparisonProviderElement
   String get classId => (origin as PeerComparisonProvider).classId;
 }
 
-String _$interventionCountHash() => r'12e66e36cf4706244b56a4d74671db49d5a3953a';
+String _$interventionCountHash() => r'570480eafae16d055b336f81c254041c2f91d362';
 
-/// Intervention count provider for teacher dashboard (priority <= 2).
-/// Counts high-priority teacher recommendations.
+/// Intervention count provider for teacher dashboard.
+/// Counts high-priority recommendations (priority 1-2 = high).
 ///
 /// Copied from [interventionCount].
 @ProviderFor(interventionCount)
@@ -266,9 +224,9 @@ final interventionCountProvider = AutoDisposeFutureProvider<int>.internal(
 // ignore: unused_element
 typedef InterventionCountRef = AutoDisposeFutureProviderRef<int>;
 String _$top3RecommendationsHash() =>
-    r'f37929fd6ba337c644db150a6abd2f1c530ef09d';
+    r'c99cf382b194651637ff718623c3422b379b1a1a';
 
-/// Top-3 student recommendations provider (pillbox).
+/// Top-3 student recommendations provider (pillbox on home).
 ///
 /// Copied from [top3Recommendations].
 @ProviderFor(top3Recommendations)
@@ -288,7 +246,7 @@ final top3RecommendationsProvider =
 typedef Top3RecommendationsRef =
     AutoDisposeFutureProviderRef<List<Recommendation>>;
 String _$studentRecommendationNotifierHash() =>
-    r'508c2ebb938866ca8daffe6bd64061cef0ab9951';
+    r'30eb25daf8a77bdf80ddeda60a9adf16b95bdc1d';
 
 abstract class _$StudentRecommendationNotifier
     extends BuildlessAutoDisposeAsyncNotifier<List<Recommendation>> {
@@ -451,7 +409,7 @@ class _StudentRecommendationNotifierProviderElement
 }
 
 String _$teacherRecommendationNotifierHash() =>
-    r'd3ba7b849d5fc80f179537fc2ff3a6ef45664922';
+    r'9c9452db3ef827151249518c60715855ec24adc7';
 
 abstract class _$TeacherRecommendationNotifier
     extends BuildlessAutoDisposeAsyncNotifier<List<Recommendation>> {
@@ -614,7 +572,7 @@ class _TeacherRecommendationNotifierProviderElement
 }
 
 String _$dismissRecommendationHash() =>
-    r'92f224ac36aa126eb451491d8d9dade6c9a9cdce';
+    r'55f67d8a2f13673b5b02664fe32e9b370685c24b';
 
 abstract class _$DismissRecommendation
     extends BuildlessAutoDisposeAsyncNotifier<bool> {

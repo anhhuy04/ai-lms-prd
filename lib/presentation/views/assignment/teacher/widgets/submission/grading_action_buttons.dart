@@ -40,11 +40,11 @@ class GradingActionButtons extends StatelessWidget {
               children: [
                 Text(
                   'Điểm AI: ',
-                  style: DesignTypography.bodyMedium?.copyWith(color: DesignColors.textSecondary),
+                  style: DesignTypography.bodyMedium.copyWith(color: DesignColors.textSecondary),
                 ),
                 Text(
                   aiScore.toStringAsFixed(1),
-                  style: DesignTypography.titleLarge?.copyWith(
+                  style: DesignTypography.titleLarge.copyWith(
                     color: DesignColors.primary,
                     fontWeight: FontWeight.bold,
                   ),

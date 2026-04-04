@@ -35,6 +35,16 @@ _$SubmissionImpl _$$SubmissionImplFromJson(Map<String, dynamic> json) =>
       updatedAt: json['updated_at'] == null
           ? null
           : DateTime.parse(json['updated_at'] as String),
+      sessionId: json['session_id'] as String?,
+      isLate: json['is_late'] as bool?,
+      totalScore: (json['total_score'] as num?)?.toDouble(),
+      profiles: json['profiles'] as Map<String, dynamic>?,
+      assignmentDistributions:
+          json['assignmentDistributions'] as Map<String, dynamic>?,
+      workSessions: json['workSessions'] as Map<String, dynamic>?,
+      submissionAnswers: (json['submission_answers'] as List<dynamic>?)
+          ?.map((e) => e as Map<String, dynamic>)
+          .toList(),
     );
 
 Map<String, dynamic> _$$SubmissionImplToJson(_$SubmissionImpl instance) =>
@@ -52,6 +62,13 @@ Map<String, dynamic> _$$SubmissionImplToJson(_$SubmissionImpl instance) =>
       'uploaded_files': instance.uploadedFiles,
       'created_at': instance.createdAt?.toIso8601String(),
       'updated_at': instance.updatedAt?.toIso8601String(),
+      'session_id': instance.sessionId,
+      'is_late': instance.isLate,
+      'total_score': instance.totalScore,
+      'profiles': instance.profiles,
+      'assignmentDistributions': instance.assignmentDistributions,
+      'workSessions': instance.workSessions,
+      'submission_answers': instance.submissionAnswers,
     };
 
 const _$SubmissionStatusEnumMap = {

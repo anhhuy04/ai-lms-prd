@@ -304,7 +304,7 @@ class GradeDistributionHeatmap extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '${(student.score / 10).toStringAsFixed(1)}',
+                    (student.score / 10).toStringAsFixed(1),
                     style: TextStyle(
                       color: colors[bucketIndex],
                       fontWeight: FontWeight.bold,

@@ -1,18 +1,21 @@
 import 'package:ai_mls/core/services/supabase_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
-import 'package:ai_mls/data/datasources/grade_override_datasource.dart';
-import 'package:ai_mls/data/datasources/submission_datasource.dart';
 import 'package:ai_mls/data/repositories/submission_repository_impl.dart';
+import 'package:ai_mls/domain/entities/grade_override.dart';
+import 'package:ai_mls/domain/entities/submission.dart';
+import 'package:ai_mls/domain/entities/submission_answer.dart';
 import 'package:ai_mls/domain/repositories/submission_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import 'datasource_providers.dart';
 
 part 'teacher_submission_providers.g.dart';
 
 /// Provider cho SubmissionRepository
 @riverpod
 SubmissionRepository submissionRepository(Ref ref) {
-  final datasource = SubmissionDataSource();
+  final datasource = ref.watch(submissionDataSourceProviderProvider);
   return SubmissionRepositoryImpl(datasource);
 }
 
@@ -78,7 +81,7 @@ Future<TeacherSubmissionListState> teacherSubmissionList(
   required String distributionId,
   SubmissionFilter filter = SubmissionFilter.all,
 }) async {
-  final datasource = SubmissionDataSource();
+  final datasource = ref.watch(submissionDataSourceProviderProvider);
 
   try {
     // Lấy submissions từ database
@@ -156,13 +159,26 @@ class SubmissionFilterNotifier extends _$SubmissionFilterNotifier {
 
 /// Provider lấy grade override history cho audit trail
 @riverpod
-Future<List<Map<String, dynamic>>> gradeOverrideHistory(
+Future<List<GradeOverride>> gradeOverrideHistory(
   Ref ref, {
   required String submissionAnswerId,
 }) async {
-  final datasource = GradeOverrideDataSource();
+  final datasource = ref.watch(gradeOverrideDataSourceProviderProvider);
   try {
-    return await datasource.getOverrideHistory(submissionAnswerId);
+    final rows = await datasource.getOverrideHistory(submissionAnswerId);
+    return rows.map((row) {
+      final profile = row['profiles'] as Map<String, dynamic>?;
+      return GradeOverride(
+        id: row['id'] as String,
+        submissionAnswerId: row['submission_answer_id'] as String,
+        overriddenBy: row['overridden_by'] as String,
+        overriddenByName: profile?['full_name'] as String?,
+        oldScore: (row['old_score'] as num).toDouble(),
+        newScore: (row['new_score'] as num).toDouble(),
+        reason: row['reason'] as String?,
+        createdAt: DateTime.parse(row['created_at'] as String),
+      );
+    }).toList();
   } catch (e, stackTrace) {
     AppLogger.error(
       '🔴 [GRADE_OVERRIDE_HISTORY] Error loading history: $e',
@@ -175,14 +191,15 @@ Future<List<Map<String, dynamic>>> gradeOverrideHistory(
 
 /// Provider chi tiết một submission cho teacher
 @riverpod
-Future<Map<String, dynamic>> teacherSubmissionDetail(
+Future<Submission> teacherSubmissionDetail(
   Ref ref, {
   required String submissionId,
 }) async {
-  final datasource = SubmissionDataSource();
+  final datasource = ref.watch(submissionDataSourceProviderProvider);
 
   try {
-    return await datasource.getSubmissionById(submissionId);
+    final row = await datasource.getSubmissionById(submissionId);
+    return Submission.fromJson(row);
   } catch (e, stackTrace) {
     AppLogger.error(
       '🔴 [TEACHER_SUBMISSION_DETAIL] Error loading submission: $e',
@@ -195,14 +212,44 @@ Future<Map<String, dynamic>> teacherSubmissionDetail(
 
 /// Provider lấy danh sách câu trả lời của một submission (cho teacher grading)
 @riverpod
-Future<List<Map<String, dynamic>>> submissionAnswers(
+Future<List<SubmissionAnswer>> submissionAnswers(
   Ref ref, {
   required String submissionId,
 }) async {
-  final datasource = SubmissionDataSource();
+  final datasource = ref.watch(submissionDataSourceProviderProvider);
 
   try {
-    return await datasource.getSubmissionAnswers(submissionId);
+    final rows = await datasource.getSubmissionAnswers(submissionId);
+    return rows.map((row) {
+      final aq = row['assignment_questions'] as Map<String, dynamic>?;
+      final question = aq?['question_id'] as Map<String, dynamic>?;
+      return SubmissionAnswer(
+        id: row['id'] as String,
+        sessionId: row['session_id'] as String,
+        assignmentQuestionId: aq?['id'] as String? ?? row['assignment_question_id'] as String,
+        answer: row['answer'] as Map<String, dynamic>?,
+        aiScore: (row['ai_score'] as num?)?.toDouble(),
+        aiConfidence: (row['ai_confidence'] as num?)?.toDouble(),
+        aiFeedback: row['ai_feedback'] as Map<String, dynamic>?,
+        finalScore: (row['final_score'] as num?)?.toDouble(),
+        gradedBy: row['graded_by'] as String?,
+        gradedAt: row['graded_at'] != null
+            ? DateTime.parse(row['graded_at'] as String)
+            : null,
+        teacherFeedback: row['teacher_feedback'] as Map<String, dynamic>?,
+        createdAt: row['created_at'] != null
+            ? DateTime.parse(row['created_at'] as String)
+            : null,
+        updatedAt: row['updated_at'] != null
+            ? DateTime.parse(row['updated_at'] as String)
+            : null,
+        assignmentQuestion: aq,
+        questionId: question?['id'] as String?,
+        questionType: question?['type'] as String?,
+        points: (aq?['points'] as num?)?.toDouble(),
+        customContent: aq?['custom_content'] as Map<String, dynamic>?,
+      );
+    }).toList();
   } catch (e, stackTrace) {
     AppLogger.error(
       '🔴 [SUBMISSION_ANSWERS] Error loading answers: $e',
@@ -217,8 +264,6 @@ Future<List<Map<String, dynamic>>> submissionAnswers(
 @riverpod
 class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
   bool _isUpdating = false;
-  final SubmissionDataSource _datasource = SubmissionDataSource();
-  final GradeOverrideDataSource _gradeOverrideDatasource = GradeOverrideDataSource();
 
   @override
   Future<void> build() async {}
@@ -228,8 +273,10 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
     if (_isUpdating) return;
     _isUpdating = true;
 
+    final datasource = ref.read(submissionDataSourceProviderProvider);
+
     try {
-      await _datasource.approveAiScore(submissionAnswerId);
+      await datasource.approveAiScore(submissionAnswerId);
       AppLogger.info('✅ Approved AI score for: $submissionAnswerId');
 
       // Refresh state
@@ -259,6 +306,9 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
     if (_isUpdating) return;
     _isUpdating = true;
 
+    final datasource = ref.read(submissionDataSourceProviderProvider);
+    final gradeOverrideDatasource = ref.read(gradeOverrideDataSourceProviderProvider);
+
     try {
       // Lấy điểm cũ từ database
       final currentUser = SupabaseService.client.auth.currentUser;
@@ -276,7 +326,7 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
       final oldScore = (answer['final_score'] ?? answer['ai_score']) as double?;
 
       // Cập nhật điểm mới
-      await _datasource.updateSubmissionAnswerGrade(
+      await datasource.updateSubmissionAnswerGrade(
         answerId: submissionAnswerId,
         finalScore: newScore,
         teacherId: currentUser.id,
@@ -284,7 +334,7 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
 
       // Tạo audit trail trong grade_overrides
       if (oldScore != null) {
-        await _gradeOverrideDatasource.createGradeOverride(
+        await gradeOverrideDatasource.createGradeOverride(
           submissionAnswerId: submissionAnswerId,
           overriddenBy: currentUser.id,
           oldScore: oldScore,
@@ -321,6 +371,8 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
     if (_isUpdating) return;
     _isUpdating = true;
 
+    final datasource = ref.read(submissionDataSourceProviderProvider);
+
     try {
       final currentUser = SupabaseService.client.auth.currentUser;
       if (currentUser == null) {
@@ -336,7 +388,7 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
 
       final currentScore = (answer['final_score'] ?? answer['ai_score']) as double? ?? 0.0;
 
-      await _datasource.updateSubmissionAnswerGrade(
+      await datasource.updateSubmissionAnswerGrade(
         answerId: submissionAnswerId,
         finalScore: currentScore,
         teacherFeedback: feedback,

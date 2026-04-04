@@ -2,7 +2,7 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/presentation/providers/assignment_providers.dart';
-import 'package:ai_mls/presentation/providers/class_notifier.dart';
+
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_preview_assignment_screen.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
@@ -31,15 +31,6 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
     final submissionsAsync = ref.watch(
       distributionSubmissionsProvider(distributionId),
     );
-    final classState = ref.watch(classNotifierProvider);
-
-    int totalStudents = 0;
-    if (classState.hasValue) {
-      final selectedClass = classState.value!
-          .where((c) => c.id == classId)
-          .firstOrNull;
-      totalStudents = selectedClass?.studentCount ?? 0;
-    }
 
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
@@ -49,7 +40,11 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
         error: (error, _) => _buildErrorState(context, ref, error),
         data: (detail) {
           final assignment =
-              detail['assignments'] as Map<String, dynamic>? ?? {};
+              detail['assignment'] as Map<String, dynamic>? ?? {};
+          final distribution =
+              detail['distribution'] as Map<String, dynamic>? ?? {};
+          final totalStudents =
+              (distribution['total_students'] as int?) ?? 0;
           return submissionsAsync.when(
             loading: () => _buildBodyWithShimmerSubmissions(
               context,
@@ -151,7 +146,7 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildStatCards(context, detail, assignment, [], totalStudents),
-          _buildActionButtons(context, assignment, detail, classId),
+          _buildActionButtons(context, assignment, detail, classId, const []),
           _buildConfigCard(context, detail, assignment),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: DesignSpacing.lg),
@@ -189,7 +184,7 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
               submissions,
               totalStudents,
             ),
-            _buildActionButtons(context, assignment, detail, classId),
+            _buildActionButtons(context, assignment, detail, classId, submissions),
             _buildConfigCard(context, detail, assignment),
             _buildTopSubmitters(context, submissions),
             _buildWarningSection(context, detail, submissions),
@@ -264,8 +259,12 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
     Map<String, dynamic> assignment,
     Map<String, dynamic> detail,
     String classId,
+    List<Map<String, dynamic>> submissions,
   ) {
     final assignmentId = assignment['id'] as String?;
+    final dist = detail['distribution'] as Map<String, dynamic>? ?? {};
+    final submittedCount =
+        submissions.where((s) => s['submitted_at'] != null).length;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: DesignSpacing.lg),
@@ -279,13 +278,13 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
                 label: 'Xem đề bài',
                 onTap: () {
                   if (assignmentId != null) {
-                    final questions = _parseQuestions(assignment);
+                    final questions = _parseQuestions(detail);
                     final title = assignment['title'] as String? ?? 'Bài tập';
                     final description = assignment['description'] as String?;
                     final totalPoints =
                         (assignment['total_points'] as num?)?.toDouble() ?? 0.0;
 
-                    final dueAtStr = detail['due_at'] as String?;
+                    final dueAtStr = dist['due_at'] as String?;
                     DateTime? dueDate;
                     TimeOfDay? dueTime;
                     if (dueAtStr != null) {
@@ -294,10 +293,8 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
                         dueTime = TimeOfDay.fromDateTime(dueDate);
                       }
                     }
-
-                    final timeLimitMinutes =
-                        detail['time_limit_minutes'] as int?;
-                    final timeLimit = timeLimitMinutes?.toString();
+                    final timeLimit =
+                        (dist['time_limit_minutes'] as int?)?.toString();
 
                     Navigator.push(
                       context,
@@ -323,7 +320,40 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
                 icon: Icons.edit_document,
                 label: 'Sửa đề',
                 onTap: () {
-                  if (assignmentId != null) {
+                  if (assignmentId == null) return;
+                  if (submittedCount > 0) {
+                    showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Cảnh báo'),
+                        content: Text(
+                          'Đã có $submittedCount học sinh làm bài. '
+                          'Thay đổi đề bài có thể ảnh hưởng đến kết quả điểm số. '
+                          'Bạn có muốn tiếp tục?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Huỷ'),
+                          ),
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: DesignColors.warning,
+                            ),
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Tiếp tục'),
+                          ),
+                        ],
+                      ),
+                    ).then((confirmed) {
+                      if (confirmed == true && context.mounted) {
+                        context.pushNamed(
+                          AppRoute.teacherEditAssignment,
+                          pathParameters: {'assignmentId': assignmentId},
+                        );
+                      }
+                    });
+                  } else {
                     context.pushNamed(
                       AppRoute.teacherEditAssignment,
                       pathParameters: {'assignmentId': assignmentId},
@@ -338,14 +368,47 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
                 icon: Icons.settings,
                 label: 'Cấu hình',
                 onTap: () {
-                  if (assignmentId != null) {
+                  if (assignmentId == null) return;
+                  void navigateToConfig() {
                     context.pushNamed(
                       AppRoute.teacherDistributeAssignment,
                       extra: {
                         'assignmentId': assignmentId,
                         'selectedClassId': classId,
+                        'distributionId': distributionId,
+                        'isEditMode': true,
+                        'distributionConfig': dist,
                       },
                     );
+                  }
+
+                  if (submittedCount > 0) {
+                    showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Thông báo'),
+                        content: Text(
+                          'Đã có $submittedCount học sinh làm bài. '
+                          'Thay đổi cấu hình sẽ áp dụng ngay lập tức.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Huỷ'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Tiếp tục'),
+                          ),
+                        ],
+                      ),
+                    ).then((confirmed) {
+                      if (confirmed == true && context.mounted) {
+                        navigateToConfig();
+                      }
+                    });
+                  } else {
+                    navigateToConfig();
                   }
                 },
               ),
@@ -356,18 +419,13 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
     );
   }
 
-  // Helper to parse questions for Preview screen
-  List<Map<String, dynamic>> _parseQuestions(Map<String, dynamic> assignment) {
-    final aqList = assignment['assignment_questions'] as List? ?? [];
-    return aqList.map((aqRaw) {
-      if (aqRaw is! Map) return <String, dynamic>{};
-      final aq = Map<String, dynamic>.from(aqRaw);
-
-      final points = (aq['points'] as num?)?.toDouble() ?? 1.0;
-      final qRaw = aq['questions'];
-      final q = qRaw is Map
-          ? Map<String, dynamic>.from(qRaw)
-          : <String, dynamic>{};
+  // Helper to parse questions for Preview screen.
+  // Đọc từ detail['questions'] - flat structure từ datasource.
+  List<Map<String, dynamic>> _parseQuestions(Map<String, dynamic> detail) {
+    final questionsList = detail['questions'] as List? ?? [];
+    return questionsList.map((qRaw) {
+      if (qRaw is! Map) return <String, dynamic>{};
+      final q = Map<String, dynamic>.from(qRaw);
 
       final typeStr = q['type'] as String? ?? 'multiple_choice';
       QuestionType qType;
@@ -387,40 +445,29 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
 
       final content = q['content'] is Map
           ? Map<String, dynamic>.from(q['content'])
-          : {};
+          : <String, dynamic>{};
       final text = content['text'] as String? ?? '';
+      final points = (q['points'] as num?)?.toDouble() ?? 1.0;
 
-      // Attempt to parse options from custom_content or fall back to empty
-      final customContent = aq['custom_content'] is Map
-          ? Map<String, dynamic>.from(aq['custom_content'])
-          : {};
-      // Format mới: ưu tiên choices, fallback options
-      final optionsRaw = customContent['choices'] ?? customContent['options'];
+      final choicesRaw = q['question_choices'] as List? ?? [];
+      final options = choicesRaw.map((cRaw) {
+        final choice = cRaw is Map
+            ? Map<String, dynamic>.from(cRaw)
+            : <String, dynamic>{};
+        final choiceContent = choice['content'] is Map
+            ? Map<String, dynamic>.from(choice['content'])
+            : <String, dynamic>{};
+        return <String, dynamic>{
+          'text': choiceContent['text'] as String? ??
+              choice['text'] as String? ??
+              '',
+          'isCorrect': choice['is_correct'] as bool? ?? false,
+        };
+      }).toList();
 
-      List<Map<String, dynamic>> options = [];
-      if (optionsRaw is List && optionsRaw.isNotEmpty) {
-        if (optionsRaw.first is String) {
-          final correctAnswerIndex =
-              customContent['correctAnswer'] as int? ?? 0;
-          options = optionsRaw.asMap().entries.map((entry) {
-            return {
-              'text': entry.value.toString(),
-              'isCorrect': entry.key == correctAnswerIndex,
-            };
-          }).toList();
-        } else if (optionsRaw.first is Map) {
-          options = optionsRaw
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
-        }
-      }
-
-      // Format mới: ưu tiên override_text, fallback text
-      final questionText = customContent['override_text'] as String? ?? text;
-
-      return {
+      return <String, dynamic>{
         'type': qType,
-        'text': questionText,
+        'text': text,
         'points': points,
         'options': options,
       };
@@ -433,9 +480,10 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
     Map<String, dynamic> detail,
     Map<String, dynamic> assignment,
   ) {
-    final dueAt = detail['due_at'] as String?;
-    final timeLimitMinutes = detail['time_limit_minutes'] as int?;
-    final maxScore = assignment['max_score'];
+    final distribution = detail['distribution'] as Map<String, dynamic>? ?? {};
+    final dueAt = distribution['due_at'] as String?;
+    final timeLimitMinutes = distribution['time_limit_minutes'] as int?;
+    final maxScore = assignment['total_points'];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: DesignSpacing.lg),
@@ -537,7 +585,12 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
         .toList();
     if (submitted.isEmpty) return const SizedBox.shrink();
 
-    // Top 3 sớm nhất (đã sort by submitted_at ASC)
+    // Sort ASC để lấy 3 người nộp sớm nhất (query trả DESC)
+    submitted.sort((a, b) {
+      final aTime = DateTime.tryParse(a['submitted_at'] as String? ?? '') ?? DateTime(9999);
+      final bTime = DateTime.tryParse(b['submitted_at'] as String? ?? '') ?? DateTime(9999);
+      return aTime.compareTo(bTime);
+    });
     final top3 = submitted.take(3).toList();
     final badgeColors = [
       const Color(0xFFFBBF24), // Vàng
@@ -746,7 +799,7 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
     if (graded.isEmpty) return '-';
     final sum = graded.fold<double>(
       0,
-      (acc, s) => acc + (s['total_score'] as num).toDouble(),
+      (acc, s) => acc + (double.tryParse(s['total_score'].toString()) ?? 0),
     );
     return (sum / graded.length).toStringAsFixed(1);
   }
@@ -1071,7 +1124,7 @@ class _TopSubmitterItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(DesignRadius.full),
             ),
             child: Text(
-              '$score',
+              (double.tryParse(score.toString()) ?? 0).toStringAsFixed(1),
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: DesignTypography.bold,

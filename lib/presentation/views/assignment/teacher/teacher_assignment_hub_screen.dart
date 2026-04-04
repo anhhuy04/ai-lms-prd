@@ -509,16 +509,16 @@ class _TeacherAssignmentHubScreenState
                                   Icons.assignment_outlined,
                                   size: DesignIcons.xxlSize,
                                   color: isDark
-                                      ? Colors.grey[600]
-                                      : Colors.grey[400],
+                                      ? DesignColors.textSecondary
+                                      : DesignColors.textTertiary,
                                 ),
                                 SizedBox(height: DesignSpacing.md),
                                 Text(
                                   'Chưa có hoạt động gần đây',
                                   style: DesignTypography.bodyMedium.copyWith(
                                     color: isDark
-                                        ? Colors.grey[400]
-                                        : Colors.grey[600],
+                                        ? DesignColors.textTertiary
+                                        : DesignColors.textSecondary,
                                   ),
                                 ),
                               ],

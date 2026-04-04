@@ -356,19 +356,20 @@ class _TeacherCreateAssignmentScreenState
       }
 
       // Hỗ trợ cả format mới (choices) và cũ (options)
-      List<Map<String, dynamic>>? parsedOptions;
       final optionsRaw = customContent['choices'] ?? customContent['options'];
       if (optionsRaw != null && optionsRaw is List && optionsRaw.isNotEmpty) {
         if (optionsRaw.first is String) {
           final correctAnswerIndex =
               customContent['correctAnswer'] as int? ?? 0;
-          parsedOptions = optionsRaw.asMap().entries.map((entry) {
+          final parsedOptions = optionsRaw.asMap().entries.map((entry) {
             final index = entry.key;
             final text = entry.value.toString();
             return {'text': text, 'isCorrect': index == correctAnswerIndex};
           }).toList();
+          customContent['options'] = parsedOptions;
         } else if (optionsRaw.first is Map) {
-          parsedOptions = optionsRaw
+          // ignore: unnecessary_cast — safe cast from List<dynamic> element
+          customContent['options'] = optionsRaw
               .map((e) => e as Map<String, dynamic>)
               .toList();
         }
@@ -634,6 +635,7 @@ class _TeacherCreateAssignmentScreenState
         // Generate UUID for each choice (format: "choice-{index}")
         final choicesWithId = options.asMap().entries.map((entry) {
           final idx = entry.key;
+          // ignore: unnecessary_cast — safe: _getOptionsAsMapList returns List<Map>
           final opt = entry.value as Map<String, dynamic>;
           return {
             'id': idx, // int: 0, 1, 2... (matching question_choices.id)
@@ -1554,8 +1556,8 @@ class _TeacherCreateAssignmentScreenState
         }
 
         // Parse options từ custom_content - hỗ trợ cả format mới (choices) và cũ (options)
-        List<Map<String, dynamic>>? parsedOptions;
         final optionsRaw = customContent['choices'] ?? customContent['options'];
+        List<Map<String, dynamic>>? parsedOptions;
         if (optionsRaw != null && optionsRaw is List && optionsRaw.isNotEmpty) {
           if (optionsRaw.first is String) {
             final correctAnswerIndex =
@@ -1566,6 +1568,7 @@ class _TeacherCreateAssignmentScreenState
               return {'text': text, 'isCorrect': index == correctAnswerIndex};
             }).toList();
           } else if (optionsRaw.first is Map) {
+            // ignore: unnecessary_cast — safe cast from List<dynamic> element
             parsedOptions = optionsRaw
                 .map((e) => Map<String, dynamic>.from(e as Map))
                 .toList();

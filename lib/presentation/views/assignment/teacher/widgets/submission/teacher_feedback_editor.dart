@@ -129,7 +129,7 @@ class _TeacherFeedbackEditorState extends State<TeacherFeedbackEditor> {
                 const SizedBox(width: DesignSpacing.xs),
                 Text(
                   'Feedback AI:',
-                  style: DesignTypography.bodySmall?.copyWith(
+                  style: DesignTypography.bodySmall.copyWith(
                     color: DesignColors.textSecondary,
                     fontWeight: FontWeight.w600,
                   ),
@@ -149,7 +149,7 @@ class _TeacherFeedbackEditorState extends State<TeacherFeedbackEditor> {
               ),
               child: Text(
                 aiFeedbackText,
-                style: DesignTypography.bodyMedium?.copyWith(
+                style: DesignTypography.bodyMedium.copyWith(
                   color: DesignColors.textPrimary,
                 ),
               ),
@@ -168,7 +168,7 @@ class _TeacherFeedbackEditorState extends State<TeacherFeedbackEditor> {
               const SizedBox(width: DesignSpacing.xs),
               Text(
                 'Lời phê của giáo viên:',
-                style: DesignTypography.bodySmall?.copyWith(
+                style: DesignTypography.bodySmall.copyWith(
                   color: DesignColors.textSecondary,
                   fontWeight: FontWeight.w600,
                 ),
@@ -192,7 +192,7 @@ class _TeacherFeedbackEditorState extends State<TeacherFeedbackEditor> {
                   ),
                   child: Text(
                     'Chưa lưu',
-                    style: DesignTypography.bodySmall?.copyWith(
+                    style: DesignTypography.bodySmall.copyWith(
                       color: DesignColors.warning,
                     ),
                   ),

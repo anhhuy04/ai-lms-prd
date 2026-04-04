@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hướng dẫn Sử dụng Dio kết nối Ollama</title>
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --secondary-color: #4f46e5;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --error-color: #ef4444;
+            --success-color: #22c55e;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+            border-bottom: 3px solid var(--primary-color);
+            padding-bottom: 15px;
+        }
+
+        h2 {
+            color: var(--secondary-color);
+            margin-top: 30px;
+        }
+
+        .code-block {
+            background-color: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            margin: 20px 0;
+            border-left: 5px solid var(--primary-color);
+        }
+
+        .flow-chart {
+            display: flex;
+            justify-content: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .flow-box {
+            background: white;
+            border: 2px solid var(--primary-color);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            width: 200px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin: 10px;
+            position: relative;
+            transition: transform 0.2s;
+        }
+
+        .flow-box:hover {
+            transform: translateY(-5px);
+        }
+
+        .flow-box h3 {
+            color: var(--primary-color);
+            margin-top: 0;
+        }
+
+        .arrow {
+            font-size: 30px;
+            color: #94a3b8;
+            align-self: flex-end;
+            margin-bottom: 10px;
+        }
+
+        .alert-box {
+            background-color: #fff1f2;
+            border-left: 5px solid var(--error-color);
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .alert-title {
+            color: var(--error-color);
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .step-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .step-list li {
+            margin-bottom: 15px;
+            padding-left: 30px;
+            position: relative;
+        }
+
+        .step-list li::before {
+            content: "➤";
+            position: absolute;
+            left: 0;
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid #cbd5e1;
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f1f5f9;
+            color: var(--text-color);
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .tag-http { background-color: #e0e7ff; color: var(--primary-color); }
+        .tag-success { background-color: #dcfce7; color: var(--success-color); }
+        .tag-error { background-color: #fee2e2; color: var(--error-color); }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Hướng dẫn Kết nối Ollama qua Dio</h1>
+
+    <!-- Phần 1: Tổng quan luồng công việc -->
+    <h2>📊 Flowchart Tổng quan</h2>
+    <p>Xem biểu đồ bên dưới để hiểu quy trình hoạt động của hệ thống:</p>
+    
+    <div class="flow-chart">
+        <div class="flow-box">
+            <h3>1. Khởi tạo</h3>
+            <p>Tạo <code>OllamaService</code></p>
+            <p class="tag tag-http">http</p>
+        </div>
+        <div class="arrow">👉</div>
+
+        <div class="flow-box">
+            <h3>2. Định tuyến (Route)</h3>
+            <p>Thiết lập <code>baseUrl</code></p>
+            <p><small>http://IP:11434</small></p>
+        </div>
+        <div class="arrow">👉</div>
+
+        <div class="flow-box">
+            <h3>3. Gọi API</h3>
+            <p>Sử dụng <code>Dio.post</code></p>
+            <p><small>/api/generate</small></p>
+        </div>
+        <div class="arrow">👉</div>
+
+        <div class="flow-box">
+            <h3>4. Xử lý Dữ liệu</h3>
+            <p>Nhận kết quả <br>JSON</p>
+            <p class="tag tag-success">OK</p>
+        </div>
+        <div class="arrow">👉</div>
+
+        <div class="flow-box">
+            <h3>5. Xử lý Lỗi</h3>
+            <p>Firewall / DNS / Timeout</p>
+            <p class="tag tag-error">403/Timeout</p>
+        </div>
+    </div>
+
+    <!-- Phần 2: Cài đặt & Cấu hình -->
+    <h2>🛠️ Cài đặt và Cấu hình</h2>
+    
+    <div class="alert-box">
+        <span class="alert-title">💡 Lưu ý quan trọng:</span>
+        Ollama chạy mặc định trên port <strong>11434</strong>. 
+        Nếu máy ảo của bạn được firewall chặn từ mạng công cộng, bạn cần mở cổng này hoặc thay bằng IP cục bộ.
+    </div>
+
+    <div class="step-list">
+        <h3>Bước 1: Import thư viện</h3>
+        <p>Khi chạy <code>flutter pub get</code>, hãy đảm bảo có thư viện <code>dio</code>:</p>
+        <div class="code-block">
+dependencies:
+  dio: ^5.6.0
+  http: ^1.3.0
+  logger: ^2.0.2
+  
+flutter:
+  uses-material-design: true
+        </div>
+
+        <h3>Bước 2: Tạo Service</h3>
+        <p>Tạo file <code>lib/services/ollama_service.dart</code> với cấu trúc dưới đây:</p>
+        
+        <div class="code-block">
+import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
+import 'package:logger/logger.dart';
+
+class OllamaService {
+  // Cấu hình đường dẫn
+  // Lưu ý: Thay bằng IP thực tế của máy ảo (ví dụ: 192.168.1.5)
+  // Nếu máy ảo mở cổng từ bên ngoài, có thể dùng domain: 'https://your-vm.com'
+  final baseUrl = 'http://localhost:11434';
+
+  // Khởi tạo Dio và Logger
+  final _dio = Dio();
+  static final logger = Logger();
+
+  // Hàm kiểm tra kết nối (Ping)
+  Future<bool> isServerOnline() async {
+    try {
+      // Gọi endpoint /api/tags để lấy danh sách models
+      // Dio sẽ tự động kiểm tra kết nối và trả về lỗi nếu không có kết nối
+      final response = await _dio.get(
+        '$baseUrl/api/tags',
+        timeout: const Duration(seconds: 10),
+        connectTimeout: const Duration(seconds: 5),
+      );
+
+      // Nếu trạng thái HTTP là 200, nghĩa là kết nối thành công
+      if (response.statusCode == 200) {
+        logger.d('✅ Kết nối thành công với Ollama Server.');
+        return true;
+      } else {
+        logger.e('⚠️ Kết nối thành công nhưng không có dữ liệu (${response.statusCode}).');
+        return false;
+      }
+    } catch (e) {
+      // Xử lý các lỗi kết nối: Timeout, Connection Refused, DNS Failure
+      logger.e('❌ Không thể kết nối đến Ollama Server: $e');
+      return false;
+    }
+  }
+
+  // Hàm gọi LLM (Ví dụ: Chat)
+  Future<Map<String, String?>> generateResponse(String model, String prompt) async {
+    try {
+      // Cấu hình request
+      final options = Options(
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      final response = await _dio.post(
+        '$baseUrl/api/generate',
+        data: {
+          'model': model,
+          'prompt': prompt,
+          'stream': false, // false để nhận kết quả hoàn chỉnh
+          'temperature': 0.7,
+        },
+        options: options,
+        connectTimeout: const Duration(seconds: 30),
+      );
+
+      // Kiểm tra mã trạng thái
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        // Ollama trả về kết quả nằm trong key 'response'
+        return {
+          'output': data['response'] as String?,
+          'done': data['done'] as bool?
+        };
+      } else {
+        throw Exception('Server Error: ${response.statusCode}');
+      }
+    } catch (e) {
+      // Log chi tiết từ DioException
+      logger.e('🚫 Lỗi Dio: ${e.runtimeType}');
+      if (e is DioException) {
+        logger.e('Status Code: ${e.response?.statusCode}');
+        logger.e('Message: ${e.message}');
+      }
+      return null;
+    }
+  }
+}
+        </div>
+
+    <!-- Phần 3: Xử lý các trường hợp lỗi -->
+    <h2>🚨 Xử lý các lỗi thường gặp (Troubleshooting)</h2>
+    <p>Dưới đây là bảng phân tích các lỗi phổ biến và cách khắc phục khi dùng Dio với Ollama:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 15%;">Lỗi (Error)</th>
+                <th style="width: 15%; width: 20%;">Nguyên nhân</th>
+                <th style="width: 60%;">Giải pháp / Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="tag tag-error">Connection Refused</td>
+                <td>Máy ảo không phản hồi yêu cầu kết nối.</td>
+                <td><ul>
+                    <li>Kiểm tra <strong>Firewall</strong> trên máy ảo: Đã mở cổng <strong>11434 (TCP)</strong> cho IP của bạn chưa?</li>
+                    <li>Kiểm tra <strong>Địa chỉ IP</strong> trong code có đúng với máy ảo không?</li>
+                </ul></td>
+            </tr>
+            <tr>
+                <td class="tag tag-error">Connection Timeout</td>
+                <td>Máy ảo không trả lời trong thời gian chờ (timeout).</td>
+                <td><ul>
+                    <li>Tăng tham số <code>connectTimeout</code> trong Dio từ 10s lên 30s.</li>
+                    <li>Kiểm tra mạng giữa máy chủ app và máy ảo (Firewall router, Corporate Network).</li>
+                </ul></td>
+            </tr>
+            <tr>
+                <td class="tag tag-error">SSL Certificate Error</td>
+                <td>Máy ảo đang chạy HTTP nhưng bạn cố gắng kết nối qua HTTPS, hoặc chứng từ không khớp.</td>
+                <td><ul>
+                    <li>Đảm bảo URL bắt đầu bằng <strong>http://</strong> nếu chưa cài đặt SSL trên Ollama server.</li>
+                    <li>Hoặc kiểm tra lại địa chỉ của máy ảo.</li>
+                </ul></td>
+            </tr>
+            <tr>
+                <td class="tag tag-error">DNS Lookup Failed</td>
+                <td>Không tìm thấy IP khi sử dụng tên miền.</td>
+                <td><ul>
+                    <li>Thay tên miền bằng <strong>IP trực tiếp</strong> trong biến <code>baseUrl</code>.</li>
+                </ul></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Phần 4: Mẹo chuyên gia -->
+    <h2>💡 Mẹo "Pro" khi làm việc với Ollama trên Cloud</h2>
+    
+    <div class="alert-box">
+        <span class="alert-title">⚠️ Vấn đề Firewall</span>
+        Ollama thường chạy <em>lokal</em> (chỉ cho localhost). Để gọi từ Flutter app trên web hoặc app khác, bạn gặp vấn đề <strong>Network Isolation</strong>.
+    </div>
+
+    <h3>Cách 1: Mở cổng trên Cloud (AWS/GCP/Azure)</h3>
+    <p>1. Truy cập vào Console Cloud của máy ảo.<br>
+    2. Tìm trang <strong>Security Groups</strong> hoặc <strong>Firewall</strong>.<br>
+    3. Thêm Rule mới: 
+       <table style="margin-top:10px; border:none;">
+           <tr>
+               <td><strong>Type</strong></td>
+               <td>TCP</td>
+           </tr>
+           <tr>
+               <td><strong>Port Range</strong></td>
+               <td>11434 - 11434</td>
+           </tr>
+           <tr>
+               <td><strong>Action</strong></td>
+               <td>Allow</td>
+           </tr>
+           <tr>
+               <td><strong>Source</strong></td>
+               <td>0.0.0.0/0 (Hoặc IP của bạn)</td>
+           </tr>
+       </table>
+
+    <h3>Cách 2: Sử dụng IP localhost (Chỉ nếu trong cùng mạng LAN)</h3>
+    <p>Nếu app và máy ảo đang trong cùng mạng Wi-Fi/LAN, hãy thay thế <code>localhost</code> trong code bằng <strong>IP của máy ảo</strong>:</p>
+    
+    <div class="code-block">
+// Thay đổi dòng này
+String baseUrl = 'http://192.168.1.50:11434'; 
+// Thay vì
+String baseUrl = 'http://localhost:11434';
+    </div>
+
+    <h2>✅ Kết luận</h2>
+    <p>Bằng cách sử dụng thư viện <strong>Dio</code> như hướng dẫn ở trên, bạn sẽ có:</p>
+    <ul>
+        <li>✅ Tự động log chi tiết lỗi kết nối (HTTP Code, Message).</li>
+        <li>✅ Khả năng kiểm tra kết nối nhanh chóng.</li>
+        <li>✅ Xử lý các lỗi mạng phổ biến (Timeout, Refused, DNS) một cách rõ ràng.</li>
+    </ul>
+    <p>Bạn hãy chạy thử đoạn code trên và chia sẻ kết quả lỗi (nếu có) để tôi hỗ trợ điều chỉnh thêm!</p>
+
+</div>
+<!-- BẮT ĐẦU PHẦN VẼ HÌNH CHÚ CHIM CẢNH CỤT TRONG TRƯỜNG HỌC -->
+<style>
+  /* Container chứa chú chim và trường học */
+  .penguin-school-container {
+    position: relative;
+    width: 400px;
+    height: 300px;
+    margin: 40px auto;
+    background: linear-gradient(to bottom, #87CEEB 0%, #E0F7FA 100%); /* Bầu trời */
+    border-radius: 20px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    border: 4px solid #333;
+  }
+
+  /* Mặt đất trường học */
+  .school-ground {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 80px;
+    background: #5D4037; /* Màu đất */
+    border-top: 5px solid #4E342E;
+  }
+
+  /* Cổng trường */
+  .school-gate {
+    position: absolute;
+    bottom: 75px;
+    width: 200px;
+    height: 60px;
+    background: #D32F2F;
+    border-radius: 10px 10px 0 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .school-gate::before, .school-gate::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 60px;
+    background: #B71C1C;
+  }
+  .school-gate::before { left: -10px; }
+  .school-gate::after { right: -10px; }
+
+  /* Ký tự "TRƯỜNG HỌC" */
+  .school-sign {
+    position: absolute;
+    bottom: 80px;
+    width: 160px;
+    text-align: center;
+    color: white;
+    font-weight: bold;
+    font-family: 'Arial', sans-serif;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+  }
+
+  /* Chú chim cánh cụt */
+  .penguin {
+    position: absolute;
+    bottom: 110px;
+    width: 120px;
+    height: 120px;
+    transition: transform 0.3s ease;
+    animation: float 2s infinite ease-in-out;
+  }
+
+  .penguin:hover {
+    transform: scale(1.1);
+    z-index: 10;
+  }
+
+  /* Thân chim */
+  .penguin-body {
+    position: absolute;
+    bottom: 0;
+    width: 80px;
+    height: 50px;
+    background: #2c3e50;
+    border-radius: 50px;
+    z-index: 2;
+  }
+
+  /* Đầu chim */
+  .penguin-head {
+    position: absolute;
+    top: -30px;
+    left: 10px;
+    width: 40px;
+    height: 35px;
+    background: #fff;
+    border-radius: 30px;
+    z-index: 3;
+  }
+
+  .penguin-beak {
+    position: absolute;
+    top: 22px;
+    left: 10px;
+    width: 20px;
+    height: 10px;
+    background: #e74c3c;
+    border-radius: 5px;
+  }
+
+  .penguin-eye {
+    position: absolute;
+    top: 15px;
+    right: 5px;
+    width: 10px;
+    height: 8px;
+    background: #000;
+    border-radius: 50%;
+  }
+
+  .penguin-eye::after { /* Đuôi mắt trắng */
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    right: -3px;
+    width: 14px;
+    height: 6px;
+    background: #fff;
+    border-radius: 50%;
+  }
+
+  /* Đuôi chim */
+  .penguin-tail {
+    position: absolute;
+    bottom: 10px;
+    left: -50px;
+    width: 40px;
+    height: 40px;
+    background: #2c3e50;
+    border-radius: 50%;
+  }
+
+  /* Tay và chân */
+  .penguin-leg {
+    position: absolute;
+    bottom: -15px;
+    width: 15px;
+    height: 20px;
+    background: #bdc3c7;
+    transform-origin: top center;
+  }
+
+  .penguin-leg::before { /* Móng tay */
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: -3px;
+    width: 25px;
+    height: 5px;
+    background: #ecf0f1;
+    border-radius: 3px;
+  }
+
+  .leg-left { left: 0; transform: rotate(-10deg); }
+  .leg-right { right: 0; transform: rotate(10deg); }
+
+  /* Vây trắng */
+  .penguin-wing {
+    position: absolute;
+    bottom: 15px;
+    left: 25px;
+    width: 40px;
+    height: 25px;
+    background: #ecf0f1;
+    border-radius: 5px;
+    transform-origin: bottom left;
+    animation: flap 0.6s infinite;
+  }
+
+  /* Hiệu ứng bay */
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+  
+  @keyframes flap {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(-15deg); }
+  }
+
+  /* Hiệu ứng cánh bay */
+  @keyframes wave-arm {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(20deg); }
+    75% { transform: rotate(-20deg); }
+  }
+
+  .flap-left { animation: flap 0.5s infinite alternate; }
+  .flap-right { animation: wave-arm 0.5s infinite alternate; }
+
+  /* Nền cây xanh */
+  .tree {
+    position: absolute;
+    bottom: 60px;
+    width: 80px;
+    height: 100px;
+  }
+  .tree-leaf {
+    position: absolute;
+    top: -20px;
+    width: 60px;
+    height: 40px;
+    background: #27ae60;
+    border-radius: 50%;
+  }
+  .tree-leaf::after {
+    content: '';
+    position: absolute;
+    top: -30px;
+    right: 10px;
+    width: 50px;
+    height: 40px;
+    background: #2ecc71;
+    border-radius: 50%;
+  }
+  .tree-leaf-2 {
+    position: absolute;
+    top: 10px;
+    right: -10px;
+    width: 50px;
+    height: 50px;
+    background: #2ecc71;
+    border-radius: 50%;
+  }
+
+</style>
+
+<div class="penguin-school-container">
+  <!-- Cây xanh ở bên trái -->
+  <div class="tree" style="left: 30px;">
+    <div class="tree-leaf"></div>
+    <div class="tree-leaf-2"></div>
+  </div>
+
+  <!-- Chú chim cánh cụt -->
+  <div class="penguin">
+    <div class="penguin-body">
+      <div class="penguin-tail"></div>
+      <div class="penguin-wing flap-left"></div>
+      <div class="penguin-wing flap-right"></div>
+    </div>
+    <div class="penguin-head">
+      <div class="penguin-beak"></div>
+      <div class="penguin-eye"></div>
+    </div>
+    <div class="penguin-leg leg-left"></div>
+    <div class="penguin-leg leg-right"></div>
+  </div>
+
+  <!-- Cổng trường -->
+  <div class="school-gate">
+    <div class="school-sign">🏫 TRƯỜNG HỌC</div>
+  </div>
+
+  <!-- Mặt đất -->
+  <div class="school-ground"></div>
+</div>
+<!-- ĐÚNG KẾT PHẦN VẼ HÌNH CHÚ CHIM -->
+</body>
+</html>

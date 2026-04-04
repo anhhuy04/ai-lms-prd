@@ -66,3 +66,4 @@ abstract class Env {
   @EnviedField(varName: 'GEMINI_API_KEY', obfuscate: true, defaultValue: '')
   static final String geminiApiKey = _Env.geminiApiKey;
 }
+

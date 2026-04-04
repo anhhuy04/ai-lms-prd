@@ -48,7 +48,7 @@ class SubmissionListItem extends StatelessWidget {
                     ? Center(
                         child: Text(
                           _getInitials(submission.studentName),
-                          style: DesignTypography.bodyMedium?.copyWith(
+                          style: DesignTypography.bodyMedium.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
@@ -68,7 +68,7 @@ class SubmissionListItem extends StatelessWidget {
                         Expanded(
                           child: Text(
                             submission.studentName,
-                            style: DesignTypography.bodyMedium?.copyWith(
+                            style: DesignTypography.bodyMedium.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
                             maxLines: 1,
@@ -88,7 +88,7 @@ class SubmissionListItem extends StatelessWidget {
                             ),
                             child: Text(
                               'Nộp muộn',
-                              style: DesignTypography.labelSmall?.copyWith(
+                              style: DesignTypography.labelSmall.copyWith(
                                 color: DesignColors.error,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -107,7 +107,7 @@ class SubmissionListItem extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           _formatTime(submission.submittedAt),
-                          style: DesignTypography.bodySmall?.copyWith(
+                          style: DesignTypography.bodySmall.copyWith(
                             color: DesignColors.textSecondary,
                           ),
                         ),
@@ -155,7 +155,7 @@ class SubmissionListItem extends StatelessWidget {
           if (hasScore)
             Text(
               submission.totalScore!.toStringAsFixed(1),
-              style: DesignTypography.bodyMedium?.copyWith(
+              style: DesignTypography.bodyMedium.copyWith(
                 fontWeight: FontWeight.bold,
                 color: isGraded ? DesignColors.success : DesignColors.textSecondary,
               ),
@@ -163,14 +163,14 @@ class SubmissionListItem extends StatelessWidget {
           else
             Text(
               '—',
-              style: DesignTypography.bodyMedium?.copyWith(
+              style: DesignTypography.bodyMedium.copyWith(
                 color: DesignColors.textTertiary,
               ),
             ),
           if (submission.maxScore != null)
             Text(
               '/ ${submission.maxScore!.toStringAsFixed(0)}',
-              style: DesignTypography.bodySmall?.copyWith(
+              style: DesignTypography.bodySmall.copyWith(
                 color: DesignColors.textTertiary,
               ),
             ),

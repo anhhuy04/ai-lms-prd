@@ -1,16 +1,42 @@
 {
   "mcpServers": {
+    "marionette": {
+      "type": "stdio",
+      "command": "dart.exe",
+      "args": ["pub", "global", "run", "marionette_mcp"],
+      "env": {}
+    },
+    "dart": {
+      "type": "stdio",
+      "command": "dart.exe",
+      "args": [
+        "mcp-server",
+        "--experimental-mcp-server",
+        "--force-roots-fallback"
+      ],
+      "env": {}
+    },
+    "mcp-flutter-debug": {
+      "type": "stdio",
+      "command": "dart.exe",
+      "args": ["pub", "global", "run", "flutter_inspector_mcp_server:main"],
+      "env": {}
+    },
+
     "supabase": {
-      "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=vazhgunhcjdwlkbslroc",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--access-token",
+        "sbp_f7c9c9b5c4e14e13728d7975dcd39b8a3c900596",
+        "--project-ref",
+        "vazhgunhcjdwlkbslroc"
+      ],
       "autoApprove": [
-        "get_tables",
-        "get_table",
-        "get_table_columns",
-        "get_table_rows",
-        "get_table_row",
-        "get_table_row_by_id",
-        "get_table_row_by_id",
+        "list_tables",
+        "execute_sql",
         "search_docs",
         "list_extensions",
         "list_migrations",
@@ -29,62 +55,6 @@
         "merge_branch",
         "reset_branch",
         "rebase_branch"
-      ]
-    },
-    "context7": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp@latest"
-      ]
-    },
-    "fetch": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@kazuph/mcp-fetch@latest"
-      ]
-    },
-    "github": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-github@latest"
-      ],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT_HERE"
-      }
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem@latest",
-        "D:\\code\\Flutter_Android\\AI_LMS_PRD"
-      ]
-    },
-    "memory": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-memory@latest"
-      ]
-    },
-    "dart": {
-      "type": "stdio",
-      "command": "dart",
-      "args": [
-        "mcp-server",
-        "--experimental-mcp-server",
-        "--force-roots-fallback"
-      ],
-      "env": {}
-    },
-    "playwright": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-playwright"
       ]
     }
   }

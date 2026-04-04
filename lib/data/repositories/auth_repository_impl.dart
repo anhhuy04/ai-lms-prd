@@ -95,7 +95,6 @@ class AuthRepositoryImpl implements AuthRepository {
           // Update profile data với tên đã chuẩn hóa và thông tin đầy đủ
           await _profileDataSource.update(response.user!.id, {
             'full_name': capitalizedFullName,
-            'email': email,
             'role': role,
             'phone': phone,
             'gender': gender,

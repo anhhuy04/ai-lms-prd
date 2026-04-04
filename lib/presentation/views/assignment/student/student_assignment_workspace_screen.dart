@@ -7,13 +7,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Màn hình workspace để học sinh làm bài tập
+/// Màn hình workspace để học sinh làm bài tập.
+/// [isReadOnly] = true: chỉ xem lại bài đã nộp, không cho sửa.
 class StudentAssignmentWorkspaceScreen extends ConsumerStatefulWidget {
   final String distributionId;
+  final bool isReadOnly;
 
   const StudentAssignmentWorkspaceScreen({
     super.key,
     required this.distributionId,
+    this.isReadOnly = false,
   });
 
   @override
@@ -109,15 +112,17 @@ class _StudentAssignmentWorkspaceScreenState
               ),
             ),
             Text(
-              'Câu ${workspace.answeredCount}/${workspace.totalQuestions} đã trả lời',
+              widget.isReadOnly
+                  ? 'Chế độ xem lại bài làm'
+                  : 'Câu ${workspace.answeredCount}/${workspace.totalQuestions} đã trả lời',
               style: TextStyle(
                 fontSize: DesignTypography.captionSize,
-                color: DesignColors.textSecondary,
+                color: widget.isReadOnly ? Colors.orange[700] : DesignColors.textSecondary,
               ),
             ),
           ],
         ),
-        orElse: () => const Text('Làm bài tập'),
+        orElse: () => Text(widget.isReadOnly ? 'Xem lại bài làm' : 'Làm bài tập'),
       ),
       actions: [
         workspaceAsync.maybeWhen(
@@ -231,25 +236,78 @@ class _StudentAssignmentWorkspaceScreenState
 
     return Column(
       children: [
+        // Banner xem lại khi readOnly
+        if (widget.isReadOnly)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.orange[50],
+            child: Row(children: [
+              Icon(Icons.visibility_outlined, size: 16, color: Colors.orange[700]),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                'Bạn đang xem lại bài đã nộp. Các câu trả lời không thể chỉnh sửa.',
+                style: TextStyle(fontSize: 12, color: Colors.orange[800]),
+              )),
+            ]),
+          ),
         // Content
         Expanded(
           child: ListView(
             padding: const EdgeInsets.all(DesignSpacing.md),
             children: [
-              // Questions
+              // Questions — wrapped with IgnorePointer khi readOnly
               ...workspace.questions.asMap().entries.map((entry) {
                 final index = entry.key;
                 final question = entry.value;
                 final answer = workspace.answers[question.id];
-                return _buildQuestionCard(context, question, answer, index + 1);
+                return IgnorePointer(
+                  ignoring: widget.isReadOnly,
+                  child: _buildQuestionCard(context, question, answer, index + 1),
+                );
               }),
             ],
           ),
         ),
 
         // Bottom Action Bar
-        _buildBottomActionBar(context, workspace),
+        widget.isReadOnly
+            ? _buildReadOnlyActionBar(context)
+            : _buildBottomActionBar(context, workspace),
       ],
+    );
+  }
+
+  /// Action bar khi xem lại — chỉ có nút "Đóng"
+  Widget _buildReadOnlyActionBar(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: () => context.pop(),
+            icon: const Icon(Icons.close, size: 18),
+            label: const Text('Đóng', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.grey[700],
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DesignRadius.md)),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

@@ -413,11 +413,12 @@ class _QuestionOptionsListState extends State<QuestionOptionsList> {
       child: Row(
         children: [
           // Radio Button
-          Radio<bool>(
-            value: true,
-            groupValue: option.isCorrect,
-            onChanged: (value) => _markCorrect(index),
-            activeColor: DesignColors.primary,
+          IconButton(
+            icon: Icon(
+              option.isCorrect ? Icons.check_circle : Icons.check_circle_outline,
+              color: option.isCorrect ? DesignColors.primary : DesignColors.textTertiary,
+            ),
+            onPressed: () => _markCorrect(index),
           ),
 
           // Text Field

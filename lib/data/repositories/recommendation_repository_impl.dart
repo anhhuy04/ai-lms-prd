@@ -16,8 +16,6 @@ class RecommendationRepositoryImpl implements RecommendationRepository {
     required String userId,
     required String role,
     String? classId,
-    RecommendationType? type,
-    RecommendationPriority? minPriority,
     int limit = 20,
   }) async {
     try {
@@ -25,16 +23,12 @@ class RecommendationRepositoryImpl implements RecommendationRepository {
         return _datasource.getTeacherRecommendations(
           userId,
           classId: classId,
-          type: type,
-          minPriority: minPriority,
           limit: limit,
         );
       } else {
         return _datasource.getStudentRecommendations(
           userId,
           classId: classId,
-          type: type,
-          minPriority: minPriority,
           limit: limit,
         );
       }
@@ -45,20 +39,6 @@ class RecommendationRepositoryImpl implements RecommendationRepository {
         stackTrace: st,
       );
       throw ErrorTranslationUtils.translateError(e, 'Lấy gợi ý');
-    }
-  }
-
-  @override
-  Future<bool> markAsRead(String recommendationId) async {
-    try {
-      return _datasource.markAsRead(recommendationId);
-    } catch (e, st) {
-      AppLogger.error(
-        '[RecommendationRepository] markAsRead error',
-        error: e,
-        stackTrace: st,
-      );
-      throw ErrorTranslationUtils.translateError(e, 'Đánh dấu đã đọc');
     }
   }
 
@@ -87,34 +67,6 @@ class RecommendationRepositoryImpl implements RecommendationRepository {
         stackTrace: st,
       );
       throw ErrorTranslationUtils.translateError(e, 'Bỏ nhiều gợi ý');
-    }
-  }
-
-  @override
-  Future<int> getUnreadCount(String userId) async {
-    try {
-      return _datasource.getUnreadCount(userId);
-    } catch (e, st) {
-      AppLogger.error(
-        '[RecommendationRepository] getUnreadCount error',
-        error: e,
-        stackTrace: st,
-      );
-      throw ErrorTranslationUtils.translateError(e, 'Đếm gợi ý chưa đọc');
-    }
-  }
-
-  @override
-  Future<String?> createRecommendation(Recommendation recommendation) async {
-    try {
-      return _datasource.createRecommendation(recommendation);
-    } catch (e, st) {
-      AppLogger.error(
-        '[RecommendationRepository] createRecommendation error',
-        error: e,
-        stackTrace: st,
-      );
-      throw ErrorTranslationUtils.translateError(e, 'Tạo gợi ý');
     }
   }
 

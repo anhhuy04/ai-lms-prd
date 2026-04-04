@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/domain/entities/grade_override.dart';
 
 /// Widget hiển thị lịch sử override điểm (audit trail).
 class GradeAuditTrail extends StatelessWidget {
-  final List<Map<String, dynamic>> history;
+  final List<GradeOverride> history;
 
   const GradeAuditTrail({super.key, required this.history});
 
@@ -46,31 +47,25 @@ class GradeAuditTrail extends StatelessWidget {
     );
   }
 
-  Widget _buildEntry(Map<String, dynamic> entry) {
-    final oldScore = entry['old_score'] as num?;
-    final newScore = entry['new_score'] as num?;
-    final reason = entry['reason'] as String?;
-
+  Widget _buildEntry(GradeOverride entry) {
     return Padding(
       padding: EdgeInsets.only(bottom: DesignSpacing.sm),
       child: Row(
         children: [
-          if (oldScore != null && newScore != null) ...[
-            Text(
-              '${oldScore.toStringAsFixed(1)} → ${newScore.toStringAsFixed(1)}',
-              style: DesignTypography.bodySmall.copyWith(
-                fontWeight: FontWeight.w600,
-                color: newScore > oldScore
-                    ? DesignColors.success
-                    : DesignColors.error,
-              ),
+          Text(
+            '${entry.oldScore.toStringAsFixed(1)} → ${entry.newScore.toStringAsFixed(1)}',
+            style: DesignTypography.bodySmall.copyWith(
+              fontWeight: FontWeight.w600,
+              color: entry.newScore > entry.oldScore
+                  ? DesignColors.success
+                  : DesignColors.error,
             ),
-          ],
-          if (reason != null && reason.isNotEmpty) ...[
+          ),
+          if (entry.reason != null && entry.reason!.isNotEmpty) ...[
             SizedBox(width: DesignSpacing.sm),
             Expanded(
               child: Text(
-                reason,
+                entry.reason!,
                 style: DesignTypography.caption,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

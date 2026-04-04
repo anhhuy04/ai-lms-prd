@@ -370,6 +370,23 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
   }
 
   @override
+  Future<void> updateDistribution(
+    String distributionId,
+    Map<String, dynamic> patch,
+  ) async {
+    try {
+      await _ds.updateDistribution(distributionId, patch);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] updateDistribution: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
+
+  @override
   Future<Map<String, dynamic>> getDistributionDetail(
     String distributionId,
   ) async {

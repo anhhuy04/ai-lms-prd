@@ -299,6 +299,17 @@ class ProfileMetadataService {
     return await set('api_keys.groq', apiKey);
   }
 
+  /// Lấy Ollama base URL từ metadata
+  static Future<String?> getOllamaBaseUrl() async {
+    return await get<String>('ai_config.ollama_base_url');
+  }
+
+  /// Set Ollama base URL vào metadata
+  static Future<bool> setOllamaBaseUrl(String baseUrl) async {
+    if (baseUrl.isEmpty) return false;
+    return await set('ai_config.ollama_base_url', baseUrl);
+  }
+
   /// Xóa AI API key khỏi metadata
   static Future<bool> removeAiApiKey() async {
     return await remove('api_keys.ai');
@@ -309,7 +320,12 @@ class ProfileMetadataService {
     return await remove('api_keys.groq');
   }
 
-  /// Lấy AI provider đang được chọn (vd: 'gemini', 'groq')
+  /// Xóa Ollama base URL khỏi metadata
+  static Future<bool> removeOllamaBaseUrl() async {
+    return await remove('ai_config.ollama_base_url');
+  }
+
+  /// Lấy AI provider đang được chọn (vd: 'gemini', 'groq', 'ollama')
   static Future<String?> getAiProvider() async {
     return await get<String>('ai.provider');
   }
@@ -341,6 +357,42 @@ class ProfileMetadataService {
     return okProvider && okModel;
   }
 
+  // ── Analytics AI config ─────────────────────────────────────────────────
+
+  /// Lấy provider đang dùng cho tính năng phân tích dữ liệu
+  static Future<String?> getAnalyticsProvider() async {
+    return await get<String>('analytics.provider');
+  }
+
+  /// Set provider cho phân tích dữ liệu
+  static Future<bool> setAnalyticsProvider(String provider) async {
+    if (provider.isEmpty) return false;
+    return await set('analytics.provider', provider);
+  }
+
+  /// Lấy model đang dùng cho phân tích dữ liệu
+  static Future<String?> getAnalyticsModel() async {
+    return await get<String>('analytics.model');
+  }
+
+  /// Set model cho phân tích dữ liệu
+  static Future<bool> setAnalyticsModel(String model) async {
+    if (model.isEmpty) return false;
+    return await set('analytics.model', model);
+  }
+
+  /// Set provider + model cho phân tích dữ liệu cùng lúc
+  static Future<bool> setAnalyticsConfig({
+    required String provider,
+    required String model,
+  }) async {
+    final okProvider = await setAnalyticsProvider(provider);
+    final okModel = await setAnalyticsModel(model);
+    return okProvider && okModel;
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+
   /// Kiểm tra xem có Gemini API key không
   static Future<bool> hasGeminiApiKey() async {
     final key = await getGeminiApiKey();
@@ -357,6 +409,12 @@ class ProfileMetadataService {
   static Future<bool> hasGroqApiKey() async {
     final key = await getGroqApiKey();
     return key != null && key.isNotEmpty;
+  }
+
+  /// Kiểm tra xem có Ollama base URL không
+  static Future<bool> hasOllamaBaseUrl() async {
+    final url = await getOllamaBaseUrl();
+    return url != null && url.isNotEmpty;
   }
 
   /// Lấy tất cả API keys

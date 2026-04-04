@@ -21,7 +21,7 @@ class InterventionBadge extends ConsumerWidget {
         if (count == 0) return const SizedBox.shrink();
 
         return GestureDetector(
-          onTap: () => context.goNamed(AppRoute.teacherRecommendationsTab),
+          onTap: () => context.pushNamed(AppRoute.teacherRecommendationsTab),
           child: Container(
             padding: EdgeInsets.symmetric(
               horizontal: DesignSpacing.md,

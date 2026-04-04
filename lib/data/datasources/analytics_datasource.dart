@@ -1,14 +1,49 @@
 import 'package:ai_mls/core/services/supabase_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../domain/entities/analytics/student_analytics.dart';
-import '../../domain/entities/analytics/skill_mastery.dart';
-import '../../domain/entities/analytics/grade_trend.dart';
+
 import '../../domain/entities/analytics/class_analytics.dart';
+import '../../domain/entities/analytics/grade_trend.dart';
+import '../../domain/entities/analytics/skill_mastery.dart';
+import '../../domain/entities/analytics/student_analytics.dart';
 
 /// DataSource for analytics queries from Supabase
 class AnalyticsDatasource {
   SupabaseClient get _client => SupabaseService.client;
+
+  /// Format skill name from code to human-readable format
+  /// Example: "mmt.1-6" → "MMT 1-6"
+  static String _formatSkillName(String skillName) {
+    // Replace dots and dashes with spaces for readability
+    String formatted = skillName
+        .replaceAll('.', ' ')
+        .replaceAll('-', ' - ')
+        .trim();
+
+    // Capitalize each word
+    final words = formatted.split(' ');
+    final capitalized = words
+        .map((word) {
+          if (word.isEmpty) return word;
+          return word[0].toUpperCase() + word.substring(1).toLowerCase();
+        })
+        .join(' ');
+
+    return capitalized;
+  }
+
+  /// Build semantic label combining code and description for AI analysis
+  /// Example: code="M3.1", desc="Lượng giác" → "M3.1 - Lượng giác"
+  static String _buildSemanticLabel(String? code, String? description) {
+    if (code == null || code.isEmpty) {
+      return description ?? 'Unknown';
+    }
+    if (description == null || description.isEmpty) {
+      return code;
+    }
+    // Combine code and description with dash
+    return '$code - $description';
+  }
 
   /// Query 1: Basic & Engagement Metrics (ANL-01)
   Future<BasicEngagementMetrics> getBasicMetrics(
@@ -39,8 +74,12 @@ class AnalyticsDatasource {
               .select('total_score, is_late, submitted_at')
               .eq('student_id', studentId)
               .inFilter('assignment_distribution_id', distributionIds);
-          if (startDate != null) q = q.gte('submitted_at', startDate.toIso8601String());
-          if (endDate != null) q = q.lte('submitted_at', endDate.toIso8601String());
+          if (startDate != null) {
+            q = q.gte('submitted_at', startDate.toIso8601String());
+          }
+          if (endDate != null) {
+            q = q.lte('submitted_at', endDate.toIso8601String());
+          }
           submissions = await q.order('submitted_at', ascending: false);
         }
       } else {
@@ -48,8 +87,12 @@ class AnalyticsDatasource {
             .from('submissions')
             .select('total_score, is_late, submitted_at')
             .eq('student_id', studentId);
-        if (startDate != null) q = q.gte('submitted_at', startDate.toIso8601String());
-        if (endDate != null) q = q.lte('submitted_at', endDate.toIso8601String());
+        if (startDate != null) {
+          q = q.gte('submitted_at', startDate.toIso8601String());
+        }
+        if (endDate != null) {
+          q = q.lte('submitted_at', endDate.toIso8601String());
+        }
         submissions = await q.order('submitted_at', ascending: false);
       }
 
@@ -121,6 +164,7 @@ class AnalyticsDatasource {
   }
 
   /// Query 2: Skill Mastery for Radar Chart (ANL-04)
+  /// Joins with learning_objectives to fetch full semantic context
   Future<List<SkillMastery>> getSkillMastery(
     String studentId, {
     String? classId,
@@ -149,8 +193,12 @@ class AnalyticsDatasource {
               .select('id, assignment_id')
               .eq('student_id', studentId)
               .inFilter('assignment_distribution_id', distributionIds);
-          if (startDate != null) q = q.gte('submitted_at', startDate.toIso8601String());
-          if (endDate != null) q = q.lte('submitted_at', endDate.toIso8601String());
+          if (startDate != null) {
+            q = q.gte('submitted_at', startDate.toIso8601String());
+          }
+          if (endDate != null) {
+            q = q.lte('submitted_at', endDate.toIso8601String());
+          }
           final submissions = await q;
 
           // Step 3: Extract unique assignment_ids
@@ -185,19 +233,24 @@ class AnalyticsDatasource {
         }
       }
 
-      // Fetch skill mastery records
+      // Fetch skill mastery records with relational join to learning_objectives
+      // This ensures we get code + description in a single query
       List<Map<String, dynamic>> result;
       if (objectiveIds.isNotEmpty) {
         result = await _client
             .from('student_skill_mastery')
-            .select('objective_id, mastery_level, attempts')
+            .select(
+              'objective_id, mastery_level, attempts, learning_objectives(code, description)',
+            )
             .eq('student_id', studentId)
             .inFilter('objective_id', objectiveIds.toList());
       } else {
         // Fetch all for student (no class filter or no objectives found)
         result = await _client
             .from('student_skill_mastery')
-            .select('objective_id, mastery_level, attempts')
+            .select(
+              'objective_id, mastery_level, attempts, learning_objectives(code, description)',
+            )
             .eq('student_id', studentId);
       }
 
@@ -205,33 +258,31 @@ class AnalyticsDatasource {
         return [];
       }
 
-      // Fetch objective names
-      final allObjectiveIds = result
-          .map((r) => r['objective_id'] as String)
-          .toList();
-
-      final objectives = await _client
-          .from('learning_objectives')
-          .select('id, code, description')
-          .inFilter('id', allObjectiveIds);
-
-      final objectiveMap = {
-        for (var o in objectives)
-          o['id'] as String: (o['code'] as String?)?.isNotEmpty == true
-              ? o['code'] as String
-              : (o['description'] as String?) ?? 'Unknown',
-      };
-
+      /// Parse related objectives from nested select result
       return result.map((row) {
         final mastery = (row['mastery_level'] ?? 0.0) as num;
         final objectiveId = row['objective_id'] as String;
+
+        // Extract related objective data from nested select
+        final objectiveData =
+            row['learning_objectives'] as Map<String, dynamic>?;
+        final code = objectiveData?['code'] as String?;
+        final description = objectiveData?['description'] as String?;
+
+        // Build semantic label: [Code] - [Description]
+        final semanticLabel = _buildSemanticLabel(code, description);
+        final skillName = code ?? 'Unknown';
+
         return SkillMastery(
           objectiveId: objectiveId,
-          skillName: objectiveMap[objectiveId] ?? 'Unknown',
+          skillName: skillName,
           masteryLevel: mastery.toDouble(),
           attempts: (row['attempts'] ?? 0) as int,
           isStrong: mastery >= 0.7,
           isWeak: mastery < 0.4,
+          description: description,
+          displayName: _formatSkillName(skillName),
+          semanticLabel: semanticLabel,
         );
       }).toList();
     } catch (e, st) {
@@ -275,8 +326,12 @@ class AnalyticsDatasource {
               .eq('student_id', studentId)
               .inFilter('assignment_distribution_id', distributionIds)
               .not('total_score', 'is', null);
-          if (startDate != null) q = q.gte('submitted_at', startDate.toIso8601String());
-          if (endDate != null) q = q.lte('submitted_at', endDate.toIso8601String());
+          if (startDate != null) {
+            q = q.gte('submitted_at', startDate.toIso8601String());
+          }
+          if (endDate != null) {
+            q = q.lte('submitted_at', endDate.toIso8601String());
+          }
           result = await q.order('submitted_at', ascending: true).limit(20);
         }
       } else {
@@ -288,8 +343,12 @@ class AnalyticsDatasource {
             )
             .eq('student_id', studentId)
             .not('total_score', 'is', null);
-        if (startDate != null) q = q.gte('submitted_at', startDate.toIso8601String());
-        if (endDate != null) q = q.lte('submitted_at', endDate.toIso8601String());
+        if (startDate != null) {
+          q = q.gte('submitted_at', startDate.toIso8601String());
+        }
+        if (endDate != null) {
+          q = q.lte('submitted_at', endDate.toIso8601String());
+        }
         result = await q.order('submitted_at', ascending: true).limit(20);
       }
 
@@ -324,7 +383,9 @@ class AnalyticsDatasource {
               return null;
             }
             // Apply date filtering if provided
-            if (startDate != null && parsedDate.isBefore(startDate)) return null;
+            if (startDate != null && parsedDate.isBefore(startDate)) {
+              return null;
+            }
             if (endDate != null && parsedDate.isAfter(endDate)) return null;
             final assignmentId = row['assignment_id'] as String?;
             final assignmentName = assignmentId != null
@@ -383,7 +444,9 @@ class AnalyticsDatasource {
           ? <Map<String, dynamic>>[]
           : await _client
                 .from('submissions')
-                .select('total_score, student_id, assignment_distribution_id, is_late, profiles(full_name)')
+                .select(
+                  'total_score, student_id, assignment_distribution_id, is_late, profiles(full_name)',
+                )
                 .inFilter('student_id', studentIds)
                 .inFilter('assignment_distribution_id', distributionIds)
                 .not('total_score', 'is', null);
@@ -392,13 +455,16 @@ class AnalyticsDatasource {
       final submittedStudentIds = submissions
           .map((s) => s['student_id'] as String)
           .toSet();
-      final lateSubmissions = submissions.where((s) => s['is_late'] == true).length;
+      final lateSubmissions = submissions
+          .where((s) => s['is_late'] == true)
+          .length;
       final lateSubmissionsByStudent = <String, int>{};
       for (final sub in submissions) {
         if (sub['is_late'] == true) {
           final sid = sub['student_id'] as String?;
           if (sid != null) {
-            lateSubmissionsByStudent[sid] = (lateSubmissionsByStudent[sid] ?? 0) + 1;
+            lateSubmissionsByStudent[sid] =
+                (lateSubmissionsByStudent[sid] ?? 0) + 1;
           }
         }
       }
@@ -461,12 +527,14 @@ class AnalyticsDatasource {
         if (topPerformers.length >= maxPerList) break;
         if (entry.avg >= scoreThreshold) {
           final studentName = await _getStudentName(entry.id);
-          topPerformers.add(StudentPerformance(
-            studentId: entry.id,
-            studentName: studentName,
-            score: entry.avg,
-            submissionCount: entry.count,
-          ));
+          topPerformers.add(
+            StudentPerformance(
+              studentId: entry.id,
+              studentName: studentName,
+              score: entry.avg,
+              submissionCount: entry.count,
+            ),
+          );
         }
       }
 
@@ -475,12 +543,14 @@ class AnalyticsDatasource {
         if (bottomPerformers.length >= maxPerList) break;
         if (entry.avg < scoreThreshold) {
           final studentName = await _getStudentName(entry.id);
-          bottomPerformers.add(StudentPerformance(
-            studentId: entry.id,
-            studentName: studentName,
-            score: entry.avg,
-            submissionCount: entry.count,
-          ));
+          bottomPerformers.add(
+            StudentPerformance(
+              studentId: entry.id,
+              studentName: studentName,
+              score: entry.avg,
+              submissionCount: entry.count,
+            ),
+          );
         }
       }
 
@@ -532,7 +602,8 @@ class AnalyticsDatasource {
   }
 
   /// Builds a map from distribution id → assignment title, filtered by classId.
-  Future<Map<String, ({String title, double maxScore})>> _buildDistributionInfoMap(String classId) async {
+  Future<Map<String, ({String title, double maxScore})>>
+  _buildDistributionInfoMap(String classId) async {
     final distributions = await _client
         .from('assignment_distributions')
         .select('id, assignments(total_points, title)')
@@ -544,7 +615,8 @@ class AnalyticsDatasource {
       final id = d['id'] as String?;
       final assignment = d['assignments'] as Map<String, dynamic>?;
       final title = assignment?['title'] as String? ?? 'Bài tập';
-      final totalPoints = (assignment?['total_points'] as num?)?.toDouble() ?? 10.0;
+      final totalPoints =
+          (assignment?['total_points'] as num?)?.toDouble() ?? 10.0;
       if (id != null) {
         result[id] = (title: title, maxScore: totalPoints);
       }
@@ -560,14 +632,18 @@ class AnalyticsDatasource {
   ) {
     // Track scores + student info per bucket per assignment
     final Map<String, List<double>> assignmentScores = {};
-    final Map<String, List<({String studentId, String studentName, double score})>>
-        assignmentStudents = {};
+    final Map<
+      String,
+      List<({String studentId, String studentName, double score})>
+    >
+    assignmentStudents = {};
 
     for (final sub in submissions) {
       final distributionId = sub['assignment_distribution_id'] as String?;
       final score = ((sub['total_score'] ?? 0) as num).toDouble();
       final studentId = sub['student_id'] as String? ?? '';
-      final studentName = sub['profiles']?['full_name'] as String? ?? 'Học sinh';
+      final studentName =
+          sub['profiles']?['full_name'] as String? ?? 'Học sinh';
       final info = distributionInfo[distributionId];
       final title = info?.title ?? 'Bài tập';
       final maxScore = info?.maxScore ?? 10.0;
@@ -575,18 +651,15 @@ class AnalyticsDatasource {
       // Normalize score to 100-scale for consistent bucket comparison
       final scorePercent = maxScore > 0 ? (score / maxScore) * 100 : 0.0;
       assignmentScores.putIfAbsent(title, () => []).add(scorePercent);
-      assignmentStudents
-          .putIfAbsent(title, () => [])
-          .add((studentId: studentId, studentName: studentName, score: scorePercent));
+      assignmentStudents.putIfAbsent(title, () => []).add((
+        studentId: studentId,
+        studentName: studentName,
+        score: scorePercent,
+      ));
     }
 
     return assignmentScores.entries.map((entry) {
-      final buckets = <String, int>{
-        '0-4': 0,
-        '4-6': 0,
-        '6-8': 0,
-        '8-10': 0,
-      };
+      final buckets = <String, int>{'0-4': 0, '4-6': 0, '6-8': 0, '8-10': 0};
       final bucketStudents = <String, List<StudentScoreItem>>{
         '0-4': [],
         '4-6': [],
@@ -600,16 +673,18 @@ class AnalyticsDatasource {
         final bucket = scorePercent < 40
             ? '0-4'
             : scorePercent < 60
-                ? '4-6'
-                : scorePercent < 80
-                    ? '6-8'
-                    : '8-10';
+            ? '4-6'
+            : scorePercent < 80
+            ? '6-8'
+            : '8-10';
         buckets[bucket] = buckets[bucket]! + 1;
-        bucketStudents[bucket]!.add(StudentScoreItem(
-          studentId: student.studentId,
-          studentName: student.studentName,
-          score: scorePercent,
-        ));
+        bucketStudents[bucket]!.add(
+          StudentScoreItem(
+            studentId: student.studentId,
+            studentName: student.studentName,
+            score: scorePercent,
+          ),
+        );
       }
 
       // Sort each bucket by score descending
@@ -663,95 +738,29 @@ class AnalyticsDatasource {
     return (result?['full_name'] ?? 'Học sinh') as String;
   }
 
-  /// Get class comparison for a student
+  /// Get class comparison for a student.
+  /// REC-03 SECURITY: Uses Supabase RPC to compute class_average and percentile
+  /// server-side. NO raw scores sent to client. This replaces the previous
+  /// client-side calculation that fetched raw submission scores.
   Future<ClassComparison> getClassComparison(
     String studentId,
     String classId,
   ) async {
     try {
-      // Get students in this class first
-      final studentsResult = await _client
-          .from('class_members')
-          .select('student_id')
-          .eq('class_id', classId);
-      final studentIds = studentsResult
-          .map((s) => s['student_id'] as String)
-          .toList();
+      final result = await _client.rpc(
+        'get_student_peer_comparison',
+        params: {'p_student_id': studentId, 'p_class_id': classId},
+      );
 
-      if (studentIds.isEmpty) {
+      if (result == null) {
         return const ClassComparison();
       }
-
-      // Get this student's submissions filtered by class's assignment distributions
-      final distributions = await _client
-          .from('assignment_distributions')
-          .select('id')
-          .eq('class_id', classId);
-      final distributionIds = distributions
-          .map((d) => d['id'] as String)
-          .toList();
-
-      final submissions = distributionIds.isEmpty
-          ? <Map<String, dynamic>>[]
-          : await _client
-                .from('submissions')
-                .select('total_score')
-                .eq('student_id', studentId)
-                .inFilter('assignment_distribution_id', distributionIds)
-                .not('total_score', 'is', null);
-
-      if (submissions.isEmpty) {
-        return const ClassComparison();
-      }
-
-      final studentAvg =
-          submissions.fold<double>(
-            0,
-            (sum, s) => sum + ((s['total_score'] ?? 0) as num).toDouble(),
-          ) /
-          submissions.length;
-
-      // Get all students' averages in class (filtered by this class's distributions)
-      final allSubmissions = distributionIds.isEmpty
-          ? <Map<String, dynamic>>[]
-          : await _client
-                .from('submissions')
-                .select('student_id, total_score')
-                .inFilter('student_id', studentIds)
-                .inFilter('assignment_distribution_id', distributionIds)
-                .not('total_score', 'is', null);
-
-      final studentAverages = <String, List<double>>{};
-      for (final sub in allSubmissions) {
-        final sid = sub['student_id'] as String?;
-        if (sid != null) {
-          final score = ((sub['total_score'] ?? 0) as num).toDouble();
-          studentAverages.putIfAbsent(sid, () => []).add(score);
-        }
-      }
-
-      final averages = studentAverages.entries.map((e) {
-        return e.value.reduce((a, b) => a + b) / e.value.length;
-      }).toList()..sort((a, b) => b.compareTo(a));
-
-      final classAverage = averages.isNotEmpty
-          ? averages.reduce((a, b) => a + b) / averages.length
-          : 0.0;
-
-      // Calculate percentile
-      final belowCount = averages.where((a) => a < studentAvg).length;
-      final percentile = averages.isNotEmpty
-          ? belowCount / averages.length * 100
-          : 0.0;
-
-      // Find rank
-      final rank = averages.indexWhere((a) => a <= studentAvg) + 1;
 
       return ClassComparison(
-        classAverage: classAverage,
-        percentile: percentile,
-        rank: rank,
-        totalStudents: averages.length,
+        classAverage: (result['class_average'] as num?)?.toDouble() ?? 0.0,
+        percentile: (result['percentile'] as num?)?.toDouble() ?? 0.0,
+        rank: (result['rank'] as int?) ?? 0,
+        totalStudents: (result['total_students'] as int?) ?? 0,
       );
     } catch (e, st) {
       AppLogger.error(

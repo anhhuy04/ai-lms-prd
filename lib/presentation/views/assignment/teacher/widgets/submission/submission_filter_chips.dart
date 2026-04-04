@@ -34,7 +34,7 @@ class SubmissionFilterChips extends StatelessWidget {
                 backgroundColor: DesignColors.moonLight,
                 selectedColor: DesignColors.primary.withValues(alpha: 0.2),
                 checkmarkColor: DesignColors.primary,
-                labelStyle: DesignTypography.labelMedium?.copyWith(
+                labelStyle: DesignTypography.labelMedium.copyWith(
                   color: isSelected ? DesignColors.primary : DesignColors.textSecondary,
                 ),
               ),

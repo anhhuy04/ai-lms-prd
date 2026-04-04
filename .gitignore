@@ -55,3 +55,7 @@ app.*.map.json
 # Generated environment files
 lib/core/env/env.g.dart
 **/*.g.dartandroid/java_pid17316.hprof
+
+# MCP config (contains secrets)
+.mcp.json
+android/java_pid37916.hprof

@@ -29,7 +29,9 @@ class DistributeAssignmentState with _$DistributeAssignmentState {
     // --- Cài đặt nâng cao ---
     @Default(true) bool allowLate, // Cho phép nộp muộn
     @Default(10) int latePenaltyPercent, // Phần trăm trừ điểm mỗi ngày trễ
-    @Default(true) bool showScoreImmediately, // Hiển thị điểm ngay sau khi nộp
+    // 'none' = ẩn hết, 'score_only' = chỉ điểm, 'full_review' = xem lại cả bài
+    @Default('full_review') String studentReviewMode,
+    @Default(null) int? maxAttempts, // null = không giới hạn
     @Default(true) bool sendNotification, // Gửi thông báo cho học sinh
     @Default(false) bool shuffleQuestions, // Đảo câu hỏi
     @Default(false) bool shuffleAnswers, // Đảo đáp án
@@ -72,14 +74,16 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
 
       final firstAssignment = validAssignments.first;
 
-      // Prefill state từ dữ liệu bài tập đầu tiên (cho settings) và list bài tập
+      // Prefill state từ dữ liệu bài tập đầu tiên (cho settings) và list bài tập.
+      // Dùng ?? để không overwrite giá trị đã được loadDistributionConfig set
+      // (edit mode: loadDistributionConfig chạy trước, set distribution-level values).
       state = state.copyWith(
         assignment: firstAssignment,
         selectedAssignments: validAssignments,
-        dueDate: firstAssignment.dueAt,
-        availableFrom: firstAssignment.availableFrom,
-        timeLimitMinutes: firstAssignment.timeLimitMinutes,
-        allowLate: firstAssignment.allowLate,
+        dueDate: state.dueDate ?? firstAssignment.dueAt,
+        availableFrom: state.availableFrom ?? firstAssignment.availableFrom,
+        timeLimitMinutes:
+            state.timeLimitMinutes ?? firstAssignment.timeLimitMinutes,
       );
     } catch (e, stack) {
       AppLogger.error(
@@ -200,8 +204,12 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
     state = state.copyWith(latePenaltyPercent: percent.clamp(0, 100));
   }
 
-  void setShowScoreImmediately(bool value) {
-    state = state.copyWith(showScoreImmediately: value);
+  void setStudentReviewMode(String mode) {
+    state = state.copyWith(studentReviewMode: mode);
+  }
+
+  void setMaxAttempts(int? attempts) {
+    state = state.copyWith(maxAttempts: attempts);
   }
 
   void setSendNotification(bool value) {
@@ -287,15 +295,13 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
             }
           : null;
 
-      // Settings JSON - Tử Huyệt 4: thêm student_review_mode và ai_feedback_enabled
       final settings = <String, dynamic>{
         'shuffle_questions': state.shuffleQuestions,
         'shuffle_choices': state.shuffleAnswers,
-        'show_score_immediately': state.showScoreImmediately,
-        'student_review_mode': state.showScoreImmediately
-            ? 'full_review'
-            : 'score_only',
-        'ai_feedback_enabled': true, // bật AI feedback theo mặc định
+        'show_score_immediately': state.studentReviewMode != 'none',
+        'student_review_mode': state.studentReviewMode,
+        'ai_feedback_enabled': true,
+        if (state.maxAttempts != null) 'max_attempts': state.maxAttempts,
       };
 
       // Loop qua từng assignment (hỗ trợ multi-assignment)
@@ -385,6 +391,81 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
   Future<void> scheduleDistribute(DateTime scheduledAt) async {
     setAvailableFrom(scheduledAt);
     await distributeNow();
+  }
+
+  /// Prefill state từ distributionConfig map (khi ở editMode).
+  void loadDistributionConfig(Map<String, dynamic> config) {
+    final dueDateRaw = config['due_at'] as String?;
+    final availableFromRaw = config['available_from'] as String?;
+    final settings = config['settings'] as Map<String, dynamic>? ?? {};
+    final latePolicyMap = config['late_policy'] as Map<String, dynamic>?;
+
+    state = state.copyWith(
+      dueDate: dueDateRaw != null ? DateTime.tryParse(dueDateRaw) : null,
+      availableFrom: availableFromRaw != null ? DateTime.tryParse(availableFromRaw) : null,
+      timeLimitMinutes: config['time_limit_minutes'] as int?,
+      allowLate: config['allow_late'] as bool? ?? true,
+      latePenaltyPercent:
+          (latePolicyMap?['deduction_value'] as num?)?.toInt() ?? 10,
+      shuffleQuestions: settings['shuffle_questions'] as bool? ?? false,
+      shuffleAnswers: settings['shuffle_choices'] as bool? ?? false,
+      studentReviewMode: settings['student_review_mode'] as String? ?? 'full_review',
+      sendNotification: settings['send_notification'] as bool? ?? true,
+      maxAttempts: settings['max_attempts'] as int?,
+    );
+  }
+
+  /// Cập nhật cấu hình distribution hiện có (edit mode — PATCH).
+  Future<void> updateDistribution(String distributionId) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final repository = ref.read(assignmentRepositoryProvider);
+
+      final latePolicy = state.allowLate
+          ? <String, dynamic>{
+              'policy_type': 'daily_deduction',
+              'deduction_value': state.latePenaltyPercent,
+              'unit': 'percent',
+              'max_days_allowed': 7,
+              'lowest_possible_score': 0,
+            }
+          : null;
+
+      final settings = <String, dynamic>{
+        'shuffle_questions': state.shuffleQuestions,
+        'shuffle_choices': state.shuffleAnswers,
+        'show_score_immediately': state.studentReviewMode != 'none',
+        'student_review_mode': state.studentReviewMode,
+        'ai_feedback_enabled': true,
+        if (state.maxAttempts != null) 'max_attempts': state.maxAttempts,
+      };
+
+      final patch = <String, dynamic>{
+        if (state.dueDate != null) 'due_at': state.dueDate!.toIso8601String(),
+        if (state.availableFrom != null)
+          'available_from': state.availableFrom!.toIso8601String(),
+        if (state.timeLimitMinutes != null)
+          'time_limit_minutes': state.timeLimitMinutes,
+        'allow_late': state.allowLate,
+        if (latePolicy != null) 'late_policy': latePolicy,
+        'settings': settings,
+      };
+
+      await repository.updateDistribution(distributionId, patch);
+
+      AppLogger.info('✅ [DISTRIBUTE] Updated distribution $distributionId');
+      state = state.copyWith(isLoading: false, isSuccess: true);
+    } catch (e, stack) {
+      AppLogger.error(
+        '🔴 [DISTRIBUTE] Error updateDistribution: $e',
+        error: e,
+        stackTrace: stack,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Cập nhật thất bại: ${e.toString()}',
+      );
+    }
   }
 
   void clearError() {

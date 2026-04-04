@@ -2,6 +2,7 @@ import 'package:ai_mls/domain/repositories/submission_repository.dart';
 import 'package:ai_mls/presentation/providers/teacher_submission_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+// ignore: depend_on_referenced_packages — riverpod is dev dependency in root package
 import 'package:riverpod/riverpod.dart';
 
 class MockSubmissionRepository extends Mock implements SubmissionRepository {}

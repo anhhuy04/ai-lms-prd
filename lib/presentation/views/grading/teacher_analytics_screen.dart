@@ -1,4 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/core/utils/score_display_utils.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/domain/entities/analytics/class_analytics.dart';
@@ -59,7 +60,7 @@ class _TeacherAnalyticsScreenState
       ),
       body: classesAsync.when(
         loading: () => const Center(
-          child: CircularProgressIndicator(strokeWidth: 2),
+          child: ShimmerTeacherAnalyticsLoading(),
         ),
         error: (e, st) {
           AppLogger.error(
@@ -143,16 +144,16 @@ class _TeacherAnalyticsScreenState
         decoration: BoxDecoration(
           color: DesignColors.white,
           borderRadius: BorderRadius.circular(DesignRadius.lg),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x1A000000),
+              color: DesignColors.shadowMedium,
               blurRadius: 12,
-              offset: Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
             BoxShadow(
-              color: Color(0x08000000),
+              color: DesignColors.shadowLight,
               blurRadius: 4,
-              offset: Offset(0, 1),
+              offset: const Offset(0, 1),
             ),
           ],
         ),
@@ -345,7 +346,7 @@ class _TeacherAnalyticsScreenState
       ),
       body: analyticsAsync.when(
         loading: () => const Center(
-          child: CircularProgressIndicator(strokeWidth: 2),
+          child: ShimmerTeacherAnalyticsLoading(),
         ),
         error: (e, st) {
           AppLogger.error(

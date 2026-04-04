@@ -6,7 +6,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class SubmissionDataSource {
   SupabaseClient get _client => SupabaseService.client;
 
-  /// Lấy hoặc tạo submission draft cho 1 student + distribution.
+  /// Lấy submission của student (nếu có) + flatten status từ work_sessions.
+  /// Trả về map với:
+  ///   - `status`            : từ work_sessions ('in_progress'|'submitted'|'graded')
+  ///   - `score`             : alias của submissions.total_score
+  ///   - `time_taken_seconds`: từ work_sessions.time_spent_seconds
+  ///   - `attempt_count`     : từ work_sessions.attempt
+  /// Trả về null nếu học sinh chưa bắt đầu.
   Future<Map<String, dynamic>?> getOrCreateSubmission(
     String distributionId,
     String studentId,
@@ -17,25 +23,42 @@ class SubmissionDataSource {
         .select()
         .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
+        .order('created_at', ascending: false)
         .maybeSingle();
 
     if (existingRes != null) {
-      return Map<String, dynamic>.from(existingRes);
+      final data = Map<String, dynamic>.from(existingRes);
+      // Alias total_score → score để UI đọc nhất quán
+      data['score'] = data['total_score'];
+
+      // Lấy status từ work_sessions (submissions không có status column)
+      try {
+        final sessionRes = await _client
+            .from('work_sessions')
+            .select('status, started_at, submitted_at, time_spent_seconds, attempt')
+            .eq('assignment_distribution_id', distributionId)
+            .eq('student_id', studentId)
+            .order('attempt', ascending: false)
+            .maybeSingle();
+
+        if (sessionRes != null) {
+          data['status'] = sessionRes['status'];
+          data['time_taken_seconds'] = sessionRes['time_spent_seconds'];
+          data['attempt_count'] = sessionRes['attempt'];
+          data['started_at'] ??= sessionRes['started_at'];
+        } else {
+          data['status'] = data['submitted_at'] != null ? 'submitted' : 'in_progress';
+        }
+      } catch (e) {
+        AppLogger.warning('[SubmissionDS] Cannot fetch work_sessions: $e');
+        data['status'] = data['submitted_at'] != null ? 'submitted' : 'in_progress';
+      }
+
+      return data;
     }
 
-    // Tạo mới submission draft
-    final now = DateTime.now().toUtc().toIso8601String();
-    final newSubmission = await _client.from('submissions').insert({
-      'assignment_distribution_id': distributionId,
-      'student_id': studentId,
-      'status': 'draft',
-      'answers': {},
-      'uploaded_files': [],
-      'created_at': now,
-      'updated_at': now,
-    }).select().single();
-
-    return Map<String, dynamic>.from(newSubmission);
+    // Chưa có submission → học sinh chưa bắt đầu, trả về null
+    return null;
   }
 
   /// Lưu bản nháp submission.
@@ -125,7 +148,15 @@ class SubmissionDataSource {
     final result = await _client
         .from('submissions')
         .select('''
-          *,
+          id,
+          student_id,
+          assignment_id,
+          assignment_distribution_id,
+          submitted_at,
+          is_late,
+          total_score,
+          ai_graded,
+          is_voided,
           assignment_distributions(
             due_at
           ),

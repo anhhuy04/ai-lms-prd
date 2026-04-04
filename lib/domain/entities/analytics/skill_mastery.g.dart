@@ -15,6 +15,8 @@ _$SkillMasteryImpl _$$SkillMasteryImplFromJson(Map<String, dynamic> json) =>
       isStrong: json['isStrong'] as bool? ?? false,
       isWeak: json['isWeak'] as bool? ?? false,
       description: json['description'] as String?,
+      displayName: json['displayName'] as String?,
+      semanticLabel: json['semanticLabel'] as String?,
     );
 
 Map<String, dynamic> _$$SkillMasteryImplToJson(_$SkillMasteryImpl instance) =>
@@ -26,6 +28,8 @@ Map<String, dynamic> _$$SkillMasteryImplToJson(_$SkillMasteryImpl instance) =>
       'isStrong': instance.isStrong,
       'isWeak': instance.isWeak,
       'description': instance.description,
+      'displayName': instance.displayName,
+      'semanticLabel': instance.semanticLabel,
     };
 
 _$DeepAnalysisImpl _$$DeepAnalysisImplFromJson(Map<String, dynamic> json) =>

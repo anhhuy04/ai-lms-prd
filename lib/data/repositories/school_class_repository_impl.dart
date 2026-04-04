@@ -82,7 +82,7 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
   @override
   Future<List<Class>> getClassesByStudent(String studentId) async {
     try {
-      final results = await _dataSource.getClassesByStudent(studentId);
+      final results = await _dataSource.getClassesByStudent(studentId, approvedOnly: false);
       return results.map((json) => Class.fromJson(json)).toList();
     } catch (e, stackTrace) {
       AppLogger.error(

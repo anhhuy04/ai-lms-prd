@@ -22,13 +22,26 @@ SkillMastery _$SkillMasteryFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$SkillMastery {
   String get objectiveId => throw _privateConstructorUsedError;
+
+  /// Raw skill identifier (e.g., 'mmt.1-6' from code column)
   String get skillName => throw _privateConstructorUsedError;
   double get masteryLevel => throw _privateConstructorUsedError; // 0.0 - 1.0
   int get attempts => throw _privateConstructorUsedError;
   bool get isStrong =>
       throw _privateConstructorUsedError; // masteryLevel >= 0.7
   bool get isWeak => throw _privateConstructorUsedError; // masteryLevel < 0.4
+  /// Human-readable description from learning_objectives.description
+  /// (e.g., 'Trigonometry - Basic Concepts')
   String? get description => throw _privateConstructorUsedError;
+
+  /// Display name formatted for UI (human-friendly)
+  /// Example: "mmt.1-6" → "MMT 1-6" or "Toán học 1-6"
+  String? get displayName => throw _privateConstructorUsedError;
+
+  /// Full semantic label for AI analysis: [Code] - [Description]
+  /// Example: "M3.1 - Lượng giác cơ bản"
+  /// Used when passing to AI for recommendations/insights
+  String? get semanticLabel => throw _privateConstructorUsedError;
 
   /// Serializes this SkillMastery to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -55,6 +68,8 @@ abstract class $SkillMasteryCopyWith<$Res> {
     bool isStrong,
     bool isWeak,
     String? description,
+    String? displayName,
+    String? semanticLabel,
   });
 }
 
@@ -80,6 +95,8 @@ class _$SkillMasteryCopyWithImpl<$Res, $Val extends SkillMastery>
     Object? isStrong = null,
     Object? isWeak = null,
     Object? description = freezed,
+    Object? displayName = freezed,
+    Object? semanticLabel = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -111,6 +128,14 @@ class _$SkillMasteryCopyWithImpl<$Res, $Val extends SkillMastery>
                 ? _value.description
                 : description // ignore: cast_nullable_to_non_nullable
                       as String?,
+            displayName: freezed == displayName
+                ? _value.displayName
+                : displayName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            semanticLabel: freezed == semanticLabel
+                ? _value.semanticLabel
+                : semanticLabel // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -134,6 +159,8 @@ abstract class _$$SkillMasteryImplCopyWith<$Res>
     bool isStrong,
     bool isWeak,
     String? description,
+    String? displayName,
+    String? semanticLabel,
   });
 }
 
@@ -158,6 +185,8 @@ class __$$SkillMasteryImplCopyWithImpl<$Res>
     Object? isStrong = null,
     Object? isWeak = null,
     Object? description = freezed,
+    Object? displayName = freezed,
+    Object? semanticLabel = freezed,
   }) {
     return _then(
       _$SkillMasteryImpl(
@@ -189,6 +218,14 @@ class __$$SkillMasteryImplCopyWithImpl<$Res>
             ? _value.description
             : description // ignore: cast_nullable_to_non_nullable
                   as String?,
+        displayName: freezed == displayName
+            ? _value.displayName
+            : displayName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        semanticLabel: freezed == semanticLabel
+            ? _value.semanticLabel
+            : semanticLabel // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -196,7 +233,7 @@ class __$$SkillMasteryImplCopyWithImpl<$Res>
 
 /// @nodoc
 @JsonSerializable()
-class _$SkillMasteryImpl implements _SkillMastery {
+class _$SkillMasteryImpl extends _SkillMastery {
   const _$SkillMasteryImpl({
     required this.objectiveId,
     required this.skillName,
@@ -205,13 +242,17 @@ class _$SkillMasteryImpl implements _SkillMastery {
     this.isStrong = false,
     this.isWeak = false,
     this.description,
-  });
+    this.displayName,
+    this.semanticLabel,
+  }) : super._();
 
   factory _$SkillMasteryImpl.fromJson(Map<String, dynamic> json) =>
       _$$SkillMasteryImplFromJson(json);
 
   @override
   final String objectiveId;
+
+  /// Raw skill identifier (e.g., 'mmt.1-6' from code column)
   @override
   final String skillName;
   @override
@@ -229,12 +270,25 @@ class _$SkillMasteryImpl implements _SkillMastery {
   @JsonKey()
   final bool isWeak;
   // masteryLevel < 0.4
+  /// Human-readable description from learning_objectives.description
+  /// (e.g., 'Trigonometry - Basic Concepts')
   @override
   final String? description;
 
+  /// Display name formatted for UI (human-friendly)
+  /// Example: "mmt.1-6" → "MMT 1-6" or "Toán học 1-6"
+  @override
+  final String? displayName;
+
+  /// Full semantic label for AI analysis: [Code] - [Description]
+  /// Example: "M3.1 - Lượng giác cơ bản"
+  /// Used when passing to AI for recommendations/insights
+  @override
+  final String? semanticLabel;
+
   @override
   String toString() {
-    return 'SkillMastery(objectiveId: $objectiveId, skillName: $skillName, masteryLevel: $masteryLevel, attempts: $attempts, isStrong: $isStrong, isWeak: $isWeak, description: $description)';
+    return 'SkillMastery(objectiveId: $objectiveId, skillName: $skillName, masteryLevel: $masteryLevel, attempts: $attempts, isStrong: $isStrong, isWeak: $isWeak, description: $description, displayName: $displayName, semanticLabel: $semanticLabel)';
   }
 
   @override
@@ -254,7 +308,11 @@ class _$SkillMasteryImpl implements _SkillMastery {
                 other.isStrong == isStrong) &&
             (identical(other.isWeak, isWeak) || other.isWeak == isWeak) &&
             (identical(other.description, description) ||
-                other.description == description));
+                other.description == description) &&
+            (identical(other.displayName, displayName) ||
+                other.displayName == displayName) &&
+            (identical(other.semanticLabel, semanticLabel) ||
+                other.semanticLabel == semanticLabel));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -268,6 +326,8 @@ class _$SkillMasteryImpl implements _SkillMastery {
     isStrong,
     isWeak,
     description,
+    displayName,
+    semanticLabel,
   );
 
   /// Create a copy of SkillMastery
@@ -284,7 +344,7 @@ class _$SkillMasteryImpl implements _SkillMastery {
   }
 }
 
-abstract class _SkillMastery implements SkillMastery {
+abstract class _SkillMastery extends SkillMastery {
   const factory _SkillMastery({
     required final String objectiveId,
     required final String skillName,
@@ -293,13 +353,18 @@ abstract class _SkillMastery implements SkillMastery {
     final bool isStrong,
     final bool isWeak,
     final String? description,
+    final String? displayName,
+    final String? semanticLabel,
   }) = _$SkillMasteryImpl;
+  const _SkillMastery._() : super._();
 
   factory _SkillMastery.fromJson(Map<String, dynamic> json) =
       _$SkillMasteryImpl.fromJson;
 
   @override
   String get objectiveId;
+
+  /// Raw skill identifier (e.g., 'mmt.1-6' from code column)
   @override
   String get skillName;
   @override
@@ -310,8 +375,21 @@ abstract class _SkillMastery implements SkillMastery {
   bool get isStrong; // masteryLevel >= 0.7
   @override
   bool get isWeak; // masteryLevel < 0.4
+  /// Human-readable description from learning_objectives.description
+  /// (e.g., 'Trigonometry - Basic Concepts')
   @override
   String? get description;
+
+  /// Display name formatted for UI (human-friendly)
+  /// Example: "mmt.1-6" → "MMT 1-6" or "Toán học 1-6"
+  @override
+  String? get displayName;
+
+  /// Full semantic label for AI analysis: [Code] - [Description]
+  /// Example: "M3.1 - Lượng giác cơ bản"
+  /// Used when passing to AI for recommendations/insights
+  @override
+  String? get semanticLabel;
 
   /// Create a copy of SkillMastery
   /// with the given fields replaced by the non-null parameter values.

@@ -343,6 +343,10 @@ class PeerComparison {
   final double percentile;
   final int rank;
   final int totalStudents;
+  /// Điểm trung bình của CHÍNH học sinh hiện tại (không phải điểm của bạn học khác).
+  /// Trường này an toàn để gửi lên client vì là dữ liệu cá nhân của người dùng hiện tại.
+  /// Điểm trung bình của CHÍNH học sinh hiện tại (không phải điểm của bạn học khác).
+  /// Trường này an toàn để gửi lên client vì là dữ liệu cá nhân của người dùng hiện tại.
   final double studentAverage;
   final String? trendDirection;
   final double trendPercentage;

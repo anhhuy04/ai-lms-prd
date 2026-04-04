@@ -16,7 +16,9 @@ void main() {
   group('Grading Flow Integration', () {
     late MockSubmissionDataSource mockSubmissionDataSource;
     late MockGradeOverrideDataSource mockGradeOverrideDataSource;
+    // ignore: unused_local_variable — kept for future repository extension
     late domain.SubmissionRepository submissionRepository;
+    // ignore: unused_local_variable — kept for future repository extension
     late GradeOverrideRepositoryImpl gradeOverrideRepository;
 
     setUp(() {

@@ -84,6 +84,9 @@ dependencies:
   fl_chart: ^0.69.0
   url_launcher: ^6.3.2
 
+  # AI Agent interaction - Marionette MCP (debug only)
+  marionette_flutter: ^0.4.0
+
 dev_dependencies:
 
   flutter_test:

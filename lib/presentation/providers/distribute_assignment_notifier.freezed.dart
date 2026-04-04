@@ -36,8 +36,10 @@ mixin _$DistributeAssignmentState {
   bool get allowLate => throw _privateConstructorUsedError; // Cho phép nộp muộn
   int get latePenaltyPercent =>
       throw _privateConstructorUsedError; // Phần trăm trừ điểm mỗi ngày trễ
-  bool get showScoreImmediately =>
-      throw _privateConstructorUsedError; // Hiển thị điểm ngay sau khi nộp
+  // 'none' = ẩn hết, 'score_only' = chỉ điểm, 'full_review' = xem lại cả bài
+  String get studentReviewMode => throw _privateConstructorUsedError;
+  int? get maxAttempts =>
+      throw _privateConstructorUsedError; // null = không giới hạn
   bool get sendNotification =>
       throw _privateConstructorUsedError; // Gửi thông báo cho học sinh
   bool get shuffleQuestions =>
@@ -72,7 +74,8 @@ abstract class $DistributeAssignmentStateCopyWith<$Res> {
     int? timeLimitMinutes,
     bool allowLate,
     int latePenaltyPercent,
-    bool showScoreImmediately,
+    String studentReviewMode,
+    int? maxAttempts,
     bool sendNotification,
     bool shuffleQuestions,
     bool shuffleAnswers,
@@ -111,7 +114,8 @@ class _$DistributeAssignmentStateCopyWithImpl<
     Object? timeLimitMinutes = freezed,
     Object? allowLate = null,
     Object? latePenaltyPercent = null,
-    Object? showScoreImmediately = null,
+    Object? studentReviewMode = null,
+    Object? maxAttempts = freezed,
     Object? sendNotification = null,
     Object? shuffleQuestions = null,
     Object? shuffleAnswers = null,
@@ -157,10 +161,14 @@ class _$DistributeAssignmentStateCopyWithImpl<
                 ? _value.latePenaltyPercent
                 : latePenaltyPercent // ignore: cast_nullable_to_non_nullable
                       as int,
-            showScoreImmediately: null == showScoreImmediately
-                ? _value.showScoreImmediately
-                : showScoreImmediately // ignore: cast_nullable_to_non_nullable
-                      as bool,
+            studentReviewMode: null == studentReviewMode
+                ? _value.studentReviewMode
+                : studentReviewMode // ignore: cast_nullable_to_non_nullable
+                      as String,
+            maxAttempts: freezed == maxAttempts
+                ? _value.maxAttempts
+                : maxAttempts // ignore: cast_nullable_to_non_nullable
+                      as int?,
             sendNotification: null == sendNotification
                 ? _value.sendNotification
                 : sendNotification // ignore: cast_nullable_to_non_nullable
@@ -224,7 +232,8 @@ abstract class _$$DistributeAssignmentStateImplCopyWith<$Res>
     int? timeLimitMinutes,
     bool allowLate,
     int latePenaltyPercent,
-    bool showScoreImmediately,
+    String studentReviewMode,
+    int? maxAttempts,
     bool sendNotification,
     bool shuffleQuestions,
     bool shuffleAnswers,
@@ -264,7 +273,8 @@ class __$$DistributeAssignmentStateImplCopyWithImpl<$Res>
     Object? timeLimitMinutes = freezed,
     Object? allowLate = null,
     Object? latePenaltyPercent = null,
-    Object? showScoreImmediately = null,
+    Object? studentReviewMode = null,
+    Object? maxAttempts = freezed,
     Object? sendNotification = null,
     Object? shuffleQuestions = null,
     Object? shuffleAnswers = null,
@@ -310,10 +320,14 @@ class __$$DistributeAssignmentStateImplCopyWithImpl<$Res>
             ? _value.latePenaltyPercent
             : latePenaltyPercent // ignore: cast_nullable_to_non_nullable
                   as int,
-        showScoreImmediately: null == showScoreImmediately
-            ? _value.showScoreImmediately
-            : showScoreImmediately // ignore: cast_nullable_to_non_nullable
-                  as bool,
+        studentReviewMode: null == studentReviewMode
+            ? _value.studentReviewMode
+            : studentReviewMode // ignore: cast_nullable_to_non_nullable
+                  as String,
+        maxAttempts: freezed == maxAttempts
+            ? _value.maxAttempts
+            : maxAttempts // ignore: cast_nullable_to_non_nullable
+                  as int?,
         sendNotification: null == sendNotification
             ? _value.sendNotification
             : sendNotification // ignore: cast_nullable_to_non_nullable
@@ -356,7 +370,8 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
     this.timeLimitMinutes = null,
     this.allowLate = true,
     this.latePenaltyPercent = 10,
-    this.showScoreImmediately = true,
+    this.studentReviewMode = 'full_review',
+    this.maxAttempts = null,
     this.sendNotification = true,
     this.shuffleQuestions = false,
     this.shuffleAnswers = false,
@@ -406,10 +421,14 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
   @JsonKey()
   final int latePenaltyPercent;
   // Phần trăm trừ điểm mỗi ngày trễ
+  // 'none' = ẩn hết, 'score_only' = chỉ điểm, 'full_review' = xem lại cả bài
   @override
   @JsonKey()
-  final bool showScoreImmediately;
-  // Hiển thị điểm ngay sau khi nộp
+  final String studentReviewMode;
+  @override
+  @JsonKey()
+  final int? maxAttempts;
+  // null = không giới hạn
   @override
   @JsonKey()
   final bool sendNotification;
@@ -434,7 +453,7 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
 
   @override
   String toString() {
-    return 'DistributeAssignmentState(assignment: $assignment, selectedAssignments: $selectedAssignments, recipientSelection: $recipientSelection, dueDate: $dueDate, availableFrom: $availableFrom, availableUntil: $availableUntil, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePenaltyPercent: $latePenaltyPercent, showScoreImmediately: $showScoreImmediately, sendNotification: $sendNotification, shuffleQuestions: $shuffleQuestions, shuffleAnswers: $shuffleAnswers, isLoading: $isLoading, isSuccess: $isSuccess, errorMessage: $errorMessage)';
+    return 'DistributeAssignmentState(assignment: $assignment, selectedAssignments: $selectedAssignments, recipientSelection: $recipientSelection, dueDate: $dueDate, availableFrom: $availableFrom, availableUntil: $availableUntil, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePenaltyPercent: $latePenaltyPercent, studentReviewMode: $studentReviewMode, maxAttempts: $maxAttempts, sendNotification: $sendNotification, shuffleQuestions: $shuffleQuestions, shuffleAnswers: $shuffleAnswers, isLoading: $isLoading, isSuccess: $isSuccess, errorMessage: $errorMessage)';
   }
 
   @override
@@ -461,8 +480,10 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
                 other.allowLate == allowLate) &&
             (identical(other.latePenaltyPercent, latePenaltyPercent) ||
                 other.latePenaltyPercent == latePenaltyPercent) &&
-            (identical(other.showScoreImmediately, showScoreImmediately) ||
-                other.showScoreImmediately == showScoreImmediately) &&
+            (identical(other.studentReviewMode, studentReviewMode) ||
+                other.studentReviewMode == studentReviewMode) &&
+            (identical(other.maxAttempts, maxAttempts) ||
+                other.maxAttempts == maxAttempts) &&
             (identical(other.sendNotification, sendNotification) ||
                 other.sendNotification == sendNotification) &&
             (identical(other.shuffleQuestions, shuffleQuestions) ||
@@ -489,7 +510,8 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
     timeLimitMinutes,
     allowLate,
     latePenaltyPercent,
-    showScoreImmediately,
+    studentReviewMode,
+    maxAttempts,
     sendNotification,
     shuffleQuestions,
     shuffleAnswers,
@@ -521,7 +543,8 @@ abstract class _DistributeAssignmentState implements DistributeAssignmentState {
     final int? timeLimitMinutes,
     final bool allowLate,
     final int latePenaltyPercent,
-    final bool showScoreImmediately,
+    final String studentReviewMode,
+    final int? maxAttempts,
     final bool sendNotification,
     final bool shuffleQuestions,
     final bool shuffleAnswers,
@@ -550,8 +573,11 @@ abstract class _DistributeAssignmentState implements DistributeAssignmentState {
   bool get allowLate; // Cho phép nộp muộn
   @override
   int get latePenaltyPercent; // Phần trăm trừ điểm mỗi ngày trễ
+  // 'none' = ẩn hết, 'score_only' = chỉ điểm, 'full_review' = xem lại cả bài
   @override
-  bool get showScoreImmediately; // Hiển thị điểm ngay sau khi nộp
+  String get studentReviewMode;
+  @override
+  int? get maxAttempts; // null = không giới hạn
   @override
   bool get sendNotification; // Gửi thông báo cho học sinh
   @override

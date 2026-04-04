@@ -64,6 +64,12 @@ import 'package:go_router/go_router.dart';
 /// Navigation patterns:
 /// - UI: context.goNamed('route-name', pathParameters: {...})
 /// - Logic: ref.read(routerProvider).goNamed(...)
+// Explicit navigatorKeys cho từng ShellRoute — bắt buộc khi có nhiều ShellRoute cùng cấp
+// để GoRouter v14 không tạo pageKey trùng từ route.hashCode
+final _studentShellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'studentShell');
+final _teacherShellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'teacherShell');
+final _adminShellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'adminShell');
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   // Tạo Listenable để GoRouter biết khi nào cần re-evaluate redirect.
   // KHÔNG dùng ref.watch vì nó sẽ tái tạo TOÀN BỘ GoRouter (reset về splash).
@@ -186,6 +192,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // ==================== STUDENT DASHBOARD SHELL ====================
       // ShellRoute maintains bottom nav while child routes swap content
       ShellRoute(
+        navigatorKey: _studentShellNavigatorKey,
         builder: (context, state, child) {
           final profile = ref.watch(currentUserProvider).value;
           if (profile == null) return const SizedBox.shrink();
@@ -297,6 +304,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ==================== TEACHER DASHBOARD SHELL ====================
       ShellRoute(
+        navigatorKey: _teacherShellNavigatorKey,
         builder: (context, state, child) {
           final profile = ref.watch(currentUserProvider).value;
           if (profile == null) return const SizedBox.shrink();
@@ -347,6 +355,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ==================== ADMIN DASHBOARD SHELL ====================
       ShellRoute(
+        navigatorKey: _adminShellNavigatorKey,
         builder: (context, state, child) {
           final profile = ref.watch(currentUserProvider).value;
           if (profile == null) return const SizedBox.shrink();
@@ -434,8 +443,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.studentAssignmentWorkspace,
         builder: (context, state) {
           final distributionId = state.pathParameters['distributionId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          final isReadOnly = extra?['isReadOnly'] as bool? ?? false;
           return StudentAssignmentWorkspaceScreen(
             distributionId: distributionId,
+            isReadOnly: isReadOnly,
           );
         },
       ),
@@ -513,9 +525,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final extra = state.extra as Map<String, dynamic>?;
           final assignmentId = extra?['assignmentId'] as String?;
           final selectedClassId = extra?['selectedClassId'] as String?;
+          final isEditMode = extra?['isEditMode'] as bool? ?? false;
+          final distributionId = extra?['distributionId'] as String?;
+          final distributionConfig =
+              extra?['distributionConfig'] as Map<String, dynamic>?;
           return TeacherDistributeAssignmentScreen(
             assignmentId: assignmentId,
             selectedClassId: selectedClassId,
+            isEditMode: isEditMode,
+            distributionId: distributionId,
+            distributionConfig: distributionConfig,
           );
         },
       ),
