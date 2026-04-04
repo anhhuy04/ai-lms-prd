@@ -1,1 +1,14 @@
-{"version":"1.0","timestamp":"2026-04-04T14:34:52.517Z","phase":"settings-ui-refactor","phase_name":"api_key_setup_screen refactor","status":"paused","completed_tasks":[{"id":1,"name":"Tách 2 card API setup riêng","status":"done"},{"id":2,"name":"Thêm nút Kiểm tra API card 1","status":"done"},{"id":3,"name":"Nút Cập nhật = Test→Lưu→Áp dụng","status":"done"},{"id":4,"name":"Không reload trang khi apply","status":"done"},{"id":5,"name":"Key input inline trong card + fix analyze errors","status":"done"}],"remaining_tasks":[],"blockers":[],"uncommitted_files":["lib/presentation/views/settings/api_key_setup_screen.dart"],"next_action":"flutter analyze toàn project, test thực tế trên device","context_notes":"api_key_setup_screen.dart refactor xong. Chỉ còn 3 warnings unused fields, không có errors."}
+{
+  "version": "1.0",
+  "timestamp": "2026-04-04T23:00:00+07:00",
+  "phase": "settings-ui-refactor",
+  "phase_name": "Ollama Integration & API Key Setup Refactor",
+  "status": "paused",
+  "uncommitted_files": [
+    "lib/core/services/ai_service.dart",
+    "lib/core/services/api_key_service.dart",
+    "lib/presentation/views/settings/api_key_setup_screen.dart"
+  ],
+  "next_action": "Hot reload app, go to Settings -> API Key, connect Ollama with LAN IP, then test question generation",
+  "context_notes": "Main bug: callActiveAi defaulted to Gemini when provider=ollama. Fixed by adding providerOllama routing + callOllamaChat method. Dio optimized (static instances, shared error helpers). UI: URL presets + model BottomSheet. LDPlayer needs host LAN IP + OLLAMA_HOST=0.0.0.0."
+}

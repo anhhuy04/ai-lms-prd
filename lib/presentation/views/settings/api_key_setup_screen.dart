@@ -53,6 +53,15 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
   bool _isUpdatingQuestion = false;
   bool _isUpdatingAnalytics = false;
 
+  // ── Ollama model controllers (nhập thủ công) ───────────────────────────
+  final _ollamaModelQuestionController = TextEditingController(
+    text: ApiKeyService.defaultOllamaModel,
+  );
+  final _ollamaModelAnalyticsController = TextEditingController(
+    text: ApiKeyService.defaultOllamaModel,
+  );
+  bool _isFetchingOllamaModels = false;
+
   @override
   void initState() {
     super.initState();
@@ -100,6 +109,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         _selectedGroqModel = model;
       } else if (provider == ApiKeyService.providerOllama) {
         _selectedOllamaModel = model;
+        _ollamaModelQuestionController.text = model;
       } else {
         _selectedGeminiModel = model;
       }
@@ -111,10 +121,39 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         _selectedAnalyticsGroqModel = analyticsModel;
       } else if (analyticsProvider == ApiKeyService.providerOllama) {
         _selectedAnalyticsOllamaModel = analyticsModel;
+        _ollamaModelAnalyticsController.text = analyticsModel;
       } else {
         _selectedAnalyticsGeminiModel = analyticsModel;
       }
     });
+
+    // Auto-fetch Ollama models nếu URL đã lưu
+    if (ollamaUrl.isNotEmpty) {
+      _fetchOllamaModels(ollamaUrl.toString());
+    }
+  }
+
+  /// Fetch danh sách models từ Ollama server (background, không block UI)
+  Future<void> _fetchOllamaModels(String url) async {
+    if (url.isEmpty || _isFetchingOllamaModels) return;
+    setState(() => _isFetchingOllamaModels = true);
+    try {
+      final result = await ApiKeyService.testOllamaConnection(url);
+      if (!mounted) return;
+      final models = (result['models'] as List<dynamic>?)
+              ?.map((m) => m.toString())
+              .toList() ??
+          [];
+      setState(() {
+        _ollamaAvailableModels = models;
+        _isFetchingOllamaModels = false;
+        if (result['success'] == true) {
+          _ollamaConnectionStatus = 'working';
+        }
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isFetchingOllamaModels = false);
+    }
   }
 
   String _resolveModel({
@@ -190,6 +229,21 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         _showErrorDialog('Kiểm tra API thất bại — không lưu', _questionKeyError ?? 'Lỗi không xác định');
         return;
       }
+
+      // Cập nhật models list nếu là Ollama
+      if (provider == ApiKeyService.providerOllama) {
+        final models = (testResult['models'] as List<dynamic>?)
+                ?.map((m) => m.toString())
+                .toList() ??
+            [];
+        if (models.isNotEmpty) {
+          setState(() {
+            _ollamaAvailableModels = models;
+            _ollamaConnectionStatus = 'working';
+          });
+        }
+      }
+
       setState(() => _questionKeyStatus = 'working');
 
       // ── Bước 3: Lưu key/URL ────────────────────────────────────────────
@@ -316,6 +370,21 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         _showErrorDialog('Kiểm tra API thất bại — không lưu', _analyticsKeyError ?? 'Lỗi không xác định');
         return;
       }
+
+      // Cập nhật models list nếu là Ollama
+      if (provider == ApiKeyService.providerOllama) {
+        final models = (testResult['models'] as List<dynamic>?)
+                ?.map((m) => m.toString())
+                .toList() ??
+            [];
+        if (models.isNotEmpty) {
+          setState(() {
+            _ollamaAvailableModels = models;
+            _ollamaConnectionStatus = 'working';
+          });
+        }
+      }
+
       setState(() => _analyticsKeyStatus = 'working');
 
       // ── Bước 3: Lưu key/URL ────────────────────────────────────────────
@@ -384,6 +453,8 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
     _geminiKeyController.dispose();
     _groqKeyController.dispose();
     _ollamaUrlController.dispose();
+    _ollamaModelQuestionController.dispose();
+    _ollamaModelAnalyticsController.dispose();
     super.dispose();
   }
 
@@ -431,6 +502,21 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
 
       if (!mounted) return false;
       final success = result['success'] == true;
+
+      // Cập nhật models list nếu là Ollama
+      if (provider == ApiKeyService.providerOllama && success) {
+        final models = (result['models'] as List<dynamic>?)
+                ?.map((m) => m.toString())
+                .toList() ??
+            [];
+        if (models.isNotEmpty) {
+          setState(() {
+            _ollamaAvailableModels = models;
+            _ollamaConnectionStatus = 'working';
+          });
+        }
+      }
+
       setState(() {
         _analyticsKeyTesting = false;
         _analyticsKeyStatus = success ? 'working' : 'error';
@@ -510,6 +596,21 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
 
       if (!mounted) return false;
       final success = result['success'] == true;
+
+      // Cập nhật models list nếu là Ollama
+      if (provider == ApiKeyService.providerOllama && success) {
+        final models = (result['models'] as List<dynamic>?)
+                ?.map((m) => m.toString())
+                .toList() ??
+            [];
+        if (models.isNotEmpty) {
+          setState(() {
+            _ollamaAvailableModels = models;
+            _ollamaConnectionStatus = 'working';
+          });
+        }
+      }
+
       setState(() {
         _questionKeyTesting = false;
         _questionKeyStatus = success ? 'working' : 'error';
@@ -834,6 +935,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
                     selectedGeminiModel: _selectedGeminiModel,
                     selectedGroqModel: _selectedGroqModel,
                     selectedOllamaModel: _selectedOllamaModel,
+                    ollamaModelController: _ollamaModelQuestionController,
                     onProviderChanged: (v) => setState(() {
                       _selectedProvider = v;
                       _questionKeyStatus = null;
@@ -882,6 +984,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
                     selectedGeminiModel: _selectedAnalyticsGeminiModel,
                     selectedGroqModel: _selectedAnalyticsGroqModel,
                     selectedOllamaModel: _selectedAnalyticsOllamaModel,
+                    ollamaModelController: _ollamaModelAnalyticsController,
                     onProviderChanged: (v) => setState(() {
                       _selectedAnalyticsProvider = v;
                       _analyticsKeyStatus = null;
@@ -917,6 +1020,177 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
     );
   }
 
+  // ── OLLAMA MODEL INPUT ───────────────────────────────────────────────────
+  Widget _buildOllamaModelInput({
+    required bool isDark,
+    required Color accentColor,
+    required TextEditingController controller,
+    required ValueChanged<String> onChanged,
+  }) {
+    final borderColor = isDark ? Colors.grey[700]! : Colors.grey[300]!;
+    final labelColor = isDark ? Colors.grey[400]! : DesignColors.textSecondary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Text field nhập model thủ công
+        TextField(
+          controller: controller,
+          onChanged: (v) => onChanged(v.trim()),
+          decoration: InputDecoration(
+            labelText: 'Model Ollama',
+            hintText: 'mistral, llama3:8b, codellama:7b...',
+            hintStyle: TextStyle(color: isDark ? Colors.grey[600] : Colors.grey[400]),
+            prefixIcon: Icon(Icons.memory_rounded, size: 18, color: labelColor),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(DesignRadius.lg),
+              borderSide: BorderSide(color: borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(DesignRadius.lg),
+              borderSide: BorderSide(color: borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(DesignRadius.lg),
+              borderSide: BorderSide(color: accentColor, width: 1.5),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          ),
+        ),
+        // Chips danh sách models đã cài (nếu có)
+        if (_ollamaAvailableModels.isNotEmpty) ...[
+          const SizedBox(height: DesignSpacing.sm),
+          Row(
+            children: [
+              Icon(Icons.check_circle_outline, size: 12, color: DesignColors.success),
+              const SizedBox(width: 4),
+              Text(
+                'Đã cài (${_ollamaAvailableModels.length}):',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: _ollamaAvailableModels.map((m) {
+              final isSelected = controller.text.trim() == m;
+              return GestureDetector(
+                onTap: () {
+                  controller.text = m;
+                  onChanged(m);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? accentColor.withValues(alpha: 0.12)
+                        : isDark
+                            ? Colors.grey[800]
+                            : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(DesignRadius.full),
+                    border: Border.all(
+                      color: isSelected
+                          ? accentColor.withValues(alpha: 0.5)
+                          : isDark
+                              ? Colors.grey[700]!
+                              : Colors.grey[300]!,
+                    ),
+                  ),
+                  child: Text(
+                    m,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected
+                          ? accentColor
+                          : isDark
+                              ? Colors.grey[300]
+                              : Colors.grey[700],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ] else if (_isFetchingOllamaModels) ...[
+          const SizedBox(height: DesignSpacing.xs),
+          Row(
+            children: [
+              const SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(strokeWidth: 1.5),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Đang lấy danh sách model...',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          const SizedBox(height: DesignSpacing.xs),
+          Text(
+            'Kết nối Ollama bên dưới để xem danh sách model đã cài',
+            style: TextStyle(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              color: isDark ? Colors.grey[500] : Colors.grey[500],
+            ),
+          ),
+        ],
+
+        // ── Nút xem & chọn model ──────────────────────────────────────
+        const SizedBox(height: DesignSpacing.sm),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _isFetchingOllamaModels
+                ? null
+                : () => _showOllamaModelBottomSheet(
+                      isDark: isDark,
+                      accentColor: accentColor,
+                      controller: controller,
+                      onChanged: onChanged,
+                    ),
+            icon: _isFetchingOllamaModels
+                ? const SizedBox(
+                    width: 13,
+                    height: 13,
+                    child: CircularProgressIndicator(strokeWidth: 1.5),
+                  )
+                : Icon(Icons.list_alt_rounded, size: 15, color: accentColor),
+            label: Text(
+              _isFetchingOllamaModels
+                  ? 'Đang tải...'
+                  : _ollamaAvailableModels.isEmpty
+                      ? 'Kiểm tra & chọn model'
+                      : 'Chọn model (${_ollamaAvailableModels.length} đã cài)',
+              style: TextStyle(fontSize: 13, color: accentColor),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(
+                color: _isFetchingOllamaModels
+                    ? Colors.grey[400]!
+                    : accentColor,
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   // ── KEY INPUT INLINE ──────────────────────────────────────────────────
   Widget _buildInlineKeyInput(String provider, bool isDark, Color accentColor) {
     final borderColor = isDark ? Colors.grey[700]! : Colors.grey[300]!;
@@ -941,14 +1215,22 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
               ),
               if (_ollamaUrlController.text.isNotEmpty) ...[
                 const Spacer(),
-                _buildStatusDot(_ollamaConnectionStatus),
+                _isFetchingOllamaModels
+                    ? const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 1.5),
+                      )
+                    : _buildStatusDot(_ollamaConnectionStatus),
               ],
             ],
           ),
           const SizedBox(height: DesignSpacing.sm),
           TextField(
             controller: _ollamaUrlController,
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => setState(() {
+              _ollamaConnectionStatus = null;
+            }),
             decoration: InputDecoration(
               hintText: 'http://localhost:11434',
               hintStyle: TextStyle(color: isDark ? Colors.grey[600] : Colors.grey[400]),
@@ -974,6 +1256,52 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
                     )
                   : null,
             ),
+          ),
+          const SizedBox(height: DesignSpacing.sm),
+          // ── Quick URL presets ────────────────────────────────────────────
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.flash_on_rounded, size: 12, color: labelColor),
+                  const SizedBox(width: 4),
+                  Text(
+                    'QUICK:',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                      color: labelColor,
+                    ),
+                  ),
+                ],
+              ),
+              _buildUrlPresetChip(
+                'Kiểm tra trên PC',
+                Icons.monitor_rounded,
+                'http://127.0.0.1:11434',
+                accentColor,
+                isDark,
+              ),
+              _buildUrlPresetChip(
+                'Kiểm tra từ Emulator',
+                Icons.phone_android_rounded,
+                null, // mở dialog nhập IP LAN
+                accentColor,
+                isDark,
+              ),
+              _buildUrlPresetChip(
+                'Dùng trên PC (Mạng)',
+                Icons.lan_rounded,
+                'http://localhost:11434',
+                accentColor,
+                isDark,
+              ),
+            ],
           ),
         ],
       );
@@ -1110,6 +1438,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
     required String selectedGeminiModel,
     required String selectedGroqModel,
     required String selectedOllamaModel,
+    required TextEditingController ollamaModelController,
     required ValueChanged<String> onProviderChanged,
     required ValueChanged<String> onGeminiModelChanged,
     required ValueChanged<String> onGroqModelChanged,
@@ -1327,30 +1656,12 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
                     onChanged: (v) { if (v != null) onGroqModelChanged(v); },
                   )
                 else if (selectedProvider == ApiKeyService.providerOllama)
-                  if (_ollamaAvailableModels.isEmpty)
-                    Text(
-                      'Kết nối Ollama bên dưới để xem danh sách model',
-                      style: DesignTypography.bodySmall.copyWith(
-                        color: DesignColors.textSecondary,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    )
-                  else
-                    SelectField<String>(
-                      label: 'Model Ollama',
-                      value: selectedOllamaModel,
-                      prefixIcon: Icons.memory_rounded,
-                      useCustomPicker: true,
-                      options: _ollamaAvailableModels
-                          .map((m) => SelectFieldOption(
-                                value: m,
-                                label: m,
-                                description: '',
-                                icon: Icons.layers_outlined,
-                              ))
-                          .toList(),
-                      onChanged: (v) { if (v != null) onOllamaModelChanged(v); },
-                    ),
+                  _buildOllamaModelInput(
+                    isDark: isDark,
+                    accentColor: accentColor,
+                    controller: ollamaModelController,
+                    onChanged: onOllamaModelChanged,
+                  ),
 
                 // ── Divider ──────────────────────────────────────────────
                 const SizedBox(height: DesignSpacing.lg),
@@ -1507,6 +1818,478 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
               color: color,
               fontWeight: FontWeight.w500,
               fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── OLLAMA MODEL BOTTOM SHEET ────────────────────────────────────────────
+  Future<void> _showOllamaModelBottomSheet({
+    required bool isDark,
+    required Color accentColor,
+    required TextEditingController controller,
+    required ValueChanged<String> onChanged,
+  }) async {
+    // Nếu chưa có models và có URL → fetch trước
+    if (_ollamaAvailableModels.isEmpty && _ollamaUrlController.text.trim().isNotEmpty) {
+      await _fetchOllamaModels(_ollamaUrlController.text.trim());
+    }
+    if (!mounted) return;
+
+    final manualCtrl = TextEditingController(text: controller.text);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return DraggableScrollableSheet(
+            initialChildSize: 0.55,
+            minChildSize: 0.35,
+            maxChildSize: 0.9,
+            expand: false,
+            builder: (_, scrollCtrl) => Column(
+              children: [
+                // ── Handle ───────────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[600] : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                // ── Header ───────────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Icon(Icons.memory_rounded, size: 18, color: accentColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Chọn model Ollama',
+                          style: DesignTypography.titleMedium.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        iconSize: 20,
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                // ── Scrollable content ───────────────────────────────────
+                Expanded(
+                  child: ListView(
+                    controller: scrollCtrl,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    children: [
+                      // ── Nhập thủ công ─────────────────────────────────
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'NHẬP TÊN MODEL',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
+                                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: manualCtrl,
+                                    autofocus: _ollamaAvailableModels.isEmpty,
+                                    decoration: InputDecoration(
+                                      hintText: 'mistral, llama3:8b, codellama:7b...',
+                                      prefixIcon: const Icon(Icons.edit_rounded, size: 16),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(DesignRadius.lg),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(DesignRadius.lg),
+                                        borderSide: BorderSide(color: accentColor, width: 1.5),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    final val = manualCtrl.text.trim();
+                                    if (val.isEmpty) return;
+                                    controller.text = val;
+                                    onChanged(val);
+                                    Navigator.of(ctx).pop();
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: accentColor,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  child: const Text('Dùng'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      if (_ollamaAvailableModels.isNotEmpty) ...[
+                        const Divider(height: 24),
+                        // ── Danh sách models đã cài ───────────────────
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 13,
+                              color: DesignColors.success,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'MODELS ĐÃ CÀI (${_ollamaAvailableModels.length})',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
+                                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ..._ollamaAvailableModels.map((m) {
+                          final isSelected = controller.text.trim() == m;
+                          return InkWell(
+                            onTap: () {
+                              controller.text = m;
+                              onChanged(m);
+                              Navigator.of(ctx).pop();
+                            },
+                            borderRadius: BorderRadius.circular(DesignRadius.md),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? accentColor.withValues(alpha: 0.08)
+                                    : null,
+                                borderRadius: BorderRadius.circular(DesignRadius.md),
+                                border: isSelected
+                                    ? Border.all(
+                                        color: accentColor.withValues(alpha: 0.4),
+                                      )
+                                    : null,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.layers_outlined,
+                                    size: 16,
+                                    color: isSelected
+                                        ? accentColor
+                                        : isDark
+                                            ? Colors.grey[400]
+                                            : Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      m,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: isSelected
+                                            ? accentColor
+                                            : isDark
+                                                ? Colors.white
+                                                : DesignColors.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    Icon(
+                                      Icons.check_rounded,
+                                      size: 16,
+                                      color: accentColor,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      ] else ...[
+                        const Divider(height: 24),
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.cloud_off_rounded,
+                                  size: 36,
+                                  color: isDark ? Colors.grey[600] : Colors.grey[400],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Không tìm thấy model nào',
+                                  style: TextStyle(
+                                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Nhập URL Ollama và bấm "Kiểm tra" để load',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? Colors.grey[600] : Colors.grey[500],
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── URL PRESET CHIP ──────────────────────────────────────────────────────
+  Widget _buildUrlPresetChip(
+    String label,
+    IconData icon,
+    String? url,
+    Color accentColor,
+    bool isDark,
+  ) {
+    final isActive = url != null && _ollamaUrlController.text == url;
+    return GestureDetector(
+      onTap: () async {
+        if (url != null) {
+          setState(() {
+            _ollamaUrlController.text = url;
+            _ollamaConnectionStatus = null;
+            _ollamaAvailableModels = [];
+          });
+        } else {
+          await _showCustomIpDialog();
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isActive
+              ? accentColor.withValues(alpha: 0.12)
+              : isDark
+                  ? Colors.grey[800]
+                  : Colors.grey[100],
+          borderRadius: BorderRadius.circular(DesignRadius.full),
+          border: Border.all(
+            color: isActive
+                ? accentColor.withValues(alpha: 0.5)
+                : isDark
+                    ? Colors.grey[700]!
+                    : Colors.grey[300]!,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 11,
+              color: isActive ? accentColor : (isDark ? Colors.grey[400] : Colors.grey[600]),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                color: isActive ? accentColor : (isDark ? Colors.grey[400] : Colors.grey[600]),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCustomIpDialog() async {
+    final currentUrl = _ollamaUrlController.text;
+    String initialValue = '192.168.1.x:11434';
+    try {
+      if (currentUrl.isNotEmpty) {
+        final uri = Uri.parse(currentUrl);
+        if (uri.host.isNotEmpty) {
+          initialValue = '${uri.host}:${uri.port}';
+        }
+      }
+    } catch (_) {}
+
+    final inputCtrl = TextEditingController(text: initialValue);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.phone_android_rounded, size: 18, color: DesignColors.primary),
+            const SizedBox(width: 8),
+            const Text('Kiểm tra từ Emulator'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: inputCtrl,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'IP:Port',
+                  hintText: '192.168.1.5:11434',
+                  prefixText: 'http://',
+                  border: const OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.url,
+              ),
+              const SizedBox(height: 12),
+              // ── Hướng dẫn theo loại emulator ──────────────────────────
+              _buildIpHintBox(
+                icon: Icons.computer_rounded,
+                title: 'LDPlayer / BlueStacks / Genymotion',
+                steps: [
+                  'Chạy ipconfig trên Windows → lấy IPv4 (vd: 192.168.1.5)',
+                  'Bật OLLAMA_HOST=0.0.0.0:11434 rồi restart Ollama',
+                  'Mở firewall port 11434 (netsh hoặc Windows Defender)',
+                  'Nhập: 192.168.1.5:11434',
+                ],
+              ),
+              const SizedBox(height: 8),
+              _buildIpHintBox(
+                icon: Icons.android_rounded,
+                title: 'Android Studio AVD',
+                steps: ['Dùng nút "Máy ảo" → tự điền 10.0.2.2:11434'],
+              ),
+              const SizedBox(height: 8),
+              _buildIpHintBox(
+                icon: Icons.phone_android_rounded,
+                title: 'Máy thật (cùng WiFi)',
+                steps: [
+                  'Lấy IP máy tính trên cùng mạng WiFi',
+                  'Bật OLLAMA_HOST=0.0.0.0:11434',
+                  'Nhập IP đó vào đây',
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final val = inputCtrl.text.trim();
+              if (val.isNotEmpty) {
+                Navigator.of(ctx).pop('http://$val');
+              }
+            },
+            child: const Text('Áp dụng'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _ollamaUrlController.text = result;
+        _ollamaConnectionStatus = null;
+        _ollamaAvailableModels = [];
+      });
+    }
+  }
+
+  Widget _buildIpHintBox({
+    required IconData icon,
+    required String title,
+    required List<String> steps,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: DesignColors.info.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        border: Border.all(color: DesignColors.info.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 13, color: DesignColors.info),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  style: DesignTypography.bodySmall.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: DesignColors.info,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ...steps.map(
+            (s) => Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '• $s',
+                style: DesignTypography.bodySmall.copyWith(fontSize: 11),
+              ),
             ),
           ),
         ],

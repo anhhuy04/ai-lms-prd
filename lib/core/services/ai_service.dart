@@ -37,6 +37,7 @@ class AiService {
   /// Provider constants
   static const String providerGemini = ApiKeyService.providerGemini;
   static const String providerGroq = ApiKeyService.providerGroq;
+  static const String providerOllama = ApiKeyService.providerOllama;
 
   /// Gemini base URL
   static const String _geminiBaseUrl =
@@ -349,6 +350,10 @@ RÀNG BUỘC:
     final provider = await ApiKeyService.getActiveProvider();
     final model = await ApiKeyService.getActiveModel();
 
+    if (provider == providerOllama) {
+      return await callOllamaChat(prompt, model: model);
+    }
+
     if (provider == providerGroq) {
       int attempt = 0;
       while (attempt <= maxRetries) {
@@ -558,6 +563,63 @@ RÀNG BUỘC:
     } catch (e) {
       AppLogger.error('❌ [AI Service] Gemini API error: $e', error: e);
       throw Exception('Lỗi khi gọi Gemini API: ${e.toString()}');
+    }
+  }
+
+  /// Call Ollama local API (/api/generate)
+  static Future<String> callOllamaChat(String prompt, {String? model}) async {
+    final baseUrl = await ApiKeyService.getOllamaBaseUrl();
+    if (baseUrl.isEmpty) {
+      throw Exception('Ollama URL chưa được cấu hình. Vào Settings → Cài đặt API Key.');
+    }
+    final usedModel = (model != null && model.isNotEmpty)
+        ? model
+        : await ApiKeyService.getActiveModelFor(providerOllama);
+
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 120),
+        headers: {'Content-Type': 'application/json'},
+        validateStatus: (s) => s != null,
+      ),
+    );
+
+    final url = '${baseUrl.replaceAll(RegExp(r'/$'), '')}/api/generate';
+    AppLogger.info('🤖 [AI Service] Calling Ollama... url=$url model=$usedModel');
+
+    try {
+      final response = await dio.post(url, data: {
+        'model': usedModel,
+        'prompt': prompt,
+        'stream': false,
+      });
+
+      if (response.statusCode != 200) {
+        throw Exception('Ollama trả về lỗi HTTP ${response.statusCode}');
+      }
+
+      final data = response.data;
+      final Map<String, dynamic> map = data is String ? {} : data as Map<String, dynamic>;
+      final text = map['response'] as String?;
+      if (text == null || text.isEmpty) {
+        throw Exception('Ollama không trả về nội dung (response rỗng)');
+      }
+
+      AppLogger.info('✅ [AI Service] Ollama response received');
+      return text;
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw Exception('Timeout kết nối Ollama. Model đang load hoặc quá lâu — thử lại.');
+      }
+      if (e.type == DioExceptionType.connectionError) {
+        throw Exception('Không thể kết nối Ollama ($baseUrl). Kiểm tra URL và Ollama đang chạy.');
+      }
+      throw Exception('Lỗi Ollama: ${e.message}');
+    } catch (e) {
+      AppLogger.error('❌ [AI Service] Ollama error: $e', error: e);
+      rethrow;
     }
   }
 

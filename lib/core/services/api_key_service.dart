@@ -57,9 +57,64 @@ class ApiKeyService {
   static const String _groqChatUrl =
       'https://api.groq.com/openai/v1/chat/completions';
 
-  static String _geminiEndpointFromModel(String model) {
-    return '$_geminiBaseUrl/models/$model:generateContent';
-  }
+  static String _geminiEndpointFromModel(String model) =>
+      '$_geminiBaseUrl/models/$model:generateContent';
+
+  // ── Reusable Dio instances ───────────────────────────────────────────────
+  // Tái sử dụng connection pool, tránh overhead tạo Dio mới mỗi request
+  static final Dio _geminiDio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 15),
+      headers: {'Content-Type': 'application/json'},
+      validateStatus: (s) => s != null, // không throw cho 4xx, xử lý tại caller
+    ),
+  );
+
+  static final Dio _groqDio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 15),
+      headers: {'Content-Type': 'application/json'},
+      validateStatus: (s) => s != null,
+    ),
+  );
+
+  static final Dio _ollamaDio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 5),
+      receiveTimeout: const Duration(seconds: 10),
+      headers: {'Content-Type': 'application/json'},
+      validateStatus: (s) => s != null,
+    ),
+  );
+
+  // ── Error helpers (dùng chung) ───────────────────────────────────────────
+  static String _parseHttpError(int? status, dynamic data) =>
+      switch (status) {
+        400 => 'Request không hợp lệ — kiểm tra API key và tên model (400)',
+        401 => 'API key không được xác thực — kiểm tra lại key (401)',
+        403 => 'API key không có quyền truy cập (403)',
+        429 => 'Quota hết hoặc rate limit — kiểm tra billing (429)',
+        _ => 'Lỗi HTTP $status: ${data?.toString() ?? 'Unknown'}',
+      };
+
+  static String _parseDioNetworkError(
+    DioException e, {
+    String server = 'server',
+  }) =>
+      switch (e.type) {
+        DioExceptionType.connectionTimeout ||
+        DioExceptionType.receiveTimeout =>
+          'Timeout: Không thể kết nối đến $server. Kiểm tra kết nối mạng.',
+        DioExceptionType.connectionError =>
+          'Không thể kết nối đến $server.\n'
+              '• Kiểm tra URL có chính xác\n'
+              '• Kiểm tra service đang chạy\n'
+              '• Kiểm tra firewall / network policy',
+        DioExceptionType.cancel => 'Request bị hủy',
+        _ => e.message ?? 'Lỗi mạng không xác định',
+      };
 
   /// Lấy thông tin về nơi lưu trữ API key
   ///
@@ -167,207 +222,81 @@ Web: Browser's secure storage (if supported)
     }
   }
 
-  /// Test Gemini API key bằng cách gọi API với request đơn giản
-  ///
-  /// [apiKey] - API key cần test
-  /// [model] - model Gemini để test (optional)
-  ///
-  /// Returns: Map với 'success' (bool) và 'error' (String?) nếu có lỗi
+  /// Test Gemini API key
   static Future<Map<String, dynamic>> testGeminiApiKey(
     String apiKey, {
     String? model,
   }) async {
+    if (apiKey.isEmpty) {
+      return {'success': false, 'error': 'API key không được để trống'};
+    }
     try {
-      if (apiKey.isEmpty) {
-        return {'success': false, 'error': 'API key không được để trống'};
-      }
-
       final usedModel = model ?? await getActiveModelFor(providerGemini);
-      final endpoint = _geminiEndpointFromModel(usedModel);
-
-      // Gọi Gemini API với một request test đơn giản
-      final dio = Dio();
-      final response = await dio
-          .post(
-            endpoint,
-            options: Options(
-              headers: {
-                'Content-Type': 'application/json',
-                'X-goog-api-key': apiKey,
-              },
-            ),
-            data: {
-              'contents': [
-                {
-                  'parts': [
-                    {'text': 'Say "test" if you can read this.'},
-                  ],
-                },
+      final response = await _geminiDio.post(
+        _geminiEndpointFromModel(usedModel),
+        options: Options(headers: {'X-goog-api-key': apiKey}),
+        data: {
+          'contents': [
+            {
+              'parts': [
+                {'text': 'Say "test".'},
               ],
             },
-          )
-          .timeout(
-            const Duration(seconds: 10),
-            onTimeout: () {
-              throw DioException(
-                requestOptions: RequestOptions(path: ''),
-                error: 'Timeout: API không phản hồi sau 10 giây',
-              );
-            },
-          );
-
+          ],
+        },
+      );
       if (response.statusCode == 200) {
-        AppLogger.info('✅ [API Key Service] Gemini API key test successful');
+        AppLogger.info('✅ [Gemini] API key test OK');
         return {'success': true};
-      } else {
-        return {
-          'success': false,
-          'error': 'API trả về status code: ${response.statusCode}',
-        };
       }
+      final msg = _parseHttpError(response.statusCode, response.data);
+      AppLogger.error('❌ [Gemini] $msg');
+      return {'success': false, 'error': msg};
     } on DioException catch (e) {
-      String errorMessage = 'Lỗi không xác định';
-
-      if (e.response != null) {
-        final statusCode = e.response!.statusCode;
-        final responseData = e.response!.data;
-
-        if (statusCode == 400) {
-          errorMessage = 'API key không hợp lệ hoặc định dạng sai';
-        } else if (statusCode == 401) {
-          errorMessage =
-              'API key không được xác thực. Vui lòng kiểm tra lại key.';
-        } else if (statusCode == 403) {
-          errorMessage =
-              'API key không có quyền truy cập. Vui lòng kiểm tra quyền của key.';
-        } else if (statusCode == 429) {
-          errorMessage =
-              'Quota đã hết hoặc rate limit. Vui lòng kiểm tra billing và quota.';
-        } else {
-          errorMessage =
-              'Lỗi $statusCode: ${responseData?.toString() ?? e.message ?? 'Unknown error'}';
-        }
-      } else if (e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
-        errorMessage =
-            'Timeout: Không thể kết nối đến API. Vui lòng kiểm tra kết nối internet.';
-      } else if (e.type == DioExceptionType.connectionError) {
-        errorMessage =
-            'Lỗi kết nối: Không thể kết nối đến server. Vui lòng kiểm tra internet.';
-      } else {
-        errorMessage = e.message ?? 'Lỗi không xác định khi test API key';
-      }
-
-      AppLogger.error(
-        '❌ [API Key Service] Gemini API key test failed: $errorMessage',
-        error: e,
-      );
-
-      return {'success': false, 'error': errorMessage};
+      final msg = _parseDioNetworkError(e, server: 'Gemini');
+      AppLogger.error('❌ [Gemini] $msg', error: e);
+      return {'success': false, 'error': msg};
     } catch (e) {
-      AppLogger.error(
-        '❌ [API Key Service] Unexpected error testing Gemini API key: $e',
-        error: e,
-      );
-      return {'success': false, 'error': 'Lỗi không xác định: ${e.toString()}'};
+      AppLogger.error('❌ [Gemini] Unexpected: $e', error: e);
+      return {'success': false, 'error': e.toString()};
     }
   }
 
-  /// Test Groq API key bằng cách gọi Chat Completions (OpenAI-compatible)
-  ///
-  /// [apiKey] - Groq API key cần test
-  /// [model] - Model Groq để test (nếu null sẽ dùng model active hoặc default)
+  /// Test Groq API key (OpenAI-compatible Chat Completions)
   static Future<Map<String, dynamic>> testGroqApiKey(
     String apiKey, {
     String? model,
   }) async {
+    if (apiKey.isEmpty) {
+      return {'success': false, 'error': 'API key không được để trống'};
+    }
     try {
-      if (apiKey.isEmpty) {
-        return {'success': false, 'error': 'API key không được để trống'};
-      }
-
       final usedModel = model ?? await getActiveModelFor(providerGroq);
-      final dio = Dio();
-      final response = await dio
-          .post(
-            _groqChatUrl,
-            options: Options(
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer $apiKey',
-              },
-            ),
-            data: {
-              'model': usedModel,
-              'temperature': 0,
-              'messages': [
-                {'role': 'user', 'content': 'Reply with exactly: test'},
-              ],
-            },
-          )
-          .timeout(
-            const Duration(seconds: 10),
-            onTimeout: () {
-              throw DioException(
-                requestOptions: RequestOptions(path: ''),
-                error: 'Timeout: API không phản hồi sau 10 giây',
-              );
-            },
-          );
-
+      final response = await _groqDio.post(
+        _groqChatUrl,
+        options: Options(headers: {'Authorization': 'Bearer $apiKey'}),
+        data: {
+          'model': usedModel,
+          'temperature': 0,
+          'messages': [
+            {'role': 'user', 'content': 'Reply with exactly: test'},
+          ],
+        },
+      );
       if (response.statusCode == 200) {
-        AppLogger.info('✅ [API Key Service] Groq API key test successful');
+        AppLogger.info('✅ [Groq] API key test OK');
         return {'success': true};
       }
-
-      return {
-        'success': false,
-        'error': 'API trả về status code: ${response.statusCode}',
-      };
+      final msg = _parseHttpError(response.statusCode, response.data);
+      AppLogger.error('❌ [Groq] $msg');
+      return {'success': false, 'error': msg};
     } on DioException catch (e) {
-      String errorMessage = 'Lỗi không xác định';
-
-      if (e.response != null) {
-        final statusCode = e.response!.statusCode;
-        final responseData = e.response!.data;
-
-        if (statusCode == 400) {
-          errorMessage = 'Request không hợp lệ (model có thể không đúng).';
-        } else if (statusCode == 401) {
-          errorMessage =
-              'API key không được xác thực. Vui lòng kiểm tra lại key.';
-        } else if (statusCode == 403) {
-          errorMessage =
-              'API key không có quyền truy cập. Vui lòng kiểm tra quyền của key.';
-        } else if (statusCode == 429) {
-          errorMessage =
-              'Rate limit/quota. Vui lòng kiểm tra quota và thử lại sau.';
-        } else {
-          errorMessage =
-              'Lỗi $statusCode: ${responseData?.toString() ?? e.message ?? 'Unknown error'}';
-        }
-      } else if (e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
-        errorMessage =
-            'Timeout: Không thể kết nối đến API. Vui lòng kiểm tra kết nối internet.';
-      } else if (e.type == DioExceptionType.connectionError) {
-        errorMessage =
-            'Lỗi kết nối: Không thể kết nối đến server. Vui lòng kiểm tra internet.';
-      } else {
-        errorMessage = e.message ?? 'Lỗi không xác định khi test API key';
-      }
-
-      AppLogger.error(
-        '❌ [API Key Service] Groq API key test failed: $errorMessage',
-        error: e,
-      );
-      return {'success': false, 'error': errorMessage};
+      final msg = _parseDioNetworkError(e, server: 'Groq');
+      AppLogger.error('❌ [Groq] $msg', error: e);
+      return {'success': false, 'error': msg};
     } catch (e) {
-      AppLogger.error(
-        '❌ [API Key Service] Unexpected error testing Groq API key: $e',
-        error: e,
-      );
-      return {'success': false, 'error': 'Lỗi không xác định: ${e.toString()}'};
+      AppLogger.error('❌ [Groq] Unexpected: $e', error: e);
+      return {'success': false, 'error': e.toString()};
     }
   }
 
@@ -834,158 +763,70 @@ Web: Browser's secure storage (if supported)
     }
   }
 
-  /// Test kết nối đến Ollama server bằng cách gọi /api/tags
+  /// Test kết nối đến Ollama server qua /api/tags
   ///
-  /// [baseUrl] - Base URL của Ollama server (e.g., http://localhost:11434)
-  ///
-  /// Returns: Map với keys 'success' (bool), 'error' (String), 'models' (List of Strings)
-  static Future<Map<String, dynamic>> testOllamaConnection(String baseUrl) async {
+  /// [cancelToken] - Tùy chọn: cho phép hủy request đang chờ
+  /// Returns: Map{'success', 'error', 'models': List<String>}
+  static Future<Map<String, dynamic>> testOllamaConnection(
+    String baseUrl, {
+    CancelToken? cancelToken,
+  }) async {
+    if (baseUrl.trim().isEmpty) {
+      return {
+        'success': false,
+        'error': 'Base URL không được để trống',
+        'models': <String>[],
+      };
+    }
+    final url =
+        '${baseUrl.trim().replaceAll(RegExp(r'/$'), '')}/api/tags';
+    AppLogger.debug('🔗 [Ollama] Testing: $url');
     try {
-      if (baseUrl.trim().isEmpty) {
-        return {
-          'success': false,
-          'error': 'Base URL không được để trống',
-          'models': <String>[],
-        };
+      final response = await _ollamaDio.get(url, cancelToken: cancelToken);
+
+      if (response.statusCode != 200) {
+        final msg = _parseHttpError(response.statusCode, response.data);
+        AppLogger.error('❌ [Ollama] $msg');
+        return {'success': false, 'error': msg, 'models': <String>[]};
       }
 
-      final clonedUrl = baseUrl.trim().replaceAll(RegExp(r'/$'), '');
-      final endpoint = '$clonedUrl/api/tags';
-
-      AppLogger.debug('🔗 [API Key Service] Testing Ollama connection to: $endpoint');
-
-      final dio = Dio(
-        BaseOptions(
-          connectTimeout: const Duration(seconds: 5),
-          receiveTimeout: const Duration(seconds: 10),
-          validateStatus: (status) => status != null && status < 500,
-        ),
-      );
-
-      final response = await dio.get(
-        endpoint,
-        options: Options(
-          headers: {'Content-Type': 'application/json'},
-        ),
-      );
-
-      AppLogger.debug('🔗 [API Key Service] Response status: ${response.statusCode}');
-      AppLogger.debug('🔗 [API Key Service] Response data type: ${response.data.runtimeType}');
-
-      if (response.statusCode == 200) {
-        try {
-          AppLogger.debug('🔗 [API Key Service] Response.data: ${response.data}');
-          AppLogger.debug('🔗 [API Key Service] Response.data runtime type: ${response.data.runtimeType}');
-          
-          // Parse response - handle both Map and String responses
-          Map<String, dynamic>? responseData;
-          if (response.data is Map<String, dynamic>) {
-            responseData = response.data as Map<String, dynamic>;
-          } else if (response.data is String) {
-            try {
-              responseData = jsonDecode(response.data) as Map<String, dynamic>;
-            } catch (e) {
-              AppLogger.error('❌ [API Key Service] Failed to parse string response as JSON: $e');
-              return {
-                'success': false,
-                'error': 'Lỗi parse JSON: ${e.toString()}',
-                'models': <String>[],
-              };
-            }
-          }
-          
-          final modelsList = responseData?['models'] as List?;
-          AppLogger.debug('🔗 [API Key Service] Models list: $modelsList');
-          AppLogger.debug('🔗 [API Key Service] Models list length: ${modelsList?.length ?? 0}');
-          
-          final models = <String>[];
-          if (modelsList != null) {
-            for (int i = 0; i < modelsList.length; i++) {
-              try {
-                final m = modelsList[i];
-                AppLogger.debug('🔗 [API Key Service] Processing model [$i]: $m (type: ${m.runtimeType})');
-                
-                if (m is Map<String, dynamic>) {
-                  final modelName = m['name'] as String?;
-                  AppLogger.debug('🔗 [API Key Service] Model name from map: $modelName');
-                  if (modelName != null && modelName.isNotEmpty) {
-                    models.add(modelName);
-                  }
-                } else {
-                  AppLogger.warning('⚠️ [API Key Service] Model is not a Map: $m');
-                  models.add(m.toString());
-                }
-              } catch (e) {
-                AppLogger.error('❌ [API Key Service] Error processing model: $e', error: e);
-              }
-            }
-          }
-          
-          AppLogger.info(
-            '✅ [API Key Service] Ollama connection test successful. Found ${models.length} models: $models',
-          );
-          return {
-            'success': true,
-            'error': null,
-            'models': models,
-          };
-        } catch (parseError) {
-          AppLogger.error('❌ [API Key Service] Error parsing Ollama response: $parseError', error: parseError);
-          return {
-            'success': false,
-            'error': 'Lỗi parse response: ${parseError.toString()}',
-            'models': <String>[],
-          };
-        }
-      } else {
-        AppLogger.error('❌ [API Key Service] Ollama returned status ${response.statusCode}');
-        return {
-          'success': false,
-          'error':
-              'Ollama trả về status ${response.statusCode}. Response: ${response.data}',
-          'models': <String>[],
-        };
-      }
+      final models = _parseOllamaModels(response.data);
+      AppLogger.info('✅ [Ollama] Connected. ${models.length} models: $models');
+      return {'success': true, 'error': null, 'models': models};
     } on DioException catch (e) {
-      String errorMessage = 'Lỗi không xác định';
-
-      if (e.response != null) {
-        final statusCode = e.response!.statusCode;
-        errorMessage = 'Lỗi $statusCode: ${e.response?.data?.toString() ?? e.message ?? 'Unknown error'}';
-      } else if (e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
-        errorMessage =
-            'Timeout: Không thể kết nối đến Ollama. Vui lòng kiểm tra URL và kết nối internet.';
-      } else if (e.type == DioExceptionType.connectionError) {
-        errorMessage =
-            'Lỗi kết nối: Không thể kết nối đến Ollama server. Vui lòng kiểm tra:\n'
-            '• URL có chính xác không (e.g., http://localhost:11434)\n'
-            '• Ollama đang chạy không\n'
-            '• Firewall/Network policy';
-      } else {
-        errorMessage = e.message ?? 'Lỗi kết nối không xác định';
+      if (e.type == DioExceptionType.cancel) {
+        return {'success': false, 'cancelled': true, 'error': 'Cancelled', 'models': <String>[]};
       }
-
-      AppLogger.error(
-        '❌ [API Key Service] Ollama connection test failed: $errorMessage',
-        error: e,
-      );
-
-      return {
-        'success': false,
-        'error': errorMessage,
-        'models': <String>[],
-      };
+      final msg = _parseDioNetworkError(e, server: 'Ollama');
+      AppLogger.error('❌ [Ollama] $msg', error: e);
+      return {'success': false, 'error': msg, 'models': <String>[]};
     } catch (e) {
-      AppLogger.error(
-        '❌ [API Key Service] Unexpected error testing Ollama: $e',
-        error: e,
-      );
-      return {
-        'success': false,
-        'error': 'Lỗi không xác định: ${e.toString()}',
-        'models': <String>[],
-      };
+      AppLogger.error('❌ [Ollama] Unexpected: $e', error: e);
+      return {'success': false, 'error': e.toString(), 'models': <String>[]};
+    }
+  }
+
+  /// Parse danh sách model từ Ollama /api/tags response
+  static List<String> _parseOllamaModels(dynamic data) {
+    try {
+      final Map<String, dynamic> map;
+      if (data is Map<String, dynamic>) {
+        map = data;
+      } else if (data is String) {
+        map = jsonDecode(data) as Map<String, dynamic>;
+      } else {
+        return [];
+      }
+      return (map['models'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .map((m) => m['name'] as String?)
+              .whereType<String>()
+              .where((n) => n.isNotEmpty)
+              .toList() ??
+          [];
+    } catch (e) {
+      AppLogger.error('❌ [Ollama] Model parse error: $e', error: e);
+      return [];
     }
   }
 
