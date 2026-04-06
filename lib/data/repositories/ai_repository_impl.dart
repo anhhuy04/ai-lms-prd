@@ -24,11 +24,10 @@ class AiRepositoryImpl implements AiRepository {
     required String topic,
     required int quantity,
     int? difficulty,
+    String? questionType,
     void Function(String rawJson)? onRawResponse,
   }) async {
     try {
-      // Quantity lớn (vd: 20/40) dễ bị output cắt cụt -> JSON invalid -> fallback.
-      // Giải pháp: chia lô nhỏ và gộp kết quả.
       const int maxBatchSize = 10;
 
       if (quantity <= maxBatchSize) {
@@ -36,6 +35,7 @@ class AiRepositoryImpl implements AiRepository {
           topic: topic,
           quantity: quantity,
           difficulty: difficulty,
+          questionType: questionType,
         );
 
         try {
@@ -61,6 +61,7 @@ class AiRepositoryImpl implements AiRepository {
           topic: topic,
           quantity: batchSize,
           difficulty: difficulty,
+          questionType: questionType,
         );
 
         try {
@@ -87,6 +88,7 @@ class AiRepositoryImpl implements AiRepository {
             topic: topic,
             quantity: 5,
             difficulty: difficulty,
+            questionType: questionType,
           );
           try {
             final rawJson = retryResponse is String
@@ -98,7 +100,9 @@ class AiRepositoryImpl implements AiRepository {
         }
 
         all.addAll(parsed);
-        remaining -= batchSize;
+        // Dùng actual parsed count (retry có thể trả ít hơn batchSize)
+        remaining -= parsed.length;
+        if (remaining < 0) remaining = 0;
       }
 
       // Trim nếu vượt quá quantity do retry
@@ -147,7 +151,8 @@ class AiRepositoryImpl implements AiRepository {
         if (parsed is Map<String, dynamic>) {
           questionsList =
               parsed['questions'] as List<dynamic>? ??
-              parsed['data'] as List<dynamic>?;
+              parsed['data'] as List<dynamic>? ??
+              parsed['results'] as List<dynamic>?;
         } else if (parsed is List) {
           questionsList = parsed;
         }
@@ -217,9 +222,13 @@ class AiRepositoryImpl implements AiRepository {
         .replaceAll(' ', '_');
     final questionType = _parseQuestionType(typeStr);
 
-    // Extract content (new format: {text, images, latex})
+    // Extract content (ưu tiên override_text → content.text → text → fallback)
     Map<String, dynamic> content;
-    if (aiQuestion['content'] is Map<String, dynamic>) {
+    final overrideText = aiQuestion['override_text'] as String?;
+    if (overrideText != null && overrideText.trim().isNotEmpty) {
+      // AI new format: override_text tại top-level
+      content = {'text': overrideText.trim(), 'images': []};
+    } else if (aiQuestion['content'] is Map<String, dynamic>) {
       // New format: content object
       final contentObj = aiQuestion['content'] as Map<String, dynamic>;
       content = {
@@ -233,7 +242,7 @@ class AiRepositoryImpl implements AiRepository {
       final text =
           aiQuestion['text'] as String? ??
           aiQuestion['question'] as String? ??
-          aiQuestion['content'] as String? ??
+          (aiQuestion['content'] is String ? aiQuestion['content'] as String : null) ??
           'Câu hỏi $index';
       content = {'text': text, 'images': []};
     }
@@ -243,18 +252,44 @@ class AiRepositoryImpl implements AiRepository {
     if (aiQuestion['answer'] is Map<String, dynamic>) {
       answer = Map<String, dynamic>.from(aiQuestion['answer'] as Map);
     } else {
-      // Legacy: extract explanation separately
+      // Essay/short_answer: AI outputs expected_answer + ai_grading_keywords at top level
+      final expectedAnswer = aiQuestion['expected_answer'] as String?;
+      final gradingKeywords = aiQuestion['ai_grading_keywords'] as List<dynamic>?;
       final explanation =
           aiQuestion['explanation'] as String? ??
           aiQuestion['explanation_rich_text'] as String?;
-      if (explanation != null) {
-        answer = {'explanation': explanation};
+      if (expectedAnswer != null || gradingKeywords != null || explanation != null) {
+        answer = {};
+        if (expectedAnswer != null) answer['expected_answer'] = expectedAnswer;
+        if (gradingKeywords != null) answer['ai_grading_keywords'] = gradingKeywords;
+        // Không lưu 'explanation' vào answer ở đây — sẽ được chuẩn hóa thành
+        // 'general_explanation' bởi block bên dưới (tránh duplicate key)
       }
     }
 
-    // Parse choices cho multiple choice (new format: [{id, content: {text, image}, is_correct}])
+    // Extract explanation cho MỌI loại câu hỏi (→ general_explanation trong answer)
+    final explanationStr =
+        aiQuestion['explanation'] as String? ??
+        aiQuestion['explanation_rich_text'] as String?;
+    if (explanationStr != null && explanationStr.trim().isNotEmpty) {
+      answer ??= {};
+      // Lưu vào general_explanation theo Data Contract (tách khỏi content để tránh data leakage)
+      answer['general_explanation'] = explanationStr.trim();
+    }
+
+    // Parse fill_blank: blanks → answer
+    if (questionType == QuestionType.fillBlank) {
+      final blanks = aiQuestion['blanks'] as List<dynamic>?;
+      if (blanks != null) {
+        answer ??= {};
+        answer['blanks'] = blanks;
+      }
+    }
+
+    // Parse choices cho multiple choice / true_false
     List<Map<String, dynamic>>? choices;
-    if (questionType == QuestionType.multipleChoice) {
+    if (questionType == QuestionType.multipleChoice ||
+        questionType == QuestionType.trueFalse) {
       final choicesList =
           aiQuestion['choices'] as List<dynamic>? ??
           aiQuestion['options'] as List<dynamic>?; // Backward compatibility
@@ -353,7 +388,8 @@ class AiRepositoryImpl implements AiRepository {
     // Không parse grading_rubric từ AI response - giáo viên sẽ tự tạo khi lưu vào assignment
 
     // VALIDATION: Đảm bảo đáp án trắc nghiệm chính xác 100%
-    if (questionType == QuestionType.multipleChoice &&
+    if ((questionType == QuestionType.multipleChoice ||
+            questionType == QuestionType.trueFalse) &&
         choices != null &&
         choices.isNotEmpty) {
       // Đếm số đáp án đúng
@@ -389,7 +425,7 @@ class AiRepositoryImpl implements AiRepository {
       }
 
       // Validate answer.correct_choices khớp với choices[].is_correct
-      if (answer is Map<String, dynamic>) {
+      if (answer != null) {
         final correctChoices = answer['correct_choices'] as List<dynamic>?;
         if (correctChoices != null) {
           // Tìm choice có is_correct = true
@@ -433,6 +469,9 @@ class AiRepositoryImpl implements AiRepository {
       if (learningObjectives != null && learningObjectives.isNotEmpty)
         'learningObjectives': learningObjectives,
       if (hints != null && hints.isNotEmpty) 'hints': hints,
+      // Expose explanation ở top-level để UI screen dễ đọc
+      if (explanationStr != null && explanationStr.trim().isNotEmpty)
+        'explanation': explanationStr.trim(),
       // Note: grading_rubric không cần thiết vì giáo viên sẽ tự tạo ở UI
       // if (gradingRubric != null) 'grading_rubric': gradingRubric,
       // Backward compatibility: also include 'text' for legacy code
@@ -458,14 +497,30 @@ class AiRepositoryImpl implements AiRepository {
       case 'multiplechoice':
       case 'mcq':
         return QuestionType.multipleChoice;
+      case 'true_false':
+      case 'truefalse':
+      case 'boolean':
+        return QuestionType.trueFalse;
       case 'short_answer':
       case 'shortanswer':
         return QuestionType.shortAnswer;
       case 'essay':
         return QuestionType.essay;
+      case 'fill_blank':
+      case 'fill_in_blank':
+      case 'fillblank':
+        return QuestionType.fillBlank;
+      case 'matching':
+        return QuestionType.matching;
       case 'math':
       case 'mathematics':
         return QuestionType.math;
+      case 'problem_solving':
+      case 'problemsolving':
+        return QuestionType.problemSolving;
+      case 'file_upload':
+      case 'fileupload':
+        return QuestionType.fileUpload;
       default:
         return QuestionType.multipleChoice;
     }
@@ -535,7 +590,7 @@ class AiRepositoryImpl implements AiRepository {
         'type': QuestionType.multipleChoice,
         'text': 'Câu hỏi ${index + 1} (cần chỉnh sửa)',
         'options': [
-          {'text': 'Lựa chọn A', 'isCorrect': false},
+          {'text': 'Lựa chọn A (cần chỉnh sửa)', 'isCorrect': true},
           {'text': 'Lựa chọn B', 'isCorrect': false},
           {'text': 'Lựa chọn C', 'isCorrect': false},
           {'text': 'Lựa chọn D', 'isCorrect': false},

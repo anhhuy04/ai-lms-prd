@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:ai_mls/core/env/env.dart';
 import 'package:ai_mls/core/services/api_key_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
@@ -54,66 +56,8 @@ class AiService {
   ///
   /// Format: Simple string templates với {variable} placeholders
   /// Hoặc sử dụng function-based prompts cho complex cases
-  static const Map<String, String> _promptTemplates = {
-    'generate_questions_base': '''
-Bạn là hệ thống tạo câu hỏi cho LMS.
-Nhiệm vụ: tạo {quantity} câu hỏi về "{topic}". Độ khó: {difficulty_instruction}.
-
-Suy luận ngữ cảnh từ "{topic}". Nếu có CNTT/IT/Flutter/Dart/mobile/app ⇒ câu hỏi phải đúng domain Flutter/Dart (biến, kiểu dữ liệu như int, widget tree, async/await, state, layout, navigation...).
-
-CHỌN TYPE (bắt keyword, kể cả sai chính tả):
-- Nếu "{topic}" có: trắc nghiệm | trắc nhiệm | MCQ | multiple choice | chọn đáp án ⇒ tất cả câu là type="multiple_choice".
-- Nếu "{topic}" có: đúng/sai | true/false ⇒ tất cả câu là type="true_false".
-- Nếu "{topic}" có: tự luận | essay ⇒ tất cả câu là type="essay".
-- Nếu "{topic}" có: trả lời ngắn | short answer ⇒ tất cả câu là type="short_answer".
-- Nếu "{topic}" có: điền khuyết | fill in blank ⇒ tất cả câu là type="fill_blank".
-- Nếu "{topic}" có: nối khớp | matching ⇒ tất cả câu là type="matching".
-- Nếu "{topic}" có: bài toán | tính toán | công thức ⇒ ưu tiên type="math" hoặc "problem_solving".
-- Nếu không rõ ⇒ mặc định multiple_choice.
-KHÔNG xoay vòng type. Chỉ trộn type khi user yêu cầu rõ.
-
-OUTPUT: chỉ trả về JSON ARRAY (không markdown, không chữ thừa).
-Format mới (assignment_questions.custom_content):
-{
-  "type": "multiple_choice",
-  "override_text": "Nội dung câu hỏi",
-  "choices": [
-    {"id": 0, "text": "Đáp án A", "isCorrect": true},
-    {"id": 1, "text": "Đáp án B", "isCorrect": false}
-  ],
-  "difficulty": 1..5,
-  "tags": ["Flutter", "Dart"],
-  "explanation": "Giải thích ngắn"
-}
-
-Với essay/short_answer:
-{
-  "type": "essay",
-  "override_text": "Câu hỏi tự luận...",
-  "expected_answer": "Đáp án mẫu...",
-  "ai_grading_keywords": [
-    {"id": 0, "keyword": "từ khóa 1", "weight": 0.5},
-    {"id": 1, "keyword": "từ khóa 2", "weight": 0.5}
-  ]
-}
-
-Với fill_blank:
-{
-  "type": "fill_blank",
-  "override_text": "Câu có [blank_1] và [blank_2]...",
-  "blanks": [
-    {"id": "blank_1", "correct_values": ["đáp án 1", "dap an 1"], "case_sensitive": false},
-    {"id": "blank_2", "correct_values": ["đáp án 2"], "case_sensitive": false}
-  ]
-}
-
-RÀNG BUỘC:
-- explanation tối đa 1 câu ngắn.
-- Với multiple_choice/true_false: đúng 4 choices (id=0..3), đúng 1 isCorrect=true.
-- tags: 1-3 strings.
-- Nếu user yêu cầu trắc nghiệm mà có câu không phải ⇒ sửa lại trước khi trả JSON.
-''',
-  };
+  // Prompt templates — xem getGenerateQuestionsPrompt() để biết cách build
+  static const Map<String, String> _promptTemplates = {};
 
   /// Initialize AI Service với Dio client
   ///
@@ -201,11 +145,17 @@ RÀNG BUỘC:
     AppLogger.info('✅ [AI Service] Initialized successfully');
   }
 
-  /// Get Dio client instance (auto-initialize nếu chưa)
+  /// Get Dio client instance (synchronous fallback — không gọi async initialize())
   static Dio get _client {
-    if (!_isInitialized || _dio == null) {
-      // Auto-initialize với default config
-      initialize();
+    if (_dio == null) {
+      // Synchronous fallback: tạo Dio mặc định ngay lập tức thay vì await async initialize()
+      _dio = Dio()
+        ..options = BaseOptions(
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 60),
+          headers: {'Content-Type': 'application/json'},
+        );
+      _isInitialized = true;
     }
     return _dio!;
   }
@@ -231,33 +181,110 @@ RÀNG BUỘC:
     return result;
   }
 
-  /// Get prompt cho generate questions (function-based prompt)
+  /// Build prompt tối ưu cho mọi loại model (kể cả model yếu).
   ///
-  /// Function-based prompts cho phép logic phức tạp hơn so với simple templates
+  /// Nguyên tắc:
+  /// - Câu ngắn, rõ ràng, không mơ hồ
+  /// - Không suy luận domain — bám sát topic người dùng nhập
+  /// - Số rules tối thiểu, ví dụ JSON cụ thể
+  /// - questionType explicit (không để AI đoán từ keyword)
   static String getGenerateQuestionsPrompt({
     required String topic,
     required int quantity,
     int? difficulty,
+    String? questionType, // null = tự động chọn type phù hợp
   }) {
-    // Get base template
-    final baseTemplate = _promptTemplates['generate_questions_base'] ?? '';
+    final difficultyLine = _buildDifficultyLine(difficulty);
+    final typeRule = _buildTypeRule(questionType);
+    final formatExample = _buildFormatExample(questionType);
 
-    // Build difficulty instruction
-    String difficultyInstruction = '';
-    if (difficulty != null && difficulty >= 1 && difficulty <= 5) {
-      final difficultyLabels = ['Rất dễ', 'Dễ', 'Trung bình', 'Khó', 'Rất khó'];
-      difficultyInstruction =
-          'Mức độ khó: ${difficultyLabels[difficulty - 1]} ($difficulty/5)';
-    } else {
-      difficultyInstruction = 'Mức độ khó: Không xác định (tự động điều chỉnh)';
+    return '''Tạo $quantity câu hỏi về: "$topic".
+$difficultyLine
+
+QUY TẮC (bắt buộc tuân thủ):
+1. Câu hỏi PHẢI nói về "$topic". Không được lạc sang chủ đề khác.
+2. $typeRule
+3. Trả về JSON ARRAY. Không có markdown, không giải thích, không ký tự thừa.
+4. Mỗi câu hỏi là 1 object trong array.
+5. ĐA DẠNG HÓA câu hỏi: kết hợp câu cơ bản, câu cần suy luận 2-3 bước, câu áp dụng thực tế, câu có dữ liệu thực (số, ngày, tên người). Không tạo toàn câu đơn giản tính trực tiếp.
+
+$formatExample
+
+RÀNG BUỘC FORMAT:
+- multiple_choice: 4 choices (id 0,1,2,3), đúng 1 cái isCorrect=true, 3 cái isCorrect=false.
+- true_false: 2 choices: {"id":0,"text":"Đúng","isCorrect":true/false} và {"id":1,"text":"Sai","isCorrect":false/true}.
+- essay/short_answer: có expected_answer (chuỗi văn bản).
+- fill_blank: override_text dùng [___1], [___2]... để đánh dấu chỗ trống. blanks liệt kê đáp án đúng với id khớp.
+- tags: 1-3 từ khóa liên quan topic.
+- KHÔNG tạo field "explanation" — giáo viên sẽ tự tạo gợi ý riêng cho từng câu.''';
+  }
+
+  static String _buildDifficultyLine(int? difficulty) {
+    if (difficulty == null || difficulty < 1 || difficulty > 5) return '';
+    const labels = ['Rất dễ', 'Dễ', 'Trung bình', 'Khó', 'Rất khó'];
+    return 'Độ khó: ${labels[difficulty - 1]} ($difficulty/5).';
+  }
+
+  static String _buildTypeRule(String? questionType) {
+    if (questionType == null || questionType == 'auto') {
+      return 'Chọn type phù hợp nhất với nội dung câu hỏi. Ưu tiên "multiple_choice" nếu không rõ.';
     }
+    final label = {
+      'multiple_choice': 'trắc nghiệm 4 đáp án',
+      'true_false': 'đúng/sai',
+      'essay': 'tự luận',
+      'short_answer': 'trả lời ngắn',
+      'fill_blank': 'điền vào chỗ trống',
+      'matching': 'nối cặp',
+      'math': 'bài toán',
+    }[questionType] ?? questionType;
+    return 'Tất cả câu phải là type="$questionType" ($label). Không dùng type khác.';
+  }
 
-    // Render template với variables
-    return _renderTemplate(baseTemplate, {
-      'topic': topic,
-      'quantity': quantity.toString(),
-      'difficulty_instruction': difficultyInstruction,
-    });
+  static String _buildFormatExample(String? questionType) {
+    final type = (questionType == null || questionType == 'auto')
+        ? 'multiple_choice'
+        : questionType;
+
+    switch (type) {
+      case 'true_false':
+        return '''VÍ DỤ OUTPUT (2 câu):
+[
+  {"type":"true_false","override_text":"Câu hỏi đúng/sai ở đây?","choices":[{"id":0,"text":"Đúng","isCorrect":true},{"id":1,"text":"Sai","isCorrect":false}],"tags":["tag1"]},
+  {"type":"true_false","override_text":"Câu hỏi thứ 2?","choices":[{"id":0,"text":"Đúng","isCorrect":false},{"id":1,"text":"Sai","isCorrect":true}],"tags":["tag1"]}
+]''';
+
+      case 'essay':
+        return '''VÍ DỤ OUTPUT (1 câu):
+[
+  {"type":"essay","override_text":"Câu hỏi tự luận ở đây?","expected_answer":"Đáp án mẫu đầy đủ.","ai_grading_keywords":[{"id":0,"keyword":"từ khóa 1","weight":0.5},{"id":1,"keyword":"từ khóa 2","weight":0.5}],"tags":["tag1"]}
+]''';
+
+      case 'short_answer':
+        return '''VÍ DỤ OUTPUT (1 câu):
+[
+  {"type":"short_answer","override_text":"Câu hỏi trả lời ngắn?","expected_answer":"Đáp án ngắn gọn.","tags":["tag1"]}
+]''';
+
+      case 'fill_blank':
+        return '''VÍ DỤ OUTPUT (1 câu):
+[
+  {"type":"fill_blank","override_text":"[___1] là thủ đô của Việt Nam.","blanks":[{"id":"[___1]","correct_values":["Hà Nội","Ha Noi"],"case_sensitive":false}],"tags":["tag1"]}
+]''';
+
+      case 'math':
+        return '''VÍ DỤ OUTPUT (1 câu):
+[
+  {"type":"math","override_text":"Tính: 15 + 27 = ?","choices":[{"id":0,"text":"40","isCorrect":false},{"id":1,"text":"42","isCorrect":true},{"id":2,"text":"44","isCorrect":false},{"id":3,"text":"38","isCorrect":false}],"tags":["tag1"]}
+]''';
+
+      default: // multiple_choice
+        return '''VÍ DỤ OUTPUT (2 câu):
+[
+  {"type":"multiple_choice","override_text":"Câu hỏi trắc nghiệm 1?","choices":[{"id":0,"text":"Đáp án A","isCorrect":true},{"id":1,"text":"Đáp án B","isCorrect":false},{"id":2,"text":"Đáp án C","isCorrect":false},{"id":3,"text":"Đáp án D","isCorrect":false}],"tags":["tag1","tag2"]},
+  {"type":"multiple_choice","override_text":"Câu hỏi trắc nghiệm 2?","choices":[{"id":0,"text":"Đáp án A","isCorrect":false},{"id":1,"text":"Đáp án B","isCorrect":false},{"id":2,"text":"Đáp án C","isCorrect":true},{"id":3,"text":"Đáp án D","isCorrect":false}],"tags":["tag1"]}
+]''';
+    }
   }
 
   /// Call AI API với endpoint và payload
@@ -330,15 +357,14 @@ RÀNG BUỘC:
     required String topic,
     required int quantity,
     int? difficulty,
+    String? questionType, // null hoặc 'auto' = AI tự chọn
   }) async {
-    // Get prompt từ registry
     final prompt = getGenerateQuestionsPrompt(
       topic: topic,
       quantity: quantity,
       difficulty: difficulty,
+      questionType: questionType,
     );
-
-    // Gọi AI provider đang active (Gemini/Groq)
     return await callActiveAi(prompt);
   }
 
@@ -600,7 +626,9 @@ RÀNG BUỘC:
       }
 
       final data = response.data;
-      final Map<String, dynamic> map = data is String ? {} : data as Map<String, dynamic>;
+      final Map<String, dynamic> map = data is String
+          ? (jsonDecode(data) as Map<String, dynamic>? ?? {})
+          : (data as Map<String, dynamic>? ?? {});
       final text = map['response'] as String?;
       if (text == null || text.isEmpty) {
         throw Exception('Ollama không trả về nội dung (response rỗng)');
@@ -700,7 +728,7 @@ RÀNG BUỘC:
     // Heuristic: cố gắng đọc số lượng câu trong prompt để ước lượng output.
     // Mục tiêu: giảm TPM + tránh lãng phí token. Batch đang chạy ~10 câu.
     final m = RegExp(
-      r'Tạo\s+ra\s+(\d+)\s+câu',
+      r'tạo\s+(\d+)\s+câu\s+hỏi',
       caseSensitive: false,
     ).firstMatch(prompt);
     final qty = int.tryParse(m?.group(1) ?? '') ?? 10;
