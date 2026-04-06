@@ -1,10 +1,11 @@
 ---
 phase: 3
 slug: rubric-system
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-04-06
+reviewed_at: 2026-04-06
 ---
 
 # Phase 3: Rubric System — UI Design Contract
@@ -133,8 +134,8 @@ All copy is Vietnamese as per project standard.
 
 | Action | Confirmation Copy |
 |--------|-------------------|
-| Delete criterion | WarningDialog: "Xoa tieu chi '{name}'? Toan bo muc diem trong tieu chi nay se bi xoa." Buttons: "Xoa" (error color) / "Huy" |
-| Delete template | WarningDialog: "Xoa template '{name}'? Hanh dong nay khong the hoan tac." Buttons: "Xoa" / "Huy" |
+| Delete criterion | WarningDialog: "Xoa tieu chi '{name}'? Toan bo muc diem trong tieu chi nay se bi xoa." Buttons: "Xoa tieu chi" (error color) / "Huy" |
+| Delete template | WarningDialog: "Xoa template '{name}'? Hanh dong nay khong the hoan tac." Buttons: "Xoa template" / "Huy" |
 | Override score (D-04) | Inline prompt (not dialog): TextFormField "Ly do ghi de" + "Xac nhan" button. Reason is mandatory. |
 
 ---
@@ -315,7 +316,7 @@ Column (crossAxisAlignment: start)
     Container (points badge)
       background: DesignColors.primary.withOpacity(0.12)
       borderRadius: DesignRadius.full
-      padding: horizontal DesignSpacing.sm, vertical 2dp
+      padding: horizontal DesignSpacing.sm, vertical DesignSpacing.xs
       Text "Toi da {max_points}d" (DesignTypography.caption, color: DesignColors.primary)
   SizedBox(height: DesignSpacing.sm)
   for each level in criterion['levels']:
@@ -335,7 +336,7 @@ Container
     Container (points chip)
       width: 36dp
       alignment: center
-      padding: vertical 2dp
+      padding: vertical DesignSpacing.xs
       decoration: BoxDecoration(color: DesignColors.moonMedium, borderRadius: DesignRadius.xs)
       Text "{points}d" (DesignTypography.caption, fontWeight: semiBold (w600))
     SizedBox(width: DesignSpacing.sm)
@@ -529,7 +530,7 @@ GestureDetector(onTap: -> selectLevel)
           color: isSelected ? DesignColors.primary : DesignColors.textPrimary
         if isSelected: Padding(left: DesignSpacing.xs)
           Icon(Icons.check_circle, size: DesignIcons.xsSize, color: DesignColors.primary)
-      SizedBox(height: 2)
+      SizedBox(height: DesignSpacing.xs)
       Text level['description'] (DesignTypography.caption)
         maxLines: 2, overflow: ellipsis
         color: isSelected ? DesignColors.textPrimary : DesignColors.textSecondary
@@ -718,14 +719,14 @@ Not applicable — Flutter project with no shadcn/third-party component registri
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: FLAG (non-blocking — "Xac nhan" override button)
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: FLAG (non-blocking — 12/14/16sp tight but distinct roles)
+- [x] Dimension 5 Spacing: FLAG (non-blocking — md/xxxl outside baseline set but project tokens)
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED — 2026-04-06
 
 ---
 
