@@ -60,6 +60,18 @@
 2. Rubric can be attached to assignments
 3. Scoring calculation accurate
 
+**Plans:** 10 plans in 4 waves
+- [ ] 03-PLAN-ReadOnlyRubricViewer.md -- Dumb reusable rubric display component (compact + full modes)
+- [ ] 03-PLAN-RubricSummaryButton.md -- Status indicator button for question editor (empty/configured/locked)
+- [ ] 03-PLAN-RubricTemplateDatasource.md -- Template CRUD via profiles.metadata JSONB
+- [ ] 03-PLAN-RubricBuilderComponent.md -- Full-screen bottom sheet rubric editor
+- [ ] 03-PLAN-RubricTemplatePickerSheet.md -- Template selection bottom sheet
+- [ ] 03-PLAN-InteractiveRubricGrader.md -- Clickable level cards for teacher grading
+- [ ] 03-PLAN-TeacherCreateAssignmentScreen.md -- Rubric integration in question editor + publish validation
+- [ ] 03-PLAN-QuestionAnswerCard.md -- Replace old _buildRubric with new widgets
+- [ ] 03-PLAN-StudentWorkspaceScreen.md -- "Xem Tieu chi" button + bottom sheet
+- [ ] 03-PLAN-StudentAssignmentDetailScreen.md -- Rubric preview cards with expand/collapse
+
 ---
 
 ## Phase 4: Learning Analytics COMPLETE
@@ -125,4 +137,4 @@
 ---
 
 *Roadmap created: 2026-03-05*
-*Last updated: 2026-03-25 - Phase 5 gap closure plan 05-04 added*
+*Last updated: 2026-04-06 - Phase 3 rubric system planned (10 plans, 4 waves)*
