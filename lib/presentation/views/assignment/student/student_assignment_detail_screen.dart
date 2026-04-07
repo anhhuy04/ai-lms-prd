@@ -3,6 +3,7 @@ import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/widgets/rubric/read_only_rubric_viewer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -156,6 +157,9 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
                     final question = entry.value as Map<String, dynamic>;
                     return _buildQuestionCard(question, index + 1);
                   }),
+
+                // Rubric preview section (D-03 Giai đoạn 1 + Giai đoạn 3)
+                _buildRubricPreviewSection(questions, isSubmitted: isSubmitted),
               ],
             ),
           ),
@@ -649,6 +653,53 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
     );
   }
 
+  /// Builds rubric preview section for essay/shortAnswer questions with rubrics.
+  /// D-03 Giai đoạn 1: Pre-workspace preview (isSubmitted=false).
+  /// D-03 Giai đoạn 3: Post-grading foundation (isSubmitted=true).
+  Widget _buildRubricPreviewSection(
+    List<dynamic> questions, {
+    required bool isSubmitted,
+  }) {
+    final rubricQuestions = questions
+        .asMap()
+        .entries
+        .where((entry) {
+          final q = entry.value as Map<String, dynamic>;
+          final type = q['type'] as String? ?? q['question_type'] as String? ?? '';
+          final hasRubric = q['rubric'] != null;
+          return hasRubric && (type == 'essay' || type == 'short_answer');
+        })
+        .toList();
+
+    if (rubricQuestions.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: DesignSpacing.lg),
+        Text(
+          isSubmitted ? 'Tiêu chí chấm điểm (Xem lại)' : 'Tiêu chí chấm điểm',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: DesignColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: DesignSpacing.md),
+        ...rubricQuestions.map((entry) {
+          final index = entry.key;
+          final question = entry.value as Map<String, dynamic>;
+          final rubric = question['rubric'] as Map<String, dynamic>?;
+          return _RubricPreviewCard(
+            rubric: rubric,
+            questionNumber: index + 1,
+            isSubmitted: isSubmitted,
+          );
+        }),
+      ],
+    );
+  }
+
   IconData _getQuestionTypeIcon(String type) {
     switch (type) {
       case 'multiple_choice':
@@ -681,5 +732,113 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
 
   String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Expandable rubric preview card for a single essay/shortAnswer question.
+/// Collapsed (default): compact mode — criterion names + max_points overview.
+/// Expanded: full mode — criteria with all level descriptions.
+/// D-03 isSubmitted mode: shows ReadOnlyRubricViewer with selectedLevels=null
+/// as foundation for Phase 6 AI criteria_scores integration.
+class _RubricPreviewCard extends StatefulWidget {
+  final Map<String, dynamic>? rubric;
+  final int questionNumber;
+
+  /// When true, card shows Phase 6 placeholder (submitted/graded state).
+  final bool isSubmitted;
+
+  const _RubricPreviewCard({
+    required this.rubric,
+    required this.questionNumber,
+    required this.isSubmitted,
+  });
+
+  @override
+  State<_RubricPreviewCard> createState() => _RubricPreviewCardState();
+}
+
+class _RubricPreviewCardState extends State<_RubricPreviewCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+      ),
+      margin: const EdgeInsets.only(bottom: DesignSpacing.md),
+      color: DesignColors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          Padding(
+            padding: const EdgeInsets.all(DesignSpacing.lg),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.rule,
+                  size: DesignIcons.smSize,
+                  color: DesignColors.tealPrimary,
+                ),
+                const SizedBox(width: DesignSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Tiêu chí chấm điểm - Câu ${widget.questionNumber}',
+                    style: DesignTypography.titleMedium.copyWith(
+                      fontSize: DesignTypography.titleSmallSize,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  child: Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: DesignIcons.smSize,
+                    color: DesignColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Body: compact or full
+          if (_expanded) ...[
+            const Divider(
+              color: DesignColors.dividerLight,
+              height: 1,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                DesignSpacing.lg,
+                0,
+                DesignSpacing.lg,
+                DesignSpacing.lg,
+              ),
+              child: ReadOnlyRubricViewer(
+                rubric: widget.rubric,
+                // Phase 6 placeholder: selectedLevels=null until AI criteria_scores available
+                selectedLevels: null,
+                showHeader: false,
+              ),
+            ),
+          ] else ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                DesignSpacing.lg,
+                0,
+                DesignSpacing.lg,
+                DesignSpacing.md,
+              ),
+              child: ReadOnlyRubricViewer(
+                rubric: widget.rubric,
+                compact: true,
+                showHeader: false,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
