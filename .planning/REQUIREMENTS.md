@@ -28,7 +28,7 @@
 
 - [ ] **RUB-01**: User can create rubric with criteria
 - [ ] **RUB-02**: User can define point scale for each criterion
-- [ ] **RUB-03**: User can apply rubric to assignments
+- [x] **RUB-03**: User can apply rubric to assignments
 - [ ] **RUB-04**: User can preview rubric scores before submitting
 
 ### Analytics
