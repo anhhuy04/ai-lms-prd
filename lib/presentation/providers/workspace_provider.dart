@@ -405,6 +405,7 @@ class QuestionState {
   final List<Map<String, dynamic>>? distractors;
   final String? expectedAnswer;
   final List<Map<String, dynamic>>? aiGradingKeywords;
+  final Map<String, dynamic>? rubric;
 
   const QuestionState({
     required this.id,
@@ -417,6 +418,7 @@ class QuestionState {
     this.distractors,
     this.expectedAnswer,
     this.aiGradingKeywords,
+    this.rubric,
   });
 
   factory QuestionState.fromJson(Map<String, dynamic> json) {
@@ -493,6 +495,13 @@ class QuestionState {
       aiGradingKeywords = aiKeywordsData.cast<Map<String, dynamic>>();
     }
 
+    // Parse rubric (for essay/short_answer)
+    Map<String, dynamic>? rubric;
+    final rubricData = question['rubric'] ?? json['rubric'];
+    if (rubricData is Map<String, dynamic>) {
+      rubric = rubricData;
+    }
+
     return QuestionState(
       id: question['id'] as String? ?? json['id'] as String? ?? '',
       content: contentStr,
@@ -508,6 +517,7 @@ class QuestionState {
       distractors: distractors,
       expectedAnswer: expectedAnswer,
       aiGradingKeywords: aiGradingKeywords,
+      rubric: rubric,
     );
   }
 }

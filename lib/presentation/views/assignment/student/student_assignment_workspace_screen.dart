@@ -3,6 +3,7 @@ import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/presentation/providers/workspace_provider.dart';
 import 'package:ai_mls/presentation/views/assignment/student/widgets/essay_answer_field.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/widgets/rubric/read_only_rubric_viewer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -615,10 +616,83 @@ class _StudentAssignmentWorkspaceScreenState
   Widget _buildEssay(QuestionState question, dynamic answer) {
     // Get text from answer map: {"text": "content"}
     final answerText = answer is Map ? (answer['text'] as String?) ?? '' : '';
-    return EssayAnswerField(
-      questionId: question.id,
-      initialValue: answerText,
-      distributionId: widget.distributionId,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildRubricButton(question),
+        EssayAnswerField(
+          questionId: question.id,
+          initialValue: answerText,
+          distributionId: widget.distributionId,
+        ),
+      ],
+    );
+  }
+
+  /// Shows "Xem Tiêu chí" button if question has a rubric attached.
+  Widget _buildRubricButton(QuestionState question) {
+    if (question.rubric == null) return const SizedBox.shrink();
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton.icon(
+        icon: Icon(
+          Icons.info_outline,
+          size: DesignIcons.xsSize,
+          color: DesignColors.tealPrimary,
+        ),
+        label: Text(
+          'Xem Tiêu chí',
+          style: DesignTypography.caption.copyWith(color: DesignColors.tealPrimary),
+        ),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesignSpacing.sm,
+            vertical: DesignSpacing.xs,
+          ),
+          minimumSize: const Size(0, 32),
+        ),
+        onPressed: () => _showRubricSheet(question.rubric!),
+      ),
+    );
+  }
+
+  /// Opens a read-only bottom sheet with the rubric criteria (D-03 compliant).
+  void _showRubricSheet(Map<String, dynamic> rubric) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(DesignRadius.lg),
+          topRight: Radius.circular(DesignRadius.lg),
+        ),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: DesignSpacing.sm),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: DesignColors.dividerMedium,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: scrollController,
+                child: ReadOnlyRubricViewer(rubric: rubric),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
