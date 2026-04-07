@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/core/services/supabase_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/error_translation_utils.dart';
 import 'package:ai_mls/domain/entities/assignment.dart';
@@ -16,6 +17,8 @@ import 'package:ai_mls/widgets/forms/date_time_picker_field.dart';
 import 'package:ai_mls/widgets/forms/labeled_text_field.dart';
 import 'package:ai_mls/widgets/forms/labeled_textarea.dart';
 import 'package:ai_mls/widgets/forms/select_field.dart';
+import 'package:ai_mls/widgets/rubric/rubric_builder_component.dart';
+import 'package:ai_mls/widgets/rubric/rubric_summary_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,6 +53,10 @@ class _TeacherCreateAssignmentScreenState
   bool _isSaving = false; // Loading state for save draft
   bool _isPublishing = false; // Loading state for publish
   bool _isLoading = false; // Loading state when loading existing assignment
+
+  // Rubric state (D-08, D-09)
+  Set<int> _publishValidationErrors = {};
+  bool _isRubricLocked = false;
 
   // Track original values để detect "unsaved changes" giống pattern ở AddStudentByCodeScreen.
   // Chỉ show back dialog khi có thay đổi so với original values này.
@@ -407,6 +414,7 @@ class _TeacherCreateAssignmentScreenState
         'hints': hints,
         'points': q.points,
         if (q.questionId != null) 'questionId': q.questionId,
+        if (q.rubric != null) 'rubric': q.rubric,
       });
     }
 
@@ -738,6 +746,7 @@ class _TeacherCreateAssignmentScreenState
         'custom_content': customContent,
         'points': points,
         'order_idx': result.length + 1, // 1-based index trên các câu hỏi hợp lệ
+        if (q['rubric'] != null) 'rubric': q['rubric'],
       });
     }
 
@@ -1350,6 +1359,11 @@ class _TeacherCreateAssignmentScreenState
       return;
     }
 
+    // D-08: Validate rubrics for essay/shortAnswer before publish
+    if (!_validatePublishRubrics()) {
+      return;
+    }
+
     // Validate due date is in the future
     if (_dueDate != null && _dueTime != null) {
       final dueAt = DateTime(
@@ -1451,6 +1465,123 @@ class _TeacherCreateAssignmentScreenState
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Rubric integration methods (D-06, D-08, D-09)
+  // ---------------------------------------------------------------------------
+
+  /// D-09: Check if rubric is locked due to active distributions or work sessions.
+  Future<void> _checkRubricLock() async {
+    if (_assignmentId == null) return;
+    try {
+      final distResult = await SupabaseService.client
+          .from('assignment_distributions')
+          .select('id')
+          .eq('assignment_id', _assignmentId!)
+          .eq('status', 'active')
+          .limit(1);
+      final wsResult = await SupabaseService.client
+          .from('work_sessions')
+          .select('id')
+          .eq('assignment_id', _assignmentId!)
+          .limit(1);
+      if (mounted) {
+        setState(() {
+          _isRubricLocked =
+              (distResult as List).isNotEmpty || (wsResult as List).isNotEmpty;
+        });
+      }
+    } catch (e) {
+      AppLogger.error('Error checking rubric lock: $e', error: e);
+    }
+  }
+
+  /// Build rubric section for essay/shortAnswer questions (D-07).
+  Widget _buildRubricSection(int questionIndex) {
+    final q = _questions[questionIndex];
+    final type = q['type'] as QuestionType?;
+    if (type != QuestionType.essay && type != QuestionType.shortAnswer) {
+      return const SizedBox.shrink();
+    }
+    final rubric = q['rubric'] as Map<String, dynamic>?;
+    return RubricSummaryButton(
+      rubric: rubric,
+      isLocked: _isRubricLocked,
+      onTap: () => _openRubricBuilder(questionIndex),
+    );
+  }
+
+  /// Open RubricBuilderComponent as a modal bottom sheet.
+  Future<void> _openRubricBuilder(int questionIndex) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(DesignRadius.lg),
+        ),
+      ),
+      builder: (_) => RubricBuilderComponent(
+        initialRubric: _questions[questionIndex]['rubric'] as Map<String, dynamic>?,
+        isLocked: _isRubricLocked,
+        onSave: (newRubric) {
+          _updateRubricPoints(questionIndex, newRubric);
+        },
+      ),
+    );
+  }
+
+  /// D-06: Update rubric for a question and auto-sync points.
+  void _updateRubricPoints(int questionIndex, Map<String, dynamic>? rubric) {
+    setState(() {
+      _questions[questionIndex]['rubric'] = rubric;
+      if (rubric != null) {
+        final criteria = rubric['criteria'] as List<dynamic>? ?? [];
+        final totalPoints = criteria.fold<double>(
+          0,
+          (sum, c) =>
+              sum +
+              ((c as Map<String, dynamic>)['max_points'] as num? ?? 0)
+                  .toDouble(),
+        );
+        _questions[questionIndex]['points'] = totalPoints;
+      }
+      _publishValidationErrors.remove(questionIndex);
+    });
+  }
+
+  /// D-08: Validate that all essay/shortAnswer questions have a rubric before publish.
+  /// Returns true if valid, false if there are errors.
+  bool _validatePublishRubrics() {
+    final errors = <int>{};
+    for (int i = 0; i < _questions.length; i++) {
+      final type = _questions[i]['type'] as QuestionType?;
+      if ((type == QuestionType.essay || type == QuestionType.shortAnswer) &&
+          _questions[i]['rubric'] == null) {
+        errors.add(i);
+      }
+    }
+    if (errors.isNotEmpty) {
+      setState(() => _publishValidationErrors = errors);
+      if (errors.length > 1 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: DesignColors.error,
+            content: Text(
+              'Co ${errors.length} cau hoi tu luan chua co Rubric. Vui long them Rubric truoc khi phat hanh.',
+              style: DesignTypography.bodyMedium.copyWith(
+                color: DesignColors.white,
+              ),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      return false;
+    }
+    return true;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1469,6 +1600,7 @@ class _TeacherCreateAssignmentScreenState
 
     if (assignmentIdFromWidget != null && assignmentIdFromWidget.isNotEmpty) {
       await _loadAssignment(assignmentIdFromWidget);
+      await _checkRubricLock();
     } else {
       // Khởi tạo điểm cho các câu hỏi ban đầu (nếu có)
       _updateQuestionPoints();
@@ -1605,6 +1737,7 @@ class _TeacherCreateAssignmentScreenState
           'hints': hints,
           'points': q.points,
           if (q.questionId != null) 'questionId': q.questionId,
+          if (q.rubric != null) 'rubric': q.rubric,
         });
       }
       _setQuestions(nextQuestions);
@@ -1899,6 +2032,7 @@ class _TeacherCreateAssignmentScreenState
                                     return _buildQuestionCard(
                                       context,
                                       isDark,
+                                      questionIndex: index,
                                       questionNumber: q['number'] as int,
                                       questionType: questionType,
                                       questionText: q['text'] as String,
@@ -2450,6 +2584,7 @@ class _TeacherCreateAssignmentScreenState
   Widget _buildQuestionCard(
     BuildContext context,
     bool isDark, {
+    required int questionIndex,
     required int questionNumber,
     required QuestionType questionType,
     required String questionText,
@@ -2460,14 +2595,21 @@ class _TeacherCreateAssignmentScreenState
     VoidCallback? onDelete,
   }) {
     final borderRadius = BorderRadius.circular(DesignRadius.lg * 1.5);
+    final hasValidationError = _publishValidationErrors.contains(questionIndex);
 
-    return Container(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
       margin: const EdgeInsets.only(bottom: DesignSpacing.md),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A2632) : Colors.white,
         borderRadius: borderRadius,
         border: Border.all(
-          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+          color: hasValidationError
+              ? DesignColors.error
+              : (isDark ? Colors.grey[700]! : Colors.grey[200]!),
+          width: hasValidationError ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
@@ -2677,6 +2819,9 @@ class _TeacherCreateAssignmentScreenState
                     ),
                   ],
 
+                  // Rubric section (D-07: essay and shortAnswer only)
+                  _buildRubricSection(questionIndex),
+
                   // Actions
                   const SizedBox(height: 12),
                   Divider(
@@ -2721,6 +2866,36 @@ class _TeacherCreateAssignmentScreenState
           ],
         ),
       ),
+        ),
+        // D-08: Publish validation error message
+        if (hasValidationError)
+          Padding(
+            padding: const EdgeInsets.only(
+              top: DesignSpacing.xs,
+              left: DesignSpacing.lg,
+              right: DesignSpacing.lg,
+              bottom: DesignSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  size: DesignIcons.xsSize,
+                  color: DesignColors.error,
+                ),
+                const SizedBox(width: DesignSpacing.xs),
+                Expanded(
+                  child: Text(
+                    'Cau hoi tu luan phai co Rubric truoc khi phat hanh.',
+                    style: DesignTypography.caption.copyWith(
+                      color: DesignColors.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
