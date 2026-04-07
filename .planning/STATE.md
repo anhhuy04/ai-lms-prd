@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-InteractiveRubricGrader-PLAN.md
-last_updated: "2026-04-06T14:32:46.439Z"
-last_activity: 2026-04-06
+stopped_at: Completed 03-QuestionAnswerCard-PLAN.md
+last_updated: "2026-04-07T00:30:04Z"
+last_activity: 2026-04-07
 progress:
   total_phases: 8
   completed_phases: 3
@@ -42,7 +42,14 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 ## Session
 
-**Last activity:** 2026-04-06
+**Last activity:** 2026-04-07
+
+- Completed plan 03-QuestionAnswerCard: Replace _buildRubric() with ReadOnlyRubricViewer / InteractiveRubricGrader
+  - Removed old _buildRubric() that used wrong 'max_score' key (D-02 violation)
+  - Added isGrading, submissionAnswerId, onLevelSelected, onManualOverride props
+  - New _buildRubricSection(): grading mode -> InteractiveRubricGrader, read-only -> ReadOnlyRubricViewer
+  - flutter analyze: 0 errors
+  - Commit: f37ac62
 
 - Completed plan 05-05: Student "Hoc tap" recommendations entry-point (REC-02 gap closure)
   - Added route constants (`studentRecommendationsTab`, `studentRecommendationsTabPath`)
