@@ -117,8 +117,8 @@
 
 ## Phase 6: AI Grading ⏸ MERGED INTO PHASE 7
 
-> Context đã được tích hợp vào Phase 7. Infrastructure (ai_queue worker, ai_evaluations) sẽ được build trong Phase 7.
-> Essay-specific AI grading (rubric scoring) defer đến khi Phase 3 được re-enable.
+> Context da duoc tich hop vao Phase 7. Infrastructure (ai_queue worker, ai_evaluations) se duoc build trong Phase 7.
+> Essay-specific AI grading (rubric scoring) defer den khi Phase 3 duoc re-enable.
 
 **Context:**
 - [x] 06-CONTEXT.md (reference only)
@@ -127,39 +127,52 @@
 
 ## Phase 7: AI Analytics Pipeline
 
-**Goal:** Đảm bảo pipeline dữ liệu từ "học sinh nộp bài" → "analytics có data thực" hoạt động end-to-end. Build AI queue infrastructure sẵn cho tương lai.
+**Goal:** Dam bao pipeline du lieu tu "hoc sinh nop bai" -> "analytics co data thuc" hoat dong end-to-end. Build AI queue infrastructure san cho tuong lai.
 
-**Quy tắc:** Tính năng ảnh hưởng MCQ (trắc nghiệm) → làm ngay. Tính năng thuần essay → defer.
+**Quy tac:** Tinh nang anh huong MCQ (trac nghiem) -> lam ngay. Tinh nang thuan essay -> defer.
 
 **Requirements:**
-- 7-01: Skill Mastery Write Pipeline — cập nhật `student_skill_mastery` sau mỗi submission (MCQ + tất cả loại)
-- 7-02: Question Stats Pipeline — cập nhật `question_stats` sau mỗi submission
-- 7-03: Submission Analytics — generate `submission_analytics` metrics sau submit
-- 7-04: Grade Override verification — verify end-to-end từ UI → `grade_overrides` table
-- 7-05: AI Queue Edge Function — Supabase Edge Function xử lý `ai_queue` (skeleton, essay activate sau)
-- 7-06: Phase 4 UAT Closure — re-test 7 tests còn skip
-- 7-07: AI Recommendations Generation — INSERT vào `ai_recommendations` từ skill gaps + analytics
-- 7-08: AI Feedback cho MCQ — `feedback` request_type giải thích đáp án sai/đúng cho học sinh
-- 7-09: Phase 5 UAT + VERIFICATION Closure — PeerComparison data + 3 bugs (standalone route, dismiss bug, REC-03 class avg RPC)
-- 7-10: Phase 2 UAT Closure — Filter by Status bug + re-test Grade Audit Trail + Override MCQ score
-- 7-11: AI Grading Toggle — công tắc AI per distribution + grading_status pipeline + retroactive trigger
+- 7-01: Skill Mastery Write Pipeline
+- 7-02: Question Stats Pipeline
+- 7-03: Submission Analytics
+- 7-04: Grade Override verification + push notification
+- 7-05: AI Queue Edge Function
+- 7-06: Phase 4 UAT Closure
+- 7-07: AI Recommendations Generation
+- 7-08: AI Feedback cho MCQ
+- 7-09: Phase 5 UAT + VERIFICATION Closure
+- 7-10: Phase 2 UAT Closure
+- 7-11: AI Grading Toggle
+
+**Plans:** 9 plans in 4 waves
+
+Plans:
+- [ ] 07-01-PLAN.md -- Skill mastery AFTER INSERT trigger on submission_answers (7-01)
+- [ ] 07-02-PLAN.md -- Question stats AFTER INSERT trigger on submission_answers (7-02)
+- [ ] 07-03-PLAN.md -- work_sessions AI status + in_app_notifications + grade_override notification (7-11, 7-04)
+- [ ] 07-04-PLAN.md -- Submission analytics: per-question timer + non-blocking INSERT (7-03)
+- [ ] 07-05-PLAN.md -- Phase 2 UAT closure: Filter by Status fix + grade override verify (7-10)
+- [ ] 07-06-PLAN.md -- AI Queue Edge Function skeleton: feedback + analysis + score stub (7-05)
+- [ ] 07-07-PLAN.md -- Phase 4 UAT closure: re-test 7 skipped tests with real data (7-06)
+- [ ] 07-08-PLAN.md -- ai_queue wiring: feedback + analysis INSERT in submitAssignment (7-07, 7-08)
+- [ ] 07-09-PLAN.md -- Phase 5 UAT + VERIFICATION closure: RPC + route + dismiss fix (7-09)
 
 **Success Criteria:**
-1. Student submit MCQ → `student_skill_mastery` có record mới ngay sau submit
-2. Phase 4 Analytics screen hiển thị dữ liệu thực (không rỗng)
-3. Phase 5 Recommendations dựa trên skill gaps thực
-4. Teacher override điểm → record trong `grade_overrides` tồn tại
-5. `ai_queue` Edge Function deploy thành công (dù chưa có essay data)
+1. Student submit MCQ -> `student_skill_mastery` co record moi ngay sau submit
+2. Phase 4 Analytics screen hien thi du lieu thuc (khong rong)
+3. Phase 5 Recommendations dua tren skill gaps thuc
+4. Teacher override diem -> record trong `grade_overrides` ton tai
+5. `ai_queue` Edge Function deploy thanh cong (du chua co essay data)
 
 **Deferred (essay re-enable sau):**
 - Rubric-based AI scoring
 - `ai_evaluations.criteria_scores` display
-- AI grading UI cho câu tự luận
+- AI grading UI cho cau tu luan
 
 **Context:**
-- [ ] 07-CONTEXT.md
+- [x] 07-CONTEXT.md
 
 ---
 
 *Roadmap created: 2026-03-05*
-*Last updated: 2026-04-08 - Phase 7 AI Analytics Pipeline added; Phase 6 merged into Phase 7; Phase 3 (rubric/essay) deferred indefinitely*
+*Last updated: 2026-04-08 - Phase 7 plans created (9 plans in 4 waves)*
