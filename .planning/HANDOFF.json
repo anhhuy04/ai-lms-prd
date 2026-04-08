@@ -1,14 +1,42 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-04T23:00:00+07:00",
-  "phase": "settings-ui-refactor",
-  "phase_name": "Ollama Integration & API Key Setup Refactor",
+  "timestamp": "2026-04-08T09:46:54Z",
+  "phase": "07",
+  "phase_name": "ai-analytics-pipeline",
+  "phase_dir": ".planning/phases/07-ai-analytics-pipeline",
+  "plan": 0,
+  "task": 0,
+  "total_tasks": 11,
   "status": "paused",
-  "uncommitted_files": [
-    "lib/core/services/ai_service.dart",
-    "lib/core/services/api_key_service.dart",
-    "lib/presentation/views/settings/api_key_setup_screen.dart"
+  "completed_tasks": [],
+  "remaining_tasks": [
+    {"id": 1, "name": "7-01: Skill Mastery Write Pipeline (DB trigger)", "status": "not_started"},
+    {"id": 2, "name": "7-02: Question Stats Write Pipeline (DB trigger)", "status": "not_started"},
+    {"id": 3, "name": "7-03: Submission Analytics Generation", "status": "not_started"},
+    {"id": 4, "name": "7-04: Grade Override Verification + Push Notification", "status": "not_started"},
+    {"id": 5, "name": "7-05: AI Queue Edge Function skeleton", "status": "not_started"},
+    {"id": 6, "name": "7-06: Phase 4 UAT Closure", "status": "not_started"},
+    {"id": 7, "name": "7-07: AI Recommendations Generation Pipeline", "status": "not_started"},
+    {"id": 8, "name": "7-08: AI Feedback cho MCQ", "status": "not_started"},
+    {"id": 9, "name": "7-09: Phase 5 UAT + VERIFICATION Closure", "status": "not_started"},
+    {"id": 10, "name": "7-10: Phase 2 UAT Closure", "status": "not_started"},
+    {"id": 11, "name": "7-11: AI Grading Toggle & Auto-grade Workflow", "status": "not_started"}
   ],
-  "next_action": "Hot reload app, go to Settings -> API Key, connect Ollama with LAN IP, then test question generation",
-  "context_notes": "Main bug: callActiveAi defaulted to Gemini when provider=ollama. Fixed by adding providerOllama routing + callOllamaChat method. Dio optimized (static instances, shared error helpers). UI: URL presets + model BottomSheet. LDPlayer needs host LAN IP + OLLAMA_HOST=0.0.0.0."
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Tự luận (essay) defer vô thời hạn", "rationale": "User quyết định bỏ qua essay, chỉ làm MCQ", "phase": "07"},
+    {"decision": "Phase 6 merged vào Phase 7", "rationale": "Phase 6 chỉ có context, không có implementation", "phase": "07"},
+    {"decision": "submissions.grading_status thay vì mở rộng work_sessions.status", "rationale": "Tách biệt session tracking và grading state", "phase": "07"},
+    {"decision": "AI toggle nằm trong assignment_distributions.settings JSONB", "rationale": "Field ai_feedback_enabled đã có trong schema comment, thêm ai_require_review sub-field", "phase": "07"},
+    {"decision": "skill_mastery update qua PostgreSQL trigger", "rationale": "Đảm bảo mọi code path đều cập nhật (submit, re-grade, override)", "phase": "07"}
+  ],
+  "uncommitted_files": [
+    ".planning/ROADMAP.md",
+    ".planning/phases/07-ai-analytics-pipeline/07-CONTEXT.md",
+    ".planning/phases/07-ai-analytics-pipeline/.continue-here.md",
+    ".planning/phases/03-rubric-system/03-UAT-fixes.md"
+  ],
+  "next_action": "Chạy /gsd:plan-phase 7 để tạo PLAN.md chi tiết. Bắt đầu với Wave 1: 7-01 và 7-02 (DB triggers).",
+  "context_notes": "Session này chỉ thiết kế Phase 7, không code. 07-CONTEXT.md rất chi tiết — đặc biệt 7-11 có schema, UI wireframe, code snippets. Đọc 07-CONTEXT.md là đủ để plan."
 }

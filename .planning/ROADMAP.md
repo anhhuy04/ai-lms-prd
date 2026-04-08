@@ -115,26 +115,51 @@
 
 ---
 
-## Phase 6: AI Grading (FINAL PHASE)
+## Phase 6: AI Grading ⏸ MERGED INTO PHASE 7
 
-**Goal:** Implement AI-powered grading system
-
-**Requirements:**
-- AI Queue management
-- AI Evaluation storage
-- Grade Override functionality
-- RLHF data collection
-
-**Success Criteria:**
-1. Submissions automatically queued for AI grading
-2. AI scores stored with model info and rationale
-3. Teacher can override AI grades
-4. Override data collected for model improvement
+> Context đã được tích hợp vào Phase 7. Infrastructure (ai_queue worker, ai_evaluations) sẽ được build trong Phase 7.
+> Essay-specific AI grading (rubric scoring) defer đến khi Phase 3 được re-enable.
 
 **Context:**
-- [x] 06-CONTEXT.md
+- [x] 06-CONTEXT.md (reference only)
+
+---
+
+## Phase 7: AI Analytics Pipeline
+
+**Goal:** Đảm bảo pipeline dữ liệu từ "học sinh nộp bài" → "analytics có data thực" hoạt động end-to-end. Build AI queue infrastructure sẵn cho tương lai.
+
+**Quy tắc:** Tính năng ảnh hưởng MCQ (trắc nghiệm) → làm ngay. Tính năng thuần essay → defer.
+
+**Requirements:**
+- 7-01: Skill Mastery Write Pipeline — cập nhật `student_skill_mastery` sau mỗi submission (MCQ + tất cả loại)
+- 7-02: Question Stats Pipeline — cập nhật `question_stats` sau mỗi submission
+- 7-03: Submission Analytics — generate `submission_analytics` metrics sau submit
+- 7-04: Grade Override verification — verify end-to-end từ UI → `grade_overrides` table
+- 7-05: AI Queue Edge Function — Supabase Edge Function xử lý `ai_queue` (skeleton, essay activate sau)
+- 7-06: Phase 4 UAT Closure — re-test 7 tests còn skip
+- 7-07: AI Recommendations Generation — INSERT vào `ai_recommendations` từ skill gaps + analytics
+- 7-08: AI Feedback cho MCQ — `feedback` request_type giải thích đáp án sai/đúng cho học sinh
+- 7-09: Phase 5 UAT + VERIFICATION Closure — PeerComparison data + 3 bugs (standalone route, dismiss bug, REC-03 class avg RPC)
+- 7-10: Phase 2 UAT Closure — Filter by Status bug + re-test Grade Audit Trail + Override MCQ score
+- 7-11: AI Grading Toggle — công tắc AI per distribution + grading_status pipeline + retroactive trigger
+
+**Success Criteria:**
+1. Student submit MCQ → `student_skill_mastery` có record mới ngay sau submit
+2. Phase 4 Analytics screen hiển thị dữ liệu thực (không rỗng)
+3. Phase 5 Recommendations dựa trên skill gaps thực
+4. Teacher override điểm → record trong `grade_overrides` tồn tại
+5. `ai_queue` Edge Function deploy thành công (dù chưa có essay data)
+
+**Deferred (essay re-enable sau):**
+- Rubric-based AI scoring
+- `ai_evaluations.criteria_scores` display
+- AI grading UI cho câu tự luận
+
+**Context:**
+- [ ] 07-CONTEXT.md
 
 ---
 
 *Roadmap created: 2026-03-05*
-*Last updated: 2026-04-06 - Phase 3 rubric system planned (10 plans, 4 waves)*
+*Last updated: 2026-04-08 - Phase 7 AI Analytics Pipeline added; Phase 6 merged into Phase 7; Phase 3 (rubric/essay) deferred indefinitely*
