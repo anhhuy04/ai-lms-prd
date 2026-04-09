@@ -401,7 +401,10 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
   void loadDistributionConfig(Map<String, dynamic> config) {
     final dueDateRaw = config['due_at'] as String?;
     final availableFromRaw = config['available_from'] as String?;
-    final settings = config['settings'] as Map<String, dynamic>? ?? {};
+    final rawSettings = config['settings'];
+    final settings = rawSettings is Map
+        ? Map<String, dynamic>.from(rawSettings)
+        : <String, dynamic>{};
     final latePolicyMap = config['late_policy'] as Map<String, dynamic>?;
 
     state = state.copyWith(

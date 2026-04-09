@@ -1057,7 +1057,7 @@ class _TeacherDistributeAssignmentScreenState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Expanded(
                               child: Text(
@@ -1069,9 +1069,21 @@ class _TeacherDistributeAssignmentScreenState
                                 ),
                               ),
                             ),
-                            Switch(
-                              value: state.requireReview,
-                              onChanged: (_) => notifier.toggleRequireReview(),
+                            Transform.scale(
+                              scale: 0.65,
+                              child: Switch(
+                                value: state.requireReview,
+                                onChanged: (_) => notifier.toggleRequireReview(),
+                                activeThumbColor: Colors.white,
+                                activeTrackColor: DesignColors.primary,
+                                inactiveThumbColor: Colors.white,
+                                inactiveTrackColor: Colors.grey[300],
+                                trackOutlineColor: WidgetStateProperty.resolveWith(
+                                  (s) => s.contains(WidgetState.selected)
+                                      ? DesignColors.primary
+                                      : Colors.grey[300],
+                                ),
+                              ),
                             ),
                           ],
                         ),
