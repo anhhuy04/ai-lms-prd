@@ -32,6 +32,7 @@ mixin _$Submission {
   String get studentId => throw _privateConstructorUsedError;
 
   /// Trạng thái hiện tại của bài nộp
+  @SubmissionStatusConverter()
   @JsonKey(name: 'status')
   SubmissionStatus get status => throw _privateConstructorUsedError;
 
@@ -120,7 +121,9 @@ abstract class $SubmissionCopyWith<$Res> {
     @JsonKey(name: 'assignment_distribution_id')
     String assignmentDistributionId,
     @JsonKey(name: 'student_id') String studentId,
-    @JsonKey(name: 'status') SubmissionStatus status,
+    @SubmissionStatusConverter()
+    @JsonKey(name: 'status')
+    SubmissionStatus status,
     @JsonKey(name: 'submitted_at') DateTime? submittedAt,
     @JsonKey(name: 'graded_at') DateTime? gradedAt,
     @JsonKey(name: 'score') double? score,
@@ -279,7 +282,9 @@ abstract class _$$SubmissionImplCopyWith<$Res>
     @JsonKey(name: 'assignment_distribution_id')
     String assignmentDistributionId,
     @JsonKey(name: 'student_id') String studentId,
-    @JsonKey(name: 'status') SubmissionStatus status,
+    @SubmissionStatusConverter()
+    @JsonKey(name: 'status')
+    SubmissionStatus status,
     @JsonKey(name: 'submitted_at') DateTime? submittedAt,
     @JsonKey(name: 'graded_at') DateTime? gradedAt,
     @JsonKey(name: 'score') double? score,
@@ -430,7 +435,9 @@ class _$SubmissionImpl implements _Submission {
     @JsonKey(name: 'assignment_distribution_id')
     required this.assignmentDistributionId,
     @JsonKey(name: 'student_id') required this.studentId,
-    @JsonKey(name: 'status') this.status = SubmissionStatus.draft,
+    @SubmissionStatusConverter()
+    @JsonKey(name: 'status')
+    this.status = SubmissionStatus.draft,
     @JsonKey(name: 'submitted_at') this.submittedAt,
     @JsonKey(name: 'graded_at') this.gradedAt,
     @JsonKey(name: 'score') this.score,
@@ -474,6 +481,7 @@ class _$SubmissionImpl implements _Submission {
 
   /// Trạng thái hiện tại của bài nộp
   @override
+  @SubmissionStatusConverter()
   @JsonKey(name: 'status')
   final SubmissionStatus status;
 
@@ -711,7 +719,9 @@ abstract class _Submission implements Submission {
     @JsonKey(name: 'assignment_distribution_id')
     required final String assignmentDistributionId,
     @JsonKey(name: 'student_id') required final String studentId,
-    @JsonKey(name: 'status') final SubmissionStatus status,
+    @SubmissionStatusConverter()
+    @JsonKey(name: 'status')
+    final SubmissionStatus status,
     @JsonKey(name: 'submitted_at') final DateTime? submittedAt,
     @JsonKey(name: 'graded_at') final DateTime? gradedAt,
     @JsonKey(name: 'score') final double? score,
@@ -749,6 +759,7 @@ abstract class _Submission implements Submission {
 
   /// Trạng thái hiện tại của bài nộp
   @override
+  @SubmissionStatusConverter()
   @JsonKey(name: 'status')
   SubmissionStatus get status;
 

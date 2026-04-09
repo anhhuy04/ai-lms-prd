@@ -5,16 +5,61 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'submission.freezed.dart';
 part 'submission.g.dart';
 
-/// Trạng thái của bài nộp
+/// Trạng thái của bài nộp (ánh xạ từ work_sessions.status)
 enum SubmissionStatus {
   /// Bản nháp - học sinh đang làm
   draft,
 
-  /// Đã nộp - chờ giáo viên chấm
+  /// Đã nộp - chờ xử lý
   submitted,
 
-  /// Đã chấm - có điểm
+  /// AI đang xử lý ngầm
+  @JsonValue('ai_processing')
+  aiProcessing,
+
+  /// AI xong, chờ giáo viên duyệt
+  @JsonValue('pending_review')
+  pendingReview,
+
+  /// Đã chấm - điểm đã công bố
   graded,
+
+  /// Trạng thái không xác định - graceful degradation (D-16)
+  unknown,
+}
+
+/// Custom JSON converter xử lý unknown status strings (D-16)
+class SubmissionStatusConverter implements JsonConverter<SubmissionStatus, String?> {
+  const SubmissionStatusConverter();
+
+  @override
+  SubmissionStatus fromJson(String? json) {
+    if (json == null) return SubmissionStatus.unknown;
+    switch (json) {
+      case 'draft':
+        return SubmissionStatus.draft;
+      case 'submitted':
+        return SubmissionStatus.submitted;
+      case 'ai_processing':
+        return SubmissionStatus.aiProcessing;
+      case 'pending_review':
+        return SubmissionStatus.pendingReview;
+      case 'graded':
+        return SubmissionStatus.graded;
+      default:
+        return SubmissionStatus.unknown;
+    }
+  }
+
+  @override
+  String toJson(SubmissionStatus status) => switch (status) {
+    SubmissionStatus.draft => 'draft',
+    SubmissionStatus.submitted => 'submitted',
+    SubmissionStatus.aiProcessing => 'ai_processing',
+    SubmissionStatus.pendingReview => 'pending_review',
+    SubmissionStatus.graded => 'graded',
+    SubmissionStatus.unknown => 'unknown',
+  };
 }
 
 /// Entity cho bảng submissions - lưu trữ bài nộp của học sinh
@@ -30,6 +75,7 @@ class Submission with _$Submission {
     @JsonKey(name: 'student_id') required String studentId,
 
     /// Trạng thái hiện tại của bài nộp
+    @SubmissionStatusConverter()
     @JsonKey(name: 'status') @Default(SubmissionStatus.draft) SubmissionStatus status,
 
     /// Thời điểm nộp bài (null nếu chưa nộp)

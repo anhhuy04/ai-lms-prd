@@ -11,9 +11,11 @@ _$SubmissionImpl _$$SubmissionImplFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       assignmentDistributionId: json['assignment_distribution_id'] as String,
       studentId: json['student_id'] as String,
-      status:
-          $enumDecodeNullable(_$SubmissionStatusEnumMap, json['status']) ??
-          SubmissionStatus.draft,
+      status: json['status'] == null
+          ? SubmissionStatus.draft
+          : const SubmissionStatusConverter().fromJson(
+              json['status'] as String?,
+            ),
       submittedAt: json['submitted_at'] == null
           ? null
           : DateTime.parse(json['submitted_at'] as String),
@@ -52,7 +54,7 @@ Map<String, dynamic> _$$SubmissionImplToJson(_$SubmissionImpl instance) =>
       'id': instance.id,
       'assignment_distribution_id': instance.assignmentDistributionId,
       'student_id': instance.studentId,
-      'status': _$SubmissionStatusEnumMap[instance.status]!,
+      'status': const SubmissionStatusConverter().toJson(instance.status),
       'submitted_at': instance.submittedAt?.toIso8601String(),
       'graded_at': instance.gradedAt?.toIso8601String(),
       'score': instance.score,
@@ -70,9 +72,3 @@ Map<String, dynamic> _$$SubmissionImplToJson(_$SubmissionImpl instance) =>
       'workSessions': instance.workSessions,
       'submission_answers': instance.submissionAnswers,
     };
-
-const _$SubmissionStatusEnumMap = {
-  SubmissionStatus.draft: 'draft',
-  SubmissionStatus.submitted: 'submitted',
-  SubmissionStatus.graded: 'graded',
-};
