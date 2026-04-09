@@ -31,6 +31,10 @@ class _StudentAssignmentWorkspaceScreenState
   // Map to store TextEditingControllers for fill-in-blank questions
   final Map<String, TextEditingController> _fillInBlankControllers = {};
 
+  // Per-question time tracking (D-10)
+  final Map<String, Stopwatch> _questionTimers = {};
+  String? _currentQuestionId;
+
   @override
   void initState() {
     super.initState();
@@ -52,7 +56,31 @@ class _StudentAssignmentWorkspaceScreenState
       controller.dispose();
     }
     _fillInBlankControllers.clear();
+    // Stop all question timers
+    for (final sw in _questionTimers.values) {
+      sw.stop();
+    }
     super.dispose();
+  }
+
+  /// Switch active question timer: pause old, start/resume new (D-10)
+  void _onQuestionChanged(String newQuestionId) {
+    if (_currentQuestionId == newQuestionId) return;
+    if (_currentQuestionId != null) {
+      _questionTimers[_currentQuestionId!]?.stop();
+    }
+    _questionTimers.putIfAbsent(newQuestionId, () => Stopwatch());
+    _questionTimers[newQuestionId]!.start();
+    _currentQuestionId = newQuestionId;
+  }
+
+  /// Get elapsed seconds per question for analytics (D-10)
+  Map<String, int> getTimeLog() {
+    // Stop active timer before reading
+    if (_currentQuestionId != null) {
+      _questionTimers[_currentQuestionId!]?.stop();
+    }
+    return _questionTimers.map((id, sw) => MapEntry(id, sw.elapsed.inSeconds));
   }
 
   @override
@@ -118,7 +146,7 @@ class _StudentAssignmentWorkspaceScreenState
                   : 'Câu ${workspace.answeredCount}/${workspace.totalQuestions} đã trả lời',
               style: TextStyle(
                 fontSize: DesignTypography.captionSize,
-                color: widget.isReadOnly ? Colors.orange[700] : DesignColors.textSecondary,
+                color: widget.isReadOnly ? DesignColors.warning : DesignColors.textSecondary,
               ),
             ),
           ],
@@ -162,11 +190,11 @@ class _StudentAssignmentWorkspaceScreenState
           padding: const EdgeInsets.only(right: DesignSpacing.md),
           child: Row(
             children: [
-              Icon(Icons.check_circle, size: 16, color: Colors.green[600]),
+              Icon(Icons.check_circle, size: 16, color: DesignColors.success),
               const SizedBox(width: 6),
               Text(
                 'Đã lưu',
-                style: TextStyle(fontSize: 12, color: Colors.green[600]),
+                style: TextStyle(fontSize: 12, color: DesignColors.success),
               ),
             ],
           ),
@@ -176,11 +204,11 @@ class _StudentAssignmentWorkspaceScreenState
           padding: const EdgeInsets.only(right: DesignSpacing.md),
           child: Row(
             children: [
-              Icon(Icons.error_outline, size: 16, color: Colors.red[600]),
+              Icon(Icons.error_outline, size: 16, color: DesignColors.error),
               const SizedBox(width: 6),
               Text(
                 'Lỗi lưu',
-                style: TextStyle(fontSize: 12, color: Colors.red[600]),
+                style: TextStyle(fontSize: 12, color: DesignColors.error),
               ),
             ],
           ),
@@ -197,13 +225,12 @@ class _StudentAssignmentWorkspaceScreenState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+            Icon(Icons.error_outline, size: 48, color: DesignColors.error),
             const SizedBox(height: DesignSpacing.md),
             Text(
               'Lỗi khi tải bài tập',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
+              style: DesignTypography.bodyLarge.copyWith(
+                color: DesignColors.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -235,6 +262,11 @@ class _StudentAssignmentWorkspaceScreenState
       return _buildEmptyQuestions();
     }
 
+    // Start timer for first question on first build (D-10)
+    if (_currentQuestionId == null && workspace.questions.isNotEmpty) {
+      _onQuestionChanged(workspace.questions.first.id);
+    }
+
     return Column(
       children: [
         // Banner xem lại khi readOnly
@@ -242,13 +274,13 @@ class _StudentAssignmentWorkspaceScreenState
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.orange[50],
+            color: DesignColors.warning.withValues(alpha: 0.08),
             child: Row(children: [
-              Icon(Icons.visibility_outlined, size: 16, color: Colors.orange[700]),
+              Icon(Icons.visibility_outlined, size: 16, color: DesignColors.warning),
               const SizedBox(width: 8),
               Expanded(child: Text(
                 'Bạn đang xem lại bài đã nộp. Các câu trả lời không thể chỉnh sửa.',
-                style: TextStyle(fontSize: 12, color: Colors.orange[800]),
+                style: TextStyle(fontSize: 12, color: DesignColors.warning),
               )),
             ]),
           ),
@@ -264,7 +296,11 @@ class _StudentAssignmentWorkspaceScreenState
                 final answer = workspace.answers[question.id];
                 return IgnorePointer(
                   ignoring: widget.isReadOnly,
-                  child: _buildQuestionCard(context, question, answer, index + 1),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: () => _onQuestionChanged(question.id),
+                    child: _buildQuestionCard(context, question, answer, index + 1),
+                  ),
                 );
               }),
             ],
@@ -632,15 +668,13 @@ class _StudentAssignmentWorkspaceScreenState
         ),
         decoration: BoxDecoration(
           color: isSelected
-              ? (value == 'true' ? Colors.green : Colors.red).withValues(
-                  alpha: 0.1,
-                )
-              : Colors.grey[50],
+              ? (value == 'true' ? DesignColors.success : DesignColors.error).withValues(alpha: 0.1)
+              : DesignColors.moonLight,
           borderRadius: BorderRadius.circular(DesignRadius.md),
           border: Border.all(
             color: isSelected
-                ? (value == 'true' ? Colors.green : Colors.red)
-                : Colors.grey[300]!,
+                ? (value == 'true' ? DesignColors.success : DesignColors.error)
+                : DesignColors.dividerMedium,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -651,18 +685,17 @@ class _StudentAssignmentWorkspaceScreenState
               icon,
               size: 24,
               color: isSelected
-                  ? (value == 'true' ? Colors.green : Colors.red)
-                  : Colors.grey[600],
+                  ? (value == 'true' ? DesignColors.success : DesignColors.error)
+                  : DesignColors.textSecondary,
             ),
             const SizedBox(width: DesignSpacing.sm),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 16,
+              style: DesignTypography.bodyLarge.copyWith(
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 color: isSelected
-                    ? (value == 'true' ? Colors.green : Colors.red)
-                    : Colors.grey[600],
+                    ? (value == 'true' ? DesignColors.success : DesignColors.error)
+                    : DesignColors.textSecondary,
               ),
             ),
           ],
@@ -1079,9 +1112,10 @@ class _StudentAssignmentWorkspaceScreenState
     );
 
     if (confirmed == true && context.mounted) {
+      final timeLog = getTimeLog();
       final success = await ref
           .read(workspaceNotifierProvider(widget.distributionId).notifier)
-          .submit();
+          .submit(timeLog: timeLog);
 
       if (success && context.mounted) {
         // Show success screen
@@ -1270,14 +1304,18 @@ class _StudentAssignmentWorkspaceScreenState
   ) async {
     final workspace = workspaceAsync.valueOrNull;
 
-    // Show confirmation dialog
-    // Show confirmation dialog
+    // Skip confirm dialog if nothing answered yet
+    if (workspace == null || workspace.answeredCount == 0) {
+      if (context.mounted) context.pop();
+      return;
+    }
+
     final shouldLeave = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xác nhận'),
         content: Text(
-          workspace != null && workspace.answeredCount > 0
+          workspace.answeredCount > 0
               ? 'Bạn đang có câu trả lời chưa lưu. Bạn có chắc muốn thoát không?'
               : 'Bạn có chắc muốn thoát không?',
         ),
@@ -1296,7 +1334,7 @@ class _StudentAssignmentWorkspaceScreenState
 
     if (shouldLeave == true && context.mounted) {
       // Save draft before leaving if there are answers
-      if (workspace != null && workspace.answeredCount > 0) {
+      if (workspace.answeredCount > 0) {
         // Save draft, NOT submit!
         await ref
             .read(workspaceNotifierProvider(widget.distributionId).notifier)
