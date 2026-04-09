@@ -156,6 +156,8 @@ Plans:
 - [ ] 07-07-PLAN.md -- Phase 4 UAT closure: re-test 7 skipped tests with real data (7-06)
 - [ ] 07-08-PLAN.md -- ai_queue wiring: feedback + analysis INSERT in submitAssignment (7-07, 7-08)
 - [ ] 07-09-PLAN.md -- Phase 5 UAT + VERIFICATION closure: RPC + route + dismiss fix (7-09)
+- [ ] 07-10-PLAN.md -- Flutter 7-11b: SubmissionStatus enum extension + Distribution UI AI toggle (7-11b)
+- [ ] 07-11-PLAN.md -- SubmissionStatus UI Update: teacher/student badges + filter chip Chờ duyệt AI (7-12)
 
 **Success Criteria:**
 1. Student submit MCQ -> `student_skill_mastery` co record moi ngay sau submit
@@ -175,4 +177,4 @@ Plans:
 ---
 
 *Roadmap created: 2026-03-05*
-*Last updated: 2026-04-08 - Phase 7 plans created (9 plans in 4 waves)*
+*Last updated: 2026-04-09 - Phase 7 complete: 11 plans in 5 waves (added 07-10 Flutter 7-11b + 07-11 SubmissionStatus UI 7-12)*
