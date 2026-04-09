@@ -1,42 +1,53 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-08T09:46:54Z",
+  "timestamp": "2026-04-09T15:19:36.007Z",
   "phase": "07",
   "phase_name": "ai-analytics-pipeline",
   "phase_dir": ".planning/phases/07-ai-analytics-pipeline",
-  "plan": 0,
-  "task": 0,
-  "total_tasks": 11,
+  "plan": null,
+  "task": null,
   "status": "paused",
-  "completed_tasks": [],
-  "remaining_tasks": [
-    {"id": 1, "name": "7-01: Skill Mastery Write Pipeline (DB trigger)", "status": "not_started"},
-    {"id": 2, "name": "7-02: Question Stats Write Pipeline (DB trigger)", "status": "not_started"},
-    {"id": 3, "name": "7-03: Submission Analytics Generation", "status": "not_started"},
-    {"id": 4, "name": "7-04: Grade Override Verification + Push Notification", "status": "not_started"},
-    {"id": 5, "name": "7-05: AI Queue Edge Function skeleton", "status": "not_started"},
-    {"id": 6, "name": "7-06: Phase 4 UAT Closure", "status": "not_started"},
-    {"id": 7, "name": "7-07: AI Recommendations Generation Pipeline", "status": "not_started"},
-    {"id": 8, "name": "7-08: AI Feedback cho MCQ", "status": "not_started"},
-    {"id": 9, "name": "7-09: Phase 5 UAT + VERIFICATION Closure", "status": "not_started"},
-    {"id": 10, "name": "7-10: Phase 2 UAT Closure", "status": "not_started"},
-    {"id": 11, "name": "7-11: AI Grading Toggle & Auto-grade Workflow", "status": "not_started"}
+  "completed_plans": [
+    {"id": "07-01", "name": "Skill Mastery Trigger", "status": "done", "commit": "d39c682"},
+    {"id": "07-02", "name": "Question Stats Trigger", "status": "done", "commit": "a3b2e77"},
+    {"id": "07-03", "name": "DB Schema AI status + notifications", "status": "done", "commit": "f253ecd"},
+    {"id": "07-04", "name": "Submission Analytics Pipeline", "status": "done", "commit": "2c051a0"},
+    {"id": "07-05", "name": "UAT Phase 2 fixes (Filter bug + Grade Override)", "status": "done", "commit": "f231000"},
+    {"id": "07-10", "name": "Flutter SubmissionStatus enum + AI toggle UI", "status": "done_needs_verify", "commit": "5a6b2d1"}
   ],
-  "blockers": [],
-  "human_actions_pending": [],
+  "remaining_plans": [
+    {"id": "07-06", "wave": 3, "name": "Edge Function process-ai-queue skeleton", "status": "not_started"},
+    {"id": "07-07", "wave": 3, "name": "Phase 4 UAT Closure (7 skipped tests)", "status": "not_started"},
+    {"id": "07-08", "wave": 3, "name": "Wire ai_queue INSERT into submitAssignment", "status": "not_started"},
+    {"id": "07-09", "wave": 4, "name": "Phase 5 UAT + VERIFICATION gaps", "status": "not_started"},
+    {"id": "07-11", "wave": 5, "name": "UI badges for aiProcessing/pendingReview statuses", "status": "not_started"}
+  ],
+  "blockers": [
+    {
+      "description": "AI review pipeline not working end-to-end — investigation interrupted mid-Phase-1",
+      "type": "technical",
+      "context": "User reported: AI toggle UI broken, ai_require_review not loading from DB, full AI review flow not working. Reading 07-CONTEXT.md D-11/D-12 when paused. Likely root cause: submitAssignment() never sets status='ai_processing' nor INSERTs ai_queue — that logic is in 07-08 (Wave 3, not yet executed).",
+      "workaround": "Resume by checking submitAssignment() for ai_processing branch and ai_queue INSERT gap"
+    }
+  ],
+  "human_actions_pending": [
+    {
+      "action": "Verify Wave 2 UI fixes (07-10) in running app",
+      "context": "Fixed Switch Transform.scale + safe-cast settings Map. Needs hot reload + test.",
+      "blocking": false
+    },
+    {
+      "action": "Investigate + fix AI pipeline gap before continuing Wave 3",
+      "context": "submitAssignment() may not implement ai_processing status transition or ai_queue INSERT",
+      "blocking": true
+    }
+  ],
   "decisions": [
-    {"decision": "Tự luận (essay) defer vô thời hạn", "rationale": "User quyết định bỏ qua essay, chỉ làm MCQ", "phase": "07"},
-    {"decision": "Phase 6 merged vào Phase 7", "rationale": "Phase 6 chỉ có context, không có implementation", "phase": "07"},
-    {"decision": "submissions.grading_status thay vì mở rộng work_sessions.status", "rationale": "Tách biệt session tracking và grading state", "phase": "07"},
-    {"decision": "AI toggle nằm trong assignment_distributions.settings JSONB", "rationale": "Field ai_feedback_enabled đã có trong schema comment, thêm ai_require_review sub-field", "phase": "07"},
-    {"decision": "skill_mastery update qua PostgreSQL trigger", "rationale": "Đảm bảo mọi code path đều cập nhật (submit, re-grade, override)", "phase": "07"}
+    {"decision": "Per-question timer uses GestureDetector.onTap (not PageController.onPageChanged)", "rationale": "Workspace uses ListView not PageView", "phase": "07"},
+    {"decision": "timeLog threaded through full chain: screen→WorkspaceNotifier→AssignmentRepository→Datasource", "rationale": "Clean architecture", "phase": "07"},
+    {"decision": "settings Map cast uses Map.from(rawSettings)", "rationale": "Supabase may return Map<String,Object?> failing as Map<String,dynamic>", "phase": "07"}
   ],
-  "uncommitted_files": [
-    ".planning/ROADMAP.md",
-    ".planning/phases/07-ai-analytics-pipeline/07-CONTEXT.md",
-    ".planning/phases/07-ai-analytics-pipeline/.continue-here.md",
-    ".planning/phases/03-rubric-system/03-UAT-fixes.md"
-  ],
-  "next_action": "Chạy /gsd:plan-phase 7 để tạo PLAN.md chi tiết. Bắt đầu với Wave 1: 7-01 và 7-02 (DB triggers).",
-  "context_notes": "Session này chỉ thiết kế Phase 7, không code. 07-CONTEXT.md rất chi tiết — đặc biệt 7-11 có schema, UI wireframe, code snippets. Đọc 07-CONTEXT.md là đủ để plan."
+  "uncommitted_files": [],
+  "next_action": "Trace AI pipeline gap: check submitAssignment() for (1) ai_feedback_enabled read from settings, (2) work_sessions.status = 'ai_processing' branch, (3) ai_queue INSERT. Compare against D-11/D-12 spec in 07-CONTEXT.md.",
+  "context_notes": "Wave 2 complete (07-04, 07-05, 07-10 done). Bug investigation was reading 07-CONTEXT.md when interrupted. Key insight from context_notes: D-11 says submitAssignment should parse settings and set ai_processing status, D-12 says status transitions submitted→graded OR ai_processing. Current code likely only does submitted→graded, missing the AI branch. 07-08 is supposed to wire ai_queue INSERT but hasn't run yet."
 }
