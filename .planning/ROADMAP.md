@@ -144,12 +144,12 @@
 - 7-10: Phase 2 UAT Closure
 - 7-11: AI Grading Toggle
 
-**Plans:** 1/11 plans executed
+**Plans:** 2/11 plans executed
 
 Plans:
 - [ ] 07-01-PLAN.md -- Skill mastery AFTER INSERT trigger on submission_answers (7-01)
 - [x] 07-02-PLAN.md -- Question stats AFTER INSERT trigger on submission_answers (7-02)
-- [ ] 07-03-PLAN.md -- work_sessions AI status + in_app_notifications + grade_override notification (7-11, 7-04)
+- [x] 07-03-PLAN.md -- work_sessions AI status + in_app_notifications + grade_override notification (7-11, 7-04)
 - [ ] 07-04-PLAN.md -- Submission analytics: per-question timer + non-blocking INSERT (7-03)
 - [ ] 07-05-PLAN.md -- Phase 2 UAT closure: Filter by Status fix + grade override verify (7-10)
 - [ ] 07-06-PLAN.md -- AI Queue Edge Function skeleton: feedback + analysis + score stub (7-05)
