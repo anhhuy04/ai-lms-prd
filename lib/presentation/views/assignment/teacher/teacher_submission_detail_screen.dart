@@ -451,7 +451,8 @@ class _TeacherSubmissionDetailScreenState
           const SizedBox(height: DesignSpacing.md),
 
           // Grading Action Buttons
-          if (aiScore != null)
+          // Show when ai_score is present (AI-graded) OR final_score is set (MCQ auto-graded)
+          if (aiScore != null || finalScore != null)
             GradingActionButtons(
               answer: answer,
               onApprove: () => _approveScore(answer['id'] as String),
@@ -1196,8 +1197,13 @@ class _TeacherSubmissionDetailScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Đã cập nhật điểm: $newScore')),
         );
+        // Refresh submission detail để cập nhật điểm mới
         ref.invalidate(teacherSubmissionDetailProvider(
           submissionId: widget.submissionId,
+        ));
+        // Refresh audit trail để hiển thị override record mới
+        ref.invalidate(gradeOverrideHistoryProvider(
+          submissionAnswerId: answerId,
         ));
       }
     } catch (e) {
