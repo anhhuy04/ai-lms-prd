@@ -546,7 +546,7 @@ class AssignmentDataSource {
         final aqRes = await _client
             .from('assignment_questions')
             .select(
-              'id, assignment_id, question_id, points, order_idx, custom_content',
+              'id, assignment_id, question_id, points, order_idx, custom_content, rubric',
             )
             .eq('assignment_id', assignmentId)
             .order('order_idx');
@@ -607,6 +607,7 @@ class AssignmentDataSource {
                 'points': aq['points'],
                 'order_idx': aq['order_idx'],
                 'question_choices': qDetail['question_choices'] ?? [],
+                'rubric': aq['rubric'], // D-02: rubric JSONB từ assignment_questions
               });
             } else if (customContent != null) {
               // Case 2: Câu hỏi tạo mới (custom_content) - Format mới
@@ -681,6 +682,7 @@ class AssignmentDataSource {
                 'points': customContent['points'] ?? aq['points'] ?? 1,
                 'order_idx': aq['order_idx'],
                 'question_choices': questionChoices,
+                'rubric': aq['rubric'], // D-02: rubric JSONB từ assignment_questions
               };
 
               // Merge additional info
@@ -1072,8 +1074,9 @@ class AssignmentDataSource {
   /// 6️⃣  DELETE:     autosave_answers (Dọn dẹp Vùng đệm an toàn)
   Future<Map<String, dynamic>> submitAssignment(
     String distributionId,
-    String studentId,
-  ) async {
+    String studentId, {
+    Map<String, int>? timeLog,
+  }) async {
     // Get session
     final session = await _client
         .from('work_sessions')
@@ -1100,7 +1103,7 @@ class AssignmentDataSource {
         .eq('session_id', sessionId);
     final distributionFuture = _client
         .from('assignment_distributions')
-        .select('due_at, allow_late, late_policy')
+        .select('due_at, allow_late, late_policy, settings')
         .eq('id', distributionId)
         .maybeSingle();
 
@@ -1490,7 +1493,110 @@ class AssignmentDataSource {
     // 5️⃣ Cleanup: Delete autosave_answers (reduce DB size)
     await _client.from('autosave_answers').delete().eq('session_id', sessionId);
 
+    // Phase 7: Non-blocking submission_analytics INSERT (D-03)
+    try {
+      await _insertSubmissionAnalytics(
+        sessionId: sessionId,
+        timeLog: timeLog,
+      );
+    } catch (e) {
+      AppLogger.warning('[SUBMIT] submission_analytics insert failed: $e');
+      // Non-blocking: submission still succeeds
+    }
+
     return Map<String, dynamic>.from(result);
+  }
+
+  /// Tạo submission_analytics với time_per_question và accuracy_by_tag (D-10)
+  Future<void> _insertSubmissionAnalytics({
+    required String sessionId,
+    Map<String, int>? timeLog,
+  }) async {
+    // Get submission for this session
+    final submission = await _client
+        .from('submissions')
+        .select('id')
+        .eq('session_id', sessionId)
+        .maybeSingle();
+    final submissionId = submission?['id'] as String?;
+    if (submissionId == null) return;
+
+    // Get submission_answers with assignment_question data
+    final answers = await _client
+        .from('submission_answers')
+        .select('assignment_question_id, final_score')
+        .eq('session_id', sessionId);
+
+    final aqIds = answers
+        .map((a) => a['assignment_question_id'] as String?)
+        .whereType<String>()
+        .toList();
+
+    if (aqIds.isEmpty) return;
+
+    // Get tags from linked questions for accuracy_by_tag
+    final aqs = await _client
+        .from('assignment_questions')
+        .select('id, points, question_id, questions(tags)')
+        .inFilter('id', aqIds);
+
+    // Build accuracy_by_tag
+    final Map<String, List<double>> tagScores = {};
+    for (final aq in aqs) {
+      final aqId = aq['id'] as String;
+      final points = (aq['points'] as num?)?.toDouble() ?? 0;
+      if (points == 0) continue;
+      final answer = answers.firstWhere(
+        (a) => a['assignment_question_id'] == aqId,
+        orElse: () => <String, dynamic>{},
+      );
+      final finalScore = (answer['final_score'] as num?)?.toDouble();
+      if (finalScore == null) continue;
+
+      final accuracy = finalScore / points;
+      final questionData = aq['questions'] as Map<String, dynamic>?;
+      final tags = (questionData?['tags'] as List<dynamic>?)?.cast<String>() ?? [];
+      for (final tag in tags) {
+        tagScores.putIfAbsent(tag, () => []).add(accuracy);
+      }
+    }
+
+    final accuracyByTag = tagScores.map(
+      (tag, scores) => MapEntry(
+        tag,
+        scores.reduce((a, b) => a + b) / scores.length,
+      ),
+    );
+
+    // Validate timeLog: sum should not exceed session time + tolerance (D-10)
+    Map<String, int>? validatedTimeLog = timeLog;
+    if (timeLog != null && timeLog.isNotEmpty) {
+      final sessionRow = await _client
+          .from('work_sessions')
+          .select('time_spent_seconds')
+          .eq('id', sessionId)
+          .maybeSingle();
+      final timeSpent = (sessionRow?['time_spent_seconds'] as num?)?.toInt();
+      if (timeSpent != null) {
+        final sumTimeLog = timeLog.values.fold<int>(0, (a, b) => a + b);
+        if (sumTimeLog > timeSpent + 60) {
+          AppLogger.warning(
+            '[SUBMIT] time_log invalid: sum=$sumTimeLog > timeSpent=$timeSpent — setting null',
+          );
+          validatedTimeLog = null;
+        }
+      }
+    }
+
+    await _client.from('submission_analytics').insert({
+      'submission_id': submissionId,
+      'metrics': {
+        'time_per_question': validatedTimeLog,
+        'accuracy_by_tag': accuracyByTag.isEmpty ? null : accuracyByTag,
+      },
+    });
+
+    AppLogger.debug('[SUBMIT] submission_analytics inserted for $submissionId');
   }
 
   /// Chấm điểm tức thì cho câu hỏi khách quan (MCQ, True-False)

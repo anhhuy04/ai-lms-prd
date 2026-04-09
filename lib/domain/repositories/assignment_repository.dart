@@ -128,8 +128,9 @@ abstract class AssignmentRepository {
   /// Nộp bài tập
   Future<Map<String, dynamic>> submitAssignment(
     String distributionId,
-    String studentId,
-  );
+    String studentId, {
+    Map<String, int>? timeLog,
+  });
 
   /// Lấy lịch sử nộp bài của học sinh
   Future<List<Map<String, dynamic>>> getStudentSubmissionHistory(

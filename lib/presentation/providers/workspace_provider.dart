@@ -251,7 +251,7 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
   }
 
   /// Nộp bài tập
-  Future<bool> submit() async {
+  Future<bool> submit({Map<String, int>? timeLog}) async {
     final currentState = state.valueOrNull;
     if (currentState == null) return false;
     if (currentState.submissionStatus != WorkspaceSubmissionStatus.inProgress) return false;
@@ -274,7 +274,7 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
         throw Exception('User not authenticated');
       }
 
-      await repo.submitAssignment(distributionId, studentId);
+      await repo.submitAssignment(distributionId, studentId, timeLog: timeLog);
 
       state = AsyncData(currentState.copyWith(
         submissionStatus: WorkspaceSubmissionStatus.submitted,

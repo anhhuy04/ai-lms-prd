@@ -476,10 +476,11 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
   @override
   Future<Map<String, dynamic>> submitAssignment(
     String distributionId,
-    String studentId,
-  ) async {
+    String studentId, {
+    Map<String, int>? timeLog,
+  }) async {
     try {
-      return await _ds.submitAssignment(distributionId, studentId);
+      return await _ds.submitAssignment(distributionId, studentId, timeLog: timeLog);
     } catch (e, stackTrace) {
       AppLogger.error(
         '🔴 [REPO ERROR] submitAssignment: $e',
