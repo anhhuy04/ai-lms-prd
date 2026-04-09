@@ -45,6 +45,11 @@ mixin _$DistributeAssignmentState {
   bool get shuffleQuestions =>
       throw _privateConstructorUsedError; // Đảo câu hỏi
   bool get shuffleAnswers => throw _privateConstructorUsedError; // Đảo đáp án
+  // --- AI Analysis settings (D-11) ---
+  bool get aiEnabled =>
+      throw _privateConstructorUsedError; // AI phân tích bài làm (default: tắt)
+  bool get requireReview =>
+      throw _privateConstructorUsedError; // Chờ giáo viên duyệt trước khi công bố (default: bật)
   // --- UI State ---
   bool get isLoading => throw _privateConstructorUsedError;
   bool get isSuccess => throw _privateConstructorUsedError;
@@ -79,6 +84,8 @@ abstract class $DistributeAssignmentStateCopyWith<$Res> {
     bool sendNotification,
     bool shuffleQuestions,
     bool shuffleAnswers,
+    bool aiEnabled,
+    bool requireReview,
     bool isLoading,
     bool isSuccess,
     String? errorMessage,
@@ -119,6 +126,8 @@ class _$DistributeAssignmentStateCopyWithImpl<
     Object? sendNotification = null,
     Object? shuffleQuestions = null,
     Object? shuffleAnswers = null,
+    Object? aiEnabled = null,
+    Object? requireReview = null,
     Object? isLoading = null,
     Object? isSuccess = null,
     Object? errorMessage = freezed,
@@ -181,6 +190,14 @@ class _$DistributeAssignmentStateCopyWithImpl<
                 ? _value.shuffleAnswers
                 : shuffleAnswers // ignore: cast_nullable_to_non_nullable
                       as bool,
+            aiEnabled: null == aiEnabled
+                ? _value.aiEnabled
+                : aiEnabled // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            requireReview: null == requireReview
+                ? _value.requireReview
+                : requireReview // ignore: cast_nullable_to_non_nullable
+                      as bool,
             isLoading: null == isLoading
                 ? _value.isLoading
                 : isLoading // ignore: cast_nullable_to_non_nullable
@@ -237,6 +254,8 @@ abstract class _$$DistributeAssignmentStateImplCopyWith<$Res>
     bool sendNotification,
     bool shuffleQuestions,
     bool shuffleAnswers,
+    bool aiEnabled,
+    bool requireReview,
     bool isLoading,
     bool isSuccess,
     String? errorMessage,
@@ -278,6 +297,8 @@ class __$$DistributeAssignmentStateImplCopyWithImpl<$Res>
     Object? sendNotification = null,
     Object? shuffleQuestions = null,
     Object? shuffleAnswers = null,
+    Object? aiEnabled = null,
+    Object? requireReview = null,
     Object? isLoading = null,
     Object? isSuccess = null,
     Object? errorMessage = freezed,
@@ -340,6 +361,14 @@ class __$$DistributeAssignmentStateImplCopyWithImpl<$Res>
             ? _value.shuffleAnswers
             : shuffleAnswers // ignore: cast_nullable_to_non_nullable
                   as bool,
+        aiEnabled: null == aiEnabled
+            ? _value.aiEnabled
+            : aiEnabled // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        requireReview: null == requireReview
+            ? _value.requireReview
+            : requireReview // ignore: cast_nullable_to_non_nullable
+                  as bool,
         isLoading: null == isLoading
             ? _value.isLoading
             : isLoading // ignore: cast_nullable_to_non_nullable
@@ -375,6 +404,8 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
     this.sendNotification = true,
     this.shuffleQuestions = false,
     this.shuffleAnswers = false,
+    this.aiEnabled = false,
+    this.requireReview = true,
     this.isLoading = false,
     this.isSuccess = false,
     this.errorMessage,
@@ -441,6 +472,15 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
   @JsonKey()
   final bool shuffleAnswers;
   // Đảo đáp án
+  // --- AI Analysis settings (D-11) ---
+  @override
+  @JsonKey()
+  final bool aiEnabled;
+  // AI phân tích bài làm (default: tắt)
+  @override
+  @JsonKey()
+  final bool requireReview;
+  // Chờ giáo viên duyệt trước khi công bố (default: bật)
   // --- UI State ---
   @override
   @JsonKey()
@@ -453,7 +493,7 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
 
   @override
   String toString() {
-    return 'DistributeAssignmentState(assignment: $assignment, selectedAssignments: $selectedAssignments, recipientSelection: $recipientSelection, dueDate: $dueDate, availableFrom: $availableFrom, availableUntil: $availableUntil, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePenaltyPercent: $latePenaltyPercent, studentReviewMode: $studentReviewMode, maxAttempts: $maxAttempts, sendNotification: $sendNotification, shuffleQuestions: $shuffleQuestions, shuffleAnswers: $shuffleAnswers, isLoading: $isLoading, isSuccess: $isSuccess, errorMessage: $errorMessage)';
+    return 'DistributeAssignmentState(assignment: $assignment, selectedAssignments: $selectedAssignments, recipientSelection: $recipientSelection, dueDate: $dueDate, availableFrom: $availableFrom, availableUntil: $availableUntil, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePenaltyPercent: $latePenaltyPercent, studentReviewMode: $studentReviewMode, maxAttempts: $maxAttempts, sendNotification: $sendNotification, shuffleQuestions: $shuffleQuestions, shuffleAnswers: $shuffleAnswers, aiEnabled: $aiEnabled, requireReview: $requireReview, isLoading: $isLoading, isSuccess: $isSuccess, errorMessage: $errorMessage)';
   }
 
   @override
@@ -490,6 +530,10 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
                 other.shuffleQuestions == shuffleQuestions) &&
             (identical(other.shuffleAnswers, shuffleAnswers) ||
                 other.shuffleAnswers == shuffleAnswers) &&
+            (identical(other.aiEnabled, aiEnabled) ||
+                other.aiEnabled == aiEnabled) &&
+            (identical(other.requireReview, requireReview) ||
+                other.requireReview == requireReview) &&
             (identical(other.isLoading, isLoading) ||
                 other.isLoading == isLoading) &&
             (identical(other.isSuccess, isSuccess) ||
@@ -499,7 +543,7 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     assignment,
     const DeepCollectionEquality().hash(_selectedAssignments),
@@ -515,10 +559,12 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
     sendNotification,
     shuffleQuestions,
     shuffleAnswers,
+    aiEnabled,
+    requireReview,
     isLoading,
     isSuccess,
     errorMessage,
-  );
+  ]);
 
   /// Create a copy of DistributeAssignmentState
   /// with the given fields replaced by the non-null parameter values.
@@ -548,6 +594,8 @@ abstract class _DistributeAssignmentState implements DistributeAssignmentState {
     final bool sendNotification,
     final bool shuffleQuestions,
     final bool shuffleAnswers,
+    final bool aiEnabled,
+    final bool requireReview,
     final bool isLoading,
     final bool isSuccess,
     final String? errorMessage,
@@ -584,6 +632,11 @@ abstract class _DistributeAssignmentState implements DistributeAssignmentState {
   bool get shuffleQuestions; // Đảo câu hỏi
   @override
   bool get shuffleAnswers; // Đảo đáp án
+  // --- AI Analysis settings (D-11) ---
+  @override
+  bool get aiEnabled; // AI phân tích bài làm (default: tắt)
+  @override
+  bool get requireReview; // Chờ giáo viên duyệt trước khi công bố (default: bật)
   // --- UI State ---
   @override
   bool get isLoading;

@@ -35,6 +35,9 @@ class DistributeAssignmentState with _$DistributeAssignmentState {
     @Default(true) bool sendNotification, // Gửi thông báo cho học sinh
     @Default(false) bool shuffleQuestions, // Đảo câu hỏi
     @Default(false) bool shuffleAnswers, // Đảo đáp án
+    // --- AI Analysis settings (D-11) ---
+    @Default(false) bool aiEnabled, // AI phân tích bài làm (default: tắt)
+    @Default(true) bool requireReview, // Chờ giáo viên duyệt trước khi công bố (default: bật)
     // --- UI State ---
     @Default(false) bool isLoading,
     @Default(false) bool isSuccess,
@@ -300,7 +303,8 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
         'shuffle_choices': state.shuffleAnswers,
         'show_score_immediately': state.studentReviewMode != 'none',
         'student_review_mode': state.studentReviewMode,
-        'ai_feedback_enabled': true,
+        'ai_feedback_enabled': state.aiEnabled,
+        if (state.aiEnabled) 'ai_require_review': state.requireReview,
         if (state.maxAttempts != null) 'max_attempts': state.maxAttempts,
       };
 
@@ -412,6 +416,8 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
       studentReviewMode: settings['student_review_mode'] as String? ?? 'full_review',
       sendNotification: settings['send_notification'] as bool? ?? true,
       maxAttempts: settings['max_attempts'] as int?,
+      aiEnabled: settings['ai_feedback_enabled'] as bool? ?? false,
+      requireReview: settings['ai_require_review'] as bool? ?? true,
     );
   }
 
@@ -436,7 +442,8 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
         'shuffle_choices': state.shuffleAnswers,
         'show_score_immediately': state.studentReviewMode != 'none',
         'student_review_mode': state.studentReviewMode,
-        'ai_feedback_enabled': true,
+        'ai_feedback_enabled': state.aiEnabled,
+        if (state.aiEnabled) 'ai_require_review': state.requireReview,
         if (state.maxAttempts != null) 'max_attempts': state.maxAttempts,
       };
 
@@ -466,6 +473,16 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
         errorMessage: 'Cập nhật thất bại: ${e.toString()}',
       );
     }
+  }
+
+  // ===================== AI Analysis settings =====================
+
+  void toggleAiEnabled() {
+    state = state.copyWith(aiEnabled: !state.aiEnabled);
+  }
+
+  void toggleRequireReview() {
+    state = state.copyWith(requireReview: !state.requireReview);
   }
 
   void clearError() {
