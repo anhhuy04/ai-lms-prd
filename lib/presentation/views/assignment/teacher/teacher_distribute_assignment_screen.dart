@@ -1023,6 +1023,70 @@ class _TeacherDistributeAssignmentScreenState
             tSec: tSec,
             isDark: isDark,
           ),
+          Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
+          // AI Analysis toggle (7-11b)
+          _buildToggleRow(
+            icon: Icons.auto_awesome,
+            title: 'AI Phân tích bài làm',
+            subtitle: 'Sau khi nộp, AI giải thích đáp án và phân tích học lực',
+            value: state.aiEnabled,
+            onChanged: (_) => notifier.toggleAiEnabled(),
+            tMain: tMain,
+            tSec: tSec,
+            isDark: isDark,
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: state.aiEnabled
+                ? Container(
+                    margin: const EdgeInsets.only(left: 44, top: 4, bottom: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? DesignColors.primary.withValues(alpha: 0.08)
+                          : DesignColors.primary.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark
+                            ? DesignColors.primary.withValues(alpha: 0.2)
+                            : DesignColors.primary.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Chờ giáo viên duyệt trước khi công bố',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: tMain,
+                                ),
+                              ),
+                            ),
+                            Switch(
+                              value: state.requireReview,
+                              onChanged: (_) => notifier.toggleRequireReview(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          state.requireReview
+                              ? 'AI phân tích xong → giáo viên xem xét → công bố điểm'
+                              : 'AI phân tích xong → tự động công bố điểm',
+                          style: TextStyle(fontSize: 12, color: tSec),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
     );
