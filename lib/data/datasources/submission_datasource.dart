@@ -177,6 +177,7 @@ class SubmissionDataSource {
     final submissions = List<Map<String, dynamic>>.from(result);
 
     // Map work_sessions.status → status field for filter logic
+    // is_late comes directly from submissions.is_late (set at submit time — authoritative)
     for (final sub in submissions) {
       final workSessions = sub['work_sessions'];
       if (workSessions is List && workSessions.isNotEmpty) {
@@ -184,19 +185,8 @@ class SubmissionDataSource {
       } else {
         sub['status'] = 'submitted';
       }
-      
-      // Tính is_late dựa vào due_at của bài tập
-      final dist = sub['assignment_distributions'] as Map<String, dynamic>?;
-      final dueAtStr = dist?['due_at'] as String?;
-      final submittedAtStr = sub['submitted_at'] as String?;
-      
-      if (dueAtStr != null && submittedAtStr != null) {
-        final dueAt = DateTime.parse(dueAtStr);
-        final submittedAt = DateTime.parse(submittedAtStr);
-        sub['is_late'] = submittedAt.isAfter(dueAt);
-      } else {
-        sub['is_late'] = false; // Mặc định không muộn nếu không có hạn
-      }
+      // NOTE: is_late is read directly from submissions.is_late (line 156 in SELECT).
+      // Do NOT overwrite with client-side computation — DB value was set correctly at submit time.
     }
 
     return submissions;

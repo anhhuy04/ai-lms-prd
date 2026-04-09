@@ -111,6 +111,8 @@ Future<TeacherSubmissionListState> teacherSubmissionList(
     }).toList();
 
     // Apply filter
+    // 'pending' = status == 'submitted' (chưa chấm = đã nộp nhưng chưa graded)
+    // 'late'    = is_late == true (từ submissions.is_late, set tại thời điểm nộp)
     List<TeacherSubmissionItem> filteredItems;
     switch (filter) {
       case SubmissionFilter.pending:
@@ -125,6 +127,9 @@ Future<TeacherSubmissionListState> teacherSubmissionList(
       case SubmissionFilter.all:
         filteredItems = items;
     }
+    AppLogger.info(
+      '[SUBMISSION_FILTER] filter=$filter, total=${items.length}, filtered=${filteredItems.length}',
+    );
 
     // Kiểm tra có submission nào đang chờ AI không
     final isLoadingAi = items.any((i) => i.status == 'submitted' && !i.aiGraded);
