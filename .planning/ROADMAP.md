@@ -153,7 +153,7 @@ Plans:
 - [ ] 07-04-PLAN.md -- Submission analytics: per-question timer + non-blocking INSERT (7-03)
 - [ ] 07-05-PLAN.md -- Phase 2 UAT closure: Filter by Status fix + grade override verify (7-10)
 - [ ] 07-06-PLAN.md -- AI Queue Edge Function skeleton: feedback + analysis + score stub (7-05)
-- [ ] 07-07-PLAN.md -- Phase 4 UAT closure: re-test 7 skipped tests with real data (7-06)
+- [x] 07-07-PLAN.md -- Phase 4 UAT closure: re-test 7 skipped tests with real data (7-06)
 - [ ] 07-08-PLAN.md -- ai_queue wiring: feedback + analysis INSERT in submitAssignment (7-07, 7-08)
 - [ ] 07-09-PLAN.md -- Phase 5 UAT + VERIFICATION closure: RPC + route + dismiss fix (7-09)
 - [ ] 07-10-PLAN.md -- Flutter 7-11b: SubmissionStatus enum extension + Distribution UI AI toggle (7-11b)
