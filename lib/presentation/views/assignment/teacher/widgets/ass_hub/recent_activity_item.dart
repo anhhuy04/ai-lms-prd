@@ -82,12 +82,23 @@ class RecentActivityItem extends StatelessWidget {
                     color: statusInfo['backgroundColor'],
                     borderRadius: BorderRadius.circular(DesignRadius.sm),
                   ),
-                  child: Text(
-                    statusInfo['label'] as String,
-                    style: DesignTypography.caption.copyWith(
-                      color: statusInfo['textColor'] as Color,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        (statusInfo['icon'] as IconData?) ?? Icons.info_outline,
+                        size: DesignIcons.xsSize,
+                        color: statusInfo['textColor'] as Color,
+                      ),
+                      SizedBox(width: DesignSpacing.xs),
+                      Text(
+                        statusInfo['label'] as String,
+                        style: DesignTypography.caption.copyWith(
+                          color: statusInfo['textColor'] as Color,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -165,18 +176,44 @@ class RecentActivityItem extends StatelessWidget {
       case 'cần chấm':
         return {
           'label': 'Cần chấm',
+          'icon': Icons.edit_note_outlined,
           'backgroundColor': const Color(0xFFFEE2E2).withValues(alpha: 0.4),
           'textColor': const Color(0xFFDC2626),
         };
       case 'đang chấm':
         return {
           'label': 'Đang chấm',
+          'icon': Icons.hourglass_bottom,
           'backgroundColor': const Color(0xFFFED7AA).withValues(alpha: 0.4),
           'textColor': const Color(0xFFEA580C),
+        };
+      case 'ai_processing':
+      case 'ai đang xử lý':
+        return {
+          'label': 'AI đang xử lý',
+          'icon': Icons.auto_awesome,
+          'backgroundColor': DesignColors.primary.withValues(alpha: 0.12),
+          'textColor': DesignColors.primary,
+        };
+      case 'pending_review':
+      case 'chờ duyệt':
+        return {
+          'label': 'Chờ duyệt',
+          'icon': Icons.rate_review_outlined,
+          'backgroundColor': DesignColors.warning.withValues(alpha: 0.12),
+          'textColor': DesignColors.warning,
+        };
+      case 'unknown':
+        return {
+          'label': 'Đang xử lý...',
+          'icon': Icons.sync,
+          'backgroundColor': DesignColors.textTertiary.withValues(alpha: 0.12),
+          'textColor': DesignColors.textTertiary,
         };
       default:
         return {
           'label': status,
+          'icon': Icons.info_outline,
           'backgroundColor': Colors.grey.withValues(alpha: 0.1),
           'textColor': Colors.grey[700]!,
         };

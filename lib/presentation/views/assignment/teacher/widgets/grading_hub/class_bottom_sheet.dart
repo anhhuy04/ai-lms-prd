@@ -97,6 +97,61 @@ class ClassBottomSheet extends StatelessWidget {
             color: isDark ? Colors.grey[700] : DesignColors.dividerLight,
           ),
 
+          // Filter chips row (D-24: "Chờ duyệt AI" for pendingReview filtering)
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: DesignSpacing.md,
+              vertical: DesignSpacing.sm,
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  FilterChip(
+                    label: const Text('Tất cả'),
+                    selected: true,
+                    onSelected: (_) {
+                      // TODO 7-12c: wire to filter provider
+                    },
+                    selectedColor:
+                        DesignColors.tealPrimary.withValues(alpha: 0.15),
+                    labelStyle: DesignTypography.caption.copyWith(
+                      color: DesignColors.tealPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    showCheckmark: false,
+                    side: BorderSide(
+                      color: DesignColors.tealPrimary.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  const SizedBox(width: DesignSpacing.sm),
+                  FilterChip(
+                    avatar: Icon(
+                      Icons.rate_review_outlined,
+                      size: DesignIcons.xsSize,
+                      color: DesignColors.warning,
+                    ),
+                    label: const Text('Chờ duyệt AI'),
+                    selected: false,
+                    onSelected: (_) {
+                      // TODO 7-12c: filter by SubmissionStatus.pendingReview
+                    },
+                    backgroundColor:
+                        DesignColors.warning.withValues(alpha: 0.08),
+                    labelStyle: DesignTypography.caption.copyWith(
+                      color: DesignColors.warning,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    showCheckmark: false,
+                    side: BorderSide(
+                      color: DesignColors.warning.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           // Class list
           Flexible(
             child: ListView.separated(
