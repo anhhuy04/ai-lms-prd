@@ -271,24 +271,35 @@ class StudentSubmissionHistoryScreen extends ConsumerWidget {
 
     switch (status) {
       case 'submitted':
-        color = Colors.blue;
+        color = DesignColors.primary;
         label = 'Đã nộp';
         icon = Icons.send;
         break;
+      case 'ai_processing':
+        color = DesignColors.primary;
+        label = 'Đang chấm tự động...';
+        icon = Icons.auto_awesome;
+        break;
+      case 'pending_review':
+        color = DesignColors.warning;
+        label = 'Chờ giáo viên xét duyệt';
+        icon = Icons.rate_review_outlined;
+        break;
       case 'graded':
-        color = Colors.green;
+        color = DesignColors.success;
         label = 'Đã chấm';
         icon = Icons.check_circle;
         break;
       case 'draft':
-        color = Colors.orange;
+        color = DesignColors.warning;
         label = 'Nháp';
         icon = Icons.edit_note;
         break;
       default:
-        color = Colors.grey;
-        label = status;
-        icon = Icons.help_outline;
+        // D-16: graceful degradation — never show raw unknown status string
+        color = DesignColors.textTertiary;
+        label = 'Đang xử lý hệ thống...';
+        icon = Icons.sync;
     }
 
     return Container(
