@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-11T00:00:00.000Z"
+last_updated: "2026-04-11T12:00:00.000Z"
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 35
-  completed_plans: 32
+  completed_plans: 33
 ---
 
 # Project State
@@ -53,9 +53,18 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 | 07-07 | Phase 4 UAT Closure | 3 | ✅ Done |
 | 07-08 | Wire ai_queue feedback + trigger | 4 | ✅ Done |
 | 07-09 | Phase 5 UAT + VERIFICATION Closure | 4 | ✅ Done |
-| 07-11 | UI badges aiProcessing/pendingReview | 5 | ⏳ Pending |
+| 07-11 | UI badges aiProcessing/pendingReview | 5 | ✅ Done |
 
-**Plans done: 07-01, 07-02, 07-03, 07-04, 07-05, 07-10, 07-06, 07-07, 07-08, 07-09 (10/11)**
+**Plans done: 07-01 through 07-11 all done (11/11)**
+
+### Session 2026-04-11 — 07-11 UI Badges AI Workflow Statuses
+
+- **Task 1** [3ce2fad] — `submission_list_item.dart`: added `_statusEnum` parser, `_buildStatusBadge` switch (6 SubmissionStatus values), disabled "Chạy AI" IconButton stub, removed raw `'graded'` string comparison.
+- **Task 2** [6e79426] — `student_submission_history_screen.dart`: added `ai_processing` / `pending_review` cases; replaced default raw-string fallback with D-16 "Đang xử lý hệ thống..." grey badge.
+- **Task 3** [d2d6789] — `recent_activity_item.dart` extended `_getStatusInfo` with AI status cases + icon field; `class_bottom_sheet.dart` added FilterChip row ("Tất cả" / "Chờ duyệt AI") with TODO 7-12c for provider wiring.
+- **Task 4** — Auto-approved checkpoint, SUMMARY + STATE updated.
+- `flutter analyze` on all 4 touched files: 0 issues.
+- **Phase 7 Wave 5 complete.** All 11 plans in Phase 07 are ✅ Done.
 
 ### Session 2026-04-11 — 07-09 Phase 5 UAT + VERIFICATION Closure
 
