@@ -426,14 +426,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Route assignment detail (standalone - no bottom nav)
       GoRoute(
-        path: AppRoute.studentAssignmentDetailPath(':assignmentId'),
+        path: AppRoute.studentAssignmentDetailPath(':distributionId'),
         name: AppRoute.studentAssignmentDetail,
         builder: (context, state) {
-          final assignmentId = state.pathParameters['assignmentId']!;
-          if (assignmentId.isEmpty) {
+          final distributionId = state.pathParameters['distributionId']!;
+          if (distributionId.isEmpty) {
             return const AssignmentListScreen();
           }
-          return StudentAssignmentDetailScreen(assignmentId: assignmentId);
+          return StudentAssignmentDetailScreen(distributionId: distributionId);
         },
       ),
 
@@ -459,6 +459,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           return const StudentSubmissionHistoryScreen();
         },
+      ),
+
+      // Route recommendations (standalone - no bottom nav, distinct path from
+      // shell-tab version at AppRoute.studentRecommendationsTabPath).
+      // Use a different path+name to avoid GoRouter duplicate errors.
+      GoRoute(
+        path: '${AppRoute.studentRecommendationsTabPath}/view',
+        name: '${AppRoute.studentRecommendationsTab}_standalone',
+        builder: (context, state) => const StudentRecommendationsTab(),
       ),
 
       // ==================== TEACHER STANDALONE ROUTES ====================

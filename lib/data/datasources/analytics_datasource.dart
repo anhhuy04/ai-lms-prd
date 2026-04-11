@@ -771,4 +771,37 @@ class AnalyticsDatasource {
       return const ClassComparison();
     }
   }
+
+  /// REC-03 (D-22): Fetch average skill mastery per objective for a class.
+  /// Calls the SECURITY DEFINER RPC `get_class_average_skill_mastery`.
+  /// Returns a map of objectiveId -> avg mastery (0.0-1.0). Empty on error.
+  Future<Map<String, double>> getClassAverageSkillMastery(String classId) async {
+    try {
+      final result = await _client.rpc(
+        'get_class_average_skill_mastery',
+        params: {'p_class_id': classId},
+      );
+
+      if (result == null) return <String, double>{};
+
+      final rows = result as List<dynamic>;
+      final map = <String, double>{};
+      for (final row in rows) {
+        final r = row as Map<String, dynamic>;
+        final objectiveId = r['objective_id'] as String?;
+        final avg = (r['avg_mastery'] as num?)?.toDouble() ?? 0.0;
+        if (objectiveId != null) {
+          map[objectiveId] = avg;
+        }
+      }
+      return map;
+    } catch (e, st) {
+      AppLogger.error(
+        '[AnalyticsDatasource] getClassAverageSkillMastery error',
+        error: e,
+        stackTrace: st,
+      );
+      return <String, double>{};
+    }
+  }
 }
