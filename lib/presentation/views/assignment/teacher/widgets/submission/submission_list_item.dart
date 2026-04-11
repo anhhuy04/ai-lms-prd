@@ -1,4 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/domain/entities/submission.dart';
 import 'package:ai_mls/presentation/providers/teacher_submission_providers.dart';
 import 'package:flutter/material.dart';
 
@@ -13,8 +14,28 @@ class SubmissionListItem extends StatelessWidget {
     this.onTap,
   });
 
+  /// Parse raw status string (from TeacherSubmissionItem.status) → SubmissionStatus enum.
+  /// Mirrors SubmissionStatusConverter for graceful degradation (D-16).
+  SubmissionStatus get _statusEnum {
+    switch (submission.status) {
+      case 'draft':
+        return SubmissionStatus.draft;
+      case 'submitted':
+        return SubmissionStatus.submitted;
+      case 'ai_processing':
+        return SubmissionStatus.aiProcessing;
+      case 'pending_review':
+        return SubmissionStatus.pendingReview;
+      case 'graded':
+        return SubmissionStatus.graded;
+      default:
+        return SubmissionStatus.unknown;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final status = _statusEnum;
     return Card(
       margin: const EdgeInsets.only(bottom: DesignSpacing.sm),
       child: InkWell(
@@ -105,15 +126,38 @@ class SubmissionListItem extends StatelessWidget {
                           color: DesignColors.textTertiary,
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          _formatTime(submission.submittedAt),
-                          style: DesignTypography.bodySmall.copyWith(
-                            color: DesignColors.textSecondary,
+                        Expanded(
+                          child: Text(
+                            _formatTime(submission.submittedAt),
+                            style: DesignTypography.bodySmall.copyWith(
+                              color: DesignColors.textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        const SizedBox(width: DesignSpacing.xs),
+                        _buildStatusBadge(status),
+                      ],
+                    ),
+                    const SizedBox(height: DesignSpacing.xs),
+                    Row(
+                      children: [
+                        // "Chạy AI" retroactive trigger stub (7-12b)
+                        if (status == SubmissionStatus.submitted)
+                          IconButton(
+                            icon: const Icon(Icons.auto_awesome_outlined),
+                            iconSize: DesignIcons.smSize,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Chạy AI phân tích',
+                            // TODO 7-12b: implement retroactive AI trigger
+                            onPressed: null,
+                            color: DesignColors.textTertiary,
+                          ),
                         const Spacer(),
                         // Chấm điểm status
-                        _buildScoreIndicator(),
+                        _buildScoreIndicator(status),
                       ],
                     ),
                   ],
@@ -132,11 +176,50 @@ class SubmissionListItem extends StatelessWidget {
     );
   }
 
+  Widget _buildStatusBadge(SubmissionStatus status) {
+    return switch (status) {
+      SubmissionStatus.submitted => _badge(
+          DesignColors.textSecondary, 'Chờ chấm', Icons.schedule),
+      SubmissionStatus.aiProcessing => _badge(
+          DesignColors.primary, 'AI đang xử lý...', Icons.auto_awesome),
+      SubmissionStatus.pendingReview => _badge(
+          DesignColors.warning, 'Chờ duyệt', Icons.rate_review_outlined),
+      SubmissionStatus.graded => _badge(
+          DesignColors.success, 'Đã công bố', Icons.check_circle_outline),
+      SubmissionStatus.draft => _badge(
+          DesignColors.textTertiary, 'Nháp', Icons.edit_note),
+      SubmissionStatus.unknown => _badge(
+          DesignColors.textTertiary, 'Đang xử lý...', Icons.sync),
+    };
+  }
 
+  Widget _badge(Color color, String label, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: DesignSpacing.sm,
+        vertical: DesignSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(DesignRadius.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: DesignIcons.xsSize, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: DesignTypography.labelSmall.copyWith(color: color),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _buildScoreIndicator() {
+  Widget _buildScoreIndicator(SubmissionStatus status) {
     final hasScore = submission.totalScore != null;
-    final isGraded = submission.status == 'graded';
+    final isGraded = status == SubmissionStatus.graded;
 
     return Container(
       padding: const EdgeInsets.symmetric(
