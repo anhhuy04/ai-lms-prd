@@ -343,6 +343,12 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
 
     // ── Badge trạng thái ──
     final ({String label, Color bg, Color border, Color text}) badge = switch (status) {
+      'ai_processing' => (
+        label: 'AI đang xử lý',
+        bg: Colors.blue.withValues(alpha: 0.08),
+        border: Colors.blue.withValues(alpha: 0.4),
+        text: Colors.blue[700]!,
+      ),
       'submitted' => (
         label: 'Đã nộp',
         bg: Colors.orange.withValues(alpha: 0.08),
@@ -373,6 +379,7 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
     final ({String label, IconData icon, Color bg, Color fg}) btn = switch ((status, showScore)) {
       ('graded', true) => (label: 'Xem điểm', icon: Icons.star_outline, bg: Colors.green[100]!, fg: Colors.green[800]!),
       ('graded', false) => (label: 'Xem bài làm', icon: Icons.visibility_outlined, bg: Colors.grey[200]!, fg: Colors.grey[700]!),
+      ('ai_processing', _) => (label: 'Xem bài đã nộp', icon: Icons.visibility_outlined, bg: Colors.grey[200]!, fg: Colors.grey[700]!),
       ('submitted', _) => (label: 'Xem bài đã nộp', icon: Icons.visibility_outlined, bg: Colors.grey[200]!, fg: Colors.grey[700]!),
       ('in_progress', _) => (label: 'Tiếp tục làm', icon: Icons.play_circle_outline, bg: DesignColors.primary, fg: Colors.white),
       _ => (label: 'Làm bài ngay', icon: Icons.edit_outlined, bg: DesignColors.primary, fg: Colors.white),

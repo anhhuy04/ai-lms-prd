@@ -226,6 +226,16 @@ class SubmissionDataSource {
 
     final submission = Map<String, dynamic>.from(result);
 
+    // Normalize work_sessions → 'workSessions' key cho Submission.fromJson
+    // PostgREST có thể trả List (reverse FK) hoặc Map (outgoing FK)
+    final workSessionsRaw = submission['work_sessions'];
+    AppLogger.info('[getSubmissionById] work_sessions type=${workSessionsRaw?.runtimeType}, value=$workSessionsRaw');
+    if (workSessionsRaw is List && workSessionsRaw.isNotEmpty) {
+      submission['workSessions'] = Map<String, dynamic>.from(workSessionsRaw.first as Map);
+    } else if (workSessionsRaw is Map) {
+      submission['workSessions'] = Map<String, dynamic>.from(workSessionsRaw);
+    }
+
     // Query 2: submission_answers qua work_sessions
     final sessionId = submission['session_id'] as String?;
     if (sessionId != null) {
@@ -375,45 +385,34 @@ class SubmissionDataSource {
         .eq('id', submissionId)
         .single();
 
+    // Status lưu ở work_sessions, không phải submissions
     if (submission['session_id'] != null) {
       await _client.from('work_sessions').update({
         'status': 'graded',
         'updated_at': now,
       }).eq('id', submission['session_id']);
     }
-
-    // Cập nhật submission status
-    await _client.from('submissions').update({
-      'status': 'graded',
-      'updated_at': now,
-    }).eq('id', submissionId);
   }
 
   /// Publish grades cho toàn bộ distribution.
   Future<void> publishAllGrades(String distributionId) async {
     final now = DateTime.now().toUtc().toIso8601String();
 
-    // Lấy tất cả submissions của distribution
+    // Lấy tất cả submissions (chưa graded) của distribution
+    // Filter qua work_sessions.status vì submissions không có cột status
     final submissions = await _client
         .from('submissions')
         .select('id, session_id')
-        .eq('assignment_distribution_id', distributionId)
-        .eq('status', 'submitted');
+        .eq('assignment_distribution_id', distributionId);
 
     for (final submission in submissions) {
-      // Update work_sessions
+      // Status lưu ở work_sessions, không phải submissions
       if (submission['session_id'] != null) {
         await _client.from('work_sessions').update({
           'status': 'graded',
           'updated_at': now,
         }).eq('id', submission['session_id']);
       }
-
-      // Update submissions
-      await _client.from('submissions').update({
-        'status': 'graded',
-        'updated_at': now,
-      }).eq('id', submission['id']);
     }
   }
 }

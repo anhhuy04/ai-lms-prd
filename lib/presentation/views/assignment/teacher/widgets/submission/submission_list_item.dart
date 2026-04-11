@@ -219,7 +219,20 @@ class SubmissionListItem extends StatelessWidget {
 
   Widget _buildScoreIndicator(SubmissionStatus status) {
     final hasScore = submission.totalScore != null;
+    // graded = chấm xong hoàn toàn (xanh lá)
+    // aiProcessing = MCQ đã có điểm, AI đang chạy ngầm (xanh dương)
     final isGraded = status == SubmissionStatus.graded;
+    final isAiProcessing = status == SubmissionStatus.aiProcessing;
+    final scoreColor = isGraded
+        ? DesignColors.success
+        : isAiProcessing
+            ? DesignColors.primary
+            : DesignColors.textSecondary;
+    final bgColor = isGraded
+        ? DesignColors.success.withValues(alpha: 0.1)
+        : isAiProcessing
+            ? DesignColors.primary.withValues(alpha: 0.08)
+            : DesignColors.moonLight;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -227,20 +240,18 @@ class SubmissionListItem extends StatelessWidget {
         vertical: DesignSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: isGraded
-            ? DesignColors.success.withValues(alpha: 0.1)
-            : DesignColors.moonLight,
+        color: bgColor,
         borderRadius: BorderRadius.circular(DesignRadius.sm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (hasScore)
+          if (hasScore && (isGraded || isAiProcessing))
             Text(
               submission.totalScore!.toStringAsFixed(1),
               style: DesignTypography.bodyMedium.copyWith(
                 fontWeight: FontWeight.bold,
-                color: isGraded ? DesignColors.success : DesignColors.textSecondary,
+                color: scoreColor,
               ),
             )
           else
@@ -250,7 +261,7 @@ class SubmissionListItem extends StatelessWidget {
                 color: DesignColors.textTertiary,
               ),
             ),
-          if (submission.maxScore != null)
+          if (submission.maxScore != null && (isGraded || isAiProcessing))
             Text(
               '/ ${submission.maxScore!.toStringAsFixed(0)}',
               style: DesignTypography.bodySmall.copyWith(

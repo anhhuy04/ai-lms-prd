@@ -11,17 +11,17 @@ import 'package:go_router/go_router.dart';
 /// Màn hình chi tiết bài tập dành cho học sinh.
 /// Hiển thị thông tin bài tập, danh sách câu hỏi, và nút bắt đầu làm bài.
 class StudentAssignmentDetailScreen extends ConsumerWidget {
-  final String assignmentId;
+  final String distributionId;
 
   const StudentAssignmentDetailScreen({
     super.key,
-    required this.assignmentId,
+    required this.distributionId,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    AppLogger.debug('🔵 [DetailScreen] building with assignmentId: $assignmentId');
-    final detailAsync = ref.watch(studentAssignmentDetailProvider(assignmentId));
+    AppLogger.debug('🔵 [DetailScreen] building with distributionId: $distributionId');
+    final detailAsync = ref.watch(studentAssignmentDetailProvider(distributionId));
 
     detailAsync.when(
       loading: () => AppLogger.debug('🔵 [DetailScreen] loading...'),
@@ -67,20 +67,20 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+            Icon(Icons.error_outline, size: 48, color: DesignColors.error),
             const SizedBox(height: DesignSpacing.md),
             Text(
               'Lỗi khi tải thông tin bài tập',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
+              style: DesignTypography.bodyLarge.copyWith(
+                color: DesignColors.textSecondary,
               ),
             ),
             const SizedBox(height: DesignSpacing.sm),
             Text(
               error.toString(),
-              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+              style: DesignTypography.bodyMedium.copyWith(
+                color: DesignColors.textTertiary,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -112,7 +112,9 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
 
     // Check submission status
     final submissionStatus = submission?['status'] as String? ?? 'draft';
-    final isSubmitted = submissionStatus == 'submitted' || submissionStatus == 'graded';
+    final isSubmitted = submissionStatus == 'submitted'
+        || submissionStatus == 'graded'
+        || submissionStatus == 'ai_processing';
     final score = submission?['score'] as num?;
 
     return Column(
@@ -133,6 +135,7 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
                   totalPoints: totalPoints,
                   isSubmitted: isSubmitted,
                   score: score,
+                  submissionStatus: submissionStatus,
                 ),
 
                 const SizedBox(height: DesignSpacing.lg),
@@ -183,6 +186,7 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
     num? totalPoints,
     required bool isSubmitted,
     num? score,
+    String submissionStatus = 'draft',
   }) {
     final now = DateTime.now();
     final isExpired = dueDateTime != null && now.isAfter(dueDateTime);
@@ -250,9 +254,8 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
             const SizedBox(height: DesignSpacing.md),
             Text(
               description,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
+              style: DesignTypography.bodyMedium.copyWith(
+                color: DesignColors.textSecondary,
               ),
             ),
           ],
@@ -265,7 +268,7 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
           Row(
             children: [
               // Status Badge
-              _buildStatusBadge(isSubmitted: isSubmitted, isExpired: isExpired),
+              _buildStatusBadge(isSubmitted: isSubmitted, isExpired: isExpired, submissionStatus: submissionStatus),
 
               const Spacer(),
 
@@ -309,15 +312,14 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
                 Icon(
                   Icons.access_time,
                   size: 18,
-                  color: isExpired ? Colors.red : Colors.grey[600],
+                  color: isExpired ? DesignColors.error : DesignColors.textSecondary,
                 ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     'Hạn nộp: ${_formatDate(dueDateTime)}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isExpired ? Colors.red : Colors.grey[600],
+                    style: DesignTypography.bodyMedium.copyWith(
+                      color: isExpired ? DesignColors.error : DesignColors.textSecondary,
                     ),
                   ),
                 ),
@@ -330,15 +332,14 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
                   Icon(
                     Icons.timer_outlined,
                     size: 18,
-                    color: isExpired ? Colors.red : DesignColors.primary,
+                    color: isExpired ? DesignColors.error : DesignColors.primary,
                   ),
                   const SizedBox(width: 6),
                   Text(
                     timeRemaining,
-                    style: TextStyle(
-                      fontSize: 14,
+                    style: DesignTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: isExpired ? Colors.red : DesignColors.primary,
+                      color: isExpired ? DesignColors.error : DesignColors.primary,
                     ),
                   ),
                 ],
@@ -347,25 +348,25 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
           ],
 
           // Score (if graded)
-          if (score != null && isSubmitted) ...[
+          // Show score if graded or ai_processing (MCQ score already calculated)
+          if (score != null && (submissionStatus == 'graded' || submissionStatus == 'ai_processing')) ...[
             const SizedBox(height: DesignSpacing.md),
             Container(
               padding: const EdgeInsets.all(DesignSpacing.md),
               decoration: BoxDecoration(
-                color: Colors.green[50],
+                color: DesignColors.success.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(DesignRadius.md),
-                border: Border.all(color: Colors.green[300]!),
+                border: Border.all(color: DesignColors.success.withValues(alpha: 0.4)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.check_circle, color: Colors.green[700]),
+                  Icon(Icons.check_circle, color: DesignColors.success),
                   const SizedBox(width: DesignSpacing.sm),
                   Text(
                     'Điểm số: ${score.toStringAsFixed(1)}',
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: DesignTypography.bodyLarge.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: Colors.green[700],
+                      color: DesignColors.success,
                     ),
                   ),
                 ],
@@ -380,63 +381,32 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
   Widget _buildStatusBadge({
     required bool isSubmitted,
     required bool isExpired,
+    String submissionStatus = 'draft',
   }) {
-    if (isSubmitted) {
-      return Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: DesignSpacing.sm,
-          vertical: 4,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.green.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(DesignRadius.sm),
-          border: Border.all(color: Colors.green[300]!),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.check_circle, size: 16, color: Colors.green[700]),
-            const SizedBox(width: 4),
-            Text(
-              'Đã nộp',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.green[700],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    final Color badgeColor;
+    final IconData badgeIcon;
+    final String badgeText;
 
-    if (isExpired) {
-      return Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: DesignSpacing.sm,
-          vertical: 4,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(DesignRadius.sm),
-          border: Border.all(color: Colors.red[300]!),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cancel, size: 16, color: Colors.red[700]),
-            const SizedBox(width: 4),
-            Text(
-              'Đã hết hạn',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.red[700],
-              ),
-            ),
-          ],
-        ),
-      );
+    if (submissionStatus == 'graded') {
+      badgeColor = DesignColors.success;
+      badgeIcon = Icons.check_circle;
+      badgeText = 'Đã chấm điểm';
+    } else if (submissionStatus == 'ai_processing') {
+      badgeColor = DesignColors.primary;
+      badgeIcon = Icons.auto_awesome;
+      badgeText = 'Đã nộp \u00b7 AI đang phân tích';
+    } else if (submissionStatus == 'submitted') {
+      badgeColor = DesignColors.warning;
+      badgeIcon = Icons.hourglass_top;
+      badgeText = 'Đã nộp \u00b7 Chờ giáo viên';
+    } else if (isExpired) {
+      badgeColor = DesignColors.error;
+      badgeIcon = Icons.cancel;
+      badgeText = 'Đã hết hạn';
+    } else {
+      badgeColor = DesignColors.textSecondary;
+      badgeIcon = Icons.play_circle_outline;
+      badgeText = 'Chưa nộp';
     }
 
     return Container(
@@ -445,21 +415,20 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
         vertical: 4,
       ),
       decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.1),
+        color: badgeColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(DesignRadius.sm),
-        border: Border.all(color: Colors.blue[300]!),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.play_circle_outline, size: 16, color: Colors.blue[700]),
+          Icon(badgeIcon, size: 16, color: badgeColor),
           const SizedBox(width: 4),
           Text(
-            'Đang mở',
-            style: TextStyle(
-              fontSize: 12,
+            badgeText,
+            style: DesignTypography.caption.copyWith(
               fontWeight: FontWeight.bold,
-              color: Colors.blue[700],
+              color: badgeColor,
             ),
           ),
         ],
@@ -471,17 +440,17 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(DesignSpacing.lg),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: DesignColors.moonLight,
         borderRadius: BorderRadius.circular(DesignRadius.md),
       ),
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.quiz_outlined, size: 48, color: Colors.grey[400]),
+            Icon(Icons.quiz_outlined, size: 48, color: DesignColors.textTertiary),
             const SizedBox(height: DesignSpacing.sm),
             Text(
               'Chưa có câu hỏi',
-              style: TextStyle(color: Colors.grey[600]),
+              style: DesignTypography.bodyMedium.copyWith(color: DesignColors.textSecondary),
             ),
           ],
         ),
@@ -519,7 +488,7 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(DesignRadius.md),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: DesignColors.dividerLight),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -552,13 +521,12 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Icon(typeIcon, size: 16, color: Colors.grey[600]),
+                    Icon(typeIcon, size: 16, color: DesignColors.textSecondary),
                     const SizedBox(width: 4),
                     Text(
                       typeLabel,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
+                      style: DesignTypography.caption.copyWith(
+                        color: DesignColors.textSecondary,
                       ),
                     ),
                     const Spacer(),
@@ -568,15 +536,14 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.amber[50],
-                        borderRadius: BorderRadius.circular(4),
+                        color: DesignColors.warning.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(DesignRadius.xs),
                       ),
                       child: Text(
                         '$points điểm',
-                        style: TextStyle(
-                          fontSize: 11,
+                        style: DesignTypography.caption.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.amber[700],
+                          color: DesignColors.warning,
                         ),
                       ),
                     ),
@@ -585,8 +552,7 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
                 const SizedBox(height: DesignSpacing.xs),
                 Text(
                   contentText,
-                  style: TextStyle(
-                    fontSize: 14,
+                  style: DesignTypography.bodyMedium.copyWith(
                     color: DesignColors.textPrimary,
                   ),
                 ),
@@ -626,12 +592,12 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
                     // Use pushNamed because we need back button to work
                     context.pushNamed(
                       AppRoute.studentAssignmentWorkspace,
-                      pathParameters: {'distributionId': assignmentId},
+                      pathParameters: {'distributionId': distributionId},
                     );
                   },
             style: ElevatedButton.styleFrom(
-              backgroundColor: isSubmitted ? Colors.grey[300] : DesignColors.primary,
-              foregroundColor: Colors.white,
+              backgroundColor: isSubmitted ? DesignColors.disabledMedium : DesignColors.primary,
+              foregroundColor: DesignColors.white,
               padding: const EdgeInsets.symmetric(vertical: DesignSpacing.md),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(DesignRadius.md),
@@ -667,7 +633,8 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
           final q = entry.value as Map<String, dynamic>;
           final type = q['type'] as String? ?? q['question_type'] as String? ?? '';
           final hasRubric = q['rubric'] != null;
-          return hasRubric && (type == 'essay' || type == 'short_answer');
+          const essayTypes = {'essay', 'short_answer', 'shortAnswer'};
+          return hasRubric && essayTypes.contains(type);
         })
         .toList();
 

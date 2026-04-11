@@ -1,53 +1,97 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-09T15:19:36.007Z",
+  "timestamp": "2026-04-11T08:38:24.654Z",
   "phase": "07",
   "phase_name": "ai-analytics-pipeline",
   "phase_dir": ".planning/phases/07-ai-analytics-pipeline",
-  "plan": null,
-  "task": null,
+  "plan": 11,
+  "task": 4,
+  "total_tasks": 4,
   "status": "paused",
-  "completed_plans": [
-    {"id": "07-01", "name": "Skill Mastery Trigger", "status": "done", "commit": "d39c682"},
-    {"id": "07-02", "name": "Question Stats Trigger", "status": "done", "commit": "a3b2e77"},
-    {"id": "07-03", "name": "DB Schema AI status + notifications", "status": "done", "commit": "f253ecd"},
-    {"id": "07-04", "name": "Submission Analytics Pipeline", "status": "done", "commit": "2c051a0"},
-    {"id": "07-05", "name": "UAT Phase 2 fixes (Filter bug + Grade Override)", "status": "done", "commit": "f231000"},
-    {"id": "07-10", "name": "Flutter SubmissionStatus enum + AI toggle UI", "status": "done_needs_verify", "commit": "5a6b2d1"}
+  "completed_tasks": [
+    {"id": 1, "name": "07-06: Edge Function process-ai-queue (Deno, Gemini/Groq/Ollama)", "status": "done", "commit": "prior session"},
+    {"id": 2, "name": "07-07: Phase 4 UAT closure (triggers verified, UAT deferred)", "status": "done", "commit": "411d7eb"},
+    {"id": 3, "name": "07-08: Wire ai_queue INSERT + fire-and-forget trigger", "status": "done", "commit": "prior session"},
+    {"id": 4, "name": "07-09: SQL RPC + 3 VERIFICATION bug fixes", "status": "done", "commit": "4913e32"},
+    {"id": 5, "name": "07-11: UI badges (4 files) + Chờ duyệt AI filter chip", "status": "done", "commit": "5f57864"},
+    {"id": 6, "name": "Smart submit status: classify from questionInfoMap (all questions)", "status": "done", "commit": "uncommitted"},
+    {"id": 7, "name": "Teacher AI feedback box: render 5-field JSON {summary,explanation,misconception,tip,encouragement}", "status": "done", "commit": "uncommitted"},
+    {"id": 8, "name": "Student 3-state badge: graded/ai_processing/submitted", "status": "done", "commit": "uncommitted"},
+    {"id": 9, "name": "Consistency audit: ai_processing propagated to 6 missing locations", "status": "done", "commit": "uncommitted"},
+    {"id": 10, "name": "Score display fix: ai_processing shows MCQ score (blue), not dash", "status": "done", "commit": "uncommitted"},
+    {"id": 11, "name": "Badge color fix: submitted=orange(warning), ai_processing=blue(primary)", "status": "done", "commit": "uncommitted"}
   ],
-  "remaining_plans": [
-    {"id": "07-06", "wave": 3, "name": "Edge Function process-ai-queue skeleton", "status": "not_started"},
-    {"id": "07-07", "wave": 3, "name": "Phase 4 UAT Closure (7 skipped tests)", "status": "not_started"},
-    {"id": "07-08", "wave": 3, "name": "Wire ai_queue INSERT into submitAssignment", "status": "not_started"},
-    {"id": "07-09", "wave": 4, "name": "Phase 5 UAT + VERIFICATION gaps", "status": "not_started"},
-    {"id": "07-11", "wave": 5, "name": "UI badges for aiProcessing/pendingReview statuses", "status": "not_started"}
+  "remaining_tasks": [
+    {"id": 12, "name": "Commit all uncommitted consistency fixes across 10+ files", "status": "not_started"},
+    {"id": 13, "name": "Deploy Edge Function: supabase functions deploy process-ai-queue", "status": "not_started"},
+    {"id": 14, "name": "Apply SQL migration: 007_class_avg_skill_mastery_rpc.sql via Supabase MCP or CLI", "status": "not_started"},
+    {"id": 15, "name": "Phase 07 VERIFICATION.md — verify all must-haves against codebase", "status": "not_started"},
+    {"id": 16, "name": "Manual UAT on device: Phase 4 (7 tests) + Phase 5 (PeerComparison, dismiss)", "status": "not_started"}
   ],
-  "blockers": [
-    {
-      "description": "AI review pipeline not working end-to-end — investigation interrupted mid-Phase-1",
-      "type": "technical",
-      "context": "User reported: AI toggle UI broken, ai_require_review not loading from DB, full AI review flow not working. Reading 07-CONTEXT.md D-11/D-12 when paused. Likely root cause: submitAssignment() never sets status='ai_processing' nor INSERTs ai_queue — that logic is in 07-08 (Wave 3, not yet executed).",
-      "workaround": "Resume by checking submitAssignment() for ai_processing branch and ai_queue INSERT gap"
-    }
-  ],
+  "blockers": [],
   "human_actions_pending": [
     {
-      "action": "Verify Wave 2 UI fixes (07-10) in running app",
-      "context": "Fixed Switch Transform.scale + safe-cast settings Map. Needs hot reload + test.",
-      "blocking": false
+      "action": "Deploy Supabase Edge Function",
+      "context": "supabase functions deploy process-ai-queue — cần chạy 1 lần trước khi test E2E. File đã tạo tại supabase/functions/process-ai-queue/index.ts",
+      "blocking": true
     },
     {
-      "action": "Investigate + fix AI pipeline gap before continuing Wave 3",
-      "context": "submitAssignment() may not implement ai_processing status transition or ai_queue INSERT",
+      "action": "Apply SQL RPC migration",
+      "context": "db/migrations/007_class_avg_skill_mastery_rpc.sql — SECURITY DEFINER function get_class_average_skill_mastery. Supabase MCP không có session trước, cần apply qua CLI hoặc MCP khi có.",
       "blocking": true
+    },
+    {
+      "action": "Manual UAT testing on device/emulator",
+      "context": "Phase 4: Test 1 (Radar Chart), Test 4 (Strength/Weakness), Tests 1b/8/9/11/12 (navigation). Phase 5: PeerComparison badge, dismiss recommendation, class average.",
+      "blocking": false
     }
   ],
   "decisions": [
-    {"decision": "Per-question timer uses GestureDetector.onTap (not PageController.onPageChanged)", "rationale": "Workspace uses ListView not PageView", "phase": "07"},
-    {"decision": "timeLog threaded through full chain: screen→WorkspaceNotifier→AssignmentRepository→Datasource", "rationale": "Clean architecture", "phase": "07"},
-    {"decision": "settings Map cast uses Map.from(rawSettings)", "rationale": "Supabase may return Map<String,Object?> failing as Map<String,dynamic>", "phase": "07"}
+    {
+      "decision": "Smart submit status: hasEssay (từ questionInfoMap) → submitted; MCQ+AI → ai_processing; MCQ → graded",
+      "rationale": "Classify từ cấu trúc bài (ALL questions) không phải từ autosave — tránh bug bỏ trống câu tự luận",
+      "phase": "07"
+    },
+    {
+      "decision": "Edge Function auto-transition: maybeMarkSessionGraded() sau mỗi feedback item",
+      "rationale": "Khi hết pending feedback → UPDATE work_sessions.status='graded' (chỉ nếu đang ai_processing)",
+      "phase": "07"
+    },
+    {
+      "decision": "ai_feedback JSON 5 trường: {summary, explanation, misconception, tip, encouragement}",
+      "rationale": "Render từng section với visual riêng — summary=bold, misconception=box vàng, tip=lightbulb",
+      "phase": "07"
+    },
+    {
+      "decision": "3-state badge: graded=xanh(success), ai_processing=xanh dương(primary), submitted=cam(warning)",
+      "rationale": "submitted = chờ GV (tự luận/mixed); ai_processing = MCQ có điểm, AI đang chạy ngầm",
+      "phase": "07"
+    },
+    {
+      "decision": "Score hiển thị: ai_processing show điểm MCQ ngay (xanh dương), submitted ẩn điểm",
+      "rationale": "MCQ đã auto-graded khi submit — AI feedback là bonus không ảnh hưởng điểm",
+      "phase": "07"
+    },
+    {
+      "decision": "submission_list_item dùng local _statusEnum getter thay đổi schema provider",
+      "rationale": "TeacherSubmissionItem.status vẫn là String — tránh ripple change qua providers",
+      "phase": "07"
+    }
   ],
-  "uncommitted_files": [],
-  "next_action": "Trace AI pipeline gap: check submitAssignment() for (1) ai_feedback_enabled read from settings, (2) work_sessions.status = 'ai_processing' branch, (3) ai_queue INSERT. Compare against D-11/D-12 spec in 07-CONTEXT.md.",
-  "context_notes": "Wave 2 complete (07-04, 07-05, 07-10 done). Bug investigation was reading 07-CONTEXT.md when interrupted. Key insight from context_notes: D-11 says submitAssignment should parse settings and set ai_processing status, D-12 says status transitions submitted→graded OR ai_processing. Current code likely only does submitted→graded, missing the AI branch. 07-08 is supposed to wire ai_queue INSERT but hasn't run yet."
+  "uncommitted_files": [
+    "lib/data/datasources/assignment_datasource.dart",
+    "lib/data/datasources/submission_datasource.dart",
+    "lib/presentation/providers/distribute_assignment_notifier.dart",
+    "lib/presentation/providers/teacher_submission_providers.dart",
+    "lib/presentation/providers/workspace_provider.dart",
+    "lib/presentation/views/assignment/student/assignment_list_screen.dart",
+    "lib/presentation/views/assignment/student/student_assignment_detail_screen.dart",
+    "lib/presentation/views/assignment/student/student_submission_history_screen.dart",
+    "lib/presentation/views/assignment/teacher/teacher_submission_detail_screen.dart",
+    "lib/presentation/views/assignment/teacher/widgets/submission/submission_list_item.dart",
+    "lib/widgets/list_item/assignment/class_detail_assignment_list_item.dart",
+    "supabase/functions/process-ai-queue/index.ts"
+  ],
+  "next_action": "1) git add + commit tất cả uncommitted files với message 'fix(07): propagate ai_processing status across all UI layers + smart submit flow'. 2) supabase functions deploy process-ai-queue. 3) Apply 007_class_avg_skill_mastery_rpc.sql. 4) Chạy flutter analyze toàn project.",
+  "context_notes": "Phase 07 code hoàn thành (11/11 plans + consistency audit). Tất cả thay đổi đang uncommitted — cần commit trước khi tiếp tục. Key insight: ai_processing là trạng thái mới không có trong plan gốc — được thêm vào trong session để xử lý luồng MCQ+AI tối ưu hơn. Nhiều file cũ chỉ handle submitted/graded, đã fix trong audit. Edge Function và SQL RPC cần deploy infra thì test E2E mới được."
 }

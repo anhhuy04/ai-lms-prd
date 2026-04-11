@@ -28,6 +28,9 @@ class TeacherSubmissionDetailScreen extends ConsumerStatefulWidget {
 
 class _TeacherSubmissionDetailScreenState
     extends ConsumerState<TeacherSubmissionDetailScreen> {
+  // Guard: prevent auto-publish from firing on every rebuild
+  bool _autoPublishFired = false;
+
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(teacherSubmissionDetailProvider(
@@ -103,12 +106,23 @@ class _TeacherSubmissionDetailScreenState
             final assignment = distribution?['assignments'] as Map<String, dynamic>?;
             final answers = submission.submissionAnswers ?? [];
 
-            // Auto-grade logic for 100% objective assignments
             final workSession = submission.workSessions;
             final status = workSession?['status'] as String?;
             final submittedAt = workSession?['submitted_at'] as String?;
 
-            if (status == 'submitted' && answers.isNotEmpty) {
+            // Auto-publish logic: only for all-MCQ assignments with AI disabled and teacher
+            // review not required. Guard with _autoPublishFired to prevent repeated calls.
+            // Bug B fix: AI-off submissions now arrive as 'graded' directly from submitAssignment(),
+            // so this block handles legacy 'submitted' records with AI off.
+            if (status == 'submitted' && answers.isNotEmpty && !_autoPublishFired) {
+              final distSettings = (() {
+                final raw = distribution?['settings'];
+                return raw is Map
+                    ? Map<String, dynamic>.from(raw)
+                    : <String, dynamic>{};
+              })();
+              final aiEnabled = distSettings['ai_feedback_enabled'] as bool? ?? false;
+
               bool allObjective = true;
               for (final answer in answers) {
                 final question = answer['assignment_questions'] as Map<String, dynamic>?;
@@ -119,7 +133,10 @@ class _TeacherSubmissionDetailScreenState
                 }
               }
 
-              if (allObjective) {
+              // Only auto-publish when: AI off AND all questions are objective
+              // If AI is on with require_review, teacher must manually publish
+              if (allObjective && !aiEnabled) {
+                _autoPublishFired = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   _autoPublishGrades();
                 });
@@ -450,19 +467,19 @@ class _TeacherSubmissionDetailScreenState
           _buildCommentSection(answer, index),
           const SizedBox(height: DesignSpacing.md),
 
-          // Grading Action Buttons
-          // Show when ai_score is present (AI-graded) OR final_score is set (MCQ auto-graded)
-          if (aiScore != null || finalScore != null)
+          // Grading Action Buttons - chỉ hiện cho tự luận (essay)
+          // Trắc nghiệm auto-graded, không cần override thủ công
+          if (!isMultipleChoice && (aiScore != null || finalScore != null))
             GradingActionButtons(
               answer: answer,
               onApprove: () => _approveScore(answer['id'] as String),
               onOverride: (score, reason) => _overrideScore(answer['id'] as String, score, reason),
-              onFeedbackChanged: (feedback) => _updateFeedback(answer['id'] as String, feedback),
             ),
           const SizedBox(height: DesignSpacing.md),
 
-          // Grade Audit Trail
-          _buildGradeAuditTrail(answer['id'] as String),
+          // Grade Audit Trail - chỉ hiện cho tự luận
+          if (!isMultipleChoice)
+            _buildGradeAuditTrail(answer['id'] as String),
         ],
       ),
     );
@@ -876,68 +893,199 @@ class _TeacherSubmissionDetailScreenState
     return indices;
   }
 
-  /// AI Feedback Box - Chỉ hiển thị AI feedback hoặc MCQ explanation
+  /// AI Feedback Box - Render structured JSON feedback từ Edge Function
   Widget _buildAiFeedbackBox(Map<String, dynamic> answer, int maxScore, bool isMultipleChoice) {
-    // Xử lý an toàn: ai_feedback có thể là String hoặc Map
     final aiFeedbackRaw = answer['ai_feedback'];
-    final aiFeedback = aiFeedbackRaw is String ? aiFeedbackRaw : (aiFeedbackRaw as Map<String, dynamic>?)?['text']?.toString();
 
-    // Ẩn box nếu không có AI feedback và không phải MCQ
-    if ((aiFeedback == null || aiFeedback.isEmpty) && !isMultipleChoice) {
-      return const SizedBox.shrink();
+    // Không có feedback và không phải MCQ → ẩn
+    if (aiFeedbackRaw == null && !isMultipleChoice) return const SizedBox.shrink();
+
+    // Phân loại format:
+    // - Map với 'summary' field → structured JSON mới từ Edge Function
+    // - String hoặc Map với 'text' field → format cũ (fallback)
+    // - null → MCQ chưa có feedback → show mcq explanation
+    final Map<String, dynamic>? feedbackMap = aiFeedbackRaw is Map
+        ? Map<String, dynamic>.from(aiFeedbackRaw)
+        : null;
+
+    final bool isStructured = feedbackMap != null &&
+        (feedbackMap.containsKey('summary') || feedbackMap.containsKey('status'));
+
+    final bool isLoading = feedbackMap == null && isMultipleChoice;
+    final bool noApiKey = feedbackMap?['status'] == 'no_api_key';
+
+    // Status badge: chờ AI / không có API key / done
+    Color headerColor;
+    IconData headerIcon;
+    String headerLabel;
+    if (isLoading) {
+      headerColor = DesignColors.textSecondary;
+      headerIcon = Icons.hourglass_empty;
+      headerLabel = 'AI đang phân tích...';
+    } else if (noApiKey) {
+      headerColor = DesignColors.warning;
+      headerIcon = Icons.key_off;
+      headerLabel = 'AI Feedback (chưa cấu hình API key)';
+    } else {
+      final isCorrect = feedbackMap?['is_correct'] as bool? ?? true;
+      headerColor = isCorrect ? DesignColors.success : DesignColors.error;
+      headerIcon = isCorrect ? Icons.check_circle : Icons.cancel;
+      headerLabel = 'AI Feedback';
     }
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: DesignColors.primaryLight.withValues(alpha: 0.08),
+        color: headerColor.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: DesignColors.primaryLight),
+        border: Border.all(color: headerColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with AI icon
+          // ── Header ──────────────────────────────────────────────────────────
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: DesignColors.primary,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Icon(
-                  Icons.check_circle,
-                  size: 12,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'AI Feedback',
+              Icon(headerIcon, size: 14, color: headerColor),
+              const SizedBox(width: 6),
+              Text(
+                headerLabel,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: DesignColors.primary,
+                  color: headerColor,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          // Hiển thị AI feedback hoặc MCQ explanation
-          if (aiFeedback != null && aiFeedback.isNotEmpty)
+
+          // ── No API key message ───────────────────────────────────────────────
+          if (noApiKey) ...[
+            const SizedBox(height: 8),
             Text(
-              aiFeedback,
+              feedbackMap?['summary'] as String? ?? 'Giáo viên chưa cấu hình API key.',
+              style: const TextStyle(fontSize: 12, color: DesignColors.textSecondary),
+            ),
+          ]
+
+          // ── Structured feedback (mới) ────────────────────────────────────────
+          else if (isStructured) ...[
+            const SizedBox(height: 10),
+
+            // Summary (bold, màu theo đúng/sai)
+            if ((feedbackMap['summary'] as String? ?? '').isNotEmpty)
+              Text(
+                feedbackMap['summary'] as String,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: (feedbackMap['is_correct'] as bool? ?? true)
+                      ? DesignColors.success
+                      : DesignColors.error,
+                  height: 1.4,
+                ),
+              ),
+
+            // Explanation (body)
+            if ((feedbackMap['explanation'] as String? ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                feedbackMap['explanation'] as String,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: DesignColors.textPrimary,
+                  height: 1.5,
+                ),
+              ),
+            ],
+
+            // Misconception (chỉ khi sai)
+            if ((feedbackMap['misconception'] as String? ?? '').isNotEmpty &&
+                !(feedbackMap['is_correct'] as bool? ?? true)) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: DesignColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning_amber, size: 13, color: DesignColors.warning),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        feedbackMap['misconception'] as String,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: DesignColors.warning,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Tip (lightbulb)
+            if ((feedbackMap['tip'] as String? ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.lightbulb_outline, size: 13, color: DesignColors.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      feedbackMap['tip'] as String,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: DesignColors.primary,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            // Encouragement (italic, nhỏ)
+            if ((feedbackMap['encouragement'] as String? ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                feedbackMap['encouragement'] as String,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: DesignColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ]
+
+          // ── Fallback: format cũ (String hoặc Map['text']) ───────────────────
+          else if (feedbackMap != null && (feedbackMap['text'] as String? ?? '').isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              feedbackMap['text'] as String,
               style: const TextStyle(
                 fontSize: 12,
                 color: DesignColors.textSecondary,
                 fontStyle: FontStyle.italic,
                 height: 1.5,
               ),
-            )
-          else if (isMultipleChoice)
+            ),
+          ]
+
+          // ── MCQ chưa có feedback (isLoading) ────────────────────────────────
+          else if (isLoading) ...[
+            const SizedBox(height: 8),
             _buildMcqExplanation(answer),
+          ],
         ],
       ),
     );
@@ -1084,12 +1232,38 @@ class _TeacherSubmissionDetailScreenState
               ],
               if (isPublished) ...[
                 const SizedBox(height: 12),
-                const Text(
-                  'Đã xuất bản điểm',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: DesignColors.success,
+                Row(
+                  children: [
+                    const Icon(Icons.check_circle, size: 16, color: DesignColors.success),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Đã xuất bản điểm',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: DesignColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => context.pop(),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Lưu nhận xét & Đóng',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ),
               ],

@@ -271,9 +271,9 @@ class StudentSubmissionHistoryScreen extends ConsumerWidget {
 
     switch (status) {
       case 'submitted':
-        color = DesignColors.primary;
-        label = 'Đã nộp';
-        icon = Icons.send;
+        color = DesignColors.warning;
+        label = 'Chờ giáo viên chấm';
+        icon = Icons.hourglass_empty;
         break;
       case 'ai_processing':
         color = DesignColors.primary;

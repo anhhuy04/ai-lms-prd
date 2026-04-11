@@ -295,7 +295,7 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
             return status == 'not_submitted' || status == 'in_progress';
           }
           if (_studentStatusFilter == 'submitted') {
-            return status == 'submitted' || status == 'returned';
+            return status == 'submitted' || status == 'returned' || status == 'ai_processing';
           }
           if (_studentStatusFilter == 'graded') {
             return status == 'graded';
@@ -454,7 +454,7 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                   if (distributionId != null) {
                     context.pushNamed(
                       AppRoute.studentAssignmentDetail,
-                      pathParameters: {'assignmentId': distributionId},
+                      pathParameters: {'distributionId': distributionId},
                     );
                   }
                 },

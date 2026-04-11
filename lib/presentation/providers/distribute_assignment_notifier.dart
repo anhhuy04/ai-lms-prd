@@ -464,6 +464,8 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
       await repository.updateDistribution(distributionId, patch);
 
       AppLogger.info('✅ [DISTRIBUTE] Updated distribution $distributionId');
+      // Invalidate detail provider so TeacherAssignmentDetailScreen reflects new settings
+      ref.invalidate(distributionDetailProvider(distributionId));
       state = state.copyWith(isLoading: false, isSuccess: true);
     } catch (e, stack) {
       AppLogger.error(

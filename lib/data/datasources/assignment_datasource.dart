@@ -1,5 +1,9 @@
+import 'dart:async';
+
+import 'package:ai_mls/core/env/env.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/data/datasources/supabase_datasource.dart';
+import 'package:dio/dio.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// DataSource cho Assignments (assignments, assignment_questions, variants, distributions).
@@ -893,13 +897,15 @@ class AssignmentDataSource {
         .select('id')
         .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
-        .inFilter('status', ['submitted', 'graded']);
+        .inFilter('status', ['submitted', 'graded', 'ai_processing']);
     final attemptCount = (completedSessions as List).length;
 
     if (existingRes != null) {
       final sessionId = existingRes['id'] as String;
       final sessionStatus = existingRes['status'] as String? ?? 'in_progress';
-      final isSubmitted = sessionStatus == 'submitted' || sessionStatus == 'graded';
+      final isSubmitted = sessionStatus == 'submitted' ||
+          sessionStatus == 'graded' ||
+          sessionStatus == 'ai_processing';
 
       final Map<String, dynamic> answersMap = {};
       int correctCount = 0;
@@ -1110,6 +1116,13 @@ class AssignmentDataSource {
     final autosaveAnswers = await autosaveFuture;
     final distribution = await distributionFuture;
 
+    // Read AI settings from distribution (D-11/D-12)
+    final rawSettings = distribution?['settings'];
+    final distSettings = rawSettings is Map
+        ? Map<String, dynamic>.from(rawSettings)
+        : <String, dynamic>{};
+    final aiEnabled = distSettings['ai_feedback_enabled'] as bool? ?? false;
+
     // Check if late
     bool isLate = false;
     if (distribution != null && distribution['due_at'] != null) {
@@ -1295,6 +1308,18 @@ class AssignmentDataSource {
       }
     }
 
+    // Classify assignment type from ALL questions (not just answered ones)
+    const essayTypes = {'essay', 'short_answer', 'fill_blank', 'problem_solving'};
+    const mcqTypes = {'multiple_choice', 'true_false', 'matching'};
+
+    bool hasEssay = false;
+    bool hasMcq = false;
+    for (final q in questionInfoMap.values) {
+      final t = q['type'] as String? ?? '';
+      if (essayTypes.contains(t)) hasEssay = true;
+      if (mcqTypes.contains(t)) hasMcq = true;
+    }
+
     // 2️⃣ Save each answer to submission_answers + Auto-grade MCQ/True-False
     double totalMcqScore = 0;
 
@@ -1334,7 +1359,6 @@ class AssignmentDataSource {
           questionType == 'essay' ||
           questionType == 'short_answer' ||
           questionType == 'fill_blank';
-
       if (studentAnswer != null &&
           (questionType == 'multiple_choice' || questionType == 'true_false')) {
         // Validation: Kiểm tra answer format
@@ -1382,13 +1406,21 @@ class AssignmentDataSource {
           .select()
           .single();
 
-      // 5️⃣ Queue essay/short_answer/fill_blank for AI grading
-      if (needsAIGrading) {
-        final answerId = result['id'] as String?;
-        if (answerId != null) {
+      // 5️⃣ Queue ai_queue items (D-11)
+      final answerId = result['id'] as String?;
+      if (answerId != null) {
+        if (needsAIGrading) {
+          // Essay/short_answer → score stub (processing deferred until Phase 3)
           await _client.from('ai_queue').insert({
             'submission_answer_id': answerId,
             'request_type': 'score',
+            'status': 'pending',
+          });
+        } else if (aiEnabled && !needsAIGrading) {
+          // MCQ with AI enabled → queue feedback explanation (D-11, 07-08)
+          await _client.from('ai_queue').insert({
+            'submission_answer_id': answerId,
+            'request_type': 'feedback',
             'status': 'pending',
           });
         }
@@ -1482,9 +1514,24 @@ class AssignmentDataSource {
     }
 
     // 1️⃣ Update session status (AFTER grading so status reflects completion)
+    // D-12 status logic:
+    //   has essay  → 'submitted'     (chờ giáo viên duyệt)
+    //   MCQ + AI   → 'ai_processing' (điểm hiện ngay, AI chạy ngầm → graded khi xong)
+    //   MCQ + no AI → 'graded'       (xong ngay)
+    final String submitStatus;
+    if (hasEssay) {
+      submitStatus = 'submitted'; // PURE_ESSAY or MIXED → wait for teacher
+    } else if (aiEnabled) {
+      submitStatus = 'ai_processing'; // PURE_MCQ + AI on
+    } else {
+      submitStatus = 'graded'; // PURE_MCQ + AI off
+    }
+    AppLogger.info(
+      '[SUBMIT] hasEssay=$hasEssay hasMcq=$hasMcq aiEnabled=$aiEnabled → status=$submitStatus',
+    );
     final result = await _client
         .from('work_sessions')
-        .update({'status': 'submitted', 'submitted_at': now, 'updated_at': now})
+        .update({'status': submitStatus, 'submitted_at': now, 'updated_at': now})
         .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
         .select()
@@ -1492,6 +1539,24 @@ class AssignmentDataSource {
 
     // 5️⃣ Cleanup: Delete autosave_answers (reduce DB size)
     await _client.from('autosave_answers').delete().eq('session_id', sessionId);
+
+    // Phase 7: Queue analysis request for recommendations (D-15) — non-blocking
+    if (aiEnabled) {
+      try {
+        await _client.from('ai_queue').insert({
+          'submission_answer_id': null,
+          'request_type': 'analysis',
+          'status': 'pending',
+          'payload': {'session_id': sessionId},
+        });
+      } catch (e) {
+        AppLogger.warning('[SUBMIT] ai_queue analysis insert failed: $e');
+      }
+
+      // Trigger Edge Function ngay sau khi queue xong — fire & forget, không block submit
+      // Edge Function dùng API key của giáo viên (lấy từ profiles.metadata), học sinh không cần key
+      unawaited(_triggerAiQueue(sessionId));
+    }
 
     // Phase 7: Non-blocking submission_analytics INSERT (D-03)
     try {
@@ -1715,5 +1780,28 @@ class AssignmentDataSource {
         .order('submitted_at', ascending: false);
 
     return List<Map<String, dynamic>>.from(submissionsRes);
+  }
+
+  /// Trigger Edge Function process-ai-queue — fire & forget, không block submit flow.
+  /// Edge Function chạy server-side, dùng API key của GIÁO VIÊN (từ profiles.metadata).
+  /// Học sinh không cần cấu hình bất kỳ API key nào.
+  Future<void> _triggerAiQueue(String sessionId) async {
+    try {
+      final projectUrl = Env.supabaseUrl.replaceAll(RegExp(r'/$'), '');
+      final functionUrl = '$projectUrl/functions/v1/process-ai-queue';
+      final dio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 30),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${Env.supabaseAnonKey}',
+        },
+      ));
+      await dio.post(functionUrl, data: {'session_id': sessionId});
+      AppLogger.info('[AI] Edge Function triggered for session $sessionId');
+    } catch (e) {
+      // Non-blocking: lỗi trigger không ảnh hưởng submit
+      AppLogger.warning('[AI] Edge Function trigger failed (non-blocking): $e');
+    }
   }
 }

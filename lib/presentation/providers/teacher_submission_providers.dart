@@ -116,7 +116,7 @@ Future<TeacherSubmissionListState> teacherSubmissionList(
     List<TeacherSubmissionItem> filteredItems;
     switch (filter) {
       case SubmissionFilter.pending:
-        filteredItems = items.where((i) => i.status == 'submitted').toList();
+        filteredItems = items.where((i) => i.status == 'submitted' || i.status == 'ai_processing').toList();
         break;
       case SubmissionFilter.graded:
         filteredItems = items.where((i) => i.status == 'graded').toList();
@@ -132,7 +132,7 @@ Future<TeacherSubmissionListState> teacherSubmissionList(
     );
 
     // Kiểm tra có submission nào đang chờ AI không
-    final isLoadingAi = items.any((i) => i.status == 'submitted' && !i.aiGraded);
+    final isLoadingAi = items.any((i) => (i.status == 'submitted' || i.status == 'ai_processing') && !i.aiGraded);
 
     return TeacherSubmissionListState(
       distributionId: distributionId,
