@@ -2,11 +2,14 @@ import 'dart:io';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/domain/entities/create_question_params.dart';
+import 'package:ai_mls/domain/entities/learning_objective.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
+import 'package:ai_mls/presentation/providers/learning_objective_providers.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/create_question/widgets/question_list_drawer.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/create_question/widgets/question_options_list.dart';
 import 'package:ai_mls/widgets/dialogs/warning_dialog.dart';
+import 'package:ai_mls/widgets/objective_selector/objective_selector_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -54,6 +57,8 @@ class _TeacherCreateQuestionScreenState
   int? _difficulty;
   List<String> _tags = [];
   List<String> _learningObjectiveIds = [];
+  // Cache tên objectives để hiển thị chips (id → description)
+  List<LearningObjective> _selectedObjectives = [];
   List<TextEditingController> _hintControllers = [];
 
   bool _hasUnsavedChanges = false;
@@ -82,6 +87,10 @@ class _TeacherCreateQuestionScreenState
     _localCurrentIndex = widget.currentQuestionIndex;
     _loadInitialData();
     _captureOriginalValues();
+    // Nếu có initialData với objectiveIds, load tên objectives để hiển thị chips
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_learningObjectiveIds.isNotEmpty) _loadInitialObjectives();
+    });
   }
 
   @override
@@ -369,6 +378,7 @@ class _TeacherCreateQuestionScreenState
       _difficulty = null;
       _tags = [];
       _learningObjectiveIds = [];
+      _selectedObjectives = [];
       for (final c in _hintControllers) {
         c.dispose();
       }
@@ -385,6 +395,36 @@ class _TeacherCreateQuestionScreenState
     });
     // Reset xong thì cập nhật original values để back không hỏi
     _captureOriginalValues();
+  }
+
+  /// Load full LearningObjective objects cho các IDs đã có (khi edit câu hỏi cũ).
+  Future<void> _loadInitialObjectives() async {
+    if (_learningObjectiveIds.isEmpty || !mounted) return;
+    try {
+      final repo = ref.read(learningObjectiveRepositoryProvider);
+      final all = await repo.getObjectives();
+      final loaded = all
+          .where((o) => _learningObjectiveIds.contains(o.id))
+          .toList();
+      if (mounted) setState(() => _selectedObjectives = loaded);
+    } catch (_) {
+      // Không hiện lỗi — chips sẽ chỉ hiện ID nếu load lỗi
+    }
+  }
+
+  /// Mở ObjectiveSelectorSheet và cập nhật state.
+  Future<void> _openObjectiveSelector() async {
+    final selected = await ObjectiveSelectorSheet.show(
+      context,
+      selectedIds: _learningObjectiveIds,
+      allowCreate: true,
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _selectedObjectives = selected;
+      _learningObjectiveIds = selected.map((o) => o.id).toList();
+    });
+    _checkUnsavedChanges();
   }
 
   Future<void> _handleBack() async {
@@ -1982,10 +2022,136 @@ class _TeacherCreateQuestionScreenState
           _buildTagsInput(context, isDark),
           SizedBox(height: DesignSpacing.xl),
 
+          // Learning Objectives
+          _buildObjectivesSection(context, isDark),
+          SizedBox(height: DesignSpacing.xl),
+
           // Explanation
           _buildExplanationSection(context, isDark),
         ],
       ),
+    );
+  }
+
+  Widget _buildObjectivesSection(BuildContext context, bool isDark) {
+    final hasObjectives = _selectedObjectives.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 4),
+              child: Text(
+                'MỤC TIÊU HỌC TẬP',
+                style: TextStyle(
+                  fontSize: DesignTypography.labelSmallSize,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                ),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _openObjectiveSelector,
+              icon: Icon(
+                hasObjectives ? Icons.edit : Icons.add,
+                size: DesignIcons.smSize,
+                color: DesignColors.primary,
+              ),
+              label: Text(
+                hasObjectives ? 'Sửa' : 'Chọn',
+                style: DesignTypography.bodySmall.copyWith(
+                  color: DesignColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: DesignSpacing.sm,
+                  vertical: 2,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (!hasObjectives)
+          GestureDetector(
+            onTap: _openObjectiveSelector,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(DesignSpacing.md),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.grey[800]!.withValues(alpha: 0.3)
+                    : Colors.grey[50],
+                borderRadius:
+                    BorderRadius.circular(DesignRadius.lg),
+                border: Border.all(
+                  color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                  style: BorderStyle.solid,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.school_outlined,
+                    size: DesignIcons.smSize,
+                    color: isDark ? Colors.grey[500] : Colors.grey[400],
+                  ),
+                  const SizedBox(width: DesignSpacing.sm),
+                  Text(
+                    'Chưa gắn mục tiêu — Nhấn để chọn',
+                    style: DesignTypography.bodySmall.copyWith(
+                      color: isDark ? Colors.grey[500] : Colors.grey[400],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Wrap(
+            spacing: DesignSpacing.xs,
+            runSpacing: DesignSpacing.xs,
+            children: _selectedObjectives.map((o) {
+              return Chip(
+                label: Text(
+                  o.code,
+                  style: DesignTypography.labelSmall.copyWith(
+                    color: DesignColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                backgroundColor:
+                    DesignColors.primary.withValues(alpha: 0.1),
+                side: BorderSide(
+                  color: DesignColors.primary.withValues(alpha: 0.3),
+                ),
+                deleteIcon: Icon(
+                  Icons.close,
+                  size: 14,
+                  color: DesignColors.primary,
+                ),
+                onDeleted: () {
+                  setState(() {
+                    _selectedObjectives.removeWhere((x) => x.id == o.id);
+                    _learningObjectiveIds.remove(o.id);
+                  });
+                  _checkUnsavedChanges();
+                },
+                padding: const EdgeInsets.symmetric(
+                  horizontal: DesignSpacing.xs,
+                  vertical: 0,
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              );
+            }).toList(),
+          ),
+      ],
     );
   }
 

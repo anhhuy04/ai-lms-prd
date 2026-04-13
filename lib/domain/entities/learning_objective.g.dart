@@ -19,6 +19,9 @@ _$LearningObjectiveImpl _$$LearningObjectiveImplFromJson(
   createdAt: json['created_at'] == null
       ? null
       : DateTime.parse(json['created_at'] as String),
+  isGlobal: json['is_global'] as bool? ?? true,
+  createdBy: json['created_by'] as String?,
+  source: json['source'] as String? ?? 'system',
 );
 
 Map<String, dynamic> _$$LearningObjectiveImplToJson(
@@ -32,4 +35,7 @@ Map<String, dynamic> _$$LearningObjectiveImplToJson(
   'parent_id': instance.parentId,
   'metadata': instance.metadata,
   'created_at': instance.createdAt?.toIso8601String(),
+  'is_global': instance.isGlobal,
+  'created_by': instance.createdBy,
+  'source': instance.source,
 };

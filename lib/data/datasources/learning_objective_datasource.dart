@@ -22,5 +22,12 @@ class LearningObjectiveDataSource {
 
   Future<Map<String, dynamic>> insertObjective(Map<String, dynamic> payload) =>
       _objectives.insert(payload);
+
+  Future<Map<String, dynamic>> updateObjective(
+    String id,
+    Map<String, dynamic> payload,
+  ) => _objectives.update(id, payload);
+
+  Future<void> deleteObjective(String id) => _objectives.delete(id);
 }
 

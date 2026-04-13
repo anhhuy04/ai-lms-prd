@@ -1541,21 +1541,19 @@ class AssignmentDataSource {
     await _client.from('autosave_answers').delete().eq('session_id', sessionId);
 
     // Phase 7: Queue analysis request for recommendations (D-15) — non-blocking
-    if (aiEnabled) {
-      try {
-        await _client.from('ai_queue').insert({
-          'submission_answer_id': null,
-          'request_type': 'analysis',
-          'status': 'pending',
-          'payload': {'session_id': sessionId},
-        });
-      } catch (e) {
-        AppLogger.warning('[SUBMIT] ai_queue analysis insert failed: $e');
-      }
-
+    // analysis luôn chạy bất kể ai_feedback_enabled vì đây là phân tích kỹ năng cho giáo viên,
+    // không phụ thuộc vào việc giáo viên có bật feedback per-câu cho học sinh hay không.
+    try {
+      await _client.from('ai_queue').insert({
+        'submission_answer_id': null,
+        'request_type': 'analysis',
+        'status': 'pending',
+        'payload': {'session_id': sessionId},
+      });
       // Trigger Edge Function ngay sau khi queue xong — fire & forget, không block submit
-      // Edge Function dùng API key của giáo viên (lấy từ profiles.metadata), học sinh không cần key
       unawaited(_triggerAiQueue(sessionId));
+    } catch (e) {
+      AppLogger.warning('[SUBMIT] ai_queue analysis insert failed: $e');
     }
 
     // Phase 7: Non-blocking submission_analytics INSERT (D-03)

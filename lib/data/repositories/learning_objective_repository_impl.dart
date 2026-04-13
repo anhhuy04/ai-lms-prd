@@ -27,6 +27,30 @@ class LearningObjectiveRepositoryImpl implements LearningObjectiveRepository {
   }
 
   @override
+  Future<LearningObjective> updateObjective(
+    String id,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final row = await _ds.updateObjective(id, payload);
+      return LearningObjective.fromJson(row);
+    } catch (e, stackTrace) {
+      AppLogger.error('🔴 [REPO ERROR] updateObjective: $e', error: e, stackTrace: stackTrace);
+      throw ErrorTranslationUtils.translateError(e, 'Cập nhật mục tiêu học tập');
+    }
+  }
+
+  @override
+  Future<void> deleteObjective(String id) async {
+    try {
+      await _ds.deleteObjective(id);
+    } catch (e, stackTrace) {
+      AppLogger.error('🔴 [REPO ERROR] deleteObjective: $e', error: e, stackTrace: stackTrace);
+      throw ErrorTranslationUtils.translateError(e, 'Xóa mục tiêu học tập');
+    }
+  }
+
+  @override
   Future<List<LearningObjective>> getObjectives({String? subjectCode}) async {
     try {
       final rows = await _ds.getObjectives(subjectCode: subjectCode);

@@ -8,6 +8,7 @@ import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/presentation/providers/ai_providers.dart';
+import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/learning_objective_providers.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -309,10 +310,14 @@ class _TeacherAiGenerateQuestionScreenState
           } catch (_) {}
         }
 
+        final userId = ref.read(currentUserIdProvider);
         final created = await loRepo.createObjective({
           'subject_code': subjectCode,
           'code': code,
           'description': desc,
+          'is_global': false,       // private của GV này
+          'source': 'ai_generated', // track provenance
+          'created_by': userId,     // BẮT BUỘC để RLS không nuốt mất
         });
         objectiveIds.add(created.id as String);
 
@@ -389,7 +394,7 @@ class _TeacherAiGenerateQuestionScreenState
       final aiRepository = ref.read(aiRepositoryProvider);
       int batchCount = 0;
 
-      void _appendRaw(String raw) {
+      void appendRaw(String raw) {
         String pretty = raw;
         try {
           pretty = const JsonEncoder.withIndent('  ').convert(jsonDecode(raw));
@@ -415,7 +420,7 @@ class _TeacherAiGenerateQuestionScreenState
           onRawResponse: (raw) {
             batchCount++;
             if (mounted) setState(() => _batchProgress = quantity > 10 ? 'Đang tạo lô $batchCount...' : null);
-            _appendRaw(raw);
+            appendRaw(raw);
           },
         );
       } else {
@@ -436,7 +441,7 @@ class _TeacherAiGenerateQuestionScreenState
             questionType: typeKey,
             onRawResponse: (raw) {
               batchCount++;
-              _appendRaw(raw);
+              appendRaw(raw);
             },
           );
           if (!mounted) return;
@@ -607,7 +612,7 @@ class _TeacherAiGenerateQuestionScreenState
     if (tags is List) {
       final tagStr = tags.join(' ').toLowerCase();
       if (RegExp(r'toán|math|số|phép|tính|cộng|trừ|nhân|chia|đại số|hình học|phương trình')
-          .hasMatch(tagStr)) return true;
+          .hasMatch(tagStr)) { return true; }
     }
 
     // Kiểm tra text có chứa phép toán (số + ký tự toán học)

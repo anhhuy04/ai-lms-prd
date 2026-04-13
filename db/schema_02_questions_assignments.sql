@@ -5,6 +5,7 @@
 
 -- ═══ 1. LEARNING_OBJECTIVES ═══
 -- Mục tiêu học tập (chuẩn kiến thức) - dùng cho AI phân tích
+-- Multi-tenancy: is_global + created_by + source (Migration 008)
 CREATE TABLE IF NOT EXISTS public.learning_objectives (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   subject_code  text NOT NULL,                               -- Mã môn học (vd: "MATH", "PHY")
@@ -13,9 +14,16 @@ CREATE TABLE IF NOT EXISTS public.learning_objectives (
   difficulty    integer CHECK (difficulty >= 1 AND difficulty <= 5),  -- Độ khó 1-5
   parent_id     uuid REFERENCES public.learning_objectives(id),      -- Mục tiêu cha (cấu trúc cây)
   metadata      jsonb,                                       -- Metadata mở rộng
-  created_at    timestamptz DEFAULT now()
+  created_at    timestamptz DEFAULT now(),
+  -- ── Multi-tenancy (Migration 008) ──────────────────────────────────────────
+  is_global     boolean NOT NULL DEFAULT true,               -- true=Thư viện Quốc gia, false=Tủ sách cá nhân
+  created_by    uuid REFERENCES auth.users(id) ON DELETE SET NULL, -- null=system seed
+  source        text NOT NULL DEFAULT 'system'               -- 'system'|'admin'|'ai_generated'|'teacher'
+                CHECK (source IN ('system', 'admin', 'ai_generated', 'teacher'))
 );
--- JSONB: learning_objectives.metadata → Chưa có dữ liệu mẫu
+-- RLS: SELECT = is_global=true OR created_by=me
+--      INSERT = is_global=false+me (teacher) OR is_global=true (admin only)
+--      UPDATE/DELETE = created_by=me OR admin
 
 
 -- ═══ 2. QUESTIONS ═══

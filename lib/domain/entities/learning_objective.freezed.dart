@@ -33,7 +33,17 @@ mixin _$LearningObjective {
   /// JSON metadata (bao gồm AI config nếu có)
   Map<String, dynamic>? get metadata => throw _privateConstructorUsedError;
   @JsonKey(name: 'created_at')
-  DateTime? get createdAt => throw _privateConstructorUsedError;
+  DateTime? get createdAt => throw _privateConstructorUsedError; // ── Multi-tenancy (Migration 008) ────────────────────────────────────────
+  /// true = Thư viện Quốc gia (mọi người thấy), false = Tủ sách cá nhân
+  @JsonKey(name: 'is_global')
+  bool get isGlobal => throw _privateConstructorUsedError;
+
+  /// UUID người tạo (null = system seed)
+  @JsonKey(name: 'created_by')
+  String? get createdBy => throw _privateConstructorUsedError;
+
+  /// 'system' | 'admin' | 'ai_generated' | 'teacher'
+  String get source => throw _privateConstructorUsedError;
 
   /// Serializes this LearningObjective to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -61,6 +71,9 @@ abstract class $LearningObjectiveCopyWith<$Res> {
     @JsonKey(name: 'parent_id') String? parentId,
     Map<String, dynamic>? metadata,
     @JsonKey(name: 'created_at') DateTime? createdAt,
+    @JsonKey(name: 'is_global') bool isGlobal,
+    @JsonKey(name: 'created_by') String? createdBy,
+    String source,
   });
 }
 
@@ -87,6 +100,9 @@ class _$LearningObjectiveCopyWithImpl<$Res, $Val extends LearningObjective>
     Object? parentId = freezed,
     Object? metadata = freezed,
     Object? createdAt = freezed,
+    Object? isGlobal = null,
+    Object? createdBy = freezed,
+    Object? source = null,
   }) {
     return _then(
       _value.copyWith(
@@ -122,6 +138,18 @@ class _$LearningObjectiveCopyWithImpl<$Res, $Val extends LearningObjective>
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
                       as DateTime?,
+            isGlobal: null == isGlobal
+                ? _value.isGlobal
+                : isGlobal // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            createdBy: freezed == createdBy
+                ? _value.createdBy
+                : createdBy // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            source: null == source
+                ? _value.source
+                : source // ignore: cast_nullable_to_non_nullable
+                      as String,
           )
           as $Val,
     );
@@ -146,6 +174,9 @@ abstract class _$$LearningObjectiveImplCopyWith<$Res>
     @JsonKey(name: 'parent_id') String? parentId,
     Map<String, dynamic>? metadata,
     @JsonKey(name: 'created_at') DateTime? createdAt,
+    @JsonKey(name: 'is_global') bool isGlobal,
+    @JsonKey(name: 'created_by') String? createdBy,
+    String source,
   });
 }
 
@@ -171,6 +202,9 @@ class __$$LearningObjectiveImplCopyWithImpl<$Res>
     Object? parentId = freezed,
     Object? metadata = freezed,
     Object? createdAt = freezed,
+    Object? isGlobal = null,
+    Object? createdBy = freezed,
+    Object? source = null,
   }) {
     return _then(
       _$LearningObjectiveImpl(
@@ -206,6 +240,18 @@ class __$$LearningObjectiveImplCopyWithImpl<$Res>
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
                   as DateTime?,
+        isGlobal: null == isGlobal
+            ? _value.isGlobal
+            : isGlobal // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        createdBy: freezed == createdBy
+            ? _value.createdBy
+            : createdBy // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        source: null == source
+            ? _value.source
+            : source // ignore: cast_nullable_to_non_nullable
+                  as String,
       ),
     );
   }
@@ -223,6 +269,9 @@ class _$LearningObjectiveImpl implements _LearningObjective {
     @JsonKey(name: 'parent_id') this.parentId,
     final Map<String, dynamic>? metadata,
     @JsonKey(name: 'created_at') this.createdAt,
+    @JsonKey(name: 'is_global') this.isGlobal = true,
+    @JsonKey(name: 'created_by') this.createdBy,
+    this.source = 'system',
   }) : _metadata = metadata;
 
   factory _$LearningObjectiveImpl.fromJson(Map<String, dynamic> json) =>
@@ -259,10 +308,25 @@ class _$LearningObjectiveImpl implements _LearningObjective {
   @override
   @JsonKey(name: 'created_at')
   final DateTime? createdAt;
+  // ── Multi-tenancy (Migration 008) ────────────────────────────────────────
+  /// true = Thư viện Quốc gia (mọi người thấy), false = Tủ sách cá nhân
+  @override
+  @JsonKey(name: 'is_global')
+  final bool isGlobal;
+
+  /// UUID người tạo (null = system seed)
+  @override
+  @JsonKey(name: 'created_by')
+  final String? createdBy;
+
+  /// 'system' | 'admin' | 'ai_generated' | 'teacher'
+  @override
+  @JsonKey()
+  final String source;
 
   @override
   String toString() {
-    return 'LearningObjective(id: $id, subjectCode: $subjectCode, code: $code, description: $description, difficulty: $difficulty, parentId: $parentId, metadata: $metadata, createdAt: $createdAt)';
+    return 'LearningObjective(id: $id, subjectCode: $subjectCode, code: $code, description: $description, difficulty: $difficulty, parentId: $parentId, metadata: $metadata, createdAt: $createdAt, isGlobal: $isGlobal, createdBy: $createdBy, source: $source)';
   }
 
   @override
@@ -282,7 +346,12 @@ class _$LearningObjectiveImpl implements _LearningObjective {
                 other.parentId == parentId) &&
             const DeepCollectionEquality().equals(other._metadata, _metadata) &&
             (identical(other.createdAt, createdAt) ||
-                other.createdAt == createdAt));
+                other.createdAt == createdAt) &&
+            (identical(other.isGlobal, isGlobal) ||
+                other.isGlobal == isGlobal) &&
+            (identical(other.createdBy, createdBy) ||
+                other.createdBy == createdBy) &&
+            (identical(other.source, source) || other.source == source));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -297,6 +366,9 @@ class _$LearningObjectiveImpl implements _LearningObjective {
     parentId,
     const DeepCollectionEquality().hash(_metadata),
     createdAt,
+    isGlobal,
+    createdBy,
+    source,
   );
 
   /// Create a copy of LearningObjective
@@ -326,6 +398,9 @@ abstract class _LearningObjective implements LearningObjective {
     @JsonKey(name: 'parent_id') final String? parentId,
     final Map<String, dynamic>? metadata,
     @JsonKey(name: 'created_at') final DateTime? createdAt,
+    @JsonKey(name: 'is_global') final bool isGlobal,
+    @JsonKey(name: 'created_by') final String? createdBy,
+    final String source,
   }) = _$LearningObjectiveImpl;
 
   factory _LearningObjective.fromJson(Map<String, dynamic> json) =
@@ -351,7 +426,20 @@ abstract class _LearningObjective implements LearningObjective {
   Map<String, dynamic>? get metadata;
   @override
   @JsonKey(name: 'created_at')
-  DateTime? get createdAt;
+  DateTime? get createdAt; // ── Multi-tenancy (Migration 008) ────────────────────────────────────────
+  /// true = Thư viện Quốc gia (mọi người thấy), false = Tủ sách cá nhân
+  @override
+  @JsonKey(name: 'is_global')
+  bool get isGlobal;
+
+  /// UUID người tạo (null = system seed)
+  @override
+  @JsonKey(name: 'created_by')
+  String? get createdBy;
+
+  /// 'system' | 'admin' | 'ai_generated' | 'teacher'
+  @override
+  String get source;
 
   /// Create a copy of LearningObjective
   /// with the given fields replaced by the non-null parameter values.

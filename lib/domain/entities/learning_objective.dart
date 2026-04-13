@@ -18,6 +18,13 @@ class LearningObjective with _$LearningObjective {
     /// JSON metadata (bao gồm AI config nếu có)
     Map<String, dynamic>? metadata,
     @JsonKey(name: 'created_at') DateTime? createdAt,
+    // ── Multi-tenancy (Migration 008) ────────────────────────────────────────
+    /// true = Thư viện Quốc gia (mọi người thấy), false = Tủ sách cá nhân
+    @JsonKey(name: 'is_global') @Default(true) bool isGlobal,
+    /// UUID người tạo (null = system seed)
+    @JsonKey(name: 'created_by') String? createdBy,
+    /// 'system' | 'admin' | 'ai_generated' | 'teacher'
+    @Default('system') String source,
   }) = _LearningObjective;
 
   factory LearningObjective.fromJson(Map<String, dynamic> json) =>
