@@ -101,7 +101,10 @@ abstract class AssignmentRepository {
   );
 
   /// Lấy chi tiết distribution kèm assignment info.
-  Future<Map<String, dynamic>> getDistributionDetail(String distributionId);
+  Future<Map<String, dynamic>> getDistributionDetail(
+    String distributionId, {
+    String? studentId,
+  });
 
   /// Lấy danh sách submissions cho 1 distribution (kèm student info).
   Future<List<Map<String, dynamic>>> getSubmissionsByDistribution(

@@ -388,10 +388,11 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
 
   @override
   Future<Map<String, dynamic>> getDistributionDetail(
-    String distributionId,
-  ) async {
+    String distributionId, {
+    String? studentId,
+  }) async {
     try {
-      return await _ds.getDistributionDetail(distributionId);
+      return await _ds.getDistributionDetail(distributionId, studentId: studentId);
     } catch (e, stackTrace) {
       AppLogger.error(
         '🔴 [REPO ERROR] getDistributionDetail: $e',

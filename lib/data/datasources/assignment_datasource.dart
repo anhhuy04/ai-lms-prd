@@ -710,6 +710,58 @@ class AssignmentDataSource {
 
       }
 
+      // ── Apply variant nếu có studentId (Shuffle Architecture) ──────────────
+      if (studentId != null && questions.isNotEmpty) {
+        try {
+          final variantRes = await _client
+              .from('assignment_variants')
+              .select('custom_questions')
+              .eq('assignment_id', assignmentId!)
+              .eq('variant_type', 'student')
+              .eq('student_id', studentId)
+              .maybeSingle();
+
+          if (variantRes != null) {
+            final customQuestions =
+                variantRes['custom_questions'] as List<dynamic>?;
+
+            if (customQuestions != null && customQuestions.isNotEmpty) {
+              final variantMap = <String, Map<String, dynamic>>{};
+              for (final vq in customQuestions) {
+                final vqMap = vq as Map<String, dynamic>;
+                variantMap[vqMap['assignment_question_id'] as String] = vqMap;
+              }
+
+              questions = questions.map((q) {
+                final aqId = q['id'] as String?;
+                if (aqId == null) return q;
+                final variant = variantMap[aqId];
+                if (variant == null) return q;
+                return {
+                  ...q,
+                  'display_order': variant['display_order'] as int,
+                  'shuffled_choices':
+                      variant['shuffled_choices'] as List<dynamic>? ?? [],
+                };
+              }).toList();
+
+              questions.sort((a, b) {
+                final aOrder = a['display_order'] as int? ??
+                    (a['order_idx'] as int? ?? 0);
+                final bOrder = b['display_order'] as int? ??
+                    (b['order_idx'] as int? ?? 0);
+                return aOrder.compareTo(bOrder);
+              });
+            }
+          }
+        } catch (e) {
+          AppLogger.warning(
+            '[AssignmentDS] Failed to apply variant for student $studentId: $e',
+          );
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       // Đếm sĩ số lớp từ class_members (chỉ học sinh đã duyệt)
       int totalStudents = 0;
       final classId = rawData['class_id'] as String?;

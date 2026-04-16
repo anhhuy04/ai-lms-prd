@@ -72,7 +72,10 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
       }
 
       // Load distribution detail và submission
-      final detail = await repo.getDistributionDetail(distributionId);
+      final detail = await repo.getDistributionDetail(
+        distributionId,
+        studentId: studentId,
+      );
       final submission = await repo.getOrCreateSubmission(distributionId, studentId);
 
       // Extract data từ detail (cấu trúc mới)
@@ -471,6 +474,30 @@ class QuestionState {
     // First check question['question_choices'] (from getDistributionDetail)
     choicesList = question['question_choices'] as List<dynamic>? ?? json['question_choices'] as List<dynamic>? ?? [];
     AppLogger.debug('🔵 [WORKSPACE] question_choices from DB: $choicesList');
+    // Apply shuffled_choices order from variant (Shuffle Architecture)
+    final shuffledIds = question['shuffled_choices'] as List<dynamic>?
+        ?? json['shuffled_choices'] as List<dynamic>?;
+    if (shuffledIds != null && shuffledIds.isNotEmpty && choicesList.isNotEmpty) {
+      final byId = <dynamic, Map<String, dynamic>>{};
+      for (final c in choicesList) {
+        final cMap = c as Map<String, dynamic>;
+        final cId = cMap['id'];
+        if (cId != null) {
+          byId[cId] = cMap;
+          byId[cId.toString()] = cMap;
+          final parsed = cId is int ? cId : int.tryParse(cId.toString());
+          if (parsed != null) byId[parsed] = cMap;
+        }
+      }
+      final reordered = shuffledIds.map((sid) {
+        return byId[sid] ?? byId[sid.toString()] ??
+            byId[sid is int ? sid : int.tryParse(sid.toString())];
+      }).whereType<Map<String, dynamic>>().toList();
+      if (reordered.length == choicesList.length) {
+        choicesList = reordered;
+      }
+    }
+
     // If still empty, check contentData['options'] (for other formats)
     if (choicesList.isEmpty && contentData is Map) {
       final optionsData = contentData['options'] ?? contentData['choices'];
