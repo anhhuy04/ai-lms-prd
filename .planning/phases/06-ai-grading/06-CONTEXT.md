@@ -94,5 +94,30 @@ This phase handles the grading portion of the assignment lifecycle. Analytics an
 
 ---
 
+## Phase 3 Integration — Việc cần làm khi Phase 6 hoàn thành
+
+> Phase 3 (Rubric System) đã chuẩn bị sẵn hook cho Phase 6. Sau khi `ai_evaluations.criteria_scores` có data, cần wire lại các điểm sau:
+
+### 1. AI Highlight Level trong ReadOnlyRubricViewer
+
+**Widget đã sẵn sàng:** `lib/widgets/rubric/read_only_rubric_viewer.dart`
+- Tham số `selectedLevels: Map<String, int>?` đã có — `criterion_id → level_index`
+- Logic highlight đã viết, chỉ cần truyền data vào
+
+**Việc cần làm:**
+- [ ] Sau khi AI trả kết quả, lấy `criteria_scores` từ `ai_evaluations`
+- [ ] Map thành `Map<String, int>` (criterion_id → level index trong rubric)
+- [ ] Truyền vào `ReadOnlyRubricViewer(selectedLevels: mappedScores)` tại màn hình review
+
+**Màn hình cần cập nhật:**
+- `QuestionAnswerCard` — khi render rubric ở chế độ read-only sau chấm
+- `TeacherSubmissionDetailScreen` — view kết quả chấm của AI
+
+**File tham khảo:**
+- `lib/widgets/rubric/read_only_rubric_viewer.dart` — xem param `selectedLevels`
+- `.planning/phases/03-rubric-system/03-CONTEXT.md` — D-03, D-04
+
+---
+
 *Phase: 06-ai-grading*
 *Context gathered: 2026-03-06*

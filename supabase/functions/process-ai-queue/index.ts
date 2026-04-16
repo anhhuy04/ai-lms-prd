@@ -36,8 +36,8 @@ Deno.serve(async (req: Request) => {
     let body: Record<string, unknown> = {};
     try { body = await req.json(); } catch { /* no body — process general queue */ }
 
-    const submissionId = body.submission_id as string | undefined;
-    const retroactive  = body.retroactive  as boolean | undefined;
+    // C4 fix: accept session_id (Dart sends session_id, not submission_id)
+    const sessionIdFilter = body.session_id as string | undefined;
 
     let query = supabase
       .from("ai_queue")
@@ -46,13 +46,24 @@ Deno.serve(async (req: Request) => {
       .order("created_at")
       .limit(10);
 
-    if (submissionId && retroactive) {
+    if (sessionIdFilter) {
       const { data: answerIds } = await supabase
         .from("submission_answers")
         .select("id")
-        .eq("session_id", submissionId);
+        .eq("session_id", sessionIdFilter);
+
       if (answerIds && answerIds.length > 0) {
-        query = query.in("submission_answer_id", answerIds.map((a: { id: string }) => a.id));
+        // Include: feedback/score items for this session's answers
+        //          OR analysis items whose payload.session_id matches
+        const idList = answerIds.map((a: { id: string }) => a.id).join(",");
+        query = query.or(
+          `submission_answer_id.in.(${idList}),and(request_type.eq.analysis,payload->>session_id.eq.${sessionIdFilter})`
+        );
+      } else {
+        // No submission answers found — only look for analysis items
+        query = query
+          .eq("request_type", "analysis")
+          .eq("payload->>session_id", sessionIdFilter);
       }
     }
 
@@ -64,34 +75,57 @@ Deno.serve(async (req: Request) => {
 
     let processed = 0;
     for (const item of (items as AiQueueItem[]) ?? []) {
+      const dispatchedAttempts = item.attempts + 1;
       await supabase
         .from("ai_queue")
-        .update({ status: "processing", attempts: item.attempts + 1, updated_at: new Date().toISOString() })
+        .update({ status: "processing", attempts: dispatchedAttempts, updated_at: new Date().toISOString() })
         .eq("id", item.id);
+
+      // C1+L2 fix: track session_id here so maybeMarkSessionGraded runs AFTER
+      // status='completed' is written — prevents race where current item is still
+      // 'processing' when the pending check runs.
+      let itemSessionId: string | null = null;
+      let markCompleted = true;
 
       try {
         if (item.request_type === "feedback") {
-          await handleFeedback(supabase, item);
+          itemSessionId = await handleFeedback(supabase, item);
         } else if (item.request_type === "analysis") {
           await handleAnalysis(supabase, item);
         } else if (item.request_type === "score") {
-          // STUB: Essay scoring deferred until Phase 3 re-enable
+          // L4 fix: mark 'deferred' so it can be reprocessed when Phase 3 re-enables
           console.log(`[STUB] Score request deferred: ${item.id}`);
+          await supabase
+            .from("ai_queue")
+            .update({ status: "deferred", updated_at: new Date().toISOString() })
+            .eq("id", item.id);
+          markCompleted = false;
         }
 
-        await supabase
-          .from("ai_queue")
-          .update({ status: "completed", updated_at: new Date().toISOString() })
-          .eq("id", item.id);
-        processed++;
+        if (markCompleted) {
+          await supabase
+            .from("ai_queue")
+            .update({ status: "completed", updated_at: new Date().toISOString() })
+            .eq("id", item.id);
+
+          // D-12: Call AFTER 'completed' write so current item is excluded from pending check
+          if (itemSessionId) {
+            await maybeMarkSessionGraded(supabase, itemSessionId);
+          }
+          processed++;
+        }
       } catch (error) {
-        console.error(`[AI] Failed to process item ${item.id}:`, error);
-        const newAttempts = item.attempts + 1;
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[AI] Failed to process item ${item.id}: ${errMsg}`);
+        // C2 fix: use dispatchedAttempts (already bumped) for failure check + update attempts column
+        // Store error in result column for debugging
         await supabase
           .from("ai_queue")
           .update({
-            status: newAttempts >= 3 ? "failed" : "pending",
+            status: dispatchedAttempts >= 3 ? "failed" : "pending",
+            attempts: dispatchedAttempts,
             updated_at: new Date().toISOString(),
+            result: { error: errMsg, failed_at: new Date().toISOString() },
           })
           .eq("id", item.id);
       }
@@ -114,8 +148,9 @@ Deno.serve(async (req: Request) => {
 async function handleFeedback(
   supabase: any,
   item: AiQueueItem
-) {
+): Promise<string> {
   // D-21: Fetch submission_answer + question context
+  // Use !left on questions join since question_id can be NULL for custom questions
   const { data: ctx, error } = await supabase
     .from("submission_answers")
     .select(`
@@ -125,16 +160,19 @@ async function handleFeedback(
         points,
         custom_content,
         question_id,
-        questions (
-          question_text,
-          question_choices ( id, choice_text, is_correct )
+        questions!left (
+          content,
+          question_choices ( id, content, is_correct )
         )
       )
     `)
     .eq("id", item.submission_answer_id)
     .single();
 
-  if (error || !ctx) throw new Error(`Answer not found: ${item.submission_answer_id}`);
+  if (error || !ctx) {
+    console.error(`[AI] Answer query failed for ${item.submission_answer_id}:`, error?.message ?? "ctx is null");
+    throw new Error(`Answer not found: ${item.submission_answer_id} — ${error?.message ?? "null ctx"}`);
+  }
 
   // D-18: Get teacher API key from profiles.metadata
   const { data: session } = await supabase
@@ -173,7 +211,8 @@ async function handleFeedback(
         explanation: "", misconception: "", tip: "", encouragement: "",
       } as AiFeedback,
     }).eq("id", item.submission_answer_id);
-    return;
+    // C1 fix: return session_id so outer loop can call maybeMarkSessionGraded
+    return ctx.session_id as string;
   }
 
   // Build context for prompt
@@ -182,29 +221,37 @@ async function handleFeedback(
   const linkedQ      = aq.questions as Record<string, unknown> | null;
   const maxPoints    = aq.points as number ?? 1;
 
-  // Prefer custom_content.override_text, fallback to questions.question_text
+  // questions.content is JSONB: { text: "...", ... }
+  const linkedContent = linkedQ?.content as Record<string, unknown> | null;
+
+  // Prefer custom_content.override_text, fallback to questions.content.text
   const questionText =
     (customContent?.override_text as string) ??
     (customContent?.text         as string) ??
-    (linkedQ?.question_text      as string) ??
+    (linkedContent?.text         as string) ??
     "Câu hỏi không có nội dung";
 
   // Choices: prefer custom_content.choices, fallback to question_choices
+  // question_choices schema: { id: integer, content: jsonb {text:...}, is_correct: boolean }
   type Choice = { id: number | string; text: string; isCorrect?: boolean; is_correct?: boolean };
   const customChoices = (customContent?.choices ?? customContent?.options) as Choice[] | null;
-  const linkedChoices = (linkedQ?.question_choices as Choice[]) ?? [];
+  type DbChoice = { id: number; content: Record<string, unknown>; is_correct: boolean };
+  const linkedChoices = (linkedQ?.question_choices as DbChoice[]) ?? [];
 
   const choices: Choice[] = customChoices?.length ? customChoices : linkedChoices.map(c => ({
     id: c.id,
-    text: (c as Record<string, unknown>).choice_text as string,
+    text: (c.content?.text as string) ?? "",
     isCorrect: c.is_correct,
   }));
 
   const studentAnswer   = ctx.answer as Record<string, unknown> | null;
   const selectedIds     = (studentAnswer?.selected_choice_ids as (number | string)[]) ?? [];
   const correctChoices  = choices.filter(c => c.isCorrect === true || c.is_correct === true);
-  const selectedChoices = choices.filter(c => selectedIds.includes(c.id as number));
-  const isCorrect       = (ctx.final_score as number ?? 0) >= maxPoints;
+  // L6 fix: normalize to string to avoid type mismatch (number vs string IDs)
+  const selectedStrIds  = selectedIds.map(String);
+  const selectedChoices = choices.filter(c => selectedStrIds.includes(String(c.id)));
+  // L1 fix: avoid maxPoints=0 making unanswered questions "correct" (0>=0)
+  const isCorrect       = maxPoints > 0 && ((ctx.final_score as number) ?? 0) >= maxPoints;
 
   // Tags from custom_content for subject context
   const tags = (customContent?.tags as string[]) ?? [];
@@ -248,8 +295,9 @@ Trả về JSON (không markdown, không giải thích thêm):
 
   console.log(`[AI] Feedback written for answer ${item.submission_answer_id} — isCorrect=${isCorrect}`);
 
-  // D-12: Sau khi ghi feedback, check nếu tất cả feedback của session đã xong → graded
-  await maybeMarkSessionGraded(supabase, ctx.session_id as string);
+  // L2 fix: return session_id — outer loop calls maybeMarkSessionGraded AFTER
+  // status='completed' is written, avoiding the race where current item is still 'processing'.
+  return ctx.session_id as string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -304,44 +352,85 @@ async function handleAnalysis(
   }
 
   // Get mastery data for this student's submission
-  const { data: session } = await supabase
+  const { data: session, error: sessionError } = await supabase
     .from("work_sessions")
     .select("student_id, assignment_distribution_id")
     .eq("id", sessionId)
     .single();
-  if (!session) return;
+  if (!session) {
+    console.error(`[AI] Session not found: ${sessionId} — ${sessionError?.message}`);
+    return;
+  }
 
-  const { data: masteryRows } = await supabase
+  // Step 1: Query mastery rows WITHOUT nested join to avoid PostgREST FK resolution issues
+  const { data: masteryRows, error: masteryError } = await supabase
     .from("student_skill_mastery")
-    .select("learning_objective_id, mastery_level, attempts, correct_count")
+    .select("objective_id, mastery_level, attempts, correct")
     .eq("student_id", session.student_id)
-    .lt("mastery_level", 0.6) // D-14: threshold
+    .lt("mastery_level", 0.6) // D-14: threshold < 60%
     .order("mastery_level", { ascending: true })
     .limit(5);
 
-  if (!masteryRows || masteryRows.length === 0) return;
+  if (masteryError) {
+    console.error(`[AI] Mastery query failed for student ${session.student_id}: ${masteryError.message}`);
+    throw new Error(`Mastery query failed: ${masteryError.message}`);
+  }
 
-  // Insert ai_recommendations for student (D-14)
+  if (!masteryRows || masteryRows.length === 0) {
+    console.log(`[AI] No weak skills found for student ${session.student_id} — skipping recommendations`);
+    return;
+  }
+
+  // Step 2: Fetch learning_objectives separately for the objective_ids found
+  const objectiveIds = masteryRows.map((m: Record<string, unknown>) => m.objective_id as string);
+  const { data: loRows, error: loError } = await supabase
+    .from("learning_objectives")
+    .select("id, code, description")
+    .in("id", objectiveIds);
+
+  if (loError) {
+    console.warn(`[AI] LO fetch failed (non-blocking): ${loError.message}`);
+  }
+  const loMap: Record<string, { code: string; description: string }> = {};
+  for (const lo of loRows ?? []) {
+    loMap[lo.id] = { code: lo.code, description: lo.description };
+  }
+
+  // Step 3: Insert ai_recommendations
   const now = new Date().toISOString();
+  let insertedCount = 0;
   for (const m of masteryRows) {
-    await supabase.from("ai_recommendations").upsert({
+    const lo = loMap[m.objective_id as string];
+    const code = lo?.code ?? `OBJ-${(m.objective_id as string).slice(0, 8)}`;
+    const desc = lo?.description ?? "Kỹ năng cần cải thiện";
+    const masteryPct = Math.round((m.mastery_level as number) * 100);
+
+    const { error: insertError } = await supabase.from("ai_recommendations").insert({
       student_id: session.student_id,
-      learning_objective_id: m.learning_objective_id,
-      recommendation_type: "review",
-      priority: Math.round((1 - (m.mastery_level as number)) * 10),
-      metadata: {
+      type: "individual",
+      priority: Math.min(5, Math.max(1, Math.round((1 - (m.mastery_level as number)) * 5))),
+      title: `Ôn tập: ${code}`,
+      description: `${desc} — tỷ lệ thành thạo ${masteryPct}%, cần cải thiện.`,
+      resources: {
+        objective_id: m.objective_id,
         mastery_level: m.mastery_level,
         attempts: m.attempts,
-        correct_count: m.correct_count,
+        correct_count: m.correct,
         generated_at: now,
         source: "ai_queue_analysis",
       },
+      dismissed: false,
       created_at: now,
-      updated_at: now,
-    }, { onConflict: "student_id,learning_objective_id" });
+    });
+
+    if (insertError) {
+      console.error(`[AI] Insert recommendation failed for ${m.objective_id}: ${insertError.message}`);
+    } else {
+      insertedCount++;
+    }
   }
 
-  console.log(`[AI] Analysis complete for session ${sessionId} — ${masteryRows.length} recommendations`);
+  console.log(`[AI] Analysis complete for session ${sessionId} — ${insertedCount}/${masteryRows.length} recommendations inserted`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -359,6 +448,7 @@ async function callAiApi(
       method: "POST",
       headers: { "Content-Type": "application/json", "X-goog-api-key": apiKey },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      signal: AbortSignal.timeout(30_000), // P3 fix: prevent hanging AI calls
     });
     if (!resp.ok) throw new Error(`Gemini HTTP ${resp.status}: ${await resp.text()}`);
     const data = await resp.json();
@@ -370,6 +460,7 @@ async function callAiApi(
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature: 0.3 }),
+      signal: AbortSignal.timeout(30_000),
     });
     if (!resp.ok) throw new Error(`Groq HTTP ${resp.status}: ${await resp.text()}`);
     const data = await resp.json();
@@ -382,6 +473,7 @@ async function callAiApi(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model, prompt, stream: false }),
+      signal: AbortSignal.timeout(30_000),
     });
     if (!resp.ok) throw new Error(`Ollama HTTP ${resp.status}: ${await resp.text()}`);
     const data = await resp.json();

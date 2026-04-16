@@ -116,15 +116,32 @@ Required JSONB structure (strict data contract):
 - Template entry structure: `{ "name": "Rubric Tự luận Toán", "rubric": {...} }`
 - Rationale: JSONB column in `profiles` was designed for personal settings/preferences. Rubric templates are user-scoped, never need JOINs or GROUP BY — JSONB is the right tool.
 
-### D-06: Points Auto-Sync — Rubric is Single Source of Truth
+### D-06: Points Hierarchy — Question Points là Ceiling, Rubric phải khớp đúng bằng
 
-**CHỐT: AUTO-SYNC + HARD BLOCK**
+**CHỐT: Question points (set ngoài card) là NGUỒN SỰ THẬT. Rubric tổng phải bằng đúng.**
 
-- For `essay` and `short_answer` questions **with rubric configured**: `assignment_questions.points` field in Question Editor is **disabled (locked/greyed out)**
-- `points` auto-calculated: `criteria.reduce((sum, c) => sum + c.max_points, 0)`
-- When rubric is removed entirely → `points` field unblocks → returns to manual input
-- Backend validation: if `assignment_questions.points != sum(criteria[].max_points)` → HTTP 400 Bad Request
-- Rationale: Prevents data inconsistency where AI grades 8/8 (100%) but system has `points = 10`, causing wrong `final_score`
+**Flow điểm (mới — pivot so với draft ban đầu):**
+1. Giáo viên set `assignment_questions.points` trong Question Editor (ở ngoài card) — đây là **giới hạn cứng bất biến**
+2. Rubric builder nhận `question.points` làm ceiling qua param — hiển thị ngay trong header builder
+3. `sum(criteria[].max_points)` **phải bằng đúng** `question.points` khi publish (không hơn, không kém)
+4. AI grading bị hard-cap bởi `question.points` — không thể cho điểm vượt mức đã cài
+
+**Question points field:** VẪN editable ở Question Editor. Rubric builder chỉ đọc giá trị này làm ceiling — KHÔNG auto-sync ngược lại.
+
+**Label trong Rubric Builder:**
+- Hiển thị: *"Tổng tiêu chí: Xđ / Tối đa: Yđ"* (Y = `question.points`)
+- Khi `sum < question.points` → warning màu cam: *"Còn thiếu Zđ để đủ Yđ"*
+- Khi `sum == question.points` → check xanh: *"Đủ Yđ ✓"*
+- Khi `sum > question.points` → error màu đỏ: *"Vượt quá Yđ — giảm xuống"*
+
+**Validation:**
+- Save draft: bypass (giống D-08)
+- Publish hard block: `sum(criteria[].max_points) != question.points` → HTTP 400
+- Frontend highlight câu hỏi vi phạm khi publish
+
+**AI constraint:** Backend enforce `ai_score <= question.points` per question. AI không có quyền thay đổi `question.points` đã cài — chỉ chọn level trong rubric.
+
+**Rationale:** Giáo viên phân phối điểm toàn bài trước (VD: 2 câu × 5đ = 10đ tổng). Rubric là công cụ phân tích điểm đó — không phải nguồn thay đổi điểm. AI grading là executor, không phải decider về điểm số.
 
 ### D-07: Rubric Applies to Both essay AND short_answer
 
@@ -150,7 +167,7 @@ Required JSONB structure (strict data contract):
 | Rule | Constraint |
 |------|-----------|
 | Min criteria per rubric | 1 |
-| Min levels per criterion | 2 (must have max-points level AND 0-point level) |
+| Min levels per criterion | **1** (đủ để define ít nhất 1 mức điểm) |
 | Essay/short_answer with no rubric | **HARD BLOCK** — HTTP 400 Bad Request |
 
 - Frontend highlights the offending question(s) in red on publish attempt
