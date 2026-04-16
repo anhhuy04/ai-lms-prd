@@ -516,8 +516,9 @@ class AssignmentDataSource {
   /// - distribution: thông tin phân phối (due_at, status, ...)
   /// - submission: thông tin bài nộp (nếu có)
   Future<Map<String, dynamic>> getDistributionDetail(
-    String distributionId,
-  ) async {
+    String distributionId, {
+    String? studentId,
+  }) async {
     try {
       // Bước 1: Lấy distribution và assignment
       final distRes = await _client
@@ -1099,6 +1100,18 @@ class AssignmentDataSource {
         })
         .select()
         .single();
+
+    // Tạo variant ngay khi bắt đầu thi (Snapshot Architecture)
+    // ensure_student_variant: idempotent — tạo 1 lần, gọi lại an toàn
+    try {
+      await _client.rpc('ensure_student_variant', params: {
+        'p_assignment_id': assignmentId,
+        'p_student_id': studentId,
+      });
+    } catch (e) {
+      // Variant failure không block học sinh làm bài
+      AppLogger.warning('[AssignmentDS] ensure_student_variant failed: $e');
+    }
 
     final result = Map<String, dynamic>.from(newSubmission);
     result['attempt_count'] = attemptCount;
