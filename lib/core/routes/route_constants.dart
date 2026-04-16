@@ -89,13 +89,18 @@ class AppRoute {
 
   /// Student - Assignment detail (with parameter)
   static const String studentAssignmentDetail = 'student-assignment-detail';
-  static String studentAssignmentDetailPath(String assignmentId) =>
-      '/student/assignment/$assignmentId';
+  static String studentAssignmentDetailPath(String distributionId) =>
+      '/student/assignment/$distributionId';
 
   /// Student - Assignment workspace (làm bài tập)
   static const String studentAssignmentWorkspace = 'student-assignment-workspace';
   static String studentAssignmentWorkspacePath(String distributionId) =>
       '/student/assignment/$distributionId/workspace';
+
+  /// Student - Submission review (xem lại bài làm)
+  static const String studentSubmissionReview = 'student-submission-review';
+  static String studentSubmissionReviewPath(String distributionId) =>
+      '/student/assignment/$distributionId/review';
 
   /// Student - Submission history
   static const String studentSubmissionHistory = 'student-submission-history';
@@ -270,6 +275,10 @@ class AppRoute {
   static const String adminSettings = 'admin-settings';
   static const String adminSettingsPath = '/admin/settings';
 
+  /// Admin - Learning Objectives management (global + all-teacher objectives)
+  static const String adminLearningObjectives = 'admin-learning-objectives';
+  static const String adminLearningObjectivesPath = '/admin/learning-objectives';
+
   // ==================== SHARED ROUTES ====================
   // Routes accessible to all authenticated users
 
@@ -369,6 +378,7 @@ class AppRoute {
       studentAssignmentDetail,
       studentAssignmentWorkspace,
       studentSubmissionHistory,
+      studentSubmissionReview,
       studentScores,
       studentAnalytics,
       studentRecommendationsTab,

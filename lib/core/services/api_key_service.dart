@@ -766,7 +766,7 @@ Web: Browser's secure storage (if supported)
   /// Test kết nối đến Ollama server qua /api/tags
   ///
   /// [cancelToken] - Tùy chọn: cho phép hủy request đang chờ
-  /// Returns: Map{'success', 'error', 'models': List<String>}
+  /// Returns: Map with keys 'success', 'error', 'models' (List of String)
   static Future<Map<String, dynamic>> testOllamaConnection(
     String baseUrl, {
     CancelToken? cancelToken,

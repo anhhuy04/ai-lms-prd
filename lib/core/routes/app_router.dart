@@ -6,6 +6,7 @@ import 'package:ai_mls/presentation/views/assignment/student/assignment_list_scr
 import 'package:ai_mls/presentation/views/assignment/student/student_assignment_detail_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/student/student_assignment_workspace_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/student/student_submission_history_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/student/student_submission_review_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_ai_generate_question_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_hub_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_management_screen.dart';
@@ -458,6 +459,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.studentSubmissionHistory,
         builder: (context, state) {
           return const StudentSubmissionHistoryScreen();
+        },
+      ),
+
+      // Route xem lại bài làm của học sinh (read-only)
+      // Dùng distributionId — học sinh luôn có, không cần submissionId
+      GoRoute(
+        path: '/student/assignment/:distributionId/review',
+        name: AppRoute.studentSubmissionReview,
+        builder: (context, state) {
+          final distributionId = state.pathParameters['distributionId']!;
+          return StudentSubmissionReviewScreen(distributionId: distributionId);
         },
       ),
 

@@ -170,6 +170,7 @@ class AiService {
   /// );
   /// // Returns: "Hello John, you have 5 messages"
   /// ```
+  // ignore: unused_element
   static String _renderTemplate(
     String template,
     Map<String, String> variables,
