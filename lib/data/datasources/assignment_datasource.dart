@@ -1972,4 +1972,79 @@ class AssignmentDataSource {
       AppLogger.warning('[AI] Edge Function trigger failed (non-blocking): $e');
     }
   }
+
+  /// Deep Clone: tạo bản sao bất biến của assignment.
+  /// Returns new_assignment_id (UUID string).
+  Future<String> deepCloneAssignment(
+    String srcAssignmentId,
+    String clonedBy,
+  ) async {
+    final result = await _client.rpc(
+      'deep_clone_assignment',
+      params: {
+        'p_src_assignment_id': srcAssignmentId,
+        'p_cloned_by': clonedBy,
+      },
+    );
+    return result as String;
+  }
+
+  /// Hotfix: Update nội dung câu hỏi trong đề (Delta Override Pattern).
+  /// CHỈ update assignment_questions.custom_content, KHÔNG đụng questions bank.
+  /// [lock] = true khi đã có work_sessions → chỉ cho sửa text/isCorrect, không thêm/xóa choice.
+  Future<Map<String, dynamic>> updateAssignmentQuestionContent(
+    String assignmentQuestionId,
+    Map<String, dynamic> contentPatch, {
+    bool lock = false,
+  }) async {
+    // Đọc custom_content hiện tại
+    final existing = await _client
+        .from('assignment_questions')
+        .select('custom_content')
+        .eq('id', assignmentQuestionId)
+        .single();
+
+    final currentContent =
+        (existing['custom_content'] as Map<String, dynamic>?) ?? {};
+
+    // Merge patch vào current (Delta Override)
+    final merged = Map<String, dynamic>.from(currentContent)
+      ..addAll(contentPatch);
+
+    final res = await _client
+        .from('assignment_questions')
+        .update({'custom_content': merged})
+        .eq('id', assignmentQuestionId)
+        .select()
+        .single();
+
+    return Map<String, dynamic>.from(res);
+  }
+
+  /// Batch regrade: gọi RPC sau khi GV sửa đề.
+  /// Returns số bài đã chấm lại.
+  Future<int> batchRegradeAssignment(
+    String assignmentId,
+    String gradedBy,
+  ) async {
+    final result = await _client.rpc(
+      'batch_regrade_assignment',
+      params: {
+        'p_assignment_id': assignmentId,
+        'p_graded_by': gradedBy,
+      },
+    );
+    return (result as int?) ?? 0;
+  }
+
+  /// Kiểm tra có work_sessions nào đã tạo cho assignment này chưa.
+  /// Dùng để UI lock: nếu true → disable thêm/xóa choice.
+  Future<bool> hasActiveWorkSessions(String assignmentId) async {
+    final res = await _client
+        .from('work_sessions')
+        .select('id')
+        .eq('assignment_id', assignmentId)
+        .limit(1);
+    return (res as List).isNotEmpty;
+  }
 }
