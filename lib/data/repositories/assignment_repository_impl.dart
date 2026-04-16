@@ -524,4 +524,64 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
       throw ErrorTranslationUtils.translateError(e, 'Lấy lịch sử nộp bài');
     }
   }
+
+  @override
+  Future<String> deepCloneAssignment(
+    String srcAssignmentId,
+    String clonedBy,
+  ) async {
+    try {
+      return await _ds.deepCloneAssignment(srcAssignmentId, clonedBy);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] deepCloneAssignment: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(
+          e, 'Không thể nhân bản bài tập');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> updateAssignmentQuestionContent(
+    String assignmentQuestionId,
+    Map<String, dynamic> contentPatch,
+  ) async {
+    try {
+      return await _ds.updateAssignmentQuestionContent(
+          assignmentQuestionId, contentPatch);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] updateAssignmentQuestionContent: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Cập nhật câu hỏi');
+    }
+  }
+
+  @override
+  Future<int> batchRegradeAssignment(
+      String assignmentId, String gradedBy) async {
+    try {
+      return await _ds.batchRegradeAssignment(assignmentId, gradedBy);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] batchRegradeAssignment: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Chấm lại bài');
+    }
+  }
+
+  @override
+  Future<bool> hasActiveWorkSessions(String assignmentId) async {
+    try {
+      return await _ds.hasActiveWorkSessions(assignmentId);
+    } catch (e) {
+      return false;
+    }
+  }
 }

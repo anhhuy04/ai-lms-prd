@@ -146,4 +146,23 @@ abstract class AssignmentRepository {
   Future<List<Map<String, dynamic>>> getStudentSubmissionHistory(
     String studentId,
   );
+
+  /// Deep Clone: tạo bản sao bất biến của assignment.
+  /// Returns new_assignment_id.
+  Future<String> deepCloneAssignment(String srcAssignmentId, String clonedBy);
+
+  /// Hotfix: Update nội dung câu hỏi trong đề (Delta Override Pattern).
+  /// CHỈ update assignment_questions.custom_content, KHÔNG đụng questions bank.
+  Future<Map<String, dynamic>> updateAssignmentQuestionContent(
+    String assignmentQuestionId,
+    Map<String, dynamic> contentPatch,
+  );
+
+  /// Batch regrade: gọi RPC để chấm lại toàn bộ bài nộp sau khi GV sửa đề.
+  /// Returns số bài đã chấm lại.
+  Future<int> batchRegradeAssignment(String assignmentId, String gradedBy);
+
+  /// Kiểm tra có work_sessions nào đã tạo cho assignment này chưa.
+  /// Dùng để UI lock: nếu true → disable thêm/xóa choice.
+  Future<bool> hasActiveWorkSessions(String assignmentId);
 }
