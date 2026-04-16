@@ -75,7 +75,7 @@ class _ObjectiveSelectorSheetState
               .where((o) => o.isGlobal && (o.source == 'system' || o.source == 'admin'))
               .toList();
           _aiSuggested = all
-              .where((o) => o.source == 'ai_generated')
+              .where((o) => !o.isGlobal && o.source == 'ai_generated')
               .toList();
           _mine = all
               .where((o) =>
@@ -130,15 +130,20 @@ class _ObjectiveSelectorSheetState
   // ── Create new objective ──────────────────────────────────────────────────
 
   Future<void> _openCreateDialog() async {
-    final result = await showDialog<LearningObjective>(
-      context: context,
-      builder: (ctx) => _CreateObjectiveDialog(ref: ref),
-    );
-    if (result == null || !mounted) return;
-    setState(() {
-      _mine.add(result);
-      _selected.add(result.id);
-    });
+    setState(() => _isCreating = true);
+    try {
+      final result = await showDialog<LearningObjective>(
+        context: context,
+        builder: (ctx) => _CreateObjectiveDialog(ref: ref),
+      );
+      if (result == null || !mounted) return;
+      setState(() {
+        _mine.add(result);
+        _selected.add(result.id);
+      });
+    } finally {
+      if (mounted) setState(() => _isCreating = false);
+    }
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -512,17 +517,7 @@ class _ObjectiveSelectorSheetState
                   foregroundColor: DesignColors.success,
                 ),
               ),
-            if (_selected.isNotEmpty && !widget.allowCreate)
-              TextButton(
-                onPressed: () => setState(() => _selected.clear()),
-                child: Text(
-                  'Bỏ tất cả',
-                  style: DesignTypography.bodyMedium.copyWith(
-                    color: DesignColors.error,
-                  ),
-                ),
-              ),
-            const Spacer(),
+            // Khi có selection: "Bỏ tất cả" thay thế "Hủy" để tránh overflow
             if (_selected.isNotEmpty)
               TextButton(
                 onPressed: () => setState(() => _selected.clear()),
@@ -532,16 +527,17 @@ class _ObjectiveSelectorSheetState
                     color: DesignColors.error,
                   ),
                 ),
-              ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'Hủy',
-                style: DesignTypography.bodyMedium.copyWith(
-                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+              )
+            else
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Hủy',
+                  style: DesignTypography.bodyMedium.copyWith(
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
                 ),
               ),
-            ),
             const SizedBox(width: DesignSpacing.sm),
             ElevatedButton(
               onPressed: _confirm,
@@ -616,7 +612,6 @@ class _CreateObjectiveDialogState extends ConsumerState<_CreateObjectiveDialog> 
       if (mounted) Navigator.of(context).pop(created);
     } catch (e) {
       if (mounted) {
-        setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Lỗi: ${e.toString().replaceAll('Exception: ', '')}'),
@@ -624,6 +619,8 @@ class _CreateObjectiveDialogState extends ConsumerState<_CreateObjectiveDialog> 
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 

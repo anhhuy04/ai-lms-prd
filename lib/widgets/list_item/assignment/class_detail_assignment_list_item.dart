@@ -342,36 +342,45 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
     final pts = _totalPoints > 0 ? _totalPoints.toStringAsFixed(_totalPoints % 1 == 0 ? 0 : 1) : null;
 
     // ── Badge trạng thái ──
+    // P3 fix: dùng DesignColors thay hardcoded Colors.blue/orange/green
+    // P1 fix: thêm 'pending_review' case (AI done, chờ GV duyệt → hiện như "Đã nộp")
     final ({String label, Color bg, Color border, Color text}) badge = switch (status) {
       'ai_processing' => (
         label: 'AI đang xử lý',
-        bg: Colors.blue.withValues(alpha: 0.08),
-        border: Colors.blue.withValues(alpha: 0.4),
-        text: Colors.blue[700]!,
+        bg: DesignColors.primary.withValues(alpha: 0.08),
+        border: DesignColors.primary.withValues(alpha: 0.4),
+        text: DesignColors.primary,
       ),
       'submitted' => (
         label: 'Đã nộp',
-        bg: Colors.orange.withValues(alpha: 0.08),
-        border: Colors.orange.withValues(alpha: 0.4),
-        text: Colors.orange[700]!,
+        bg: DesignColors.warning.withValues(alpha: 0.08),
+        border: DesignColors.warning.withValues(alpha: 0.4),
+        text: DesignColors.warning,
+      ),
+      'pending_review' => (
+        // Student view: same as submitted — "đã nộp, đang chờ"
+        label: 'Đã nộp',
+        bg: DesignColors.warning.withValues(alpha: 0.08),
+        border: DesignColors.warning.withValues(alpha: 0.4),
+        text: DesignColors.warning,
       ),
       'graded' => (
         label: score != null ? '$score / $pts đ' : 'Đã chấm',
-        bg: Colors.green.withValues(alpha: 0.08),
-        border: Colors.green.withValues(alpha: 0.4),
-        text: Colors.green[700]!,
+        bg: DesignColors.success.withValues(alpha: 0.08),
+        border: DesignColors.success.withValues(alpha: 0.4),
+        text: DesignColors.success,
       ),
       'in_progress' => (
         label: 'Đang làm',
-        bg: Colors.blue.withValues(alpha: 0.08),
-        border: Colors.blue.withValues(alpha: 0.4),
-        text: Colors.blue[700]!,
+        bg: DesignColors.primary.withValues(alpha: 0.08),
+        border: DesignColors.primary.withValues(alpha: 0.4),
+        text: DesignColors.primary,
       ),
       _ => (
         label: 'Chưa nộp',
-        bg: Colors.red.withValues(alpha: 0.08),
-        border: Colors.red.withValues(alpha: 0.4),
-        text: Colors.red[700]!,
+        bg: DesignColors.error.withValues(alpha: 0.08),
+        border: DesignColors.error.withValues(alpha: 0.4),
+        text: DesignColors.error,
       ),
     };
 

@@ -1,5 +1,6 @@
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/profile.dart';
+import 'package:ai_mls/presentation/providers/teacher_ai_queue_provider.dart';
 import 'package:ai_mls/presentation/views/class/teacher/teacher_class_list_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/home/teacher_home_content_screen.dart';
 import 'package:ai_mls/presentation/views/profile/profile_screen.dart';
@@ -61,6 +62,11 @@ class _TeacherDashboardScreenState
   void initState() {
     super.initState();
     _selectedIndex = widget.initialTab;
+    // Khởi động AI queue watcher ngầm (Ollama → Groq fallback)
+    // Dùng addPostFrameCallback để tránh gọi ref trong initState
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(teacherAiQueueWatcherProvider);
+    });
     // Đặt status bar trong suốt hoàn toàn như FB, TikTok
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(

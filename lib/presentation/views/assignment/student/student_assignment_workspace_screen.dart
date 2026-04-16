@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/presentation/providers/workspace_provider.dart';
@@ -154,6 +156,22 @@ class _StudentAssignmentWorkspaceScreenState
         orElse: () => Text(widget.isReadOnly ? 'Xem lại bài làm' : 'Làm bài tập'),
       ),
       actions: [
+        // Đồng hồ đếm ngược — chỉ hiển thị khi đang làm bài và có giới hạn thời gian
+        if (!widget.isReadOnly)
+          workspaceAsync.maybeWhen(
+            data: (workspace) {
+              if (workspace.timeLimitMinutes != null &&
+                  workspace.sessionStartedAt != null &&
+                  workspace.submissionStatus == WorkspaceSubmissionStatus.inProgress) {
+                return _CountdownTimerWidget(
+                  totalSeconds: workspace.timeLimitMinutes! * 60,
+                  startedAt: workspace.sessionStartedAt!,
+                );
+              }
+              return const SizedBox.shrink();
+            },
+            orElse: () => const SizedBox.shrink(),
+          ),
         workspaceAsync.maybeWhen(
           data: (workspace) => _buildSavingIndicator(workspace.savingStatus),
           orElse: () => const SizedBox.shrink(),
@@ -1374,5 +1392,99 @@ class _StudentAssignmentWorkspaceScreenState
       default:
         return 'Câu hỏi';
     }
+  }
+}
+
+/// Widget đồng hồ đếm ngược cho workspace.
+/// - Tính thời gian còn lại dựa trên [startedAt] (từ server) + [totalSeconds]
+/// - Hiển thị MM:SS
+/// - Đổi màu đỏ khi còn ≤ 120 giây
+class _CountdownTimerWidget extends StatefulWidget {
+  final int totalSeconds;
+  final DateTime startedAt;
+
+  const _CountdownTimerWidget({
+    required this.totalSeconds,
+    required this.startedAt,
+  });
+
+  @override
+  State<_CountdownTimerWidget> createState() => _CountdownTimerWidgetState();
+}
+
+class _CountdownTimerWidgetState extends State<_CountdownTimerWidget> {
+  late int _remainingSeconds;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _initRemaining();
+    // Chỉ bắt đầu đếm nếu còn thời gian
+    if (_remainingSeconds > 0) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() {
+          if (_remainingSeconds > 0) {
+            _remainingSeconds--;
+          } else {
+            _timer?.cancel();
+          }
+        });
+      });
+    }
+  }
+
+  void _initRemaining() {
+    final elapsed = DateTime.now().difference(widget.startedAt).inSeconds;
+    _remainingSeconds = (widget.totalSeconds - elapsed).clamp(0, widget.totalSeconds);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isWarning = _remainingSeconds <= 120;
+    final minutes = _remainingSeconds ~/ 60;
+    final seconds = _remainingSeconds % 60;
+    final timeText =
+        '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isWarning ? Colors.red.shade50 : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isWarning ? Colors.red.shade300 : Colors.grey.shade300,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.timer_outlined,
+              size: 14,
+              color: isWarning ? Colors.red.shade700 : Colors.grey.shade600,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              timeText,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isWarning ? Colors.red.shade700 : Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

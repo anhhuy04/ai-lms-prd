@@ -1,5 +1,4 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/teacher_feedback_editor.dart';
 import 'package:flutter/material.dart';
 
 /// Grading Action Buttons - Human-in-the-Loop
@@ -8,14 +7,11 @@ class GradingActionButtons extends StatelessWidget {
   final Map<String, dynamic> answer;
   final VoidCallback onApprove;
   final void Function(double score, String reason) onOverride;
-  final void Function(String feedback)? onFeedbackChanged;
-
   const GradingActionButtons({
     super.key,
     required this.answer,
     required this.onApprove,
     required this.onOverride,
-    this.onFeedbackChanged,
   });
 
   @override
@@ -81,20 +77,17 @@ class GradingActionButtons extends StatelessWidget {
             ],
           ),
 
-          // Teacher Feedback Editor
-          if (onFeedbackChanged != null) ...[
-            const SizedBox(height: DesignSpacing.md),
-            const Divider(height: 1),
-            TeacherFeedbackEditor(
-              answerId: answer['id']?.toString() ?? '',
-              aiFeedback: answer['ai_feedback'],
-              teacherFeedback: answer['teacher_feedback'],
-              onSave: onFeedbackChanged!,
-            ),
-          ],
         ],
       ),
     );
+  }
+
+  /// Extract text từ JSONB field (có thể là String hoặc Map {"text": "..."})
+  String? _extractText(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value.isEmpty ? null : value;
+    if (value is Map) return value['text']?.toString();
+    return value.toString();
   }
 
   void _showOverrideDialog(BuildContext context) {

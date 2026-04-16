@@ -59,7 +59,11 @@ class _StudentClassDetailScreenState
             _buildAppBar(context),
             // Main Content
             Expanded(
-              child: SingleChildScrollView(
+              child: RefreshIndicator(
+                onRefresh: _handleRefresh,
+                color: DesignColors.primary,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                 child: RepaintBoundary(
                   child: Column(
                     children: [
@@ -74,12 +78,18 @@ class _StudentClassDetailScreenState
                     ],
                   ),
                 ),
-              ),
+                ), // SingleChildScrollView
+              ), // RefreshIndicator
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _handleRefresh() async {
+    ref.invalidate(studentClassAssignmentsProvider(widget.classId));
+    await ref.read(studentClassAssignmentsProvider(widget.classId).future);
   }
 
   /// App Bar với nút quay lại và thông tin lớp
@@ -197,30 +207,47 @@ class _StudentClassDetailScreenState
 
   /// Hàng thống kê nhanh cho học sinh
   Widget _buildQuickStatsRow(BuildContext context) {
-    // Watch assignments provider để tính stats
     final assignmentsAsync = ref.watch(
       studentClassAssignmentsProvider(widget.classId),
     );
 
-    // Tính stats từ real data
+    final isLoading = assignmentsAsync.isLoading;
+
+    // Tổng số bài tập
     final totalAssignments =
         assignmentsAsync.whenOrNull(data: (list) => list.length) ?? 0;
-    final upcomingCount =
-        assignmentsAsync.whenOrNull(
-          data: (list) {
-            final now = DateTime.now();
-            final sevenDaysLater = now.add(const Duration(days: 7));
-            return list.where((a) {
-              final dueAt = a['distribution_due_at'] as String?;
-              if (dueAt == null) return false;
-              final due = DateTime.tryParse(dueAt);
-              return due != null &&
-                  due.isAfter(now) &&
-                  due.isBefore(sevenDaysLater);
-            }).length;
-          },
-        ) ??
-        0;
+
+    // Điểm trung bình: chỉ tính các bài đã có score (đã chấm)
+    final avgScoreText = assignmentsAsync.whenOrNull(
+      data: (list) {
+        final scored = list
+            .where((a) => a['score'] != null)
+            .map((a) => (a['score'] as num).toDouble())
+            .toList();
+        if (scored.isEmpty) return null;
+        final avg = scored.reduce((a, b) => a + b) / scored.length;
+        return avg.toStringAsFixed(1);
+      },
+    );
+
+    // Sắp hết hạn: bài chưa nộp có due_at trong 7 ngày tới
+    final upcomingCount = assignmentsAsync.whenOrNull(
+      data: (list) {
+        final now = DateTime.now();
+        final sevenDaysLater = now.add(const Duration(days: 7));
+        return list.where((a) {
+          // Chỉ tính bài chưa nộp / đang làm
+          final status = a['submission_status'] as String? ?? 'not_submitted';
+          if (status == 'submitted' || status == 'graded') return false;
+          final dueAt = a['distribution_due_at'] as String?;
+          if (dueAt == null) return false;
+          final due = DateTime.tryParse(dueAt);
+          return due != null &&
+              due.isAfter(now) &&
+              due.isBefore(sevenDaysLater);
+        }).length;
+      },
+    ) ?? 0;
 
     return Row(
       children: [
@@ -229,10 +256,13 @@ class _StudentClassDetailScreenState
             context: context,
             icon: Icons.assessment,
             iconColor: DesignColors.primary,
-            value: '--',
-            label: 'Điểm trung bình',
+            value: isLoading ? '--' : (avgScoreText ?? '--'),
+            label: 'Điểm TB',
             onTap: () {
-              // TODO: Navigate to grade details
+              context.pushNamed(
+                AppRoute.studentAnalytics,
+                extra: {'classId': widget.classId},
+              );
             },
           ),
         ),
@@ -242,11 +272,9 @@ class _StudentClassDetailScreenState
             context: context,
             icon: Icons.assignment_turned_in,
             iconColor: Colors.green,
-            value: '$totalAssignments',
+            value: isLoading ? '--' : '$totalAssignments',
             label: 'Bài tập',
-            onTap: () {
-              // TODO: Navigate to submitted assignments
-            },
+            onTap: () {},
           ),
         ),
         SizedBox(width: DesignSpacing.md),
@@ -255,11 +283,9 @@ class _StudentClassDetailScreenState
             context: context,
             icon: Icons.schedule,
             iconColor: Colors.orange,
-            value: '$upcomingCount',
-            label: 'Sắp đến hạn',
-            onTap: () {
-              // TODO: Navigate to upcoming assignments
-            },
+            value: isLoading ? '--' : '$upcomingCount',
+            label: 'Sắp hết hạn',
+            onTap: () {},
           ),
         ),
       ],
@@ -476,7 +502,7 @@ class _StudentClassDetailScreenState
             if (distributionId != null) {
               context.pushNamed(
                 AppRoute.studentAssignmentDetail,
-                pathParameters: {'assignmentId': distributionId},
+                pathParameters: {'distributionId': distributionId},
               );
             }
           },

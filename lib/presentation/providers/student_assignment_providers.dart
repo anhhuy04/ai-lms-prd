@@ -1,5 +1,6 @@
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/assignment_providers.dart';
+import 'package:ai_mls/presentation/providers/datasource_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -25,7 +26,9 @@ Future<Map<String, dynamic>> studentAssignmentDetail(
   return repo.getDistributionDetail(distributionId);
 }
 
-/// Lấy hoặc tạo bài nộp (draft) cho một bài tập
+/// Lấy trạng thái bài nộp (read-only) — KHÔNG tạo work_session.
+/// Trả về null nếu học sinh chưa bắt đầu làm bài lần nào.
+/// work_session chỉ được tạo khi học sinh bấm "Bắt đầu" vào workspace.
 @riverpod
 Future<Map<String, dynamic>?> studentSubmission(
   Ref ref,
@@ -35,7 +38,7 @@ Future<Map<String, dynamic>?> studentSubmission(
   final auth = ref.watch(authNotifierProvider);
   final studentId = auth.value?.id;
   if (studentId == null) return null;
-  return repo.getOrCreateSubmission(distributionId, studentId);
+  return repo.getSubmission(distributionId, studentId);
 }
 
 /// Lưu bản nháp bài nộp (auto-save)
@@ -71,6 +74,20 @@ Future<Map<String, dynamic>> submitAssignment(
     throw Exception('User not authenticated');
   }
   return repo.submitAssignment(distributionId, studentId);
+}
+
+/// Chi tiết bài làm của học sinh để xem lại (read-only review screen).
+/// Dùng distributionId + studentId — không cần submissionId.
+@riverpod
+Future<Map<String, dynamic>?> studentSubmissionReview(
+  Ref ref,
+  String distributionId,
+) async {
+  final ds = ref.watch(submissionDataSourceProviderProvider);
+  final auth = ref.watch(authNotifierProvider);
+  final studentId = auth.value?.id;
+  if (studentId == null) return null;
+  return ds.getStudentSubmissionDetail(distributionId, studentId);
 }
 
 /// Lịch sử nộp bài của học sinh

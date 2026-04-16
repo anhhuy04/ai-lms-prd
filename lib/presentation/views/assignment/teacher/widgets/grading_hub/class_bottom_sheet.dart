@@ -3,11 +3,14 @@ import 'package:ai_mls/domain/entities/assignment.dart';
 import 'package:ai_mls/domain/entities/assignment_distribution.dart';
 import 'package:flutter/material.dart';
 
+/// Loại filter cho bottom sheet chọn lớp
+enum _ClassFilter { all, hasUngraded }
+
 /// Bottom sheet chọn lớp để xem bài nộp - đồng bộ với app style:
 /// - Rounded top corners (DesignRadius.lg * 1.5)
 /// - Teal header icon
 /// - Card-style class items
-class ClassBottomSheet extends StatelessWidget {
+class ClassBottomSheet extends StatefulWidget {
   final List<AssignmentDistribution> distributions;
   final Assignment assignment;
   final bool isDark;
@@ -22,13 +25,35 @@ class ClassBottomSheet extends StatelessWidget {
   });
 
   @override
+  State<ClassBottomSheet> createState() => _ClassBottomSheetState();
+}
+
+class _ClassBottomSheetState extends State<ClassBottomSheet> {
+  _ClassFilter _selectedFilter = _ClassFilter.all;
+
+  List<AssignmentDistribution> get _filteredDistributions {
+    switch (_selectedFilter) {
+      case _ClassFilter.all:
+        return widget.distributions;
+      case _ClassFilter.hasUngraded:
+        // Lọc các lớp còn bài chưa chấm (submitted > graded)
+        return widget.distributions.where((d) {
+          final ungraded = (d.submittedCount ?? 0) - (d.gradedCount ?? 0);
+          return ungraded > 0;
+        }).toList();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final filtered = _filteredDistributions;
+
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.7,
       ),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A2632) : Colors.white,
+        color: widget.isDark ? const Color(0xFF1A2632) : Colors.white,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(DesignRadius.lg * 1.5),
         ),
@@ -42,7 +67,7 @@ class ClassBottomSheet extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: isDark ? Colors.grey[600] : Colors.grey[300],
+              color: widget.isDark ? Colors.grey[600] : Colors.grey[300],
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -74,11 +99,11 @@ class ClassBottomSheet extends StatelessWidget {
                         'Chọn lớp',
                         style: DesignTypography.titleMedium.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : DesignColors.textPrimary,
+                          color: widget.isDark ? Colors.white : DesignColors.textPrimary,
                         ),
                       ),
                       Text(
-                        assignment.title,
+                        widget.assignment.title,
                         style: DesignTypography.bodySmall.copyWith(
                           color: DesignColors.textSecondary,
                         ),
@@ -94,10 +119,10 @@ class ClassBottomSheet extends StatelessWidget {
 
           Divider(
             height: 1,
-            color: isDark ? Colors.grey[700] : DesignColors.dividerLight,
+            color: widget.isDark ? Colors.grey[700] : DesignColors.dividerLight,
           ),
 
-          // Filter chips row (D-24: "Chờ duyệt AI" for pendingReview filtering)
+          // Filter chips row
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: DesignSpacing.md,
@@ -109,19 +134,20 @@ class ClassBottomSheet extends StatelessWidget {
                 children: [
                   FilterChip(
                     label: const Text('Tất cả'),
-                    selected: true,
-                    onSelected: (_) {
-                      // TODO 7-12c: wire to filter provider
-                    },
-                    selectedColor:
-                        DesignColors.tealPrimary.withValues(alpha: 0.15),
+                    selected: _selectedFilter == _ClassFilter.all,
+                    onSelected: (_) => setState(() => _selectedFilter = _ClassFilter.all),
+                    selectedColor: DesignColors.tealPrimary.withValues(alpha: 0.15),
                     labelStyle: DesignTypography.caption.copyWith(
-                      color: DesignColors.tealPrimary,
+                      color: _selectedFilter == _ClassFilter.all
+                          ? DesignColors.tealPrimary
+                          : DesignColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
                     showCheckmark: false,
                     side: BorderSide(
-                      color: DesignColors.tealPrimary.withValues(alpha: 0.3),
+                      color: _selectedFilter == _ClassFilter.all
+                          ? DesignColors.tealPrimary.withValues(alpha: 0.3)
+                          : DesignColors.dividerLight,
                     ),
                   ),
                   const SizedBox(width: DesignSpacing.sm),
@@ -129,22 +155,26 @@ class ClassBottomSheet extends StatelessWidget {
                     avatar: Icon(
                       Icons.rate_review_outlined,
                       size: DesignIcons.xsSize,
-                      color: DesignColors.warning,
+                      color: _selectedFilter == _ClassFilter.hasUngraded
+                          ? DesignColors.warning
+                          : DesignColors.textSecondary,
                     ),
                     label: const Text('Chờ duyệt AI'),
-                    selected: false,
-                    onSelected: (_) {
-                      // TODO 7-12c: filter by SubmissionStatus.pendingReview
-                    },
-                    backgroundColor:
-                        DesignColors.warning.withValues(alpha: 0.08),
+                    selected: _selectedFilter == _ClassFilter.hasUngraded,
+                    onSelected: (_) => setState(() => _selectedFilter = _ClassFilter.hasUngraded),
+                    selectedColor: DesignColors.warning.withValues(alpha: 0.12),
+                    backgroundColor: DesignColors.warning.withValues(alpha: 0.08),
                     labelStyle: DesignTypography.caption.copyWith(
-                      color: DesignColors.warning,
+                      color: _selectedFilter == _ClassFilter.hasUngraded
+                          ? DesignColors.warning
+                          : DesignColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
                     showCheckmark: false,
                     side: BorderSide(
-                      color: DesignColors.warning.withValues(alpha: 0.3),
+                      color: _selectedFilter == _ClassFilter.hasUngraded
+                          ? DesignColors.warning.withValues(alpha: 0.3)
+                          : DesignColors.dividerLight,
                     ),
                   ),
                 ],
@@ -152,24 +182,35 @@ class ClassBottomSheet extends StatelessWidget {
             ),
           ),
 
-          // Class list
-          Flexible(
-            child: ListView.separated(
-              shrinkWrap: true,
-              padding: const EdgeInsets.all(DesignSpacing.md),
-              itemCount: distributions.length,
-              separatorBuilder: (_, __) =>
-                  const SizedBox(height: DesignSpacing.sm),
-              itemBuilder: (context, index) {
-                final dist = distributions[index];
-                return _ClassItem(
-                  distribution: dist,
-                  isDark: isDark,
-                  onTap: () => onClassTap(dist),
-                );
-              },
+          // Empty state khi filter không có kết quả
+          if (filtered.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(DesignSpacing.xl),
+              child: Text(
+                'Không có lớp nào phù hợp',
+                style: DesignTypography.bodySmall.copyWith(
+                  color: DesignColors.textTertiary,
+                ),
+              ),
+            )
+          else
+            // Class list
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.all(DesignSpacing.md),
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) => const SizedBox(height: DesignSpacing.sm),
+                itemBuilder: (context, index) {
+                  final dist = filtered[index];
+                  return _ClassItem(
+                    distribution: dist,
+                    isDark: widget.isDark,
+                    onTap: () => widget.onClassTap(dist),
+                  );
+                },
+              ),
             ),
-          ),
 
           SizedBox(height: MediaQuery.of(context).padding.bottom),
         ],

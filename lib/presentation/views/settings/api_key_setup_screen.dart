@@ -21,11 +21,8 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
   bool _hasGroqKey = false;
   List<String> _ollamaAvailableModels = [];
   String? _geminiKeyStatus; // 'working', 'error', null
-  String? _geminiKeyError; // Chi tiết lỗi nếu có
   String? _groqKeyStatus; // 'working', 'error', null
-  String? _groqKeyError; // Chi tiết lỗi nếu có
   String? _ollamaConnectionStatus; // 'working', 'error', null
-  String? _ollamaConnectionError;
 
   // ── Tạo câu hỏi ────────────────────────────────────────────────────────
   String _activeProvider = ApiKeyService.providerGemini;
@@ -757,7 +754,6 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
             _geminiKeyController.clear();
             _hasGeminiKey = false;
             _geminiKeyStatus = null;
-            _geminiKeyError = null;
             _isLoading = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
@@ -810,7 +806,6 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
             _groqKeyController.clear();
             _hasGroqKey = false;
             _groqKeyStatus = null;
-            _groqKeyError = null;
             _isLoading = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
@@ -863,7 +858,6 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
             _ollamaUrlController.clear();
             _ollamaAvailableModels = [];
             _ollamaConnectionStatus = null;
-            _ollamaConnectionError = null;
             _isLoading = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(

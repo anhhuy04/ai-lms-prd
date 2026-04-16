@@ -13,6 +13,7 @@ class ToolsDrawer extends StatelessWidget {
   final VoidCallback? onOpenQuestionBank;
   final VoidCallback? onUploadFile;
   final VoidCallback? onPreview;
+  final VoidCallback? onAutoAssignObjectives;
   final VoidCallback? onSaveDraft;
   final VoidCallback? onSaveAndPublish;
   final bool isLoading;
@@ -28,6 +29,7 @@ class ToolsDrawer extends StatelessWidget {
     this.onOpenQuestionBank,
     this.onUploadFile,
     this.onPreview,
+    this.onAutoAssignObjectives,
     this.onSaveDraft,
     this.onSaveAndPublish,
     this.isLoading = false,
@@ -113,27 +115,10 @@ class ToolsDrawer extends StatelessWidget {
                         onTap: onAddMultipleChoice,
                         isDark: isDark,
                       ),
-                      _buildQuestionTypeButton(
-                        icon: Icons.short_text,
-                        label: 'Trả lời ngắn',
-                        color: QuestionType.shortAnswer.color,
-                        onTap: onAddShortAnswer,
-                        isDark: isDark,
-                      ),
-                      _buildQuestionTypeButton(
-                        icon: Icons.article,
-                        label: 'Tự luận',
-                        color: QuestionType.essay.color,
-                        onTap: onAddEssay,
-                        isDark: isDark,
-                      ),
-                      _buildQuestionTypeButton(
-                        icon: Icons.functions,
-                        label: 'Bài toán',
-                        color: QuestionType.math.color,
-                        onTap: onAddMath,
-                        isDark: isDark,
-                      ),
+                      // TODO: Tạm ẩn — chưa hỗ trợ
+                      // _buildQuestionTypeButton(icon: Icons.short_text, label: 'Trả lời ngắn', ...),
+                      // _buildQuestionTypeButton(icon: Icons.article, label: 'Tự luận', ...),
+                      // _buildQuestionTypeButton(icon: Icons.functions, label: 'Bài toán', ...),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -176,6 +161,14 @@ class ToolsDrawer extends StatelessWidget {
                     label: 'Xem trước bài tập',
                     onTap: onPreview,
                     isDark: isDark,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildActionButton(
+                    icon: Icons.psychology,
+                    label: 'AI gán mục tiêu học tập',
+                    onTap: onAutoAssignObjectives,
+                    isDark: isDark,
+                    color: Colors.deepPurple,
                   ),
                 ],
               ),
@@ -447,31 +440,31 @@ class ToolsDrawer extends StatelessWidget {
     required String label,
     required VoidCallback? onTap,
     required bool isDark,
+    Color? color,
   }) {
+    final btnColor = color ?? DesignColors.primary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(DesignRadius.lg * 1.5),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: DesignColors.primary.withValues(alpha: 0.1),
+          color: btnColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(DesignRadius.lg * 1.5),
-          border: Border.all(
-            color: DesignColors.primary.withValues(alpha: 0.3),
-          ),
+          border: Border.all(color: btnColor.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: DesignColors.primary),
+                Icon(icon, size: 20, color: btnColor),
                 const SizedBox(width: 12),
                 Text(
                   label,
                   style: DesignTypography.bodyMedium.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: DesignColors.primary,
+                    color: btnColor,
                   ),
                 ),
               ],
@@ -479,7 +472,7 @@ class ToolsDrawer extends StatelessWidget {
             Icon(
               Icons.arrow_forward,
               size: 18,
-              color: DesignColors.primary.withValues(alpha: 0.5),
+              color: btnColor.withValues(alpha: 0.5),
             ),
           ],
         ),

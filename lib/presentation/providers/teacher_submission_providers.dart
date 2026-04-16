@@ -91,8 +91,13 @@ Future<TeacherSubmissionListState> teacherSubmissionList(
     final items = submissions.map((s) {
       final profile = s['profiles'] as Map<String, dynamic>?;
       final isLate = s['is_late'] as bool? ?? false;
-      final totalScore = s['total_score'] as double?;
+      // Supabase numeric → String "10.00" hoặc num — dùng _toDouble an toàn
+      final totalScore = _toDouble(s['total_score']);
       final aiGraded = s['ai_graded'] as bool? ?? false;
+      // maxScore từ assignment_distributions.assignments.total_points
+      final distData = s['assignment_distributions'] as Map<String, dynamic>?;
+      final assignmentData = distData?['assignments'] as Map<String, dynamic>?;
+      final maxScore = _toDouble(assignmentData?['total_points']);
 
       return TeacherSubmissionItem(
         submissionId: s['id'] as String,
@@ -104,19 +109,25 @@ Future<TeacherSubmissionListState> teacherSubmissionList(
             : DateTime.now(),
         isLate: isLate,
         totalScore: totalScore,
-        maxScore: null, // TODO: Lấy từ assignment
+        maxScore: maxScore,
         aiGraded: aiGraded,
         status: s['status'] as String? ?? 'submitted',
       );
     }).toList();
 
     // Apply filter
-    // 'pending' = status == 'submitted' (chưa chấm = đã nộp nhưng chưa graded)
+    // 'pending' = submitted + pending_review (chờ GV action)
+    //   submitted     = tự luận chưa có AI, chờ chấm tay
+    //   pending_review = AI đã chạy xong, GV cần review/approve
+    // 'ai_processing' KHÔNG thuộc pending — AI đang chạy, không cần GV action ngay
     // 'late'    = is_late == true (từ submissions.is_late, set tại thời điểm nộp)
     List<TeacherSubmissionItem> filteredItems;
     switch (filter) {
       case SubmissionFilter.pending:
-        filteredItems = items.where((i) => i.status == 'submitted' || i.status == 'ai_processing').toList();
+        // C1 fix: pending_review thay cho ai_processing trong filter "Chưa chấm"
+        filteredItems = items
+            .where((i) => i.status == 'submitted' || i.status == 'pending_review')
+            .toList();
         break;
       case SubmissionFilter.graded:
         filteredItems = items.where((i) => i.status == 'graded').toList();
@@ -465,4 +476,12 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
       _isUpdating = false;
     }
   }
+}
+
+/// Parse Supabase numeric an toàn: có thể là num, String "10.00", hoặc null
+double? _toDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value);
+  return null;
 }

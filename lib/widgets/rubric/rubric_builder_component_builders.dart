@@ -51,7 +51,7 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
                         },
                       ),
               ),
-              if (!widget.isLocked) _buildBottomActions(),
+              if (widget.isLocked) _buildCloseButton() else _buildBottomActions(),
             ],
           ),
         );
@@ -119,8 +119,8 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
   Widget _buildCriterionCard(int index) {
     final c = _s._criteria[index];
     final isExpanded = _s._expandedIndices.contains(index);
-    final hasNameError = _s._errors.containsKey('name_$index');
-    final hasLevelsError = _s._errors.containsKey('levels_$index');
+    final hasNameError = _s._hasAttemptedSave && _s._errors.containsKey('name_$index');
+    final hasLevelsError = _s._hasAttemptedSave && _s._errors.containsKey('levels_$index');
 
     return Container(
       margin: EdgeInsets.symmetric(
@@ -139,25 +139,36 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
           Row(
             children: [
               Expanded(
-                child: TextFormField(
-                  controller: c.nameController,
-                  enabled: !widget.isLocked,
-                  style: DesignTypography.titleMedium,
-                  decoration: InputDecoration(
-                    hintText: 'VD: Lập luận',
-                    errorText:
-                        hasNameError ? _s._errors['name_$index'] : null,
-                    isDense: true,
-                    border: InputBorder.none,
-                    hintStyle: DesignTypography.bodyMedium
-                        .copyWith(color: DesignColors.textTertiary),
-                  ),
-                  onChanged: (_) {
-                    if (hasNameError) {
-                      setState(() => _s._errors.remove('name_$index'));
-                    }
-                  },
-                ),
+                child: isExpanded
+                    ? TextFormField(
+                        controller: c.nameController,
+                        enabled: !widget.isLocked,
+                        style: DesignTypography.titleMedium,
+                        decoration: InputDecoration(
+                          hintText: 'VD: Lập luận',
+                          errorText: hasNameError
+                              ? _s._errors['name_$index']
+                              : null,
+                          isDense: true,
+                          border: InputBorder.none,
+                          hintStyle: DesignTypography.bodyMedium.copyWith(
+                            color: DesignColors.textTertiary,
+                          ),
+                        ),
+                        onChanged: (_) {
+                          if (hasNameError) {
+                            setState(
+                                () => _s._errors.remove('name_$index'));
+                          }
+                        },
+                      )
+                    : SmartMarqueeText(
+                        text: c.nameController.text.isEmpty
+                            ? 'Tiêu chí ${index + 1}'
+                            : c.nameController.text,
+                        style: DesignTypography.titleMedium,
+                        height: 22,
+                      ),
               ),
               SizedBox(width: DesignSpacing.sm),
               _buildPointsBadge(_s._criterionMaxPoints(index)),
@@ -190,21 +201,20 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
                   .copyWith(color: DesignColors.error),
             ),
           ],
-          AnimatedCrossFade(
+          AnimatedSize(
             duration: const Duration(milliseconds: 150),
-            crossFadeState: isExpanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            firstChild: const SizedBox.shrink(),
-            secondChild: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: DesignSpacing.md),
-                ..._s._criteria[index].levels.asMap().entries.map(
-                    (e) => _buildLevelRow(index, e.key)),
-                if (!widget.isLocked) _buildAddLevelButton(index),
-              ],
-            ),
+            curve: Curves.easeInOut,
+            child: isExpanded
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: DesignSpacing.md),
+                      ..._s._criteria[index].levels.asMap().entries.map(
+                          (e) => _buildLevelRow(index, e.key)),
+                      if (!widget.isLocked) _buildAddLevelButton(index),
+                    ],
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -231,7 +241,7 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
 
   Widget _buildLevelRow(int ci, int li) {
     final l = _s._criteria[ci].levels[li];
-    final hasDescError = _s._errors.containsKey('desc_${ci}_$li');
+    final hasDescError = _s._hasAttemptedSave && _s._errors.containsKey('desc_${ci}_$li');
 
     return Container(
       margin: EdgeInsets.only(bottom: DesignSpacing.sm),
@@ -245,10 +255,10 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               SizedBox(
-                width: 60,
+                width: 64,
                 child: TextFormField(
                   controller: l.pointsController,
                   enabled: !widget.isLocked,
@@ -257,7 +267,8 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
                   style: DesignTypography.bodyMedium
                       .copyWith(fontWeight: FontWeight.w600),
                   decoration: InputDecoration(
-                    labelText: 'Điểm',
+                    labelText: 'Điểm mức',
+                    hintText: 'VD: 5',
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: DesignSpacing.xs,
@@ -272,10 +283,11 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
                 child: TextFormField(
                   controller: l.descriptionController,
                   enabled: !widget.isLocked,
-                  maxLines: 2,
+                  maxLines: null,
                   style: DesignTypography.bodyMedium,
                   decoration: InputDecoration(
-                    labelText: 'Mô tả mức điểm',
+                    labelText: 'Mô tả',
+                    hintText: 'VD: Lập luận đầy đủ, có dẫn chứng',
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: DesignSpacing.sm,
@@ -290,13 +302,20 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
                 ),
               ),
               if (!widget.isLocked)
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  iconSize: DesignIcons.xsSize,
-                  color: DesignColors.textTertiary,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => _s._deleteLevel(ci, li),
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: IconButton(
+                    icon: const Icon(Icons.close),
+                    iconSize: DesignIcons.xsSize,
+                    color: DesignColors.textTertiary,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      maxWidth: 32,
+                      maxHeight: 32,
+                    ),
+                    onPressed: () => _s._deleteLevel(ci, li),
+                  ),
                 ),
             ],
           ),
@@ -335,6 +354,29 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
     );
   }
 
+  Widget _buildCloseButton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: DesignColors.white,
+        border: Border(top: BorderSide(color: DesignColors.dividerLight)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        DesignSpacing.lg,
+        DesignSpacing.md,
+        DesignSpacing.lg,
+        DesignSpacing.lg,
+      ),
+      child: SizedBox(
+        height: DesignComponents.buttonHeightLarge,
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Đóng'),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomActions() {
     return Container(
       decoration: BoxDecoration(
@@ -358,8 +400,12 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: DesignColors.primary,
                     side: BorderSide(color: DesignColors.primary),
+                    alignment: Alignment.center,
                   ),
-                  child: const Text('Chọn từ Template'),
+                  child: const Text(
+                    'Chọn từ Mẫu',
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
               SizedBox(width: DesignSpacing.sm),
@@ -369,31 +415,21 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: DesignColors.primary,
                     side: BorderSide(color: DesignColors.primary),
+                    alignment: Alignment.center,
                   ),
-                  child: const Text('Lưu thành Template'),
+                  child: const Text(
+                    'Lưu thành Mẫu',
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
             ],
           ),
           SizedBox(height: DesignSpacing.sm),
-          Row(
-            children: [
-              Icon(
-                Icons.calculate_outlined,
-                size: DesignIcons.smSize,
-                color: DesignColors.textSecondary,
-              ),
-              SizedBox(width: DesignSpacing.xs),
-              Text(
-                'Tổng điểm: ${_s._totalPoints} điểm',
-                style: DesignTypography.bodyMedium
-                    .copyWith(color: DesignColors.textSecondary),
-              ),
-            ],
-          ),
+          _buildPointsSummaryRow(),
           SizedBox(height: DesignSpacing.sm),
           SizedBox(
-            height: 48,
+            height: DesignComponents.buttonHeightLarge,
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _s._saveRubric,
@@ -406,6 +442,59 @@ mixin _RubricBuilderComponentBuilders on State<RubricBuilderComponent> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPointsSummaryRow() {
+    final total = _s._totalPoints;
+    final ceiling = widget.questionPoints;
+
+    // No ceiling configured — show simple total
+    if (ceiling == null) {
+      return Row(
+        children: [
+          Icon(Icons.calculate_outlined,
+              size: DesignIcons.smSize, color: DesignColors.textSecondary),
+          SizedBox(width: DesignSpacing.xs),
+          Text(
+            'Tổng: $total điểm',
+            style: DesignTypography.bodyMedium
+                .copyWith(color: DesignColors.textSecondary),
+          ),
+        ],
+      );
+    }
+
+    // Determine status
+    final Color statusColor;
+    final IconData statusIcon;
+    final String statusText;
+
+    if (total < ceiling) {
+      statusColor = DesignColors.warning;
+      statusIcon = Icons.warning_amber_rounded;
+      statusText = 'Tổng: $total đ / Tối đa: $ceiling đ  •  Còn thiếu ${ceiling - total} đ';
+    } else if (total == ceiling) {
+      statusColor = DesignColors.success;
+      statusIcon = Icons.check_circle_outline;
+      statusText = 'Tổng: $total đ / Tối đa: $ceiling đ  ✓';
+    } else {
+      statusColor = DesignColors.error;
+      statusIcon = Icons.error_outline;
+      statusText = 'Tổng: $total đ / Tối đa: $ceiling đ  •  Vượt ${total - ceiling} đ';
+    }
+
+    return Row(
+      children: [
+        Icon(statusIcon, size: DesignIcons.smSize, color: statusColor),
+        SizedBox(width: DesignSpacing.xs),
+        Expanded(
+          child: Text(
+            statusText,
+            style: DesignTypography.bodyMedium.copyWith(color: statusColor),
+          ),
+        ),
+      ],
     );
   }
 

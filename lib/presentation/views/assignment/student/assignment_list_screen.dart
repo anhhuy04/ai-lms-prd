@@ -29,6 +29,7 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
   List<Map<String, dynamic>> _displayedStudentAssignments = [];
   bool _isLoadingMore = false;
   String _studentStatusFilter = 'all'; // 'all', 'not_submitted', 'submitted', 'graded'
+  String _studentSortOption = 'newest'; // 'newest', 'due_soon', 'status'
   final ScrollController _scrollControllerTeacher = ScrollController();
   final ScrollController _scrollControllerStudent = ScrollController();
 
@@ -288,7 +289,7 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
       ),
       data: (allAssignments) {
         // Lọc bài tập theo status
-        final assignments = allAssignments.where((a) {
+        final filtered = allAssignments.where((a) {
           if (_studentStatusFilter == 'all') return true;
           final status = a['submission_status'] as String? ?? 'not_submitted';
           if (_studentStatusFilter == 'not_submitted') {
@@ -303,21 +304,37 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
           return true;
         }).toList();
 
+        // Sắp xếp theo option đã chọn
+        final assignments = _sortStudentAssignments(filtered);
+
         return Column(
           children: [
-            // Filter section
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: DesignSpacing.md, vertical: DesignSpacing.sm),
+            // Filter + Sort section
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: DesignSpacing.md,
+                vertical: DesignSpacing.sm,
+              ),
               child: Row(
                 children: [
-                  _buildFilterChip('Tất cả', 'all'),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildFilterChip('Tất cả', 'all'),
+                          const SizedBox(width: DesignSpacing.sm),
+                          _buildFilterChip('Chưa nộp', 'not_submitted'),
+                          const SizedBox(width: DesignSpacing.sm),
+                          _buildFilterChip('Đã nộp', 'submitted'),
+                          const SizedBox(width: DesignSpacing.sm),
+                          _buildFilterChip('Đã chấm', 'graded'),
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: DesignSpacing.sm),
-                  _buildFilterChip('Chưa nộp', 'not_submitted'),
-                  const SizedBox(width: DesignSpacing.sm),
-                  _buildFilterChip('Đã nộp', 'submitted'),
-                  const SizedBox(width: DesignSpacing.sm),
-                  _buildFilterChip('Đã chấm', 'graded'),
+                  _buildSortButton(),
                 ],
               ),
             ),
@@ -480,6 +497,124 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
     _isLoadingMore = false;
 
     setState(() {});
+  }
+
+  /// Sắp xếp danh sách bài tập theo option đã chọn
+  List<Map<String, dynamic>> _sortStudentAssignments(
+    List<Map<String, dynamic>> list,
+  ) {
+    final sorted = List<Map<String, dynamic>>.from(list);
+    switch (_studentSortOption) {
+      case 'newest':
+        sorted.sort((a, b) {
+          final aDate = a['distribution_created_at'] as String?;
+          final bDate = b['distribution_created_at'] as String?;
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return bDate.compareTo(aDate);
+        });
+      case 'due_soon':
+        sorted.sort((a, b) {
+          final aDate = a['distribution_due_at'] as String?;
+          final bDate = b['distribution_due_at'] as String?;
+          // Null (không có hạn) xuống cuối
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return aDate.compareTo(bDate); // tăng dần = sắp hết hạn lên đầu
+        });
+      case 'status':
+        // Thứ tự: in_progress → not_submitted → submitted/ai_processing → graded
+        int _statusOrder(String? s) => switch (s) {
+          'in_progress' => 0,
+          null || 'not_submitted' => 1,
+          'submitted' || 'returned' || 'ai_processing' || 'pending_review' => 2,
+          'graded' => 3,
+          _ => 4,
+        };
+        sorted.sort((a, b) {
+          final aOrder = _statusOrder(a['submission_status'] as String?);
+          final bOrder = _statusOrder(b['submission_status'] as String?);
+          if (aOrder != bOrder) return aOrder.compareTo(bOrder);
+          // Cùng nhóm → mới nhất lên đầu
+          final aDate = a['distribution_created_at'] as String?;
+          final bDate = b['distribution_created_at'] as String?;
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return bDate.compareTo(aDate);
+        });
+    }
+    return sorted;
+  }
+
+  /// Nút chọn kiểu sắp xếp (PopupMenuButton)
+  Widget _buildSortButton() {
+    final labels = {
+      'newest': 'Mới nhất',
+      'due_soon': 'Sắp hết hạn',
+      'status': 'Theo trạng thái',
+    };
+    return PopupMenuButton<String>(
+      tooltip: 'Sắp xếp',
+      onSelected: (value) {
+        setState(() {
+          _studentSortOption = value;
+          // Reset pagination cache để sort mới có hiệu lực ngay
+          _displayedStudentAssignments = [];
+          _currentPageStudent = 0;
+        });
+      },
+      itemBuilder: (_) => labels.entries
+          .map(
+            (e) => PopupMenuItem<String>(
+              value: e.key,
+              child: Row(
+                children: [
+                  Icon(
+                    _studentSortOption == e.key
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 18,
+                    color: _studentSortOption == e.key
+                        ? DesignColors.primary
+                        : DesignColors.textTertiary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(e.value),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          border: Border.all(color: DesignColors.dividerMedium),
+          borderRadius: BorderRadius.circular(DesignRadius.full),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.sort, size: 16, color: DesignColors.textSecondary),
+            const SizedBox(width: 4),
+            Text(
+              labels[_studentSortOption] ?? 'Sắp xếp',
+              style: TextStyle(
+                fontSize: DesignTypography.captionSize,
+                color: DesignColors.textSecondary,
+              ),
+            ),
+            Icon(
+              Icons.arrow_drop_down,
+              size: 16,
+              color: DesignColors.textSecondary,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Xây dựng card hiển thị một bài tập

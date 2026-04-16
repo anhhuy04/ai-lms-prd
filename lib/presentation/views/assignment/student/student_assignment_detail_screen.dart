@@ -1,16 +1,27 @@
+import 'dart:math' as math;
+
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
-import 'package:ai_mls/widgets/rubric/read_only_rubric_viewer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
 /// Màn hình chi tiết bài tập dành cho học sinh.
-/// Hiển thị thông tin bài tập, danh sách câu hỏi, và nút bắt đầu làm bài.
-class StudentAssignmentDetailScreen extends ConsumerWidget {
+///
+/// 3 trạng thái chính:
+///   • Chưa làm      (submission == null)
+///   • Đang làm dở   (status == 'in_progress')
+///   • Đã nộp        (submitted / graded / ai_processing / pending_review)
+///
+/// Sau khi nộp, hiển thị theo settings.student_review_mode:
+///   • 'none'        → chỉ thông báo đã nộp thành công, ẩn hết điểm
+///   • 'score_only'  → score card + trạng thái
+///   • 'full_review' → đầy đủ: điểm, thời gian, thống kê, AI feedback
+class StudentAssignmentDetailScreen extends ConsumerStatefulWidget {
   final String distributionId;
 
   const StudentAssignmentDetailScreen({
@@ -19,541 +30,383 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    AppLogger.debug('🔵 [DetailScreen] building with distributionId: $distributionId');
-    final detailAsync = ref.watch(studentAssignmentDetailProvider(distributionId));
+  ConsumerState<StudentAssignmentDetailScreen> createState() =>
+      _StudentAssignmentDetailScreenState();
+}
 
-    detailAsync.when(
-      loading: () => AppLogger.debug('🔵 [DetailScreen] loading...'),
-      error: (e, st) => AppLogger.error('🔴 [DetailScreen] error: $e', error: e, stackTrace: st),
-      data: (d) => AppLogger.debug('🔵 [DetailScreen] data: $d'),
+class _StudentAssignmentDetailScreenState
+    extends ConsumerState<StudentAssignmentDetailScreen> {
+  Future<void> _refresh() async {
+    ref.invalidate(studentAssignmentDetailProvider(widget.distributionId));
+    ref.invalidate(studentSubmissionProvider(widget.distributionId));
+    // Đợi cả 2 provider load xong
+    await Future.wait([
+      ref.read(studentAssignmentDetailProvider(widget.distributionId).future),
+      ref.read(studentSubmissionProvider(widget.distributionId).future),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    AppLogger.debug(
+      '🔵 [DetailScreen] distributionId=${widget.distributionId}',
     );
+    final detailAsync =
+        ref.watch(studentAssignmentDetailProvider(widget.distributionId));
+    final submissionAsync =
+        ref.watch(studentSubmissionProvider(widget.distributionId));
+
+    if (detailAsync.isLoading || submissionAsync.isLoading) {
+      return const _LoadingScaffold();
+    }
+    if (detailAsync.hasError) {
+      return _ErrorScaffold(error: detailAsync.error!);
+    }
+
+    final detail = detailAsync.value!;
+    final assignment = detail['assignment'] as Map<String, dynamic>? ?? {};
+    final distribution =
+        detail['distribution'] as Map<String, dynamic>? ?? {};
+    final questions = detail['questions'] as List<dynamic>? ?? [];
+    final settings =
+        distribution['settings'] as Map<String, dynamic>? ?? {};
+
+    final title = assignment['title'] as String? ?? 'Bài tập';
+    final reviewMode =
+        settings['student_review_mode'] as String? ?? 'full_review';
+    final aiEnabled = settings['ai_feedback_enabled'] as bool? ?? false;
+    final maxAttempts = settings['max_attempts'] as int?;
+
+    final submission = submissionAsync.value;
+    final status = submission?['status'] as String? ?? 'not_started';
+
+    final isSubmitted = status == 'submitted' ||
+        status == 'graded' ||
+        status == 'ai_processing' ||
+        status == 'pending_review';
+    final isInProgress = status == 'in_progress';
 
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
-      appBar: _buildAppBar(context),
-      body: detailAsync.when(
-        loading: () => const ShimmerLoading(),
-        error: (error, _) => _buildErrorState(context, error),
-        data: (detail) => _buildBody(context, ref, detail),
+      body: Column(
+        children: [
+          _AppBar(title: title, isSubmitted: isSubmitted),
+          Expanded(
+            child: isSubmitted
+                ? _SubmittedView(
+                    assignment: assignment,
+                    distribution: distribution,
+                    questions: questions,
+                    submission: submission!,
+                    distributionId: widget.distributionId,
+                    reviewMode: reviewMode,
+                    aiEnabled: aiEnabled,
+                    maxAttempts: maxAttempts,
+                    onRefresh: _refresh,
+                  )
+                : _PendingView(
+                    assignment: assignment,
+                    distribution: distribution,
+                    questions: questions,
+                    submission: submission,
+                    isInProgress: isInProgress,
+                    distributionId: widget.distributionId,
+                    onRefresh: _refresh,
+                  ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
-    return AppBar(
-      backgroundColor: DesignColors.white,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new, size: DesignIcons.smSize),
-        onPressed: () => context.pop(),
-      ),
-      title: Text(
-        'Chi tiết bài tập',
-        style: TextStyle(
-          fontSize: DesignTypography.bodyMediumSize,
-          fontWeight: DesignTypography.bold,
-          color: DesignColors.textPrimary,
+// ═══════════════════════════════════════════════════════════
+// AppBar
+// ═══════════════════════════════════════════════════════════
+
+class _AppBar extends StatelessWidget {
+  final String title;
+  final bool isSubmitted;
+
+  const _AppBar({required this.title, required this.isSubmitted});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: DesignColors.white,
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 56.h,
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new),
+                iconSize: DesignIcons.smSize,
+                color: DesignColors.textPrimary,
+                onPressed: () => context.pop(),
+              ),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: DesignTypography.bodyMediumSize,
+                    fontWeight: DesignTypography.bold,
+                    color: DesignColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (isSubmitted)
+                IconButton(
+                  icon: const Icon(Icons.share_outlined),
+                  iconSize: DesignIcons.smSize,
+                  color: DesignColors.textSecondary,
+                  onPressed: () {},
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildErrorState(BuildContext context, Object error) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(DesignSpacing.lg),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: DesignColors.error),
-            const SizedBox(height: DesignSpacing.md),
-            Text(
-              'Lỗi khi tải thông tin bài tập',
-              style: DesignTypography.bodyLarge.copyWith(
-                color: DesignColors.textSecondary,
+// ═══════════════════════════════════════════════════════════
+// Loading / Error
+// ═══════════════════════════════════════════════════════════
+
+class _LoadingScaffold extends StatelessWidget {
+  const _LoadingScaffold();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: DesignColors.moonLight,
+      body: ShimmerDashboardLoading(),
+    );
+  }
+}
+
+class _ErrorScaffold extends StatelessWidget {
+  final Object error;
+  const _ErrorScaffold({required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: DesignColors.moonLight,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(DesignSpacing.lg),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 48.w, color: DesignColors.error),
+              const SizedBox(height: DesignSpacing.md),
+              Text(
+                'Không tải được thông tin bài tập',
+                style: DesignTypography.bodyLarge
+                    .copyWith(color: DesignColors.textSecondary),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: DesignSpacing.sm),
-            Text(
-              error.toString(),
-              style: DesignTypography.bodyMedium.copyWith(
-                color: DesignColors.textTertiary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildBody(
-    BuildContext context,
-    WidgetRef ref,
-    Map<String, dynamic> detail,
-  ) {
-    final assignment = detail['assignment'] as Map<String, dynamic>? ?? {};
-    final questions = detail['questions'] as List<dynamic>? ?? [];
-    final distribution = detail['distribution'] as Map<String, dynamic>? ?? {};
-    final submission = detail['submission'] as Map<String, dynamic>?;
+// ═══════════════════════════════════════════════════════════
+// TRẠNG THÁI: CHƯA LÀM / ĐANG LÀM DỞ
+// ═══════════════════════════════════════════════════════════
 
-    final title = assignment['title'] as String? ?? 'Bài tập';
-    final description = assignment['description'] as String?;
+class _PendingView extends StatelessWidget {
+  final Map<String, dynamic> assignment;
+  final Map<String, dynamic> distribution;
+  final List<dynamic> questions;
+  final Map<String, dynamic>? submission;
+  final bool isInProgress;
+  final String distributionId;
+  final Future<void> Function() onRefresh;
+
+  const _PendingView({
+    required this.assignment,
+    required this.distribution,
+    required this.questions,
+    required this.submission,
+    required this.isInProgress,
+    required this.distributionId,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final dueAt = distribution['due_at'] as String?;
+    final timeLimitMinutes = distribution['time_limit_minutes'] as int?;
     final totalPoints = assignment['total_points'] as num?;
+    final description = assignment['description'] as String?;
+    final answeredCount = submission?['answered_count'] as int? ?? 0;
+    final totalQuestions = questions.length;
 
-    // Parse dates
     DateTime? dueDateTime;
-    if (dueAt != null) {
-      dueDateTime = DateTime.tryParse(dueAt);
-    }
-
-    // Check submission status
-    final submissionStatus = submission?['status'] as String? ?? 'draft';
-    final isSubmitted = submissionStatus == 'submitted'
-        || submissionStatus == 'graded'
-        || submissionStatus == 'ai_processing';
-    final score = submission?['score'] as num?;
+    if (dueAt != null) dueDateTime = DateTime.tryParse(dueAt);
 
     return Column(
       children: [
-        // Content
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(DesignSpacing.md),
+          child: RefreshIndicator(
+            onRefresh: onRefresh,
+            color: DesignColors.primary,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              DesignSpacing.md,
+              DesignSpacing.lg,
+              DesignSpacing.md,
+              DesignSpacing.lg,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header Card
-                _buildHeaderCard(
-                  context,
-                  title: title,
-                  description: description,
-                  dueDateTime: dueDateTime,
-                  totalPoints: totalPoints,
-                  isSubmitted: isSubmitted,
-                  score: score,
-                  submissionStatus: submissionStatus,
-                ),
-
-                const SizedBox(height: DesignSpacing.lg),
-
-                // Questions Section
-                Text(
-                  'Danh sách câu hỏi (${questions.length})',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: DesignColors.textPrimary,
+                if (isInProgress && totalQuestions > 0) ...[
+                  _ProgressCard(
+                    answeredCount: answeredCount,
+                    totalQuestions: totalQuestions,
                   ),
+                  const SizedBox(height: DesignSpacing.xl),
+                ],
+                const _SectionLabel(label: 'Thông tin bài tập'),
+                const SizedBox(height: DesignSpacing.sm),
+                _AssignmentInfoCard(
+                  dueDateTime: dueDateTime,
+                  timeLimitMinutes: timeLimitMinutes,
+                  totalPoints: totalPoints,
+                  totalQuestions: totalQuestions,
+                  isInProgress: isInProgress,
+                  sessionStartedAt: isInProgress
+                      ? (() {
+                          final raw = submission?['started_at'] as String?;
+                          return raw != null ? DateTime.tryParse(raw) : null;
+                        })()
+                      : null,
                 ),
-
-                const SizedBox(height: DesignSpacing.md),
-
-                if (questions.isEmpty)
-                  _buildEmptyQuestions()
-                else
-                  ...questions.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final question = entry.value as Map<String, dynamic>;
-                    return _buildQuestionCard(question, index + 1);
-                  }),
-
-                // Rubric preview section (D-03 Giai đoạn 1 + Giai đoạn 3)
-                _buildRubricPreviewSection(questions, isSubmitted: isSubmitted),
+                if (description != null && description.isNotEmpty) ...[
+                  const SizedBox(height: DesignSpacing.xl),
+                  const _SectionLabel(label: 'Hướng dẫn làm bài'),
+                  const SizedBox(height: DesignSpacing.sm),
+                  _InstructionsCard(description: description),
+                ],
+                SizedBox(height: 88.h),
               ],
             ),
           ),
+          ), // RefreshIndicator
         ),
-
-        // Bottom Action Bar
-        _buildBottomActionBar(
-          context,
-          isSubmitted: isSubmitted,
-          submissionStatus: submissionStatus,
+        _PendingFooter(
+          isInProgress: isInProgress,
+          distributionId: distributionId,
         ),
       ],
     );
   }
+}
 
-  Widget _buildHeaderCard(
-    BuildContext context, {
-    required String title,
-    String? description,
-    DateTime? dueDateTime,
-    num? totalPoints,
-    required bool isSubmitted,
-    num? score,
-    String submissionStatus = 'draft',
-  }) {
-    final now = DateTime.now();
-    final isExpired = dueDateTime != null && now.isAfter(dueDateTime);
+class _ProgressCard extends StatelessWidget {
+  final int answeredCount;
+  final int totalQuestions;
 
-    String timeRemaining = '';
-    if (dueDateTime != null && !isExpired) {
-      final diff = dueDateTime.difference(now);
-      if (diff.inDays > 0) {
-        timeRemaining = 'Còn ${diff.inDays} ngày ${diff.inHours % 24} giờ';
-      } else if (diff.inHours > 0) {
-        timeRemaining = 'Còn ${diff.inHours} giờ ${diff.inMinutes % 60} phút';
-      } else {
-        timeRemaining = 'Còn ${diff.inMinutes} phút';
-      }
-    }
+  const _ProgressCard({
+    required this.answeredCount,
+    required this.totalQuestions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final percent =
+        totalQuestions > 0 ? answeredCount / totalQuestions : 0.0;
 
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(DesignSpacing.lg),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: DesignColors.primary.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(DesignRadius.lg),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border:
+            Border.all(color: DesignColors.primary.withValues(alpha: 0.18)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // Title
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(DesignSpacing.sm),
-                decoration: BoxDecoration(
-                  color: DesignColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(DesignRadius.sm),
-                ),
-                child: Icon(
-                  Icons.assignment_outlined,
-                  color: DesignColors.primary,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: DesignSpacing.md),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: DesignColors.textPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // Description
-          if (description != null && description.isNotEmpty) ...[
-            const SizedBox(height: DesignSpacing.md),
-            Text(
-              description,
-              style: DesignTypography.bodyMedium.copyWith(
-                color: DesignColors.textSecondary,
-              ),
-            ),
-          ],
-
-          const SizedBox(height: DesignSpacing.md),
-          const Divider(),
-          const SizedBox(height: DesignSpacing.sm),
-
-          // Status & Points Row
-          Row(
-            children: [
-              // Status Badge
-              _buildStatusBadge(isSubmitted: isSubmitted, isExpired: isExpired, submissionStatus: submissionStatus),
-
-              const Spacer(),
-
-              // Points
-              if (totalPoints != null && totalPoints > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: DesignSpacing.sm,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.amber[50],
-                    borderRadius: BorderRadius.circular(DesignRadius.sm),
-                    border: Border.all(color: Colors.amber[300]!),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.star, size: 16, color: Colors.amber[700]),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${totalPoints.toStringAsFixed(0)} điểm',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.amber[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-
-          const SizedBox(height: DesignSpacing.md),
-
-          // Due Date & Time Remaining
-          if (dueDateTime != null) ...[
-            Row(
+          SizedBox(
+            width: 64.w,
+            height: 64.w,
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                Icon(
-                  Icons.access_time,
-                  size: 18,
-                  color: isExpired ? DesignColors.error : DesignColors.textSecondary,
+                CustomPaint(
+                  size: Size(64.w, 64.w),
+                  painter: _CircularProgressPainter(
+                    progress: percent,
+                    trackColor: DesignColors.primary.withValues(alpha: 0.14),
+                    progressColor: DesignColors.primary,
+                    strokeWidth: 5,
+                  ),
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Hạn nộp: ${_formatDate(dueDateTime)}',
-                    style: DesignTypography.bodyMedium.copyWith(
-                      color: isExpired ? DesignColors.error : DesignColors.textSecondary,
-                    ),
+                Text(
+                  '${(percent * 100).round()}%',
+                  style: TextStyle(
+                    fontSize: 11.sp,
+                    fontWeight: DesignTypography.bold,
+                    color: DesignColors.primary,
                   ),
                 ),
               ],
             ),
-            if (timeRemaining.isNotEmpty && !isSubmitted) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Icon(
-                    Icons.timer_outlined,
-                    size: 18,
-                    color: isExpired ? DesignColors.error : DesignColors.primary,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    timeRemaining,
-                    style: DesignTypography.bodyMedium.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: isExpired ? DesignColors.error : DesignColors.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-
-          // Score (if graded)
-          // Show score if graded or ai_processing (MCQ score already calculated)
-          if (score != null && (submissionStatus == 'graded' || submissionStatus == 'ai_processing')) ...[
-            const SizedBox(height: DesignSpacing.md),
-            Container(
-              padding: const EdgeInsets.all(DesignSpacing.md),
-              decoration: BoxDecoration(
-                color: DesignColors.success.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(DesignRadius.md),
-                border: Border.all(color: DesignColors.success.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle, color: DesignColors.success),
-                  const SizedBox(width: DesignSpacing.sm),
-                  Text(
-                    'Điểm số: ${score.toStringAsFixed(1)}',
-                    style: DesignTypography.bodyLarge.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: DesignColors.success,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge({
-    required bool isSubmitted,
-    required bool isExpired,
-    String submissionStatus = 'draft',
-  }) {
-    final Color badgeColor;
-    final IconData badgeIcon;
-    final String badgeText;
-
-    if (submissionStatus == 'graded') {
-      badgeColor = DesignColors.success;
-      badgeIcon = Icons.check_circle;
-      badgeText = 'Đã chấm điểm';
-    } else if (submissionStatus == 'ai_processing') {
-      badgeColor = DesignColors.primary;
-      badgeIcon = Icons.auto_awesome;
-      badgeText = 'Đã nộp \u00b7 AI đang phân tích';
-    } else if (submissionStatus == 'submitted') {
-      badgeColor = DesignColors.warning;
-      badgeIcon = Icons.hourglass_top;
-      badgeText = 'Đã nộp \u00b7 Chờ giáo viên';
-    } else if (isExpired) {
-      badgeColor = DesignColors.error;
-      badgeIcon = Icons.cancel;
-      badgeText = 'Đã hết hạn';
-    } else {
-      badgeColor = DesignColors.textSecondary;
-      badgeIcon = Icons.play_circle_outline;
-      badgeText = 'Chưa nộp';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: DesignSpacing.sm,
-        vertical: 4,
-      ),
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(DesignRadius.sm),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(badgeIcon, size: 16, color: badgeColor),
-          const SizedBox(width: 4),
-          Text(
-            badgeText,
-            style: DesignTypography.caption.copyWith(
-              fontWeight: FontWeight.bold,
-              color: badgeColor,
-            ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyQuestions() {
-    return Container(
-      padding: const EdgeInsets.all(DesignSpacing.lg),
-      decoration: BoxDecoration(
-        color: DesignColors.moonLight,
-        borderRadius: BorderRadius.circular(DesignRadius.md),
-      ),
-      child: Center(
-        child: Column(
-          children: [
-            Icon(Icons.quiz_outlined, size: 48, color: DesignColors.textTertiary),
-            const SizedBox(height: DesignSpacing.sm),
-            Text(
-              'Chưa có câu hỏi',
-              style: DesignTypography.bodyMedium.copyWith(color: DesignColors.textSecondary),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuestionCard(Map<String, dynamic> question, int number) {
-    // Handle content as either String or JSON object
-    String contentText = 'Câu hỏi';
-    dynamic contentData = question['content'];
-    if (contentData is String) {
-      contentText = contentData;
-    } else if (contentData is Map) {
-      contentText = contentData['text'] as String? ?? 'Câu hỏi';
-    }
-
-    // Handle type - could be 'multipleChoice' or 'multiple_choice'
-    String questionType = question['type'] as String? ?? 'multiple_choice';
-    if (contentData is Map) {
-      final contentType = contentData['type'] as String?;
-      if (contentType != null) {
-        questionType = contentType;
-      }
-    }
-
-    final points = question['points'] as num? ?? 1;
-
-    final typeIcon = _getQuestionTypeIcon(questionType);
-    final typeLabel = _getQuestionTypeLabel(questionType);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: DesignSpacing.md),
-      padding: const EdgeInsets.all(DesignSpacing.md),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(DesignRadius.md),
-        border: Border.all(color: DesignColors.dividerLight),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Question Number
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: DesignColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(DesignRadius.sm),
-            ),
-            child: Center(
-              child: Text(
-                '$number',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: DesignColors.primary,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: DesignSpacing.md),
-
-          // Question Content
+          const SizedBox(width: DesignSpacing.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(typeIcon, size: 16, color: DesignColors.textSecondary),
-                    const SizedBox(width: 4),
-                    Text(
-                      typeLabel,
-                      style: DesignTypography.caption.copyWith(
-                        color: DesignColors.textSecondary,
+                    const Text(
+                      'Đang làm dở',
+                      style: TextStyle(
+                        fontSize: DesignTypography.bodyMediumSize,
+                        fontWeight: DesignTypography.bold,
+                        color: DesignColors.textPrimary,
                       ),
                     ),
                     const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
+                        horizontal: DesignSpacing.sm,
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: DesignColors.warning.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(DesignRadius.xs),
+                        color: DesignColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(DesignRadius.sm),
                       ),
                       child: Text(
-                        '$points điểm',
-                        style: DesignTypography.caption.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: DesignColors.warning,
+                        'TIẾP TỤC',
+                        style: TextStyle(
+                          fontSize: 10.sp,
+                          fontWeight: DesignTypography.bold,
+                          color: DesignColors.primary,
+                          letterSpacing: 0.4,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: DesignSpacing.xs),
+                const SizedBox(height: 4),
                 Text(
-                  contentText,
-                  style: DesignTypography.bodyMedium.copyWith(
-                    color: DesignColors.textPrimary,
+                  'Đã hoàn thành $answeredCount/$totalQuestions câu hỏi.',
+                  style: TextStyle(
+                    fontSize: DesignTypography.bodySmallSize,
+                    color: DesignColors.primary,
                   ),
                 ),
               ],
@@ -563,249 +416,1041 @@ class StudentAssignmentDetailScreen extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildBottomActionBar(
-    BuildContext context, {
-    required bool isSubmitted,
-    required String submissionStatus,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(DesignSpacing.md),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: isSubmitted
-                ? null
-                : () {
-                    // Navigate to workspace with distributionId
-                    // Use pushNamed because we need back button to work
-                    context.pushNamed(
-                      AppRoute.studentAssignmentWorkspace,
-                      pathParameters: {'distributionId': distributionId},
-                    );
-                  },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isSubmitted ? DesignColors.disabledMedium : DesignColors.primary,
-              foregroundColor: DesignColors.white,
-              padding: const EdgeInsets.symmetric(vertical: DesignSpacing.md),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(DesignRadius.md),
-              ),
-            ),
-            icon: Icon(
-              isSubmitted ? Icons.check_circle : Icons.edit,
-            ),
-            label: Text(
-              isSubmitted ? 'Đã nộp bài' : 'Bắt đầu làm bài',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+class _AssignmentInfoCard extends StatelessWidget {
+  final DateTime? dueDateTime;
+  final int? timeLimitMinutes;
+  final num? totalPoints;
+  final int totalQuestions;
+  final bool isInProgress;
+  final DateTime? sessionStartedAt;
 
-  /// Builds rubric preview section for essay/shortAnswer questions with rubrics.
-  /// D-03 Giai đoạn 1: Pre-workspace preview (isSubmitted=false).
-  /// D-03 Giai đoạn 3: Post-grading foundation (isSubmitted=true).
-  Widget _buildRubricPreviewSection(
-    List<dynamic> questions, {
-    required bool isSubmitted,
-  }) {
-    final rubricQuestions = questions
-        .asMap()
-        .entries
-        .where((entry) {
-          final q = entry.value as Map<String, dynamic>;
-          final type = q['type'] as String? ?? q['question_type'] as String? ?? '';
-          final hasRubric = q['rubric'] != null;
-          const essayTypes = {'essay', 'short_answer', 'shortAnswer'};
-          return hasRubric && essayTypes.contains(type);
-        })
-        .toList();
+  const _AssignmentInfoCard({
+    this.dueDateTime,
+    this.timeLimitMinutes,
+    this.totalPoints,
+    required this.totalQuestions,
+    this.isInProgress = false,
+    this.sessionStartedAt,
+  });
 
-    if (rubricQuestions.isEmpty) return const SizedBox.shrink();
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final isExpired = dueDateTime != null && now.isAfter(dueDateTime!);
+
+    // Tính thời điểm hết giờ làm bài (chỉ khi đang làm dở + có limit + có started_at)
+    DateTime? examDeadline;
+    if (isInProgress && sessionStartedAt != null && timeLimitMinutes != null) {
+      examDeadline = sessionStartedAt!.add(Duration(minutes: timeLimitMinutes!));
+    }
+    final examDeadlineExpired = examDeadline != null && now.isAfter(examDeadline);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: DesignSpacing.lg),
-        Text(
-          isSubmitted ? 'Tiêu chí chấm điểm (Xem lại)' : 'Tiêu chí chấm điểm',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: DesignColors.textPrimary,
+        if (dueDateTime != null)
+          _InfoTile(
+            icon: Icons.event_busy_outlined,
+            iconColor: isExpired ? DesignColors.error : Colors.red.shade400,
+            label: 'Hạn nộp bài',
+            value: _fmtDate(dueDateTime!),
+            valueColor: isExpired ? DesignColors.error : null,
           ),
-        ),
-        const SizedBox(height: DesignSpacing.md),
-        ...rubricQuestions.map((entry) {
-          final index = entry.key;
-          final question = entry.value as Map<String, dynamic>;
-          final rubric = question['rubric'] as Map<String, dynamic>?;
-          return _RubricPreviewCard(
-            rubric: rubric,
-            questionNumber: index + 1,
-            isSubmitted: isSubmitted,
-          );
-        }),
+
+        // Khi đang làm dở + có giới hạn thời gian → hiển thị bắt đầu & hết giờ
+        if (isInProgress && sessionStartedAt != null) ...[
+          _InfoTile(
+            icon: Icons.play_circle_outline,
+            iconColor: DesignColors.primary,
+            label: 'Bắt đầu lúc',
+            value: _fmtDate(sessionStartedAt!),
+          ),
+          if (examDeadline != null)
+            _InfoTile(
+              icon: Icons.timer_off_outlined,
+              iconColor: examDeadlineExpired ? DesignColors.error : Colors.orange.shade600,
+              label: 'Hết giờ lúc',
+              value: _fmtDate(examDeadline),
+              valueColor: examDeadlineExpired ? DesignColors.error : null,
+            ),
+        ] else ...[
+          // Khi chưa bắt đầu → hiển thị thời gian tối đa được phép
+          Row(
+            children: [
+              if (timeLimitMinutes != null) ...[
+                Expanded(
+                  child: _InfoTile(
+                    icon: Icons.timer_outlined,
+                    iconColor: DesignColors.primary,
+                    label: 'Thời gian tối đa',
+                    value: '$timeLimitMinutes phút',
+                  ),
+                ),
+                const SizedBox(width: DesignSpacing.sm),
+              ],
+              if (totalPoints != null && totalPoints! > 0)
+                Expanded(
+                  child: _InfoTile(
+                    icon: Icons.workspace_premium_outlined,
+                    iconColor: Colors.amber.shade600,
+                    label: 'Tổng điểm',
+                    value: '${totalPoints!.toStringAsFixed(0)}đ',
+                  ),
+                ),
+            ],
+          ),
+        ],
+
+        // Tổng điểm hàng riêng khi đang làm dở (vì row trên bị thay bởi 2 dòng thời gian)
+        if (isInProgress && totalPoints != null && totalPoints! > 0)
+          _InfoTile(
+            icon: Icons.workspace_premium_outlined,
+            iconColor: Colors.amber.shade600,
+            label: 'Tổng điểm',
+            value: '${totalPoints!.toStringAsFixed(0)}đ',
+          ),
+
+        if (totalQuestions > 0)
+          _InfoTile(
+            icon: Icons.quiz_outlined,
+            iconColor: DesignColors.tealPrimary,
+            label: 'Số câu hỏi',
+            value: '$totalQuestions câu',
+          ),
       ],
     );
   }
 
-  IconData _getQuestionTypeIcon(String type) {
-    switch (type) {
-      case 'multiple_choice':
-        return Icons.list;
-      case 'true_false':
-        return Icons.check_box_outlined;
-      case 'essay':
-        return Icons.notes;
-      case 'fill_blank':
-        return Icons.short_text;
-      default:
-        return Icons.quiz;
-    }
-  }
-
-  String _getQuestionTypeLabel(String type) {
-    switch (type) {
-      case 'multiple_choice':
-        return 'Trắc nghiệm';
-      case 'true_false':
-        return 'Đúng/Sai';
-      case 'essay':
-        return 'Tự luận';
-      case 'fill_blank':
-        return 'Điền trống';
-      default:
-        return 'Câu hỏi';
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
+  String _fmtDate(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}'
+      ' - ${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 }
 
-/// Expandable rubric preview card for a single essay/shortAnswer question.
-/// Collapsed (default): compact mode — criterion names + max_points overview.
-/// Expanded: full mode — criteria with all level descriptions.
-/// D-03 isSubmitted mode: shows ReadOnlyRubricViewer with selectedLevels=null
-/// as foundation for Phase 6 AI criteria_scores integration.
-class _RubricPreviewCard extends StatefulWidget {
-  final Map<String, dynamic>? rubric;
-  final int questionNumber;
+class _InfoTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+  final Color? valueColor;
 
-  /// When true, card shows Phase 6 placeholder (submitted/graded state).
-  final bool isSubmitted;
-
-  const _RubricPreviewCard({
-    required this.rubric,
-    required this.questionNumber,
-    required this.isSubmitted,
+  const _InfoTile({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+    this.valueColor,
   });
 
   @override
-  State<_RubricPreviewCard> createState() => _RubricPreviewCardState();
-}
-
-class _RubricPreviewCardState extends State<_RubricPreviewCard> {
-  bool _expanded = false;
-
-  @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(DesignRadius.md),
+    return Container(
+      margin: const EdgeInsets.only(bottom: DesignSpacing.sm),
+      padding: const EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        color: DesignColors.white,
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border: Border.all(color: DesignColors.dividerLight),
       ),
-      margin: const EdgeInsets.only(bottom: DesignSpacing.md),
-      color: DesignColors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // Header row
-          Padding(
-            padding: const EdgeInsets.all(DesignSpacing.lg),
-            child: Row(
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: DesignColors.moonLight,
+              borderRadius: BorderRadius.circular(DesignRadius.md),
+            ),
+            child: Icon(icon, size: 20, color: iconColor),
+          ),
+          const SizedBox(width: DesignSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.rule,
-                  size: DesignIcons.smSize,
-                  color: DesignColors.tealPrimary,
-                ),
-                const SizedBox(width: DesignSpacing.sm),
-                Expanded(
-                  child: Text(
-                    'Tiêu chí chấm điểm - Câu ${widget.questionNumber}',
-                    style: DesignTypography.titleMedium.copyWith(
-                      fontSize: DesignTypography.titleSmallSize,
-                    ),
+                Text(
+                  label.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 9.sp,
+                    fontWeight: DesignTypography.bold,
+                    color: DesignColors.textTertiary,
+                    letterSpacing: 0.5,
                   ),
                 ),
-                GestureDetector(
-                  onTap: () => setState(() => _expanded = !_expanded),
-                  child: Icon(
-                    _expanded ? Icons.expand_less : Icons.expand_more,
-                    size: DesignIcons.smSize,
-                    color: DesignColors.textSecondary,
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: DesignTypography.bodySmallSize,
+                    fontWeight: DesignTypography.semiBold,
+                    color: valueColor ?? DesignColors.textPrimary,
                   ),
                 ),
               ],
             ),
           ),
-          // Body: compact or full
-          if (_expanded) ...[
-            const Divider(
-              color: DesignColors.dividerLight,
-              height: 1,
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                DesignSpacing.lg,
-                0,
-                DesignSpacing.lg,
-                DesignSpacing.lg,
-              ),
-              child: ReadOnlyRubricViewer(
-                rubric: widget.rubric,
-                // Phase 6 placeholder: selectedLevels=null until AI criteria_scores available
-                selectedLevels: null,
-                showHeader: false,
-              ),
-            ),
-          ] else ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                DesignSpacing.lg,
-                0,
-                DesignSpacing.lg,
-                DesignSpacing.md,
-              ),
-              child: ReadOnlyRubricViewer(
-                rubric: widget.rubric,
-                compact: true,
-                showHeader: false,
-              ),
-            ),
-          ],
         ],
       ),
     );
   }
+}
+
+class _InstructionsCard extends StatelessWidget {
+  final String description;
+  const _InstructionsCard({required this.description});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(DesignSpacing.lg),
+      decoration: BoxDecoration(
+        color: DesignColors.white,
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border: Border.all(color: DesignColors.dividerLight),
+      ),
+      child: Text(
+        description,
+        style: TextStyle(
+          fontSize: DesignTypography.bodySmallSize,
+          color: DesignColors.textSecondary,
+          height: 1.6,
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingFooter extends StatelessWidget {
+  final bool isInProgress;
+  final String distributionId;
+
+  const _PendingFooter({
+    required this.isInProgress,
+    required this.distributionId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        DesignSpacing.lg,
+        DesignSpacing.md,
+        DesignSpacing.lg,
+        DesignSpacing.md + MediaQuery.of(context).padding.bottom,
+      ),
+      decoration: const BoxDecoration(
+        color: DesignColors.white,
+        border: Border(top: BorderSide(color: DesignColors.dividerLight)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 56.h,
+            child: ElevatedButton.icon(
+              onPressed: () => context.pushNamed(
+                AppRoute.studentAssignmentWorkspace,
+                pathParameters: {'distributionId': distributionId},
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: DesignColors.primary,
+                foregroundColor: DesignColors.white,
+                elevation: 3,
+                shadowColor: DesignColors.primary.withValues(alpha: 0.28),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(DesignRadius.lg),
+                ),
+              ),
+              icon: const Icon(Icons.play_circle_outlined, size: 22),
+              label: Text(
+                isInProgress ? 'Tiếp tục làm bài' : 'Bắt đầu làm bài',
+                style: const TextStyle(
+                  fontSize: DesignTypography.bodyLargeSize,
+                  fontWeight: DesignTypography.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Hệ thống sẽ tự động lưu tiến trình của bạn',
+            style: TextStyle(fontSize: 10.sp, color: DesignColors.textTertiary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TRẠNG THÁI: ĐÃ NỘP
+// ═══════════════════════════════════════════════════════════
+
+class _SubmittedView extends StatelessWidget {
+  final Map<String, dynamic> assignment;
+  final Map<String, dynamic> distribution;
+  final List<dynamic> questions;
+  final Map<String, dynamic> submission;
+  final String distributionId;
+  final String reviewMode;
+  final bool aiEnabled;
+  final int? maxAttempts;
+  final Future<void> Function() onRefresh;
+
+  const _SubmittedView({
+    required this.assignment,
+    required this.distribution,
+    required this.questions,
+    required this.submission,
+    required this.distributionId,
+    required this.reviewMode,
+    required this.aiEnabled,
+    this.maxAttempts,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final score = submission['score'] as num?;
+    final totalPoints = (assignment['total_points'] as num?) ?? 10;
+    final status = submission['status'] as String? ?? 'submitted';
+    final timeTakenSec = submission['time_taken_seconds'] as num?;
+    final correctCount = submission['correct_count'] as int?;
+    final wrongCount = submission['wrong_count'] as int?;
+    final totalAnswered = submission['answered_count'] as int? ?? 0;
+    final aiGraded = submission['ai_graded'] as bool? ?? false;
+
+    final startedAtRaw = submission['started_at'] as String?;
+    final submittedAtRaw =
+        (submission['work_session_submitted_at'] ?? submission['submitted_at'])
+            as String?;
+    final startDt =
+        startedAtRaw != null ? DateTime.tryParse(startedAtRaw) : null;
+    final endDt =
+        submittedAtRaw != null ? DateTime.tryParse(submittedAtRaw) : null;
+
+    String? timeTakenLabel;
+    if (timeTakenSec != null) {
+      final mins = (timeTakenSec / 60).floor();
+      final secs = timeTakenSec.toInt() % 60;
+      timeTakenLabel = mins > 0
+          ? "$mins phút${secs > 0 ? ' $secs giây' : ''}"
+          : '$secs giây';
+    }
+
+    final totalQuestions = questions.length;
+    final displayTotal =
+        totalAnswered > 0 ? totalAnswered : totalQuestions;
+
+    return Column(
+      children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: onRefresh,
+            color: DesignColors.primary,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                children: [
+                  // Điểm số hoặc banner ẩn
+                  if (reviewMode != 'none')
+                  _ScoreCard(
+                    score: score,
+                    totalPoints: totalPoints,
+                    status: status,
+                  )
+                else
+                  _HiddenResultBanner(),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: DesignSpacing.md),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: DesignSpacing.md),
+
+                      // Thời gian (chỉ full_review)
+                      if (reviewMode == 'full_review') ...[
+                        _TimeInfoCard(startDt: startDt, endDt: endDt),
+                        const SizedBox(height: DesignSpacing.md),
+                      ],
+
+                      // Thống kê đúng/sai/thời gian (chỉ full_review)
+                      if (reviewMode == 'full_review' &&
+                          (correctCount != null ||
+                              timeTakenLabel != null)) ...[
+                        _StatsRow(
+                          correctCount: correctCount,
+                          wrongCount: wrongCount,
+                          totalQuestions: displayTotal,
+                          timeTakenLabel: timeTakenLabel,
+                        ),
+                        const SizedBox(height: DesignSpacing.md),
+                      ],
+
+                      // AI feedback (full_review + ai enabled + graded)
+                      if (reviewMode == 'full_review' &&
+                          aiEnabled &&
+                          (aiGraded ||
+                              status == 'ai_processing')) ...[
+                        const _AiFeedbackCard(),
+                        const SizedBox(height: DesignSpacing.md),
+                      ],
+
+                      SizedBox(height: 88.h),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ), // RefreshIndicator
+        ),
+        _SubmittedFooter(
+          distributionId: distributionId,
+          reviewMode: reviewMode,
+        ),
+      ],
+    );
+  }
+}
+
+class _HiddenResultBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(DesignSpacing.md),
+      padding: const EdgeInsets.symmetric(
+        horizontal: DesignSpacing.lg,
+        vertical: DesignSpacing.xl,
+      ),
+      decoration: BoxDecoration(
+        color: DesignColors.success.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border:
+            Border.all(color: DesignColors.success.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.check_circle_outline,
+            size: 56.w,
+            color: DesignColors.success,
+          ),
+          const SizedBox(height: DesignSpacing.md),
+          const Text(
+            'Nộp bài thành công!',
+            style: TextStyle(
+              fontSize: DesignTypography.bodyLargeSize,
+              fontWeight: DesignTypography.bold,
+              color: DesignColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: DesignSpacing.sm),
+          Text(
+            'Giáo viên đã ẩn kết quả bài làm.\nVui lòng chờ thông báo từ giáo viên.',
+            style: TextStyle(
+              fontSize: DesignTypography.bodySmallSize,
+              color: DesignColors.textSecondary,
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreCard extends StatelessWidget {
+  final num? score;
+  final num totalPoints;
+  final String status;
+
+  const _ScoreCard({
+    required this.score,
+    required this.totalPoints,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final String statusLabel;
+    switch (status) {
+      case 'graded':
+        statusLabel = 'Đã chấm điểm';
+        break;
+      case 'ai_processing':
+        statusLabel = 'AI đang phân tích';
+        break;
+      case 'pending_review':
+        statusLabel = 'Chờ giáo viên duyệt';
+        break;
+      default:
+        statusLabel = 'Đã hoàn thành';
+    }
+
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [DesignColors.white, DesignColors.moonLight],
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(
+        DesignSpacing.lg,
+        DesignSpacing.xl,
+        DesignSpacing.lg,
+        DesignSpacing.xl,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(DesignSpacing.xl),
+        decoration: BoxDecoration(
+          color: DesignColors.primary,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: DesignColors.primary.withValues(alpha: 0.28),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -8,
+              right: -8,
+              child: Icon(
+                Icons.assignment_turned_in_outlined,
+                size: 96.w,
+                color: DesignColors.white.withValues(alpha: 0.08),
+              ),
+            ),
+            Column(
+              children: [
+                Text(
+                  'KẾT QUẢ BÀI LÀM',
+                  style: TextStyle(
+                    fontSize: 10.sp,
+                    fontWeight: DesignTypography.bold,
+                    color: DesignColors.white.withValues(alpha: 0.75),
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: DesignSpacing.sm),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      score != null
+                          ? score!.toStringAsFixed(score! % 1 == 0 ? 0 : 1)
+                          : '--',
+                      style: TextStyle(
+                        fontSize: 52.sp,
+                        fontWeight: FontWeight.w800,
+                        color: DesignColors.white,
+                        fontStyle: FontStyle.italic,
+                        height: 1,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '/ ${totalPoints.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 20.sp,
+                        fontWeight: DesignTypography.medium,
+                        color: DesignColors.white.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: DesignSpacing.md),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: DesignSpacing.md,
+                    vertical: DesignSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: DesignColors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(DesignRadius.full),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle,
+                          size: 14, color: DesignColors.white),
+                      const SizedBox(width: 4),
+                      Text(
+                        statusLabel,
+                        style: TextStyle(
+                          fontSize: 11.sp,
+                          fontWeight: DesignTypography.semiBold,
+                          color: DesignColors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TimeInfoCard extends StatelessWidget {
+  final DateTime? startDt;
+  final DateTime? endDt;
+
+  const _TimeInfoCard({this.startDt, this.endDt});
+
+  String _fmt(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}'
+      ' - ${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        color: DesignColors.white,
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border: Border.all(color: DesignColors.dividerLight),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: DesignColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(DesignRadius.md),
+            ),
+            child: const Icon(Icons.schedule_outlined,
+                size: 20, color: DesignColors.primary),
+          ),
+          const SizedBox(width: DesignSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'THỜI GIAN THỰC HIỆN',
+                  style: TextStyle(
+                    fontSize: 9.sp,
+                    fontWeight: DesignTypography.bold,
+                    color: DesignColors.textTertiary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                _TimeRow(
+                  label: 'Bắt đầu:',
+                  value: startDt != null ? _fmt(startDt!) : '--',
+                ),
+                _TimeRow(
+                  label: 'Kết thúc:',
+                  value: endDt != null ? _fmt(endDt!) : '--',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimeRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _TimeRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(
+            fontSize: DesignTypography.bodySmallSize,
+            color: DesignColors.textSecondary,
+          ),
+          children: [
+            TextSpan(text: '$label '),
+            TextSpan(
+              text: value,
+              style: const TextStyle(
+                fontWeight: DesignTypography.semiBold,
+                color: DesignColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatsRow extends StatelessWidget {
+  final int? correctCount;
+  final int? wrongCount;
+  final int totalQuestions;
+  final String? timeTakenLabel;
+
+  const _StatsRow({
+    this.correctCount,
+    this.wrongCount,
+    required this.totalQuestions,
+    this.timeTakenLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <Widget>[];
+
+    if (correctCount != null) {
+      items.add(Expanded(
+        child: _StatChip(
+          icon: Icons.check_circle_outline,
+          iconColor: DesignColors.success,
+          label: 'Đúng',
+          value: '$correctCount/$totalQuestions',
+          valueColor: DesignColors.success,
+        ),
+      ));
+    }
+
+    if (wrongCount != null) {
+      if (items.isNotEmpty) {
+        items.add(const SizedBox(width: DesignSpacing.sm));
+      }
+      items.add(Expanded(
+        child: _StatChip(
+          icon: Icons.cancel_outlined,
+          iconColor: DesignColors.error,
+          label: 'Sai',
+          value: '$wrongCount',
+          valueColor: DesignColors.error,
+        ),
+      ));
+    }
+
+    if (timeTakenLabel != null) {
+      if (items.isNotEmpty) {
+        items.add(const SizedBox(width: DesignSpacing.sm));
+      }
+      items.add(Expanded(
+        child: _StatChip(
+          icon: Icons.timer_outlined,
+          iconColor: DesignColors.textSecondary,
+          label: 'Thời gian',
+          value: timeTakenLabel!,
+          valueColor: DesignColors.textSecondary,
+        ),
+      ));
+    }
+
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Row(children: items);
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+  final Color valueColor;
+
+  const _StatChip({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+    required this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: DesignSpacing.sm,
+        vertical: DesignSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: DesignColors.white,
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border: Border.all(color: DesignColors.dividerLight),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: iconColor),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: DesignTypography.bodyMediumSize,
+                    fontWeight: DesignTypography.bold,
+                    color: valueColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 9.sp,
+              fontWeight: DesignTypography.bold,
+              color: DesignColors.textTertiary,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiFeedbackCard extends StatelessWidget {
+  const _AiFeedbackCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(DesignSpacing.lg),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            DesignColors.primary.withValues(alpha: 0.06),
+            DesignColors.tealPrimary.withValues(alpha: 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border:
+            Border.all(color: DesignColors.primary.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(DesignSpacing.xs),
+            decoration: BoxDecoration(
+              color: DesignColors.primary,
+              borderRadius: BorderRadius.circular(DesignRadius.sm),
+            ),
+            child: const Icon(Icons.auto_awesome,
+                size: 16, color: DesignColors.white),
+          ),
+          const SizedBox(width: DesignSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Phản hồi AI',
+                  style: TextStyle(
+                    fontSize: DesignTypography.bodySmallSize,
+                    fontWeight: DesignTypography.bold,
+                    color: DesignColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'AI đã phân tích bài làm của bạn. '
+                  'Xem chi tiết trong màn hình xem lại bài làm.',
+                  style: TextStyle(
+                    fontSize: DesignTypography.bodySmallSize,
+                    color: DesignColors.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubmittedFooter extends StatelessWidget {
+  final String distributionId;
+  final String reviewMode;
+
+  const _SubmittedFooter({
+    required this.distributionId,
+    required this.reviewMode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        DesignSpacing.md,
+        DesignSpacing.md,
+        DesignSpacing.md,
+        DesignSpacing.md + MediaQuery.of(context).padding.bottom,
+      ),
+      decoration: const BoxDecoration(
+        color: DesignColors.white,
+        border: Border(top: BorderSide(color: DesignColors.dividerLight)),
+      ),
+      child: Row(
+        children: [
+          // Xem lại bài làm — chỉ khi full_review
+          if (reviewMode == 'full_review') ...[
+            Expanded(
+              child: SizedBox(
+                height: 52.h,
+                child: OutlinedButton.icon(
+                  onPressed: () => context.pushNamed(
+                    AppRoute.studentSubmissionReview,
+                    pathParameters: {'distributionId': distributionId},
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: DesignColors.textSecondary,
+                    side: const BorderSide(color: DesignColors.dividerLight),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(DesignRadius.lg),
+                    ),
+                  ),
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: Text(
+                    'Xem lại bài làm',
+                    style: TextStyle(
+                      fontSize: DesignTypography.bodySmallSize,
+                      fontWeight: DesignTypography.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: DesignSpacing.sm),
+          ],
+
+          // Làm lại — luôn hiện
+          Expanded(
+            child: SizedBox(
+              height: 52.h,
+              child: ElevatedButton.icon(
+                onPressed: () => context.pushNamed(
+                  AppRoute.studentAssignmentWorkspace,
+                  pathParameters: {'distributionId': distributionId},
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: DesignColors.primary,
+                  foregroundColor: DesignColors.white,
+                  elevation: 2,
+                  shadowColor: DesignColors.primary.withValues(alpha: 0.22),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(DesignRadius.lg),
+                  ),
+                ),
+                icon: const Icon(Icons.replay, size: 18),
+                label: Text(
+                  'Làm lại',
+                  style: TextStyle(
+                    fontSize: DesignTypography.bodySmallSize,
+                    fontWeight: DesignTypography.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Shared helpers
+// ═══════════════════════════════════════════════════════════
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label.toUpperCase(),
+      style: TextStyle(
+        fontSize: 10.sp,
+        fontWeight: DesignTypography.bold,
+        color: DesignColors.textTertiary,
+        letterSpacing: 0.8,
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Circular progress painter
+// ═══════════════════════════════════════════════════════════
+
+class _CircularProgressPainter extends CustomPainter {
+  final double progress;
+  final Color trackColor;
+  final Color progressColor;
+  final double strokeWidth;
+
+  const _CircularProgressPainter({
+    required this.progress,
+    required this.trackColor,
+    required this.progressColor,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = trackColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth,
+    );
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      2 * math.pi * progress,
+      false,
+      Paint()
+        ..color = progressColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CircularProgressPainter old) =>
+      old.progress != progress;
 }

@@ -4,6 +4,7 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/data/datasources/rubric_template_datasource.dart';
 import 'package:ai_mls/widgets/rubric/rubric_template_picker_sheet.dart';
+import 'package:ai_mls/widgets/text/smart_marquee_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -68,6 +69,10 @@ class RubricBuilderComponent extends StatefulWidget {
   /// When true, all inputs are disabled and a warning banner is shown (D-09).
   final bool isLocked;
 
+  /// Ceiling for rubric total — equals the question's points field (D-06).
+  /// Null means no ceiling enforced (legacy / unknown).
+  final int? questionPoints;
+
   /// Fired when user taps "Lưu Rubric". Receives full D-02 JSON or null if
   /// all criteria were removed.
   final ValueChanged<Map<String, dynamic>?> onSave;
@@ -76,6 +81,7 @@ class RubricBuilderComponent extends StatefulWidget {
     super.key,
     this.initialRubric,
     this.isLocked = false,
+    this.questionPoints,
     required this.onSave,
   });
 
@@ -93,6 +99,7 @@ class _RubricBuilderComponentState extends State<RubricBuilderComponent>
   late List<_CriterionState> _criteria;
   final Set<int> _expandedIndices = {};
   final Map<String, String?> _errors = {};
+  bool _hasAttemptedSave = false;
 
   @override
   void initState() {
@@ -216,7 +223,7 @@ class _RubricBuilderComponentState extends State<RubricBuilderComponent>
         ],
       ),
     ).then((confirmed) {
-      if (confirmed != true) return;
+      if (confirmed != true || !mounted) return;
       setState(() {
         _criteria[index].dispose();
         _criteria.removeAt(index);
@@ -228,6 +235,11 @@ class _RubricBuilderComponentState extends State<RubricBuilderComponent>
             ..remove(i)
             ..add(i - 1);
         }
+        // Clear stale error keys for deleted criterion
+        _errors.removeWhere((k, _) =>
+            k == 'name_$index' ||
+            k == 'levels_$index' ||
+            k.startsWith('desc_${index}_'));
       });
     });
   }
@@ -242,6 +254,17 @@ class _RubricBuilderComponentState extends State<RubricBuilderComponent>
     setState(() {
       _criteria[ci].levels[li].dispose();
       _criteria[ci].levels.removeAt(li);
+      // Clear stale error keys for this level and re-index below
+      _errors.remove('desc_${ci}_$li');
+      final staleKeys = _errors.keys
+          .where((k) => k.startsWith('desc_${ci}_') &&
+              int.tryParse(k.split('_').last)! > li)
+          .toList();
+      for (final k in staleKeys) {
+        final oldIdx = int.parse(k.split('_').last);
+        final val = _errors.remove(k);
+        _errors['desc_${ci}_${oldIdx - 1}'] = val;
+      }
     });
   }
 
@@ -256,8 +279,8 @@ class _RubricBuilderComponentState extends State<RubricBuilderComponent>
         _errors['name_$i'] = 'Tên tiêu chí không được để trống';
         valid = false;
       }
-      if (c.levels.length < 2) {
-        _errors['levels_$i'] = 'Cần ít nhất 2 mức điểm';
+      if (c.levels.isEmpty) {
+        _errors['levels_$i'] = 'Cần ít nhất 1 mức điểm';
         valid = false;
       }
       for (int j = 0; j < c.levels.length; j++) {
@@ -271,71 +294,127 @@ class _RubricBuilderComponentState extends State<RubricBuilderComponent>
   }
 
   void _saveRubric() {
+    setState(() => _hasAttemptedSave = true);
     if (!_validate()) {
       setState(() {});
       return;
     }
     widget.onSave(_criteria.isEmpty ? null : _buildRubricJson());
-    Navigator.pop(context);
+    if (mounted) Navigator.pop(context);
   }
 
   // ---- Template operations ----
 
   Future<void> _saveAsTemplate() async {
     final nameCtrl = TextEditingController();
-    String? nameError;
 
-    await showDialog<void>(
+    final name = await showDialog<String>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Lưu thành Template'),
-          content: TextFormField(
-            controller: nameCtrl,
-            decoration: InputDecoration(
-              labelText: 'Tên template',
-              errorText: nameError,
+      builder: (ctx) {
+        String? nameError;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(DesignRadius.lg),
             ),
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Huỷ'),
+            titlePadding: EdgeInsets.fromLTRB(
+              DesignSpacing.xl,
+              DesignSpacing.xl,
+              DesignSpacing.xl,
+              DesignSpacing.sm,
             ),
-            TextButton(
-              onPressed: () async {
-                if (nameCtrl.text.trim().isEmpty) {
-                  setDialogState(() => nameError = 'Vui lòng nhập tên template.');
-                  return;
-                }
-                Navigator.pop(ctx);
-                try {
-                  final ok = await RubricTemplateDatasource.saveRubricTemplate(
-                    nameCtrl.text.trim(),
-                    _buildRubricJson(),
-                  );
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(ok ? 'Đã lưu template' : 'Lưu template thất bại'),
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  AppLogger.error(
-                    '❌ [RubricBuilderComponent] saveAsTemplate: $e',
-                    error: e,
-                  );
-                }
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: DesignSpacing.xl,
+              vertical: DesignSpacing.md,
+            ),
+            actionsPadding: EdgeInsets.fromLTRB(
+              DesignSpacing.xl,
+              DesignSpacing.xs,
+              DesignSpacing.xl,
+              DesignSpacing.lg,
+            ),
+            title: Row(
+              children: [
+                Icon(
+                  Icons.bookmark_add_outlined,
+                  color: DesignColors.primary,
+                  size: DesignIcons.mdSize,
+                ),
+                SizedBox(width: DesignSpacing.sm),
+                Text(
+                  'Lưu thành Mẫu',
+                  style: DesignTypography.titleLarge,
+                ),
+              ],
+            ),
+            content: TextField(
+              controller: nameCtrl,
+              autofocus: true,
+              style: DesignTypography.bodyMedium,
+              decoration: InputDecoration(
+                labelText: 'Tên mẫu',
+                hintText: 'VD: Mẫu lập luận cơ bản',
+                errorText: nameError,
+                prefixIcon: const Icon(Icons.label_outline),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(DesignRadius.sm),
+                ),
+              ),
+              onSubmitted: (val) {
+                if (val.trim().isNotEmpty) Navigator.pop(ctx, val.trim());
               },
-              child: const Text('Lưu'),
             ),
-          ],
-        ),
-      ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Huỷ'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: DesignColors.primary,
+                  foregroundColor: DesignColors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(DesignRadius.sm),
+                  ),
+                ),
+                onPressed: () {
+                  final text = nameCtrl.text.trim();
+                  if (text.isEmpty) {
+                    setDialogState(() => nameError = 'Vui lòng nhập tên mẫu.');
+                    return;
+                  }
+                  Navigator.pop(ctx, text);
+                },
+                child: const Text('Lưu'),
+              ),
+            ],
+          ),
+        );
+      },
     );
-    nameCtrl.dispose();
+    // Defer dispose — dialog exit animation may still reference this controller.
+    WidgetsBinding.instance.addPostFrameCallback((_) => nameCtrl.dispose());
+
+    if (name == null || !mounted) return;
+
+    try {
+      final ok = await RubricTemplateDatasource.saveRubricTemplate(
+        name,
+        _buildRubricJson(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ok ? 'Đã lưu mẫu "$name"' : 'Lưu mẫu thất bại'),
+          ),
+        );
+      }
+    } catch (e) {
+      AppLogger.error(
+        '❌ [RubricBuilderComponent] saveAsTemplate: $e',
+        error: e,
+      );
+    }
   }
 
   Future<void> _openTemplatePicker() async {
@@ -354,27 +433,124 @@ class _RubricBuilderComponentState extends State<RubricBuilderComponent>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => RubricTemplatePickerSheet(
+      builder: (sheetCtx) => RubricTemplatePickerSheet(
         templates: templates,
         onSelected: (template) {
-          Navigator.pop(context);
-          _loadTemplate(template);
+          Navigator.pop(sheetCtx);
+          _confirmLoadTemplate(template);
         },
         onDelete: (index) async {
-          try {
-            await RubricTemplateDatasource.deleteRubricTemplate(index);
-          } catch (e) {
-            AppLogger.error(
-              '❌ [RubricBuilderComponent] deleteRubricTemplate: $e',
-              error: e,
-            );
-          }
+          await RubricTemplateDatasource.deleteRubricTemplate(index);
         },
       ),
     );
   }
 
-  void _loadTemplate(Map<String, dynamic> template) {
+  Future<void> _confirmLoadTemplate(Map<String, dynamic> template) async {
+    if (_criteria.isEmpty) {
+      _replaceWithTemplate(template);
+      return;
+    }
+    final templateName = template['name'] as String? ?? 'mẫu này';
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(DesignRadius.lg),
+        ),
+        titlePadding: EdgeInsets.fromLTRB(
+          DesignSpacing.xl,
+          DesignSpacing.xl,
+          DesignSpacing.xl,
+          DesignSpacing.sm,
+        ),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: DesignSpacing.xl,
+          vertical: DesignSpacing.md,
+        ),
+        actionsPadding: EdgeInsets.fromLTRB(
+          DesignSpacing.lg,
+          DesignSpacing.xs,
+          DesignSpacing.lg,
+          DesignSpacing.lg,
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.file_download_outlined,
+              color: DesignColors.primary,
+              size: DesignIcons.mdSize,
+            ),
+            SizedBox(width: DesignSpacing.sm),
+            Text('Áp dụng mẫu', style: DesignTypography.titleLarge),
+          ],
+        ),
+        content: RichText(
+          text: TextSpan(
+            style: DesignTypography.bodyMedium.copyWith(
+              color: DesignColors.textPrimary,
+            ),
+            children: [
+              const TextSpan(text: 'Bạn đang tải mẫu '),
+              TextSpan(
+                text: '"$templateName"',
+                style: DesignTypography.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: DesignColors.primary,
+                ),
+              ),
+              const TextSpan(
+                text: '.\n\nBạn muốn làm gì với các tiêu chí hiện tại?',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: DesignColors.primary,
+                  foregroundColor: DesignColors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(DesignRadius.sm),
+                  ),
+                ),
+                onPressed: () => Navigator.pop(ctx, 'append'),
+                child: const Text('Thêm vào tiêu chí hiện tại'),
+              ),
+              SizedBox(height: DesignSpacing.xs),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: DesignColors.error,
+                  side: BorderSide(color: DesignColors.error),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(DesignRadius.sm),
+                  ),
+                ),
+                onPressed: () => Navigator.pop(ctx, 'replace'),
+                child: const Text('Thay thế toàn bộ'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, 'cancel'),
+                child: Text(
+                  'Huỷ',
+                  style: DesignTypography.bodyMedium.copyWith(
+                    color: DesignColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    if (choice == 'replace') _replaceWithTemplate(template);
+    if (choice == 'append') _appendTemplate(template);
+  }
+
+  void _replaceWithTemplate(Map<String, dynamic> template) {
     for (final c in _criteria) {
       c.dispose();
     }
@@ -383,6 +559,30 @@ class _RubricBuilderComponentState extends State<RubricBuilderComponent>
       _errors.clear();
       _parseCriteria(template['rubric'] as Map<String, dynamic>?);
       if (_criteria.isNotEmpty) _expandedIndices.add(0);
+    });
+  }
+
+  void _appendTemplate(Map<String, dynamic> template) {
+    final rubric = template['rubric'] as Map<String, dynamic>?;
+    final raw = rubric?['criteria'];
+    if (raw == null || raw is! List || raw.isEmpty) return;
+    setState(() {
+      for (final dynamic item in raw) {
+        final c = item as Map<String, dynamic>;
+        final rawLevels = (c['levels'] as List?) ?? [];
+        final levels = rawLevels.map<_LevelState>((dynamic l) {
+          final lm = l as Map<String, dynamic>;
+          return _LevelState(
+            points: (lm['points'] as num?)?.toInt() ?? 0,
+            description: lm['description']?.toString() ?? '',
+          );
+        }).toList();
+        _criteria.add(_CriterionState(
+          id: 'crit-${DateTime.now().millisecondsSinceEpoch}-${_criteria.length}',
+          name: c['name']?.toString() ?? '',
+          levels: levels,
+        ));
+      }
     });
   }
 

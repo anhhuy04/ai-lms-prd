@@ -46,7 +46,7 @@ class RubricSummaryButton extends StatelessWidget {
       child: OutlinedButton.icon(
         onPressed: onTap,
         icon: const Icon(Icons.add, size: DesignIcons.smSize),
-        label: const Text('Them Rubric'),
+        label: const Text('Thêm Rubric'),
         style: OutlinedButton.styleFrom(
           foregroundColor: DesignColors.primary,
           side: const BorderSide(color: DesignColors.primary),
@@ -88,11 +88,11 @@ class RubricSummaryButton extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Rubric: Da cau hinh $_criteriaCount tieu chi',
+                    'Rubric: Đã cấu hình $_criteriaCount tiêu chí',
                     style: DesignTypography.bodyMedium,
                   ),
                   Text(
-                    '(Nhan de sua)',
+                    '(Nhấn để sửa)',
                     style: DesignTypography.caption.copyWith(
                       color: DesignColors.textSecondary,
                     ),
@@ -134,7 +134,7 @@ class RubricSummaryButton extends StatelessWidget {
             const SizedBox(width: DesignSpacing.sm),
             Expanded(
               child: Text(
-                'Rubric: $_criteriaCount tieu chi (Chi xem)',
+                'Rubric: $_criteriaCount tiêu chí (Chỉ xem)',
                 style: DesignTypography.bodyMedium.copyWith(
                   color: DesignColors.textTertiary,
                 ),

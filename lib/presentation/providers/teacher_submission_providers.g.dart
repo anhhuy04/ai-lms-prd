@@ -28,7 +28,7 @@ final submissionRepositoryProvider =
 // ignore: unused_element
 typedef SubmissionRepositoryRef = AutoDisposeProviderRef<SubmissionRepository>;
 String _$teacherSubmissionListHash() =>
-    r'a33f0f5172506c7b11c530b1caefd0d40ebe9459';
+    r'bcbecc5aa1d33b53123a3f9575f37872b7b265d4';
 
 /// Copied from Dart SDK
 class _SystemHash {

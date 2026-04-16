@@ -110,19 +110,20 @@ class _TeacherSubmissionDetailScreenState
             final status = workSession?['status'] as String?;
             final submittedAt = workSession?['submitted_at'] as String?;
 
+            // Resolve distribution settings once — used for auto-publish AND ai feedback box
+            final distSettings = (() {
+              final raw = distribution?['settings'];
+              return raw is Map
+                  ? Map<String, dynamic>.from(raw)
+                  : <String, dynamic>{};
+            })();
+            final aiEnabled = distSettings['ai_feedback_enabled'] as bool? ?? false;
+
             // Auto-publish logic: only for all-MCQ assignments with AI disabled and teacher
             // review not required. Guard with _autoPublishFired to prevent repeated calls.
             // Bug B fix: AI-off submissions now arrive as 'graded' directly from submitAssignment(),
             // so this block handles legacy 'submitted' records with AI off.
             if (status == 'submitted' && answers.isNotEmpty && !_autoPublishFired) {
-              final distSettings = (() {
-                final raw = distribution?['settings'];
-                return raw is Map
-                    ? Map<String, dynamic>.from(raw)
-                    : <String, dynamic>{};
-              })();
-              final aiEnabled = distSettings['ai_feedback_enabled'] as bool? ?? false;
-
               bool allObjective = true;
               for (final answer in answers) {
                 final question = answer['assignment_questions'] as Map<String, dynamic>?;
@@ -153,7 +154,7 @@ class _TeacherSubmissionDetailScreenState
                       if (index == 0) {
                         return _buildAssignmentInfoHeader(student, distribution, assignment, submittedAt);
                       }
-                      return _buildQuestionCard(answers[index - 1], index - 1);
+                      return _buildQuestionCard(answers[index - 1], index - 1, aiEnabled: aiEnabled);
                     },
                   ),
                 ),
@@ -339,13 +340,13 @@ class _TeacherSubmissionDetailScreenState
   }
 
   /// Question Card - Theo mẫu HTML
-  Widget _buildQuestionCard(Map<String, dynamic> answer, int index) {
+  Widget _buildQuestionCard(Map<String, dynamic> answer, int index, {required bool aiEnabled}) {
     final question = answer['assignment_questions'] as Map<String, dynamic>?;
     final questionType = _extractQuestionType(question);
-    final maxScore = (question?['points'] as num?)?.toInt() ?? 10;
-    final aiScore = answer['ai_score'] as num?;
-    final finalScore = answer['final_score'] as num?;
-    final currentScore = finalScore ?? aiScore ?? 0;
+    final maxScore = (_toDouble(question?['points']) ?? 10.0).toInt();
+    final aiScore = _toDouble(answer['ai_score']);
+    final finalScore = _toDouble(answer['final_score']);
+    final currentScore = finalScore ?? aiScore ?? 0.0;
     final isCorrect = currentScore >= maxScore; // Đúng nếu đạt điểm tối đa
 
     // Xác định loại câu hỏi để hiển thị
@@ -410,8 +411,8 @@ class _TeacherSubmissionDetailScreenState
                   ),
                   const SizedBox(width: 4),
                   Container(
-                    width: 56,
                     height: 28,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
                     decoration: BoxDecoration(
                       color: isCorrect ? Colors.white : DesignColors.error.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
@@ -421,7 +422,7 @@ class _TeacherSubmissionDetailScreenState
                     ),
                     child: Center(
                       child: Text(
-                        '${currentScore.toInt()}/$maxScore',
+                        '${_formatScore(currentScore)}/$maxScore',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -453,7 +454,7 @@ class _TeacherSubmissionDetailScreenState
           const SizedBox(height: 16),
 
           // AI Feedback Box
-          _buildAiFeedbackBox(answer, maxScore, isMultipleChoice),
+          _buildAiFeedbackBox(answer, maxScore, isMultipleChoice, aiEnabled: aiEnabled),
           const SizedBox(height: 16),
 
           // AI Confidence Indicator
@@ -894,16 +895,19 @@ class _TeacherSubmissionDetailScreenState
   }
 
   /// AI Feedback Box - Render structured JSON feedback từ Edge Function
-  Widget _buildAiFeedbackBox(Map<String, dynamic> answer, int maxScore, bool isMultipleChoice) {
+  Widget _buildAiFeedbackBox(Map<String, dynamic> answer, int maxScore, bool isMultipleChoice, {required bool aiEnabled}) {
     final aiFeedbackRaw = answer['ai_feedback'];
 
     // Không có feedback và không phải MCQ → ẩn
     if (aiFeedbackRaw == null && !isMultipleChoice) return const SizedBox.shrink();
 
+    // AI không được bật cho distribution này → ẩn loading state
+    if (aiFeedbackRaw == null && !aiEnabled) return const SizedBox.shrink();
+
     // Phân loại format:
     // - Map với 'summary' field → structured JSON mới từ Edge Function
     // - String hoặc Map với 'text' field → format cũ (fallback)
-    // - null → MCQ chưa có feedback → show mcq explanation
+    // - null + aiEnabled → MCQ chưa có feedback → show loading
     final Map<String, dynamic>? feedbackMap = aiFeedbackRaw is Map
         ? Map<String, dynamic>.from(aiFeedbackRaw)
         : null;
@@ -911,7 +915,8 @@ class _TeacherSubmissionDetailScreenState
     final bool isStructured = feedbackMap != null &&
         (feedbackMap.containsKey('summary') || feedbackMap.containsKey('status'));
 
-    final bool isLoading = feedbackMap == null && isMultipleChoice;
+    // Chỉ show loading khi AI được bật VÀ feedback chưa có
+    final bool isLoading = feedbackMap == null && isMultipleChoice && aiEnabled;
     final bool noApiKey = feedbackMap?['status'] == 'no_api_key';
 
     // Status badge: chờ AI / không có API key / done
@@ -1134,16 +1139,14 @@ class _TeacherSubmissionDetailScreenState
       data: (submission) {
         double totalScore = 0;
         final answers = submission.submissionAnswers ?? [];
-        int totalMaxScore = 0;
+        double totalMaxScore = 0;
         for (final answer in answers) {
           final question = answer['assignment_questions'] as Map<String, dynamic>?;
-          final maxScore = (question?['points'] as num?)?.toInt() ?? 10;
-          totalMaxScore += maxScore;
-          final score = answer['final_score'] as num? ?? answer['ai_score'] as num? ?? 0;
-          totalScore += score.toDouble();
+          totalMaxScore += _toDouble(question?['points']) ?? 10.0;
+          totalScore += _toDouble(answer['final_score']) ?? _toDouble(answer['ai_score']) ?? 0.0;
         }
 
-        final percentage = totalMaxScore > 0 ? (totalScore / totalMaxScore * 10).clamp(0.0, 10.0) : 0.0;
+        // Hiển thị điểm thực tế, không quy về /10
         final workSession = submission.workSessions;
         final isPublished = workSession?['status'] == 'graded';
 
@@ -1186,16 +1189,16 @@ class _TeacherSubmissionDetailScreenState
                     textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text(
-                        percentage.toStringAsFixed(1),
+                        totalScore.toStringAsFixed(1),
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: DesignColors.primary,
                         ),
                       ),
-                      const Text(
-                        ' / 10',
-                        style: TextStyle(
+                      Text(
+                        ' / ${totalMaxScore.toStringAsFixed(1)}',
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: DesignColors.textTertiary,
@@ -1286,6 +1289,22 @@ class _TeacherSubmissionDetailScreenState
       default:
         return 'TỰ LUẬN';
     }
+  }
+
+  /// Format số điểm: bỏ .0 cho số nguyên
+  String _formatScore(double value) {
+    if (value == value.truncateToDouble()) {
+      return value.toInt().toString();
+    }
+    return value.toStringAsFixed(1);
+  }
+
+  /// Parse số an toàn từ num, String "0.00", hoặc null.
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
   }
 
   String _getInitials(String name) {

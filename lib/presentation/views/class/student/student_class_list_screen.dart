@@ -459,11 +459,14 @@ class _StudentClassListScreenState
                             schedule: classItem.academicYear ?? 'Chưa có năm học',
                             teacherName: classItem.teacherName,
                             studentCount: classItem.studentCount ?? 0,
-                            ungradedCount: null,
+                            ungradedCount: classItem.pendingAssignmentCount,
                             memberStatus: classItem.memberStatus,
                             iconName: 'school',
                             iconColor: Colors.blue,
-                            hasAssignments: true,
+                            hasAssignments: (classItem.totalAssignmentCount ?? 0) > 0,
+                            isStudentView: true,
+                            inProgressAssignmentCount: classItem.inProgressAssignmentCount,
+                            notStartedAssignmentCount: classItem.notStartedAssignmentCount,
                             onTap: () {
                               StudentClassInteractionHandler.handleClassTap(
                                 context,

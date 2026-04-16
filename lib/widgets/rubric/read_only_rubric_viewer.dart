@@ -34,11 +34,15 @@ class ReadOnlyRubricViewer extends StatelessWidget {
   Widget build(BuildContext context) {
     // Guard: null rubric or empty criteria
     final criteria = rubric?['criteria'];
-    if (rubric == null || criteria == null || (criteria as List).isEmpty) {
+    final criteriaRaw = criteria as List<dynamic>;
+    if (rubric == null || criteriaRaw.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final criteriaList = criteria.cast<Map<String, dynamic>>();
+    final criteriaList = criteriaRaw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
 
     if (compact) {
       return Column(
@@ -134,7 +138,7 @@ class ReadOnlyRubricViewer extends StatelessWidget {
         const SizedBox(height: DesignSpacing.sm),
         ...levels.asMap().entries.map((entry) {
           final levelIdx = entry.key;
-          final level = entry.value as Map<String, dynamic>;
+          final level = Map<String, dynamic>.from(entry.value as Map);
           return _buildLevelItem(
             level,
             isSelected: levelIdx == selectedLevelIndex,

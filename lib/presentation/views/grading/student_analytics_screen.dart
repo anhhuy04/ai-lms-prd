@@ -102,6 +102,23 @@ class _StudentAnalyticsScreenState
         title: const Text('Phân tích học tập'),
         backgroundColor: DesignColors.moonLight,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Làm mới phân tích',
+            onPressed: () => ref
+                .read(
+                  studentAnalyticsNotifierProvider(
+                    classId: _selectedClassId,
+                    timeRange: _selectedRange,
+                  ).notifier,
+                )
+                .refresh(
+                  classId: _selectedClassId,
+                  timeRange: _selectedRange,
+                ),
+          ),
+        ],
       ),
       body: analyticsAsync.when(
         loading: () => const shimmers.ShimmerStudentAnalyticsLoading(),
@@ -220,7 +237,7 @@ class _StudentAnalyticsScreenState
             SizedBox(height: DesignSpacing.lg),
 
             // Group 4: Peer Comparison (REC-03)
-            _buildSectionTitle('So sanh voi lop'),
+            _buildSectionTitle('So sánh với lớp'),
             SizedBox(height: DesignSpacing.sm),
             _buildPeerComparisonSection(),
             SizedBox(height: DesignSpacing.lg),
@@ -465,7 +482,7 @@ class _StudentAnalyticsScreenState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'So sanh voi lop',
+                          'So sánh với lớp',
                           style: DesignTypography.titleMedium,
                         ),
                         SizedBox(height: DesignSpacing.xs),

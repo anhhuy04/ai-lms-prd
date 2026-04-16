@@ -1,8 +1,10 @@
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/domain/entities/analytics/grade_trend.dart';
 import 'package:ai_mls/domain/entities/analytics/student_analytics.dart';
 import 'package:ai_mls/presentation/providers/analytics_providers.dart';
+import 'package:ai_mls/presentation/views/grading/widgets/analytics/charts/line_trend_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -81,6 +83,16 @@ class ScoresScreen extends ConsumerWidget {
           // Strengths Preview
           if (analytics.strengthsWeaknesses.strengths.isNotEmpty)
             _buildStrengthsPreview(analytics.strengthsWeaknesses.strengths),
+          SizedBox(height: DesignSpacing.lg),
+
+          // Xu hướng điểm số
+          _buildScoreTrendSection(analytics.gradeTrends),
+          SizedBox(height: DesignSpacing.lg),
+
+          // So sánh với lớp
+          if (analytics.classComparison.totalStudents > 0)
+            _buildClassComparisonSection(analytics.classComparison, analytics.basicMetrics.avgScore),
+          SizedBox(height: DesignSpacing.md),
         ],
       ),
     );
@@ -470,6 +482,294 @@ class ScoresScreen extends ConsumerWidget {
           }).toList(),
         ),
       ],
+    );
+  }
+
+  // ─── Xu hướng điểm số ───────────────────────────────────────────────────────
+
+  Widget _buildScoreTrendSection(List<GradeTrend> trends) {
+    return Container(
+      padding: EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        color: DesignColors.white,
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border: Border.all(color: DesignColors.dividerLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.show_chart,
+                    size: 18,
+                    color: DesignColors.primary,
+                  ),
+                  SizedBox(width: DesignSpacing.xs),
+                  Text(
+                    'Xu hướng điểm số',
+                    style: DesignTypography.titleMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              if (trends.isNotEmpty)
+                Text(
+                  '${trends.length} bài gần nhất',
+                  style: DesignTypography.caption.copyWith(
+                    color: DesignColors.textSecondary,
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(height: DesignSpacing.md),
+          if (trends.isEmpty)
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: DesignSpacing.lg),
+              child: Center(
+                child: Text(
+                  'Chưa có dữ liệu điểm số',
+                  style: DesignTypography.bodyMedium.copyWith(
+                    color: DesignColors.textSecondary,
+                  ),
+                ),
+              ),
+            )
+          else ...[
+            LineTrendChart(trends: trends, height: 180),
+            SizedBox(height: DesignSpacing.sm),
+            // Mini summary dưới chart: min / max / gần nhất
+            _buildTrendSummaryRow(trends),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrendSummaryRow(List<GradeTrend> trends) {
+    final scores = trends.map((t) => t.score).toList();
+    final minScore = scores.reduce((a, b) => a < b ? a : b);
+    final maxScore = scores.reduce((a, b) => a > b ? a : b);
+    final latestScore = trends.last.score;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _buildMiniStat(
+            'Thấp nhất',
+            minScore.toStringAsFixed(1),
+            DesignColors.error,
+            Icons.arrow_downward,
+          ),
+        ),
+        Expanded(
+          child: _buildMiniStat(
+            'Cao nhất',
+            maxScore.toStringAsFixed(1),
+            DesignColors.success,
+            Icons.arrow_upward,
+          ),
+        ),
+        Expanded(
+          child: _buildMiniStat(
+            'Gần nhất',
+            latestScore.toStringAsFixed(1),
+            DesignColors.primary,
+            Icons.radio_button_checked,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMiniStat(String label, String value, Color color, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, size: 14, color: color),
+        SizedBox(height: 2),
+        Text(
+          value,
+          style: DesignTypography.bodyMedium.copyWith(
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: DesignTypography.caption.copyWith(
+            color: DesignColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── So sánh với lớp ────────────────────────────────────────────────────────
+
+  Widget _buildClassComparisonSection(
+    ClassComparison comparison,
+    double myAvgScore,
+  ) {
+    final percentile = (comparison.percentile * 100).clamp(0.0, 100.0);
+    final isAboveAverage = myAvgScore >= comparison.classAverage;
+    final diff = (myAvgScore - comparison.classAverage).abs();
+    final topPercent = (100 - percentile).clamp(0.0, 100.0);
+
+    return Container(
+      padding: EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        color: DesignColors.white,
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border: Border.all(color: DesignColors.dividerLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.people_alt_outlined,
+                size: 18,
+                color: DesignColors.primary,
+              ),
+              SizedBox(width: DesignSpacing.xs),
+              Text(
+                'So sánh với lớp',
+                style: DesignTypography.titleMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: DesignSpacing.md),
+
+          // Percentile bar
+          Row(
+            children: [
+              Text(
+                'Xếp hạng phần trăm',
+                style: DesignTypography.bodySmall.copyWith(
+                  color: DesignColors.textSecondary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Top ${topPercent.toStringAsFixed(0)}%',
+                style: DesignTypography.bodySmall.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: topPercent <= 25
+                      ? DesignColors.success
+                      : topPercent <= 50
+                          ? DesignColors.primary
+                          : DesignColors.warning,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: DesignSpacing.xs),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(DesignRadius.full),
+            child: LinearProgressIndicator(
+              value: comparison.percentile.clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: DesignColors.dividerLight,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                topPercent <= 25
+                    ? DesignColors.success
+                    : topPercent <= 50
+                        ? DesignColors.primary
+                        : DesignColors.warning,
+              ),
+            ),
+          ),
+          SizedBox(height: DesignSpacing.md),
+
+          // 3 metric row: rank / my score vs class avg / total students
+          Row(
+            children: [
+              Expanded(
+                child: _buildComparisonTile(
+                  icon: Icons.leaderboard,
+                  label: 'Xếp hạng',
+                  value: '#${comparison.rank}',
+                  sub: '/ ${comparison.totalStudents} học sinh',
+                  color: DesignColors.primary,
+                ),
+              ),
+              SizedBox(width: DesignSpacing.sm),
+              Expanded(
+                child: _buildComparisonTile(
+                  icon: isAboveAverage
+                      ? Icons.trending_up
+                      : Icons.trending_down,
+                  label: 'So với lớp',
+                  value: '${isAboveAverage ? '+' : '-'}${diff.toStringAsFixed(1)}',
+                  sub: 'TB lớp: ${comparison.classAverage.toStringAsFixed(1)}',
+                  color: isAboveAverage
+                      ? DesignColors.success
+                      : DesignColors.error,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComparisonTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    required String sub,
+    required Color color,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(DesignSpacing.sm),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              SizedBox(width: DesignSpacing.xs),
+              Expanded(
+                child: Text(
+                  label,
+                  style: DesignTypography.caption.copyWith(
+                    color: DesignColors.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: DesignSpacing.xs),
+          Text(
+            value,
+            style: DesignTypography.titleMedium.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            sub,
+            style: DesignTypography.caption.copyWith(
+              color: DesignColors.textSecondary,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 

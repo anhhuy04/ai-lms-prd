@@ -143,17 +143,12 @@ class SubmissionListItem extends StatelessWidget {
                     const SizedBox(height: DesignSpacing.xs),
                     Row(
                       children: [
-                        // "Chạy AI" retroactive trigger stub (7-12b)
-                        if (status == SubmissionStatus.submitted)
-                          IconButton(
-                            icon: const Icon(Icons.auto_awesome_outlined),
-                            iconSize: DesignIcons.smSize,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            tooltip: 'Chạy AI phân tích',
-                            // TODO 7-12b: implement retroactive AI trigger
-                            onPressed: null,
-                            color: DesignColors.textTertiary,
+                        // AI graded indicator — chỉ hiển thị khi aiGraded == true
+                        if (submission.aiGraded)
+                          const Icon(
+                            Icons.auto_awesome,
+                            size: DesignIcons.smSize,
+                            color: DesignColors.primary,
                           ),
                         const Spacer(),
                         // Chấm điểm status
@@ -185,7 +180,7 @@ class SubmissionListItem extends StatelessWidget {
       SubmissionStatus.pendingReview => _badge(
           DesignColors.warning, 'Chờ duyệt', Icons.rate_review_outlined),
       SubmissionStatus.graded => _badge(
-          DesignColors.success, 'Đã công bố', Icons.check_circle_outline),
+          DesignColors.success, 'Đã chấm', Icons.check_circle_outline),
       SubmissionStatus.draft => _badge(
           DesignColors.textTertiary, 'Nháp', Icons.edit_note),
       SubmissionStatus.unknown => _badge(
@@ -219,20 +214,43 @@ class SubmissionListItem extends StatelessWidget {
 
   Widget _buildScoreIndicator(SubmissionStatus status) {
     final hasScore = submission.totalScore != null;
-    // graded = chấm xong hoàn toàn (xanh lá)
-    // aiProcessing = MCQ đã có điểm, AI đang chạy ngầm (xanh dương)
     final isGraded = status == SubmissionStatus.graded;
+    final isPendingReview = status == SubmissionStatus.pendingReview;
     final isAiProcessing = status == SubmissionStatus.aiProcessing;
-    final scoreColor = isGraded
-        ? DesignColors.success
-        : isAiProcessing
-            ? DesignColors.primary
-            : DesignColors.textSecondary;
-    final bgColor = isGraded
-        ? DesignColors.success.withValues(alpha: 0.1)
-        : isAiProcessing
-            ? DesignColors.primary.withValues(alpha: 0.08)
-            : DesignColors.moonLight;
+
+    if (!hasScore) {
+      return Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: DesignSpacing.sm,
+          vertical: DesignSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: DesignColors.moonLight,
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+        ),
+        child: Text(
+          '—',
+          style: DesignTypography.bodyMedium.copyWith(
+            color: DesignColors.textTertiary,
+          ),
+        ),
+      );
+    }
+
+    // Màu theo trạng thái
+    final Color scoreColor;
+    final Color bgColor;
+    if (isGraded) {
+      scoreColor = DesignColors.success;
+      bgColor = DesignColors.success.withValues(alpha: 0.1);
+    } else if (isPendingReview || isAiProcessing) {
+      scoreColor = DesignColors.primary;
+      bgColor = DesignColors.primary.withValues(alpha: 0.08);
+    } else {
+      // submitted hoặc trạng thái khác có điểm (MCQ auto-grade)
+      scoreColor = DesignColors.textSecondary;
+      bgColor = DesignColors.moonLight;
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -243,32 +261,14 @@ class SubmissionListItem extends StatelessWidget {
         color: bgColor,
         borderRadius: BorderRadius.circular(DesignRadius.sm),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (hasScore && (isGraded || isAiProcessing))
-            Text(
-              submission.totalScore!.toStringAsFixed(1),
-              style: DesignTypography.bodyMedium.copyWith(
-                fontWeight: FontWeight.bold,
-                color: scoreColor,
-              ),
-            )
-          else
-            Text(
-              '—',
-              style: DesignTypography.bodyMedium.copyWith(
-                color: DesignColors.textTertiary,
-              ),
-            ),
-          if (submission.maxScore != null && (isGraded || isAiProcessing))
-            Text(
-              '/ ${submission.maxScore!.toStringAsFixed(0)}',
-              style: DesignTypography.bodySmall.copyWith(
-                color: DesignColors.textTertiary,
-              ),
-            ),
-        ],
+      child: Text(
+        submission.maxScore != null
+            ? '${submission.totalScore!.toStringAsFixed(1)} / ${submission.maxScore!.toStringAsFixed(0)}'
+            : submission.totalScore!.toStringAsFixed(1),
+        style: DesignTypography.bodyMedium.copyWith(
+          fontWeight: FontWeight.bold,
+          color: scoreColor,
+        ),
       ),
     );
   }

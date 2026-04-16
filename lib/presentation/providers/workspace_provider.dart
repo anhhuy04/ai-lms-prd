@@ -90,6 +90,14 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
         uploadedFiles = submission!['uploaded_files'] as List<dynamic>;
       }
 
+      // Parse server-side timing data
+      final timeLimitMinutes = distribution['time_limit_minutes'] as int?;
+      DateTime? sessionStartedAt;
+      final startedAtRaw = submission?['started_at'] as String?;
+      if (startedAtRaw != null) {
+        sessionStartedAt = DateTime.tryParse(startedAtRaw);
+      }
+
       final wsState = WorkspaceState(
         distributionId: distributionId,
         assignmentTitle: assignment['title'] as String? ?? 'Bài tập',
@@ -97,12 +105,17 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
         dueAt: distribution['due_at'] != null
             ? DateTime.tryParse(distribution['due_at'] as String)
             : null,
+        timeLimitMinutes: timeLimitMinutes,
+        sessionStartedAt: sessionStartedAt,
         questions: questions.map((q) => QuestionState.fromJson(q as Map<String, dynamic>)).toList(),
         answers: Map<String, dynamic>.from(existingAnswers),
         uploadedFiles: List<String>.from(uploadedFiles),
+        // L6 fix: include 'pending_review' — AI done, awaiting teacher.
+        // Student must NOT be able to re-enter workspace in this state.
         submissionStatus: (submission?['status'] == 'submitted' ||
                 submission?['status'] == 'graded' ||
-                submission?['status'] == 'ai_processing')
+                submission?['status'] == 'ai_processing' ||
+                submission?['status'] == 'pending_review')
             ? WorkspaceSubmissionStatus.submitted
             : WorkspaceSubmissionStatus.inProgress,
         savingStatus: SavingStatus.idle,
@@ -330,6 +343,10 @@ class WorkspaceState {
   final String assignmentTitle;
   final double? totalPoints;
   final DateTime? dueAt;
+  /// Giới hạn thời gian làm bài (phút), null = không giới hạn
+  final int? timeLimitMinutes;
+  /// Thời điểm học sinh bắt đầu làm bài (từ server — đóng đinh, không thể giả mạo)
+  final DateTime? sessionStartedAt;
   final List<QuestionState> questions;
   final Map<String, dynamic> answers;
   final List<String> uploadedFiles;
@@ -341,6 +358,8 @@ class WorkspaceState {
     required this.assignmentTitle,
     this.totalPoints,
     this.dueAt,
+    this.timeLimitMinutes,
+    this.sessionStartedAt,
     required this.questions,
     required this.answers,
     required this.uploadedFiles,
@@ -353,6 +372,8 @@ class WorkspaceState {
     String? assignmentTitle,
     double? totalPoints,
     DateTime? dueAt,
+    int? timeLimitMinutes,
+    DateTime? sessionStartedAt,
     List<QuestionState>? questions,
     Map<String, dynamic>? answers,
     List<String>? uploadedFiles,
@@ -364,6 +385,8 @@ class WorkspaceState {
       assignmentTitle: assignmentTitle ?? this.assignmentTitle,
       totalPoints: totalPoints ?? this.totalPoints,
       dueAt: dueAt ?? this.dueAt,
+      timeLimitMinutes: timeLimitMinutes ?? this.timeLimitMinutes,
+      sessionStartedAt: sessionStartedAt ?? this.sessionStartedAt,
       questions: questions ?? this.questions,
       answers: answers ?? this.answers,
       uploadedFiles: uploadedFiles ?? this.uploadedFiles,

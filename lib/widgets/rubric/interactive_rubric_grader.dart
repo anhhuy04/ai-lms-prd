@@ -129,32 +129,14 @@ class _InteractiveRubricGraderState extends State<InteractiveRubricGrader> {
   @override
   Widget build(BuildContext context) {
     final criteria = _criteria;
-
     if (criteria.isEmpty) return const SizedBox.shrink();
-
     return Container(
       padding: const EdgeInsets.all(DesignSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Row(
-            children: [
-              const Icon(
-                Icons.grading,
-                size: DesignIcons.smSize,
-                color: DesignColors.primary,
-              ),
-              const SizedBox(width: DesignSpacing.sm),
-              Text(
-                'Chấm điểm theo Rubric',
-                style: DesignTypography.titleMedium,
-              ),
-            ],
-          ),
+          _buildHeader(),
           const SizedBox(height: DesignSpacing.md),
-
-          // Criteria rows
           ...criteria.asMap().entries.map((entry) {
             final idx = entry.key;
             final criterion = entry.value as Map<String, dynamic>;
@@ -167,16 +149,8 @@ class _InteractiveRubricGraderState extends State<InteractiveRubricGrader> {
               ],
             );
           }),
-
-          const Divider(
-            color: DesignColors.dividerLight,
-            height: DesignSpacing.lg,
-          ),
-
-          // Total score + override trigger
+          const Divider(color: DesignColors.dividerLight, height: DesignSpacing.lg),
           _buildTotalScoreRow(),
-
-          // Inline override input (animated)
           AnimatedSize(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
@@ -184,6 +158,16 @@ class _InteractiveRubricGraderState extends State<InteractiveRubricGrader> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        const Icon(Icons.grading, size: DesignIcons.smSize, color: DesignColors.primary),
+        const SizedBox(width: DesignSpacing.sm),
+        Text('Chấm điểm theo Rubric', style: DesignTypography.titleMedium),
+      ],
     );
   }
 
@@ -280,37 +264,13 @@ class _InteractiveRubricGraderState extends State<InteractiveRubricGrader> {
               width: isSelected ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(DesignRadius.sm),
-            boxShadow: isSelected ? [DesignElevation.level1] : null,
+            boxShadow: isSelected ? [DesignElevation.level1] : [],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${level['points']}đ',
-                    style: DesignTypography.caption.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isSelected
-                          ? DesignColors.primary
-                          : DesignColors.textPrimary,
-                    ),
-                  ),
-                  if (isSelected) ...[
-                    Padding(
-                      padding:
-                          const EdgeInsets.only(left: DesignSpacing.xs),
-                      child: const Icon(
-                        Icons.check_circle,
-                        size: DesignIcons.xsSize,
-                        color: DesignColors.primary,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+              _buildLevelCardHeader(level, isSelected),
               const SizedBox(height: DesignSpacing.xs),
               Text(
                 description,
@@ -326,6 +286,30 @@ class _InteractiveRubricGraderState extends State<InteractiveRubricGrader> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLevelCardHeader(Map<String, dynamic> level, bool isSelected) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '${level['points']}đ',
+          style: DesignTypography.caption.copyWith(
+            fontWeight: FontWeight.w600,
+            color: isSelected ? DesignColors.primary : DesignColors.textPrimary,
+          ),
+        ),
+        if (isSelected)
+          Padding(
+            padding: const EdgeInsets.only(left: DesignSpacing.xs),
+            child: const Icon(
+              Icons.check_circle,
+              size: DesignIcons.xsSize,
+              color: DesignColors.primary,
+            ),
+          ),
+      ],
     );
   }
 
@@ -399,106 +383,105 @@ class _InteractiveRubricGraderState extends State<InteractiveRubricGrader> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextFormField(
-              controller: _overrideScoreController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Điểm mới',
-                enabledBorder: OutlineInputBorder(
-                  borderSide:
-                      const BorderSide(color: DesignColors.warning),
-                  borderRadius: BorderRadius.circular(DesignRadius.sm),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide:
-                      const BorderSide(color: DesignColors.warning, width: 2),
-                  borderRadius: BorderRadius.circular(DesignRadius.sm),
-                ),
-                errorBorder: OutlineInputBorder(
-                  borderSide:
-                      const BorderSide(color: DesignColors.error),
-                  borderRadius: BorderRadius.circular(DesignRadius.sm),
-                ),
-                focusedErrorBorder: OutlineInputBorder(
-                  borderSide:
-                      const BorderSide(color: DesignColors.error, width: 2),
-                  borderRadius: BorderRadius.circular(DesignRadius.sm),
-                ),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return 'Vui lòng nhập điểm mới.';
-                }
-                if (double.tryParse(v.trim()) == null) {
-                  return 'Điểm phải là số hợp lệ.';
-                }
-                return null;
-              },
-            ),
+            _buildScoreField(),
             const SizedBox(height: DesignSpacing.sm),
-            TextFormField(
-              controller: _overrideReasonController,
-              maxLines: 2,
-              decoration: InputDecoration(
-                labelText: 'Lý do ghi đè *',
-                enabledBorder: OutlineInputBorder(
-                  borderSide:
-                      const BorderSide(color: DesignColors.warning),
-                  borderRadius: BorderRadius.circular(DesignRadius.sm),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide:
-                      const BorderSide(color: DesignColors.warning, width: 2),
-                  borderRadius: BorderRadius.circular(DesignRadius.sm),
-                ),
-                errorBorder: OutlineInputBorder(
-                  borderSide:
-                      const BorderSide(color: DesignColors.error),
-                  borderRadius: BorderRadius.circular(DesignRadius.sm),
-                ),
-                focusedErrorBorder: OutlineInputBorder(
-                  borderSide:
-                      const BorderSide(color: DesignColors.error, width: 2),
-                  borderRadius: BorderRadius.circular(DesignRadius.sm),
-                ),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return 'Vui lòng nhập lý do ghi đè điểm.';
-                }
-                return null;
-              },
-            ),
+            _buildReasonField(),
             const SizedBox(height: DesignSpacing.sm),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () =>
-                      setState(() => _showOverride = false),
-                  style: TextButton.styleFrom(
-                    foregroundColor: DesignColors.textSecondary,
-                  ),
-                  child: const Text('Huỷ'),
-                ),
-                const SizedBox(width: DesignSpacing.sm),
-                ElevatedButton(
-                  onPressed: _submitOverride,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: DesignColors.warning,
-                    foregroundColor: DesignColors.white,
-                    minimumSize: const Size(0, 34),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(DesignRadius.sm),
-                    ),
-                  ),
-                  child: const Text('Xác nhận'),
-                ),
-              ],
-            ),
+            _buildOverrideActions(),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildScoreField() {
+    return TextFormField(
+      controller: _overrideScoreController,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(
+        labelText: 'Điểm mới',
+        enabledBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: DesignColors.warning),
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: DesignColors.warning, width: 2),
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: DesignColors.error),
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: DesignColors.error, width: 2),
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+        ),
+      ),
+      validator: (v) {
+        if (v == null || v.trim().isEmpty) return 'Vui lòng nhập điểm mới.';
+        final parsed = double.tryParse(v.trim());
+        if (parsed == null) return 'Điểm phải là số hợp lệ.';
+        if (parsed < 0) return 'Điểm không được âm.';
+        return null;
+      },
+    );
+  }
+
+  Widget _buildReasonField() {
+    return TextFormField(
+      controller: _overrideReasonController,
+      maxLines: 2,
+      decoration: InputDecoration(
+        labelText: 'Lý do ghi đè *',
+        enabledBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: DesignColors.warning),
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: DesignColors.warning, width: 2),
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: DesignColors.error),
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: DesignColors.error, width: 2),
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+        ),
+      ),
+      validator: (v) {
+        if (v == null || v.trim().isEmpty) {
+          return 'Vui lòng nhập lý do ghi đè điểm.';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildOverrideActions() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        TextButton(
+          onPressed: () => setState(() => _showOverride = false),
+          style: TextButton.styleFrom(foregroundColor: DesignColors.textSecondary),
+          child: const Text('Huỷ'),
+        ),
+        const SizedBox(width: DesignSpacing.sm),
+        ElevatedButton(
+          onPressed: _submitOverride,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: DesignColors.warning,
+            foregroundColor: DesignColors.white,
+            minimumSize: const Size(0, 34),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(DesignRadius.sm),
+            ),
+          ),
+          child: const Text('Xác nhận'),
+        ),
+      ],
     );
   }
 }

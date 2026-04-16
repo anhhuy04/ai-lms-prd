@@ -22,6 +22,15 @@ class ClassItemWidget extends StatelessWidget {
   final String? searchQuery; // Optional: để highlight text khi tìm kiếm
   final Color? highlightColor; // Optional: màu highlight (mặc định: blue)
 
+  /// True khi hiển thị từ góc nhìn học sinh (badge dùng ngữ cảnh học sinh).
+  final bool isStudentView;
+
+  /// Số bài đang làm dở (in_progress) — chỉ dùng khi isStudentView = true.
+  final int? inProgressAssignmentCount;
+
+  /// Số bài chưa bắt đầu (không có work_session) — chỉ dùng khi isStudentView = true.
+  final int? notStartedAssignmentCount;
+
   const ClassItemWidget({
     super.key,
     required this.className,
@@ -37,6 +46,9 @@ class ClassItemWidget extends StatelessWidget {
     this.hasAssignments = true,
     this.searchQuery,
     this.highlightColor,
+    this.isStudentView = false,
+    this.inProgressAssignmentCount,
+    this.notStartedAssignmentCount,
   });
 
   @override
@@ -223,6 +235,9 @@ class ClassItemWidget extends StatelessWidget {
                     ungradedCount: ungradedCount,
                     hasAssignments: hasAssignments,
                     memberStatus: memberStatus,
+                    isStudentView: isStudentView,
+                    inProgressAssignmentCount: inProgressAssignmentCount,
+                    notStartedAssignmentCount: notStartedAssignmentCount,
                   ),
                 ],
               ),

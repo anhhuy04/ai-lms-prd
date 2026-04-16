@@ -191,25 +191,33 @@ class _StudentAssignmentDetailProviderElement
       (origin as StudentAssignmentDetailProvider).distributionId;
 }
 
-String _$studentSubmissionHash() => r'e693c96ce30941d4d40cf802094c32adffbb1fb3';
+String _$studentSubmissionHash() => r'5eed1116cb060ec71337da75b3e397f3990e4e03';
 
-/// Lấy hoặc tạo bài nộp (draft) cho một bài tập
+/// Lấy trạng thái bài nộp (read-only) — KHÔNG tạo work_session.
+/// Trả về null nếu học sinh chưa bắt đầu làm bài lần nào.
+/// work_session chỉ được tạo khi học sinh bấm "Bắt đầu" vào workspace.
 ///
 /// Copied from [studentSubmission].
 @ProviderFor(studentSubmission)
 const studentSubmissionProvider = StudentSubmissionFamily();
 
-/// Lấy hoặc tạo bài nộp (draft) cho một bài tập
+/// Lấy trạng thái bài nộp (read-only) — KHÔNG tạo work_session.
+/// Trả về null nếu học sinh chưa bắt đầu làm bài lần nào.
+/// work_session chỉ được tạo khi học sinh bấm "Bắt đầu" vào workspace.
 ///
 /// Copied from [studentSubmission].
 class StudentSubmissionFamily
     extends Family<AsyncValue<Map<String, dynamic>?>> {
-  /// Lấy hoặc tạo bài nộp (draft) cho một bài tập
+  /// Lấy trạng thái bài nộp (read-only) — KHÔNG tạo work_session.
+  /// Trả về null nếu học sinh chưa bắt đầu làm bài lần nào.
+  /// work_session chỉ được tạo khi học sinh bấm "Bắt đầu" vào workspace.
   ///
   /// Copied from [studentSubmission].
   const StudentSubmissionFamily();
 
-  /// Lấy hoặc tạo bài nộp (draft) cho một bài tập
+  /// Lấy trạng thái bài nộp (read-only) — KHÔNG tạo work_session.
+  /// Trả về null nếu học sinh chưa bắt đầu làm bài lần nào.
+  /// work_session chỉ được tạo khi học sinh bấm "Bắt đầu" vào workspace.
   ///
   /// Copied from [studentSubmission].
   StudentSubmissionProvider call(String distributionId) {
@@ -238,12 +246,16 @@ class StudentSubmissionFamily
   String? get name => r'studentSubmissionProvider';
 }
 
-/// Lấy hoặc tạo bài nộp (draft) cho một bài tập
+/// Lấy trạng thái bài nộp (read-only) — KHÔNG tạo work_session.
+/// Trả về null nếu học sinh chưa bắt đầu làm bài lần nào.
+/// work_session chỉ được tạo khi học sinh bấm "Bắt đầu" vào workspace.
 ///
 /// Copied from [studentSubmission].
 class StudentSubmissionProvider
     extends AutoDisposeFutureProvider<Map<String, dynamic>?> {
-  /// Lấy hoặc tạo bài nộp (draft) cho một bài tập
+  /// Lấy trạng thái bài nộp (read-only) — KHÔNG tạo work_session.
+  /// Trả về null nếu học sinh chưa bắt đầu làm bài lần nào.
+  /// work_session chỉ được tạo khi học sinh bấm "Bắt đầu" vào workspace.
   ///
   /// Copied from [studentSubmission].
   StudentSubmissionProvider(String distributionId)
@@ -639,6 +651,156 @@ class _SubmitAssignmentProviderElement
   @override
   String get distributionId =>
       (origin as SubmitAssignmentProvider).distributionId;
+}
+
+String _$studentSubmissionReviewHash() =>
+    r'4fa6aa31b266c46210de1831102f225222030987';
+
+/// Chi tiết bài làm của học sinh để xem lại (read-only review screen).
+/// Dùng distributionId + studentId — không cần submissionId.
+///
+/// Copied from [studentSubmissionReview].
+@ProviderFor(studentSubmissionReview)
+const studentSubmissionReviewProvider = StudentSubmissionReviewFamily();
+
+/// Chi tiết bài làm của học sinh để xem lại (read-only review screen).
+/// Dùng distributionId + studentId — không cần submissionId.
+///
+/// Copied from [studentSubmissionReview].
+class StudentSubmissionReviewFamily
+    extends Family<AsyncValue<Map<String, dynamic>?>> {
+  /// Chi tiết bài làm của học sinh để xem lại (read-only review screen).
+  /// Dùng distributionId + studentId — không cần submissionId.
+  ///
+  /// Copied from [studentSubmissionReview].
+  const StudentSubmissionReviewFamily();
+
+  /// Chi tiết bài làm của học sinh để xem lại (read-only review screen).
+  /// Dùng distributionId + studentId — không cần submissionId.
+  ///
+  /// Copied from [studentSubmissionReview].
+  StudentSubmissionReviewProvider call(String distributionId) {
+    return StudentSubmissionReviewProvider(distributionId);
+  }
+
+  @override
+  StudentSubmissionReviewProvider getProviderOverride(
+    covariant StudentSubmissionReviewProvider provider,
+  ) {
+    return call(provider.distributionId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'studentSubmissionReviewProvider';
+}
+
+/// Chi tiết bài làm của học sinh để xem lại (read-only review screen).
+/// Dùng distributionId + studentId — không cần submissionId.
+///
+/// Copied from [studentSubmissionReview].
+class StudentSubmissionReviewProvider
+    extends AutoDisposeFutureProvider<Map<String, dynamic>?> {
+  /// Chi tiết bài làm của học sinh để xem lại (read-only review screen).
+  /// Dùng distributionId + studentId — không cần submissionId.
+  ///
+  /// Copied from [studentSubmissionReview].
+  StudentSubmissionReviewProvider(String distributionId)
+    : this._internal(
+        (ref) => studentSubmissionReview(
+          ref as StudentSubmissionReviewRef,
+          distributionId,
+        ),
+        from: studentSubmissionReviewProvider,
+        name: r'studentSubmissionReviewProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$studentSubmissionReviewHash,
+        dependencies: StudentSubmissionReviewFamily._dependencies,
+        allTransitiveDependencies:
+            StudentSubmissionReviewFamily._allTransitiveDependencies,
+        distributionId: distributionId,
+      );
+
+  StudentSubmissionReviewProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.distributionId,
+  }) : super.internal();
+
+  final String distributionId;
+
+  @override
+  Override overrideWith(
+    FutureOr<Map<String, dynamic>?> Function(
+      StudentSubmissionReviewRef provider,
+    )
+    create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: StudentSubmissionReviewProvider._internal(
+        (ref) => create(ref as StudentSubmissionReviewRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        distributionId: distributionId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<Map<String, dynamic>?> createElement() {
+    return _StudentSubmissionReviewProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is StudentSubmissionReviewProvider &&
+        other.distributionId == distributionId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, distributionId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin StudentSubmissionReviewRef
+    on AutoDisposeFutureProviderRef<Map<String, dynamic>?> {
+  /// The parameter `distributionId` of this provider.
+  String get distributionId;
+}
+
+class _StudentSubmissionReviewProviderElement
+    extends AutoDisposeFutureProviderElement<Map<String, dynamic>?>
+    with StudentSubmissionReviewRef {
+  _StudentSubmissionReviewProviderElement(super.provider);
+
+  @override
+  String get distributionId =>
+      (origin as StudentSubmissionReviewProvider).distributionId;
 }
 
 String _$studentSubmissionHistoryHash() =>

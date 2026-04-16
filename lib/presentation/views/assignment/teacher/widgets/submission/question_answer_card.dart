@@ -35,11 +35,10 @@ class QuestionAnswerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final questionContent =
-        answer['assignment_question']?['content'] as Map<String, dynamic>?;
+    final aq = answer['assignment_question'] as Map<String, dynamic>?;
+    final questionContent = (aq?['content'] ?? aq?['custom_content']) as Map<String, dynamic>?;
     final studentAnswer = answer['answer'] as Map<String, dynamic>?;
-    final correctAnswer =
-        answer['assignment_question']?['answer'] as Map<String, dynamic>?;
+    final correctAnswer = aq?['answer'] as Map<String, dynamic>?;
 
     return Card(
       margin: const EdgeInsets.all(DesignSpacing.sm),
@@ -70,17 +69,18 @@ class QuestionAnswerCard extends StatelessWidget {
                     .copyWith(color: DesignColors.textSecondary),
               ),
               const SizedBox(height: DesignSpacing.xs),
-              _buildAnswerContent(studentAnswer),
+              _buildAnswerContent(studentAnswer, questionContent),
               const Divider(height: DesignSpacing.lg),
             ],
-            if (showCorrectAnswer && correctAnswer != null) ...[
+            if (showCorrectAnswer && (correctAnswer != null || _hasCorrectChoices(questionContent))) ...[
               Text(
                 'Đáp án đúng',
                 style: DesignTypography.bodySmall
                     .copyWith(color: DesignColors.success),
               ),
               const SizedBox(height: DesignSpacing.xs),
-              _buildAnswerContent(correctAnswer),
+              if (correctAnswer != null) _buildAnswerContent(correctAnswer, questionContent),
+              if (correctAnswer == null && _hasCorrectChoices(questionContent)) _buildCorrectChoices(questionContent!),
               const Divider(height: DesignSpacing.lg),
             ],
             if (showRubric) ...[
@@ -98,14 +98,46 @@ class QuestionAnswerCard extends StatelessWidget {
     );
   }
 
-  Widget _buildAnswerContent(Map<String, dynamic> answerData) {
-    final selectedChoices = answerData['selected_choices'] as List<dynamic>?;
+  bool _hasCorrectChoices(Map<String, dynamic>? content) {
+    if (content == null) return false;
+    final choices = content['choices'] as List<dynamic>?;
+    return choices?.any((c) => c['isCorrect'] == true) ?? false;
+  }
+
+  Widget _buildCorrectChoices(Map<String, dynamic> content) {
+    final choices = content['choices'] as List<dynamic>?;
+    if (choices == null) return const SizedBox.shrink();
+    final correctChoices = choices.where((c) => c['isCorrect'] == true).toList();
+    return Wrap(
+      spacing: DesignSpacing.sm,
+      children: correctChoices
+          .map((choice) => Chip(
+                label: Text(choice['content']?.toString() ?? choice['text']?.toString() ?? choice['id'].toString()),
+                backgroundColor: DesignColors.success.withValues(alpha: 0.1),
+              ))
+          .toList(),
+    );
+  }
+
+  Widget _buildAnswerContent(Map<String, dynamic> answerData, Map<String, dynamic>? questionContent) {
+    final selectedChoices = (answerData['selected_choice_ids'] as List<dynamic>?) ?? 
+                            (answerData['selected_choices'] as List<dynamic>?);
     if (selectedChoices != null) {
+      final choicesList = questionContent?['choices'] as List<dynamic>?;
       return Wrap(
         spacing: DesignSpacing.sm,
-        children: selectedChoices
-            .map((choice) => Chip(label: Text(choice.toString())))
-            .toList(),
+        children: selectedChoices.map((choiceId) {
+          String displayLabel = choiceId.toString();
+          if (choicesList != null) {
+            final matchingChoice = choicesList.firstWhere(
+                (c) => c['id'].toString() == choiceId.toString(),
+                orElse: () => null);
+            if (matchingChoice != null) {
+              displayLabel = matchingChoice['content']?.toString() ?? matchingChoice['text']?.toString() ?? displayLabel;
+            }
+          }
+          return Chip(label: Text(displayLabel));
+        }).toList(),
       );
     }
     final text = answerData['text'] as String?;

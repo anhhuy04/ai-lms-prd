@@ -48,7 +48,7 @@ final skillMasteryProvider =
 // ignore: unused_element
 typedef SkillMasteryRef = AutoDisposeFutureProviderRef<List<SkillMastery>>;
 String _$classAverageSkillMasteryHash() =>
-    r'2cf9629217fe180a6f705f1244eebe07e567fb00';
+    r'91c5647d0bc63132f44d7bcf5b32037ed5540879';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -71,31 +71,31 @@ class _SystemHash {
   }
 }
 
-/// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+/// Class Average Skill Mastery Provider (for DualRadarChart - REC-03 / D-22).
 /// Returns a map of objectiveId -> class average mastery (0.0-1.0).
-/// Returns empty map until the class_average_skill_mastery RPC is available.
+/// Calls the `get_class_average_skill_mastery` RPC (SECURITY DEFINER).
 ///
 /// Copied from [classAverageSkillMastery].
 @ProviderFor(classAverageSkillMastery)
 const classAverageSkillMasteryProvider = ClassAverageSkillMasteryFamily();
 
-/// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+/// Class Average Skill Mastery Provider (for DualRadarChart - REC-03 / D-22).
 /// Returns a map of objectiveId -> class average mastery (0.0-1.0).
-/// Returns empty map until the class_average_skill_mastery RPC is available.
+/// Calls the `get_class_average_skill_mastery` RPC (SECURITY DEFINER).
 ///
 /// Copied from [classAverageSkillMastery].
 class ClassAverageSkillMasteryFamily
     extends Family<AsyncValue<Map<String, double>>> {
-  /// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+  /// Class Average Skill Mastery Provider (for DualRadarChart - REC-03 / D-22).
   /// Returns a map of objectiveId -> class average mastery (0.0-1.0).
-  /// Returns empty map until the class_average_skill_mastery RPC is available.
+  /// Calls the `get_class_average_skill_mastery` RPC (SECURITY DEFINER).
   ///
   /// Copied from [classAverageSkillMastery].
   const ClassAverageSkillMasteryFamily();
 
-  /// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+  /// Class Average Skill Mastery Provider (for DualRadarChart - REC-03 / D-22).
   /// Returns a map of objectiveId -> class average mastery (0.0-1.0).
-  /// Returns empty map until the class_average_skill_mastery RPC is available.
+  /// Calls the `get_class_average_skill_mastery` RPC (SECURITY DEFINER).
   ///
   /// Copied from [classAverageSkillMastery].
   ClassAverageSkillMasteryProvider call(String classId) {
@@ -124,16 +124,16 @@ class ClassAverageSkillMasteryFamily
   String? get name => r'classAverageSkillMasteryProvider';
 }
 
-/// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+/// Class Average Skill Mastery Provider (for DualRadarChart - REC-03 / D-22).
 /// Returns a map of objectiveId -> class average mastery (0.0-1.0).
-/// Returns empty map until the class_average_skill_mastery RPC is available.
+/// Calls the `get_class_average_skill_mastery` RPC (SECURITY DEFINER).
 ///
 /// Copied from [classAverageSkillMastery].
 class ClassAverageSkillMasteryProvider
     extends AutoDisposeFutureProvider<Map<String, double>> {
-  /// Class Average Skill Mastery Provider (for DualRadarChart - REC-03).
+  /// Class Average Skill Mastery Provider (for DualRadarChart - REC-03 / D-22).
   /// Returns a map of objectiveId -> class average mastery (0.0-1.0).
-  /// Returns empty map until the class_average_skill_mastery RPC is available.
+  /// Calls the `get_class_average_skill_mastery` RPC (SECURITY DEFINER).
   ///
   /// Copied from [classAverageSkillMastery].
   ClassAverageSkillMasteryProvider(String classId)
@@ -511,7 +511,7 @@ class _StudentClassComparisonProviderElement
 }
 
 String _$analyticsEmptyStateHash() =>
-    r'884ba5c1d1f22e90a4a14a9af7ddbb18c5da11cf';
+    r'52168c90fd8d78eaef6e4c28fd918c26285042d0';
 
 /// Empty state detection for analytics
 ///

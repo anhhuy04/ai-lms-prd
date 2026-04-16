@@ -1,9 +1,13 @@
 // ignore_for_file: use_build_context_synchronously
+import 'dart:convert';
+
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/core/services/ai_service.dart';
 import 'package:ai_mls/core/services/supabase_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/error_translation_utils.dart';
+import 'package:ai_mls/presentation/providers/learning_objective_providers.dart';
 import 'package:ai_mls/domain/entities/assignment.dart';
 import 'package:ai_mls/domain/entities/assignment_question.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
@@ -53,6 +57,7 @@ class _TeacherCreateAssignmentScreenState
   bool _isSaving = false; // Loading state for save draft
   bool _isPublishing = false; // Loading state for publish
   bool _isLoading = false; // Loading state when loading existing assignment
+  bool _isAutoAssigning = false; // Loading state for AI auto-assign objectives
 
   // Rubric state (D-08, D-09)
   Set<int> _publishValidationErrors = {};
@@ -723,7 +728,14 @@ class _TeacherCreateAssignmentScreenState
         customContent['tags'] = q['tags'];
       }
       if (q['learningObjectives'] != null) {
-        customContent['learningObjectives'] = q['learningObjectives'];
+        final objectiveIds = (q['learningObjectives'] as List?)
+            ?.map((e) => e.toString())
+            .toList();
+        customContent['learningObjectives'] = objectiveIds;
+        // Also write objective_ids (UUID list) for trigger Path 2 (C3/C4 fix)
+        if (objectiveIds != null && objectiveIds.isNotEmpty) {
+          customContent['objective_ids'] = objectiveIds;
+        }
       }
       if (q['explanation'] != null) {
         customContent['explanation'] = q['explanation'];
@@ -784,7 +796,7 @@ class _TeacherCreateAssignmentScreenState
             content: Text(
               'Vui lòng nhập các thông tin bắt buộc trước khi tạo câu hỏi',
             ),
-            backgroundColor: Colors.orange,
+            backgroundColor: DesignColors.warning,
           ),
         );
       }
@@ -1205,6 +1217,147 @@ class _TeacherCreateAssignmentScreenState
     }
   }
 
+  /// AI tự động phân tích và gán mục tiêu học tập cho tất cả câu hỏi
+  Future<void> _autoAssignObjectives() async {
+    if (_isAutoAssigning) return;
+    if (_questions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chưa có câu hỏi nào để phân tích.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isAutoAssigning = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 12),
+            Text('AI đang phân tích câu hỏi...'),
+          ],
+        ),
+        duration: Duration(seconds: 60),
+      ),
+    );
+
+    try {
+      // 1. Load tất cả learning objectives
+      final objectives = await ref
+          .read(learningObjectiveRepositoryProvider)
+          .getObjectives();
+
+      if (objectives.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Chưa có mục tiêu học tập nào trong hệ thống.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. Build prompt
+      final questionsText = StringBuffer();
+      for (var i = 0; i < _questions.length; i++) {
+        final q = _questions[i];
+        final type = (q['type'] as QuestionType?)?.label ?? 'câu hỏi';
+        final text = (q['text'] as String?)?.trim() ?? '';
+        questionsText.writeln('Câu hỏi $i ($type): $text');
+      }
+
+      final objectivesText = StringBuffer();
+      for (final o in objectives) {
+        objectivesText.writeln('ID: ${o.id} | Mã: ${o.code} | Mô tả: ${o.description}');
+      }
+
+      final prompt = '''
+Bạn là chuyên gia giáo dục. Hãy phân tích danh sách câu hỏi và gán các mục tiêu học tập phù hợp cho từng câu hỏi.
+
+DANH SÁCH CÂU HỎI:
+$questionsText
+DANH SÁCH MỤC TIÊU HỌC TẬP:
+$objectivesText
+YÊU CẦU:
+- Với mỗi câu hỏi, chọn từ 1-3 mục tiêu học tập phù hợp nhất từ danh sách trên.
+- Chỉ dùng ID (UUID) của mục tiêu học tập đã được cung cấp.
+- Nếu không có mục tiêu nào phù hợp, trả về mảng rỗng cho câu hỏi đó.
+
+Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài JSON):
+[
+  {"question_index": 0, "objective_ids": ["uuid1", "uuid2"]},
+  {"question_index": 1, "objective_ids": ["uuid3"]}
+]
+''';
+
+      // 3. Gọi AI API
+      final response = await AiService.callActiveAi(prompt);
+      final responseText = response?.toString() ?? '';
+
+      // 4. Parse JSON response
+      final jsonMatch = RegExp(r'\[[\s\S]*\]').firstMatch(responseText);
+      if (jsonMatch == null) {
+        throw Exception('AI không trả về định dạng JSON hợp lệ.');
+      }
+      final parsed = jsonDecode(jsonMatch.group(0)!) as List<dynamic>;
+
+      // 5. Cập nhật câu hỏi với objective_ids từ AI
+      final next = List<Map<String, dynamic>>.from(_questions);
+      int assignedCount = 0;
+      for (final item in parsed) {
+        final idx = item['question_index'] as int?;
+        final ids = (item['objective_ids'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList();
+        if (idx == null || idx < 0 || idx >= next.length) continue;
+        if (ids != null && ids.isNotEmpty) {
+          next[idx] = Map<String, dynamic>.from(next[idx])
+            ..['learningObjectives'] = ids
+            ..['objective_ids'] = ids;
+          assignedCount++;
+        }
+      }
+      _setQuestions(next);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đã gán mục tiêu học tập cho $assignedCount/${_questions.length} câu hỏi.',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      AppLogger.error('[AutoAssign] Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: DesignColors.error,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isAutoAssigning = false);
+    }
+  }
+
   /// Get user-friendly error message
   String _getErrorMessage(dynamic error) {
     try {
@@ -1242,7 +1395,7 @@ class _TeacherCreateAssignmentScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Vui lòng thêm ít nhất một câu hỏi'),
-            backgroundColor: Colors.orange,
+            backgroundColor: DesignColors.warning,
           ),
         );
       }
@@ -1301,7 +1454,7 @@ class _TeacherCreateAssignmentScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Đã lưu bản nháp thành công!'),
-            backgroundColor: Colors.green,
+            backgroundColor: DesignColors.success,
           ),
         );
       }
@@ -1352,7 +1505,7 @@ class _TeacherCreateAssignmentScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Vui lòng thêm ít nhất một câu hỏi'),
-            backgroundColor: Colors.orange,
+            backgroundColor: DesignColors.warning,
           ),
         );
       }
@@ -1378,7 +1531,7 @@ class _TeacherCreateAssignmentScreenState
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Ngày hết hạn phải là thời điểm trong tương lai'),
-              backgroundColor: Colors.orange,
+              backgroundColor: DesignColors.warning,
             ),
           );
         }
@@ -1426,7 +1579,7 @@ class _TeacherCreateAssignmentScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Đã xuất bản bài tập thành công!'),
-            backgroundColor: Colors.green,
+            backgroundColor: DesignColors.success,
           ),
         );
         // Navigate back after successful publish
@@ -1490,8 +1643,8 @@ class _TeacherCreateAssignmentScreenState
               (distResult as List).isNotEmpty || (wsResult as List).isNotEmpty;
         });
       }
-    } catch (e) {
-      AppLogger.error('Error checking rubric lock: $e', error: e);
+    } catch (e, stackTrace) {
+      AppLogger.error('Error checking rubric lock: $e', error: e, stackTrace: stackTrace);
     }
   }
 
@@ -1524,6 +1677,7 @@ class _TeacherCreateAssignmentScreenState
       builder: (_) => RubricBuilderComponent(
         initialRubric: _questions[questionIndex]['rubric'] as Map<String, dynamic>?,
         isLocked: _isRubricLocked,
+        questionPoints: (_questions[questionIndex]['points'] as num?)?.toInt(),
         onSave: (newRubric) {
           _updateRubricPoints(questionIndex, newRubric);
         },
@@ -1531,21 +1685,12 @@ class _TeacherCreateAssignmentScreenState
     );
   }
 
-  /// D-06: Update rubric for a question and auto-sync points.
+  /// D-06 (revised): Save rubric for a question. Question points are the ceiling —
+  /// rubric must sum to equal question.points (enforced in builder UI + publish validation).
+  /// Points field is NOT auto-synced from rubric — teacher controls it externally.
   void _updateRubricPoints(int questionIndex, Map<String, dynamic>? rubric) {
     setState(() {
       _questions[questionIndex]['rubric'] = rubric;
-      if (rubric != null) {
-        final criteria = rubric['criteria'] as List<dynamic>? ?? [];
-        final totalPoints = criteria.fold<double>(
-          0,
-          (sum, c) =>
-              sum +
-              ((c as Map<String, dynamic>)['max_points'] as num? ?? 0)
-                  .toDouble(),
-        );
-        _questions[questionIndex]['points'] = totalPoints;
-      }
       _publishValidationErrors.remove(questionIndex);
     });
   }
@@ -1553,22 +1698,45 @@ class _TeacherCreateAssignmentScreenState
   /// D-08: Validate that all essay/shortAnswer questions have a rubric before publish.
   /// Returns true if valid, false if there are errors.
   bool _validatePublishRubrics() {
-    final errors = <int>{};
+    final missingRubric = <int>{};
+    final pointsMismatch = <int>{};
+
     for (int i = 0; i < _questions.length; i++) {
       final type = _questions[i]['type'] as QuestionType?;
-      if ((type == QuestionType.essay || type == QuestionType.shortAnswer) &&
-          _questions[i]['rubric'] == null) {
-        errors.add(i);
+      if (type != QuestionType.essay && type != QuestionType.shortAnswer) {
+        continue;
+      }
+      final rubric = _questions[i]['rubric'] as Map<String, dynamic>?;
+      if (rubric == null) {
+        missingRubric.add(i);
+        continue;
+      }
+      // D-06: sum(criteria[].max_points) phải == question.points
+      final criteria = rubric['criteria'] as List<dynamic>? ?? [];
+      final rubricSum = criteria.fold<double>(0, (s, c) =>
+          s + ((c as Map<String, dynamic>)['max_points'] as num? ?? 0).toDouble());
+      final questionPoints = (_questions[i]['points'] as num?)?.toDouble() ?? 0;
+      if (rubricSum != questionPoints) {
+        pointsMismatch.add(i);
       }
     }
-    if (errors.isNotEmpty) {
-      setState(() => _publishValidationErrors = errors);
-      if (errors.length > 1 && mounted) {
+
+    final allErrors = {...missingRubric, ...pointsMismatch};
+    if (allErrors.isNotEmpty) {
+      setState(() => _publishValidationErrors = allErrors);
+      if (mounted) {
+        final messages = <String>[];
+        if (missingRubric.isNotEmpty) {
+          messages.add('${missingRubric.length} câu chưa có Rubric');
+        }
+        if (pointsMismatch.isNotEmpty) {
+          messages.add('${pointsMismatch.length} câu Rubric chưa khớp điểm');
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: DesignColors.error,
             content: Text(
-              'Co ${errors.length} cau hoi tu luan chua co Rubric. Vui long them Rubric truoc khi phat hanh.',
+              '${messages.join(' • ')}. Vui lòng kiểm tra lại trước khi phát hành.',
               style: DesignTypography.bodyMedium.copyWith(
                 color: DesignColors.white,
               ),
@@ -2188,6 +2356,12 @@ class _TeacherCreateAssignmentScreenState
                   setState(() => _isDrawerOpen = false);
                   _showPreview();
                 },
+                onAutoAssignObjectives: _isAutoAssigning
+                    ? null
+                    : () async {
+                        setState(() => _isDrawerOpen = false);
+                        await _autoAssignObjectives();
+                      },
                 onSaveDraft: _isSaving || _isPublishing
                     ? null
                     : () async {
@@ -2886,7 +3060,7 @@ class _TeacherCreateAssignmentScreenState
                 const SizedBox(width: DesignSpacing.xs),
                 Expanded(
                   child: Text(
-                    'Cau hoi tu luan phai co Rubric truoc khi phat hanh.',
+                    'Câu hỏi tự luận phải có Rubric trước khi phát hành.',
                     style: DesignTypography.caption.copyWith(
                       color: DesignColors.error,
                     ),

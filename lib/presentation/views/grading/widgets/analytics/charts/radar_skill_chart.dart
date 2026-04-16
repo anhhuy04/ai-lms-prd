@@ -12,15 +12,26 @@ class RadarSkillChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (skills.isEmpty) {
+    // RadarChart requires at least 3 data points
+    if (skills.length < 3) {
       return SizedBox(
         height: height,
         child: Center(
-          child: Text(
-            'Chưa có dữ liệu kỹ năng',
-            style: DesignTypography.bodyMedium.copyWith(
-              color: DesignColors.textSecondary,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.radar, size: 48, color: DesignColors.textSecondary.withValues(alpha: 0.4)),
+              const SizedBox(height: DesignSpacing.sm),
+              Text(
+                skills.isEmpty
+                    ? 'Chưa có dữ liệu kỹ năng'
+                    : 'Cần ít nhất 3 kỹ năng để hiển thị biểu đồ\n(hiện có ${skills.length})',
+                textAlign: TextAlign.center,
+                style: DesignTypography.bodyMedium.copyWith(
+                  color: DesignColors.textSecondary,
+                ),
+              ),
+            ],
           ),
         ),
       );

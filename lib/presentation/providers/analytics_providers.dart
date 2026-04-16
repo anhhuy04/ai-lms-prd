@@ -256,7 +256,10 @@ AnalyticsEmptyState analyticsEmptyState(
         // submissions exist but no graded skill data yet
         return AnalyticsEmptyState.noSkillData;
       }
-      // no skill masteries at all — pending grading (AI hasn't processed yet)
+      // submissions exist but no skill mastery yet — AI đang xử lý
+      if (data.basicMetrics.submissionCount > 0) {
+        return AnalyticsEmptyState.pendingGrading;
+      }
       return AnalyticsEmptyState.noSkillData;
     },
     loading: () => AnalyticsEmptyState.loading,

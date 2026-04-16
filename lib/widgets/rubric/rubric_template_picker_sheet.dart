@@ -15,11 +15,11 @@ import 'package:flutter/material.dart';
 ///   builder: (_) => RubricTemplatePickerSheet(
 ///     templates: templates,
 ///     onSelected: (template) { ... },
-///     onDelete: (index) { ... },
+///     onDelete: (index) async { ... },
 ///   ),
 /// );
 /// ```
-class RubricTemplatePickerSheet extends StatelessWidget {
+class RubricTemplatePickerSheet extends StatefulWidget {
   /// List of templates, each `{"name": String, "rubric": {"criteria": List}}`.
   final List<Map<String, dynamic>> templates;
 
@@ -27,7 +27,8 @@ class RubricTemplatePickerSheet extends StatelessWidget {
   final ValueChanged<Map<String, dynamic>> onSelected;
 
   /// Called with the index of the template to delete (after confirmation).
-  final ValueChanged<int> onDelete;
+  /// Must return a Future so errors can be caught and shown to the user.
+  final Future<void> Function(int) onDelete;
 
   const RubricTemplatePickerSheet({
     super.key,
@@ -35,6 +36,33 @@ class RubricTemplatePickerSheet extends StatelessWidget {
     required this.onSelected,
     required this.onDelete,
   });
+
+  @override
+  State<RubricTemplatePickerSheet> createState() =>
+      _RubricTemplatePickerSheetState();
+}
+
+class _RubricTemplatePickerSheetState extends State<RubricTemplatePickerSheet> {
+  late List<Map<String, dynamic>> _localTemplates;
+
+  @override
+  void initState() {
+    super.initState();
+    _localTemplates = List.from(widget.templates);
+  }
+
+  Future<void> _handleDelete(int index) async {
+    try {
+      await widget.onDelete(index);
+      if (mounted) setState(() => _localTemplates.removeAt(index));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Xóa thất bại: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,19 +90,19 @@ class RubricTemplatePickerSheet extends StatelessWidget {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Chon Template',
+                    'Chọn Mẫu Rubric',
                     style: DesignTypography.headlineMedium,
                   ),
                 ),
               ),
               SizedBox(height: DesignSpacing.md),
-              if (templates.isEmpty)
+              if (_localTemplates.isEmpty)
                 Expanded(child: _buildEmptyState())
               else
                 Expanded(
                   child: ListView.separated(
                     controller: scrollController,
-                    itemCount: templates.length,
+                    itemCount: _localTemplates.length,
                     separatorBuilder: (_, __) => Divider(
                       color: DesignColors.dividerLight,
                       height: 1,
@@ -104,7 +132,7 @@ class RubricTemplatePickerSheet extends StatelessWidget {
   }
 
   Widget _buildTemplateItem(BuildContext context, int index) {
-    final template = templates[index];
+    final template = _localTemplates[index];
     final rubric = template['rubric'] as Map<String, dynamic>? ?? {};
     final criteria = rubric['criteria'] as List? ?? [];
     final criteriaCount = criteria.length;
@@ -136,7 +164,7 @@ class RubricTemplatePickerSheet extends StatelessWidget {
         style: DesignTypography.titleMedium,
       ),
       subtitle: Text(
-        '$criteriaCount tieu chi - $totalPoints diem',
+        '$criteriaCount tiêu chí - $totalPoints điểm',
         style: DesignTypography.caption,
       ),
       trailing: IconButton(
@@ -147,7 +175,7 @@ class RubricTemplatePickerSheet extends StatelessWidget {
         ),
         onPressed: () => _confirmDelete(context, index),
       ),
-      onTap: () => onSelected(template),
+      onTap: () => widget.onSelected(template),
     );
   }
 
@@ -165,14 +193,14 @@ class RubricTemplatePickerSheet extends StatelessWidget {
             ),
             SizedBox(height: DesignSpacing.md),
             Text(
-              'Chua co template nao',
+              'Chưa có template nào',
               style: DesignTypography.titleMedium.copyWith(
                 color: DesignColors.textSecondary,
               ),
             ),
             SizedBox(height: DesignSpacing.sm),
             Text(
-              'Luu rubric hien tai thanh template de tai su dung sau.',
+              'Lưu rubric hiện tại thành mẫu để tái sử dụng sau.',
               style: DesignTypography.bodyMedium.copyWith(
                 fontSize: DesignTypography.bodySmallSize,
               ),
@@ -185,27 +213,29 @@ class RubricTemplatePickerSheet extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context, int index) {
-    final name = templates[index]['name'] as String? ?? '';
+    final name = _localTemplates[index]['name'] as String? ?? '';
     showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xoa template'),
+        title: const Text('Xóa mẫu'),
         content: Text(
-          "Xoa template '$name'? Hanh dong nay khong the hoan tac.",
+          "Xóa mẫu '$name'? Hành động này không thể hoàn tác.",
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Huy'),
+            child: const Text('Huỷ'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx, true);
-              onDelete(index);
+              _handleDelete(index);
             },
             child: Text(
-              'Xoa template',
-              style: TextStyle(color: DesignColors.error),
+              'Xóa mẫu',
+              style: DesignTypography.bodyMedium.copyWith(
+                color: DesignColors.error,
+              ),
             ),
           ),
         ],
