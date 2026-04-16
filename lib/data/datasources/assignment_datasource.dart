@@ -635,10 +635,11 @@ class AssignmentDataSource {
               List<Map<String, dynamic>> questionChoices = [];
               final choices = customContent['choices'] as List<dynamic>?;
               if (choices != null && choices.isNotEmpty) {
-                questionChoices = choices.map((c) {
-                  final choice = c as Map<String, dynamic>;
+                questionChoices = choices.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final choice = entry.value as Map<String, dynamic>;
                   return {
-                    'id': choice['id'] ?? '',
+                    'id': choice['id'] is int ? choice['id'] : idx,
                     'content': {'text': choice['text'] ?? ''},
                     'is_correct':
                         choice['isCorrect'] ?? choice['is_correct'] ?? false,
