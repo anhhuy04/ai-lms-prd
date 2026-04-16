@@ -3,14 +3,18 @@
 -- Purpose: Auto-populate student_skill_mastery when submission_answers are inserted
 -- Wave: 1 — DB Foundation (7-01)
 -- Decisions: D-01, D-06, D-07, D-08
+-- Updated: April 2026 — Added Path 2 for custom questions (C3 fix)
 -- ==============================================================================
 
 -- ─── Function: fn_update_skill_mastery ───────────────────────────────────────
 -- Fires AFTER INSERT on submission_answers.
 -- Guards:
 --   - D-06: Skips rows where final_score IS NULL (essay awaiting AI)
---   - D-07: Skips custom questions (assignment_questions.question_id IS NULL)
---   - D-08: final_score = 0 is NOT NULL → counts as failed attempt
+-- Paths:
+--   - Path 1: Linked question (question_id IS NOT NULL) → question_objectives
+--   - Path 2: Custom inline question (question_id IS NULL) → custom_content
+--             Reads 'objective_ids' (preferred, Flutter >= H2) OR
+--             'learningObjectives' (legacy fallback)
 
 CREATE OR REPLACE FUNCTION fn_update_skill_mastery()
 RETURNS trigger
@@ -24,21 +28,43 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- UPSERT student_skill_mastery for each learning objective linked to this question
-  -- D-07: AND aq.question_id IS NOT NULL skips custom (ad-hoc) questions
-  INSERT INTO student_skill_mastery (student_id, objective_id, attempts, correct, mastery_level, last_updated)
+  INSERT INTO student_skill_mastery
+    (student_id, objective_id, attempts, correct, mastery_level, last_updated)
+  WITH objectives AS (
+    -- Path 1: linked question → question_objectives
+    SELECT qo.objective_id
+    FROM assignment_questions aq
+    JOIN question_objectives qo ON qo.question_id = aq.question_id
+    WHERE aq.id = NEW.assignment_question_id
+
+    UNION
+
+    -- Path 2: custom question → custom_content
+    -- Ưu tiên 'objective_ids' (Flutter >= H2), fallback 'learningObjectives' (legacy)
+    SELECT obj_id::uuid AS objective_id
+    FROM assignment_questions aq,
+         jsonb_array_elements_text(
+           COALESCE(
+             NULLIF(aq.custom_content -> 'objective_ids',      'null'::jsonb),
+             NULLIF(aq.custom_content -> 'learningObjectives', 'null'::jsonb),
+             '[]'::jsonb
+           )
+         ) AS obj_id
+    WHERE aq.id = NEW.assignment_question_id
+      AND aq.question_id IS NULL
+      AND obj_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  )
   SELECT
     ws.student_id,
-    qo.objective_id,
+    o.objective_id,
     1,
-    CASE WHEN NEW.final_score = aq.points THEN 1 ELSE 0 END,
-    CASE WHEN NEW.final_score = aq.points THEN 1.0 ELSE 0.0 END,
+    CASE WHEN NEW.final_score = aq2.points THEN 1 ELSE 0 END,
+    CASE WHEN NEW.final_score = aq2.points THEN 1.0 ELSE 0.0 END,
     now()
-  FROM work_sessions ws
-  JOIN assignment_questions aq ON aq.id = NEW.assignment_question_id
-  JOIN question_objectives qo ON qo.question_id = aq.question_id
-  WHERE ws.id = NEW.session_id
-    AND aq.question_id IS NOT NULL
+  FROM objectives o
+  JOIN work_sessions ws         ON ws.id = NEW.session_id
+  JOIN assignment_questions aq2 ON aq2.id = NEW.assignment_question_id
+  WHERE o.objective_id IS NOT NULL
   ON CONFLICT (student_id, objective_id)
   DO UPDATE SET
     attempts      = student_skill_mastery.attempts + 1,
