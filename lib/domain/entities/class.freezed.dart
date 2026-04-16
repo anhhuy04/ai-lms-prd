@@ -49,6 +49,24 @@ mixin _$Class {
   @JsonKey(name: 'member_status')
   String? get memberStatus => throw _privateConstructorUsedError;
 
+  /// Tổng số bài tập đã phát cho lớp (chỉ dùng trong luồng học sinh).
+  /// Được tính từ assignment_distributions.
+  @JsonKey(name: 'total_assignment_count')
+  int? get totalAssignmentCount => throw _privateConstructorUsedError;
+
+  /// Số bài tập học sinh chưa nộp/hoàn thành (chỉ dùng trong luồng học sinh).
+  /// pending = total - completed (submitted hoặc graded).
+  @JsonKey(name: 'pending_assignment_count')
+  int? get pendingAssignmentCount => throw _privateConstructorUsedError;
+
+  /// Số bài đang làm dở (có work_session với status = in_progress).
+  @JsonKey(name: 'in_progress_assignment_count')
+  int? get inProgressAssignmentCount => throw _privateConstructorUsedError;
+
+  /// Số bài chưa bắt đầu (không có work_session nào).
+  @JsonKey(name: 'not_started_assignment_count')
+  int? get notStartedAssignmentCount => throw _privateConstructorUsedError;
+
   /// Cài đặt lớp học từ DB (có thể null nếu record cũ/thiếu field).
   /// Dùng fromJson để luôn có default khi DB trả về null/không đúng kiểu.
   @JsonKey(name: 'class_settings', fromJson: _classSettingsFromJson)
@@ -81,6 +99,12 @@ abstract class $ClassCopyWith<$Res> {
     @JsonKey(name: 'teacher_name') String? teacherName,
     @JsonKey(name: 'student_count') int? studentCount,
     @JsonKey(name: 'member_status') String? memberStatus,
+    @JsonKey(name: 'total_assignment_count') int? totalAssignmentCount,
+    @JsonKey(name: 'pending_assignment_count') int? pendingAssignmentCount,
+    @JsonKey(name: 'in_progress_assignment_count')
+    int? inProgressAssignmentCount,
+    @JsonKey(name: 'not_started_assignment_count')
+    int? notStartedAssignmentCount,
     @JsonKey(name: 'class_settings', fromJson: _classSettingsFromJson)
     Map<String, dynamic>? classSettings,
     @JsonKey(name: 'created_at') DateTime createdAt,
@@ -112,6 +136,10 @@ class _$ClassCopyWithImpl<$Res, $Val extends Class>
     Object? teacherName = freezed,
     Object? studentCount = freezed,
     Object? memberStatus = freezed,
+    Object? totalAssignmentCount = freezed,
+    Object? pendingAssignmentCount = freezed,
+    Object? inProgressAssignmentCount = freezed,
+    Object? notStartedAssignmentCount = freezed,
     Object? classSettings = freezed,
     Object? createdAt = null,
   }) {
@@ -157,6 +185,22 @@ class _$ClassCopyWithImpl<$Res, $Val extends Class>
                 ? _value.memberStatus
                 : memberStatus // ignore: cast_nullable_to_non_nullable
                       as String?,
+            totalAssignmentCount: freezed == totalAssignmentCount
+                ? _value.totalAssignmentCount
+                : totalAssignmentCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            pendingAssignmentCount: freezed == pendingAssignmentCount
+                ? _value.pendingAssignmentCount
+                : pendingAssignmentCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            inProgressAssignmentCount: freezed == inProgressAssignmentCount
+                ? _value.inProgressAssignmentCount
+                : inProgressAssignmentCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            notStartedAssignmentCount: freezed == notStartedAssignmentCount
+                ? _value.notStartedAssignmentCount
+                : notStartedAssignmentCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
             classSettings: freezed == classSettings
                 ? _value.classSettings
                 : classSettings // ignore: cast_nullable_to_non_nullable
@@ -190,6 +234,12 @@ abstract class _$$ClassImplCopyWith<$Res> implements $ClassCopyWith<$Res> {
     @JsonKey(name: 'teacher_name') String? teacherName,
     @JsonKey(name: 'student_count') int? studentCount,
     @JsonKey(name: 'member_status') String? memberStatus,
+    @JsonKey(name: 'total_assignment_count') int? totalAssignmentCount,
+    @JsonKey(name: 'pending_assignment_count') int? pendingAssignmentCount,
+    @JsonKey(name: 'in_progress_assignment_count')
+    int? inProgressAssignmentCount,
+    @JsonKey(name: 'not_started_assignment_count')
+    int? notStartedAssignmentCount,
     @JsonKey(name: 'class_settings', fromJson: _classSettingsFromJson)
     Map<String, dynamic>? classSettings,
     @JsonKey(name: 'created_at') DateTime createdAt,
@@ -220,6 +270,10 @@ class __$$ClassImplCopyWithImpl<$Res>
     Object? teacherName = freezed,
     Object? studentCount = freezed,
     Object? memberStatus = freezed,
+    Object? totalAssignmentCount = freezed,
+    Object? pendingAssignmentCount = freezed,
+    Object? inProgressAssignmentCount = freezed,
+    Object? notStartedAssignmentCount = freezed,
     Object? classSettings = freezed,
     Object? createdAt = null,
   }) {
@@ -265,6 +319,22 @@ class __$$ClassImplCopyWithImpl<$Res>
             ? _value.memberStatus
             : memberStatus // ignore: cast_nullable_to_non_nullable
                   as String?,
+        totalAssignmentCount: freezed == totalAssignmentCount
+            ? _value.totalAssignmentCount
+            : totalAssignmentCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        pendingAssignmentCount: freezed == pendingAssignmentCount
+            ? _value.pendingAssignmentCount
+            : pendingAssignmentCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        inProgressAssignmentCount: freezed == inProgressAssignmentCount
+            ? _value.inProgressAssignmentCount
+            : inProgressAssignmentCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        notStartedAssignmentCount: freezed == notStartedAssignmentCount
+            ? _value.notStartedAssignmentCount
+            : notStartedAssignmentCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
         classSettings: freezed == classSettings
             ? _value._classSettings
             : classSettings // ignore: cast_nullable_to_non_nullable
@@ -292,6 +362,12 @@ class _$ClassImpl extends _Class {
     @JsonKey(name: 'teacher_name') this.teacherName,
     @JsonKey(name: 'student_count') this.studentCount,
     @JsonKey(name: 'member_status') this.memberStatus,
+    @JsonKey(name: 'total_assignment_count') this.totalAssignmentCount,
+    @JsonKey(name: 'pending_assignment_count') this.pendingAssignmentCount,
+    @JsonKey(name: 'in_progress_assignment_count')
+    this.inProgressAssignmentCount,
+    @JsonKey(name: 'not_started_assignment_count')
+    this.notStartedAssignmentCount,
     @JsonKey(name: 'class_settings', fromJson: _classSettingsFromJson)
     final Map<String, dynamic>? classSettings,
     @JsonKey(name: 'created_at') required this.createdAt,
@@ -339,6 +415,28 @@ class _$ClassImpl extends _Class {
   @JsonKey(name: 'member_status')
   final String? memberStatus;
 
+  /// Tổng số bài tập đã phát cho lớp (chỉ dùng trong luồng học sinh).
+  /// Được tính từ assignment_distributions.
+  @override
+  @JsonKey(name: 'total_assignment_count')
+  final int? totalAssignmentCount;
+
+  /// Số bài tập học sinh chưa nộp/hoàn thành (chỉ dùng trong luồng học sinh).
+  /// pending = total - completed (submitted hoặc graded).
+  @override
+  @JsonKey(name: 'pending_assignment_count')
+  final int? pendingAssignmentCount;
+
+  /// Số bài đang làm dở (có work_session với status = in_progress).
+  @override
+  @JsonKey(name: 'in_progress_assignment_count')
+  final int? inProgressAssignmentCount;
+
+  /// Số bài chưa bắt đầu (không có work_session nào).
+  @override
+  @JsonKey(name: 'not_started_assignment_count')
+  final int? notStartedAssignmentCount;
+
   /// Cài đặt lớp học từ DB (có thể null nếu record cũ/thiếu field).
   /// Dùng fromJson để luôn có default khi DB trả về null/không đúng kiểu.
   final Map<String, dynamic>? _classSettings;
@@ -361,7 +459,7 @@ class _$ClassImpl extends _Class {
 
   @override
   String toString() {
-    return 'Class(id: $id, schoolId: $schoolId, teacherId: $teacherId, name: $name, subject: $subject, academicYear: $academicYear, description: $description, teacherName: $teacherName, studentCount: $studentCount, memberStatus: $memberStatus, classSettings: $classSettings, createdAt: $createdAt)';
+    return 'Class(id: $id, schoolId: $schoolId, teacherId: $teacherId, name: $name, subject: $subject, academicYear: $academicYear, description: $description, teacherName: $teacherName, studentCount: $studentCount, memberStatus: $memberStatus, totalAssignmentCount: $totalAssignmentCount, pendingAssignmentCount: $pendingAssignmentCount, inProgressAssignmentCount: $inProgressAssignmentCount, notStartedAssignmentCount: $notStartedAssignmentCount, classSettings: $classSettings, createdAt: $createdAt)';
   }
 
   @override
@@ -386,6 +484,20 @@ class _$ClassImpl extends _Class {
                 other.studentCount == studentCount) &&
             (identical(other.memberStatus, memberStatus) ||
                 other.memberStatus == memberStatus) &&
+            (identical(other.totalAssignmentCount, totalAssignmentCount) ||
+                other.totalAssignmentCount == totalAssignmentCount) &&
+            (identical(other.pendingAssignmentCount, pendingAssignmentCount) ||
+                other.pendingAssignmentCount == pendingAssignmentCount) &&
+            (identical(
+                  other.inProgressAssignmentCount,
+                  inProgressAssignmentCount,
+                ) ||
+                other.inProgressAssignmentCount == inProgressAssignmentCount) &&
+            (identical(
+                  other.notStartedAssignmentCount,
+                  notStartedAssignmentCount,
+                ) ||
+                other.notStartedAssignmentCount == notStartedAssignmentCount) &&
             const DeepCollectionEquality().equals(
               other._classSettings,
               _classSettings,
@@ -408,6 +520,10 @@ class _$ClassImpl extends _Class {
     teacherName,
     studentCount,
     memberStatus,
+    totalAssignmentCount,
+    pendingAssignmentCount,
+    inProgressAssignmentCount,
+    notStartedAssignmentCount,
     const DeepCollectionEquality().hash(_classSettings),
     createdAt,
   );
@@ -438,6 +554,13 @@ abstract class _Class extends Class {
     @JsonKey(name: 'teacher_name') final String? teacherName,
     @JsonKey(name: 'student_count') final int? studentCount,
     @JsonKey(name: 'member_status') final String? memberStatus,
+    @JsonKey(name: 'total_assignment_count') final int? totalAssignmentCount,
+    @JsonKey(name: 'pending_assignment_count')
+    final int? pendingAssignmentCount,
+    @JsonKey(name: 'in_progress_assignment_count')
+    final int? inProgressAssignmentCount,
+    @JsonKey(name: 'not_started_assignment_count')
+    final int? notStartedAssignmentCount,
     @JsonKey(name: 'class_settings', fromJson: _classSettingsFromJson)
     final Map<String, dynamic>? classSettings,
     @JsonKey(name: 'created_at') required final DateTime createdAt,
@@ -483,6 +606,28 @@ abstract class _Class extends Class {
   @override
   @JsonKey(name: 'member_status')
   String? get memberStatus;
+
+  /// Tổng số bài tập đã phát cho lớp (chỉ dùng trong luồng học sinh).
+  /// Được tính từ assignment_distributions.
+  @override
+  @JsonKey(name: 'total_assignment_count')
+  int? get totalAssignmentCount;
+
+  /// Số bài tập học sinh chưa nộp/hoàn thành (chỉ dùng trong luồng học sinh).
+  /// pending = total - completed (submitted hoặc graded).
+  @override
+  @JsonKey(name: 'pending_assignment_count')
+  int? get pendingAssignmentCount;
+
+  /// Số bài đang làm dở (có work_session với status = in_progress).
+  @override
+  @JsonKey(name: 'in_progress_assignment_count')
+  int? get inProgressAssignmentCount;
+
+  /// Số bài chưa bắt đầu (không có work_session nào).
+  @override
+  @JsonKey(name: 'not_started_assignment_count')
+  int? get notStartedAssignmentCount;
 
   /// Cài đặt lớp học từ DB (có thể null nếu record cũ/thiếu field).
   /// Dùng fromJson để luôn có default khi DB trả về null/không đúng kiểu.

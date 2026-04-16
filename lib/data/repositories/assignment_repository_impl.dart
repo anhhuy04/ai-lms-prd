@@ -438,6 +438,23 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
   }
 
   @override
+  Future<Map<String, dynamic>?> getSubmission(
+    String distributionId,
+    String studentId,
+  ) async {
+    try {
+      return await _ds.getSubmission(distributionId, studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getSubmission: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy trạng thái bài nộp');
+    }
+  }
+
+  @override
   Future<Map<String, dynamic>?> getOrCreateSubmission(
     String distributionId,
     String studentId,

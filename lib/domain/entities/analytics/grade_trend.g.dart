@@ -12,6 +12,7 @@ _$GradeTrendImpl _$$GradeTrendImplFromJson(Map<String, dynamic> json) =>
       score: (json['score'] as num).toDouble(),
       assignmentName: json['assignmentName'] as String,
       assignmentId: json['assignmentId'] as String?,
+      className: json['className'] as String?,
     );
 
 Map<String, dynamic> _$$GradeTrendImplToJson(_$GradeTrendImpl instance) =>
@@ -20,4 +21,5 @@ Map<String, dynamic> _$$GradeTrendImplToJson(_$GradeTrendImpl instance) =>
       'score': instance.score,
       'assignmentName': instance.assignmentName,
       'assignmentId': instance.assignmentId,
+      'className': instance.className,
     };

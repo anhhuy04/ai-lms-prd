@@ -13,6 +13,7 @@ class GradeTrend with _$GradeTrend {
     required double score,
     required String assignmentName,
     String? assignmentId,
+    String? className,
   }) = _GradeTrend;
 
   factory GradeTrend.fromJson(Map<String, dynamic> json) =>

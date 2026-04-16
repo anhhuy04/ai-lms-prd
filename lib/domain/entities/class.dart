@@ -88,6 +88,20 @@ class Class with _$Class {
     /// Field này chỉ có ý nghĩa trong luồng học sinh.
     @JsonKey(name: 'member_status') String? memberStatus,
 
+    /// Tổng số bài tập đã phát cho lớp (chỉ dùng trong luồng học sinh).
+    /// Được tính từ assignment_distributions.
+    @JsonKey(name: 'total_assignment_count') int? totalAssignmentCount,
+
+    /// Số bài tập học sinh chưa nộp/hoàn thành (chỉ dùng trong luồng học sinh).
+    /// pending = total - completed (submitted hoặc graded).
+    @JsonKey(name: 'pending_assignment_count') int? pendingAssignmentCount,
+
+    /// Số bài đang làm dở (có work_session với status = in_progress).
+    @JsonKey(name: 'in_progress_assignment_count') int? inProgressAssignmentCount,
+
+    /// Số bài chưa bắt đầu (không có work_session nào).
+    @JsonKey(name: 'not_started_assignment_count') int? notStartedAssignmentCount,
+
     /// Cài đặt lớp học từ DB (có thể null nếu record cũ/thiếu field).
     /// Dùng fromJson để luôn có default khi DB trả về null/không đúng kiểu.
     @JsonKey(name: 'class_settings', fromJson: _classSettingsFromJson)

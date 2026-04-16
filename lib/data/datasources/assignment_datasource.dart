@@ -248,13 +248,14 @@ class AssignmentDataSource {
 
     final distributions = List<Map<String, dynamic>>.from(res);
 
-    // Post-process: map 'classes.name' → 'className' (Freezed uses camelCase)
+    // Post-process: map 'class.name' → 'className' (Freezed uses camelCase)
+    // Note: Supabase alias 'class:classes(name)' returns key 'class', not 'classes'
     for (final dist in distributions) {
-      final classesData = dist['classes'];
-      if (classesData != null && classesData is Map) {
-        dist['className'] = (classesData as Map<String, dynamic>)['name'] ?? 'Lớp học';
+      final classData = dist['class'];
+      if (classData != null && classData is Map) {
+        dist['className'] = (classData as Map<String, dynamic>)['name'] ?? 'Lớp học';
       }
-      dist.remove('classes');
+      dist.remove('class');
     }
 
     // Fetch counts per distribution from work_sessions
@@ -868,6 +869,109 @@ class AssignmentDataSource {
         'submission_submitted_at': submission['submitted_at'],
       };
     }).toList();
+  }
+
+  /// Chỉ ĐỌC trạng thái bài nộp — KHÔNG tạo work_session mới.
+  /// Dùng cho trang chi tiết bài tập (trước khi bấm "Bắt đầu").
+  /// Trả về null nếu học sinh chưa bắt đầu lần nào.
+  Future<Map<String, dynamic>?> getSubmission(
+    String distributionId,
+    String studentId,
+  ) async {
+    // Lấy work_session gần nhất (ưu tiên graded > submitted > in_progress)
+    final sessions = await _client
+        .from('work_sessions')
+        .select()
+        .eq('assignment_distribution_id', distributionId)
+        .eq('student_id', studentId)
+        .order('attempt', ascending: false);
+
+    if ((sessions as List).isEmpty) return null;
+
+    // Ưu tiên graded/submitted/ai_processing hơn in_progress
+    final sessionList = List<Map<String, dynamic>>.from(sessions);
+    final session = sessionList.firstWhere(
+      (s) => s['status'] != 'in_progress',
+      orElse: () => sessionList.first,
+    );
+
+    final sessionId = session['id'] as String;
+    final sessionStatus = session['status'] as String? ?? 'in_progress';
+    final isSubmitted = sessionStatus == 'submitted' ||
+        sessionStatus == 'graded' ||
+        sessionStatus == 'ai_processing' ||
+        sessionStatus == 'pending_review';
+
+    final Map<String, dynamic> answersMap = {};
+    int correctCount = 0;
+    int wrongCount = 0;
+
+    if (isSubmitted) {
+      // Bài đã nộp: load từ submission_answers
+      final submissionAnswers = await _client
+          .from('submission_answers')
+          .select('assignment_question_id, answer, final_score, ai_score')
+          .eq('session_id', sessionId);
+
+      for (final sa in submissionAnswers) {
+        final qId = sa['assignment_question_id'] as String?;
+        if (qId != null) answersMap[qId] = sa['answer'];
+        final score = (sa['final_score'] as num?) ?? (sa['ai_score'] as num?);
+        if (score != null) {
+          if (score > 0) {
+            correctCount++;
+          } else {
+            wrongCount++;
+          }
+        }
+      }
+    } else {
+      // Đang làm: load từ autosave_answers
+      final autosaveAnswers = await _client
+          .from('autosave_answers')
+          .select()
+          .eq('session_id', sessionId);
+
+      for (final aa in autosaveAnswers) {
+        final qId = aa['assignment_question_id'] as String?;
+        if (qId != null) answersMap[qId] = aa['answer_content'];
+      }
+    }
+
+    final attemptCount = sessionList
+        .where((s) => ['submitted', 'graded', 'ai_processing'].contains(s['status']))
+        .length;
+
+    final result = Map<String, dynamic>.from(session);
+    result['answers'] = answersMap;
+    result['uploaded_files'] = <String>[];
+    result['attempt_count'] = attemptCount;
+    result['answered_count'] = answersMap.length;
+    result['time_taken_seconds'] = session['time_spent_seconds'];
+    if (isSubmitted) {
+      result['correct_count'] = correctCount;
+      result['wrong_count'] = wrongCount;
+
+      // Lấy total_score từ submissions
+      try {
+        final submissionRow = await _client
+            .from('submissions')
+            .select('total_score, submitted_at')
+            .eq('assignment_distribution_id', distributionId)
+            .eq('student_id', studentId)
+            .not('is_voided', 'eq', true)
+            .order('created_at', ascending: false)
+            .maybeSingle();
+        if (submissionRow != null) {
+          result['score'] = submissionRow['total_score'];
+          result['submitted_at'] ??= submissionRow['submitted_at'];
+        }
+      } catch (e) {
+        AppLogger.warning('[AssignmentDS] Cannot fetch submission score: $e');
+      }
+    }
+
+    return result;
   }
 
   /// Lấy hoặc tạo bài nộp draft cho một distribution

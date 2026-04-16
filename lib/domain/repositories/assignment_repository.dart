@@ -111,6 +111,13 @@ abstract class AssignmentRepository {
   /// Lấy danh sách tất cả bài tập của học sinh (từ tất cả các lớp)
   Future<List<Map<String, dynamic>>> getStudentAssignments(String studentId);
 
+  /// Chỉ ĐỌC trạng thái bài nộp — KHÔNG tạo work_session.
+  /// Dùng cho trang chi tiết bài tập. Trả về null nếu chưa bắt đầu.
+  Future<Map<String, dynamic>?> getSubmission(
+    String distributionId,
+    String studentId,
+  );
+
   /// Lấy hoặc tạo bài nộp draft cho một distribution
   Future<Map<String, dynamic>?> getOrCreateSubmission(
     String distributionId,

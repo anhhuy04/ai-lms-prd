@@ -210,12 +210,14 @@ class AnalyticsDatasource {
 
           if (assignmentIds.isNotEmpty) {
             // Step 4: Get question_ids from assignment_questions for these assignments
+            // NOTE: must use 'question_id' (FK → questions.id), NOT 'id' (PK of assignment_questions)
             final aqResult = await _client
                 .from('assignment_questions')
-                .select('id')
+                .select('question_id')
                 .inFilter('assignment_id', assignmentIds);
             final questionIds = aqResult
-                .map((aq) => aq['id'] as String)
+                .map((aq) => aq['question_id'] as String?)
+                .whereType<String>()
                 .toList();
 
             if (questionIds.isNotEmpty) {
@@ -372,6 +374,28 @@ class AnalyticsDatasource {
         };
       }
 
+      // Fetch class name per distribution_id
+      final distributionIds = result
+          .where((r) => r['assignment_distribution_id'] != null)
+          .map((r) => r['assignment_distribution_id'] as String)
+          .toSet()
+          .toList();
+
+      Map<String, String> distClassNames = {};
+      if (distributionIds.isNotEmpty) {
+        final dists = await _client
+            .from('assignment_distributions')
+            .select('id, classes(name)')
+            .inFilter('id', distributionIds);
+        for (final d in dists) {
+          final classData = d['classes'] as Map<String, dynamic>?;
+          final name = classData?['name'] as String?;
+          if (name != null) {
+            distClassNames[d['id'] as String] = name;
+          }
+        }
+      }
+
       return result
           .map((row) {
             final dateStr = row['submitted_at'] as String?;
@@ -391,10 +415,13 @@ class AnalyticsDatasource {
             final assignmentName = assignmentId != null
                 ? (assignmentTitles[assignmentId] ?? 'Assignment')
                 : 'Assignment';
+            final distId = row['assignment_distribution_id'] as String?;
+            final className = distId != null ? distClassNames[distId] : null;
             return GradeTrend(
               date: parsedDate,
               score: ((row['total_score'] ?? 0) as num).toDouble(),
               assignmentName: assignmentName,
+              className: className,
             );
           })
           .whereType<GradeTrend>()

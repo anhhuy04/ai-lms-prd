@@ -25,6 +25,7 @@ mixin _$GradeTrend {
   double get score => throw _privateConstructorUsedError;
   String get assignmentName => throw _privateConstructorUsedError;
   String? get assignmentId => throw _privateConstructorUsedError;
+  String? get className => throw _privateConstructorUsedError;
 
   /// Serializes this GradeTrend to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -48,6 +49,7 @@ abstract class $GradeTrendCopyWith<$Res> {
     double score,
     String assignmentName,
     String? assignmentId,
+    String? className,
   });
 }
 
@@ -70,6 +72,7 @@ class _$GradeTrendCopyWithImpl<$Res, $Val extends GradeTrend>
     Object? score = null,
     Object? assignmentName = null,
     Object? assignmentId = freezed,
+    Object? className = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -88,6 +91,10 @@ class _$GradeTrendCopyWithImpl<$Res, $Val extends GradeTrend>
             assignmentId: freezed == assignmentId
                 ? _value.assignmentId
                 : assignmentId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            className: freezed == className
+                ? _value.className
+                : className // ignore: cast_nullable_to_non_nullable
                       as String?,
           )
           as $Val,
@@ -109,6 +116,7 @@ abstract class _$$GradeTrendImplCopyWith<$Res>
     double score,
     String assignmentName,
     String? assignmentId,
+    String? className,
   });
 }
 
@@ -130,6 +138,7 @@ class __$$GradeTrendImplCopyWithImpl<$Res>
     Object? score = null,
     Object? assignmentName = null,
     Object? assignmentId = freezed,
+    Object? className = freezed,
   }) {
     return _then(
       _$GradeTrendImpl(
@@ -149,6 +158,10 @@ class __$$GradeTrendImplCopyWithImpl<$Res>
             ? _value.assignmentId
             : assignmentId // ignore: cast_nullable_to_non_nullable
                   as String?,
+        className: freezed == className
+            ? _value.className
+            : className // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -162,6 +175,7 @@ class _$GradeTrendImpl implements _GradeTrend {
     required this.score,
     required this.assignmentName,
     this.assignmentId,
+    this.className,
   });
 
   factory _$GradeTrendImpl.fromJson(Map<String, dynamic> json) =>
@@ -175,10 +189,12 @@ class _$GradeTrendImpl implements _GradeTrend {
   final String assignmentName;
   @override
   final String? assignmentId;
+  @override
+  final String? className;
 
   @override
   String toString() {
-    return 'GradeTrend(date: $date, score: $score, assignmentName: $assignmentName, assignmentId: $assignmentId)';
+    return 'GradeTrend(date: $date, score: $score, assignmentName: $assignmentName, assignmentId: $assignmentId, className: $className)';
   }
 
   @override
@@ -191,13 +207,15 @@ class _$GradeTrendImpl implements _GradeTrend {
             (identical(other.assignmentName, assignmentName) ||
                 other.assignmentName == assignmentName) &&
             (identical(other.assignmentId, assignmentId) ||
-                other.assignmentId == assignmentId));
+                other.assignmentId == assignmentId) &&
+            (identical(other.className, className) ||
+                other.className == className));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode =>
-      Object.hash(runtimeType, date, score, assignmentName, assignmentId);
+      Object.hash(runtimeType, date, score, assignmentName, assignmentId, className);
 
   /// Create a copy of GradeTrend
   /// with the given fields replaced by the non-null parameter values.
@@ -219,6 +237,7 @@ abstract class _GradeTrend implements GradeTrend {
     required final double score,
     required final String assignmentName,
     final String? assignmentId,
+    final String? className,
   }) = _$GradeTrendImpl;
 
   factory _GradeTrend.fromJson(Map<String, dynamic> json) =
@@ -232,6 +251,8 @@ abstract class _GradeTrend implements GradeTrend {
   String get assignmentName;
   @override
   String? get assignmentId;
+  @override
+  String? get className;
 
   /// Create a copy of GradeTrend
   /// with the given fields replaced by the non-null parameter values.

@@ -251,17 +251,101 @@ class SchoolClassDataSource {
         } catch (_) {}
       }
 
+      // Dùng RPC SECURITY DEFINER để đếm sĩ số — học sinh không có quyền đọc
+      // class_members của người khác (RLS: student_id = auth.uid()), nên không thể
+      // query trực tiếp. RPC chỉ trả về count, không expose thông tin cá nhân.
       Map<String, int> studentCountByClassId = {};
       try {
-        var membersQuery = _client
-            .from('class_members')
-            .select('class_id')
-            .eq('status', 'approved');
-        membersQuery = _applyOrFilter(membersQuery, 'class_id', classIds);
-        for (final m in await membersQuery as List<dynamic>) {
-          final id = m['class_id'] as String?;
-          if (id != null) {
-            studentCountByClassId[id] = (studentCountByClassId[id] ?? 0) + 1;
+        final countResult = await _client.rpc(
+          'get_class_member_counts',
+          params: {'p_class_ids': classIds},
+        ) as List<dynamic>;
+        for (final row in countResult) {
+          final map = row as Map<String, dynamic>;
+          final id = map['class_id'] as String?;
+          final count = map['member_count'];
+          if (id != null && count != null) {
+            studentCountByClassId[id] = (count is int)
+                ? count
+                : int.tryParse(count.toString()) ?? 0;
+          }
+        }
+      } catch (e) {
+        AppLogger.error(
+          '🔴 [DATASOURCE] getClassesByStudent: lỗi đếm sĩ số qua RPC: $e',
+        );
+      }
+
+      // 5. Tính not_started / in_progress / completed theo "Invisible Footprint" pattern:
+      //    - Bắt đầu từ assignment_distributions (nguồn sự thật)
+      //    - Distributions không có work_session nào = "Chưa làm"
+      //    - Không tạo dữ liệu giả trong work_sessions
+      Map<String, int> totalAssignmentsByClassId = {};
+      Map<String, int> completedAssignmentsByClassId = {};
+      Map<String, int> inProgressAssignmentsByClassId = {};
+      Map<String, int> notStartedAssignmentsByClassId = {};
+      try {
+        // Lấy distributions đang active cho các lớp này
+        var distQuery = _client
+            .from('assignment_distributions')
+            .select('id, class_id')
+            .eq('status', 'active');
+        distQuery = _applyOrFilter(distQuery, 'class_id', classIds);
+        final distributions = await distQuery as List<dynamic>;
+
+        final Map<String, String> classIdByDistId = {};
+        for (final d in distributions) {
+          final distId = d['id'] as String?;
+          final cId = d['class_id'] as String?;
+          if (distId == null || cId == null) continue;
+          classIdByDistId[distId] = cId;
+          totalAssignmentsByClassId[cId] =
+              (totalAssignmentsByClassId[cId] ?? 0) + 1;
+        }
+
+        if (classIdByDistId.isNotEmpty) {
+          final distIds = classIdByDistId.keys.toList();
+
+          // 1 query duy nhất: tất cả work_sessions của student cho các distributions này
+          var wsAllQuery = _client
+              .from('work_sessions')
+              .select('assignment_distribution_id, status')
+              .eq('student_id', studentId);
+          wsAllQuery = _applyOrFilter(wsAllQuery, 'assignment_distribution_id', distIds);
+          final allSessions = await wsAllQuery as List<dynamic>;
+
+          // Set các dist_id đã có work_session (bất kỳ status nào)
+          final sessionedDistIds = <String>{};
+
+          for (final ws in allSessions) {
+            final distId = ws['assignment_distribution_id'] as String?;
+            final wsStatus = ws['status'] as String?;
+            if (distId == null) continue;
+            sessionedDistIds.add(distId);
+
+            final cId = classIdByDistId[distId];
+            if (cId == null) continue;
+
+            if (wsStatus == 'in_progress') {
+              inProgressAssignmentsByClassId[cId] =
+                  (inProgressAssignmentsByClassId[cId] ?? 0) + 1;
+            } else if (wsStatus == 'submitted' ||
+                wsStatus == 'graded' ||
+                wsStatus == 'ai_processing' ||
+                wsStatus == 'pending_review') {
+              completedAssignmentsByClassId[cId] =
+                  (completedAssignmentsByClassId[cId] ?? 0) + 1;
+            }
+          }
+
+          // "Invisible Footprint": distributions không có bất kỳ work_session nào = chưa làm
+          for (final entry in classIdByDistId.entries) {
+            final distId = entry.key;
+            final cId = entry.value;
+            if (!sessionedDistIds.contains(distId)) {
+              notStartedAssignmentsByClassId[cId] =
+                  (notStartedAssignmentsByClassId[cId] ?? 0) + 1;
+            }
           }
         }
       } catch (_) {}
@@ -269,13 +353,27 @@ class SchoolClassDataSource {
       return classes.map((c) {
         final classId = c['id'] as String?;
         final teacherId = c['teacher_id'] as String?;
+        final total =
+            classId != null ? (totalAssignmentsByClassId[classId] ?? 0) : 0;
+        final completed =
+            classId != null ? (completedAssignmentsByClassId[classId] ?? 0) : 0;
+        final inProgress =
+            classId != null ? (inProgressAssignmentsByClassId[classId] ?? 0) : 0;
+        final notStarted =
+            classId != null ? (notStartedAssignmentsByClassId[classId] ?? 0) : 0;
         final result = <String, dynamic>{
           ...c,
           'teacher_name': teacherId != null ? teacherNameById[teacherId] : null,
-          'student_count': classId != null ? (studentCountByClassId[classId] ?? 0) : 0,
+          'student_count':
+              classId != null ? (studentCountByClassId[classId] ?? 0) : 0,
+          'total_assignment_count': total,
+          'pending_assignment_count': (total - completed).clamp(0, total),
+          'in_progress_assignment_count': inProgress,
+          'not_started_assignment_count': notStarted,
         };
         if (!approvedOnly) {
-          result['member_status'] = classId != null ? memberStatusByClassId[classId] : null;
+          result['member_status'] =
+              classId != null ? memberStatusByClassId[classId] : null;
         }
         return result;
       }).toList();

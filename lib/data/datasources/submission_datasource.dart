@@ -35,7 +35,7 @@ class SubmissionDataSource {
       try {
         final sessionRes = await _client
             .from('work_sessions')
-            .select('status, started_at, submitted_at, time_spent_seconds, attempt')
+            .select('id, status, started_at, submitted_at, time_spent_seconds, attempt')
             .eq('assignment_distribution_id', distributionId)
             .eq('student_id', studentId)
             .order('attempt', ascending: false)
@@ -46,6 +46,9 @@ class SubmissionDataSource {
           data['time_taken_seconds'] = sessionRes['time_spent_seconds'];
           data['attempt_count'] = sessionRes['attempt'];
           data['started_at'] ??= sessionRes['started_at'];
+          data['work_session_submitted_at'] = sessionRes['submitted_at'];
+          // Ưu tiên work_sessions.id vì submissions.session_id có thể null
+          data['resolved_session_id'] = sessionRes['id'];
         } else {
           data['status'] = data['submitted_at'] != null ? 'submitted' : 'in_progress';
         }
@@ -54,10 +57,103 @@ class SubmissionDataSource {
         data['status'] = data['submitted_at'] != null ? 'submitted' : 'in_progress';
       }
 
+      // Đếm câu đã trả lời + thống kê đúng/sai
+      // Dùng resolved_session_id (work_sessions.id) — submissions.session_id có thể null
+      final sessionId =
+          (data['resolved_session_id'] ?? data['session_id']) as String?;
+      final currentStatus = data['status'] as String? ?? 'in_progress';
+      if (sessionId != null) {
+        try {
+          if (currentStatus == 'in_progress') {
+            // Khi đang làm dở: đếm từ autosave_answers (chưa submit → submission_answers rỗng)
+            final autosaveRes = await _client
+                .from('autosave_answers')
+                .select('id')
+                .eq('session_id', sessionId);
+            data['answered_count'] = (autosaveRes as List).length;
+            data['correct_count'] = 0;
+            data['wrong_count'] = 0;
+          } else {
+            // Đã nộp: đếm từ submission_answers + tính đúng/sai theo điểm
+            final answersRes = await _client
+                .from('submission_answers')
+                .select('final_score, ai_score')
+                .eq('session_id', sessionId);
+            final answers =
+                List<Map<String, dynamic>>.from(answersRes as List);
+            data['answered_count'] = answers.length;
+            int correct = 0;
+            int wrong = 0;
+            for (final a in answers) {
+              final effectiveScore =
+                  (a['final_score'] ?? a['ai_score'] ?? 0) as num;
+              if (effectiveScore > 0) {
+                correct++;
+              } else {
+                wrong++;
+              }
+            }
+            data['correct_count'] = correct;
+            data['wrong_count'] = wrong;
+          }
+        } catch (e) {
+          AppLogger.warning('[SubmissionDS] Cannot fetch answers: $e');
+          data['answered_count'] = 0;
+          data['correct_count'] = 0;
+          data['wrong_count'] = 0;
+        }
+      } else {
+        data['answered_count'] = 0;
+        data['correct_count'] = 0;
+        data['wrong_count'] = 0;
+      }
+
       return data;
     }
 
-    // Chưa có submission → học sinh chưa bắt đầu, trả về null
+    // Chưa có submission → kiểm tra work_sessions xem có session in_progress không
+    // (workspace tạo work_session ngay khi bắt đầu, submissions chỉ tạo lúc submit)
+    try {
+      final sessionRes = await _client
+          .from('work_sessions')
+          .select('id, status, started_at, submitted_at, time_spent_seconds, attempt')
+          .eq('assignment_distribution_id', distributionId)
+          .eq('student_id', studentId)
+          .eq('status', 'in_progress')
+          .order('attempt', ascending: false)
+          .maybeSingle();
+
+      if (sessionRes != null) {
+        final data = <String, dynamic>{
+          'status': 'in_progress',
+          'resolved_session_id': sessionRes['id'],
+          'started_at': sessionRes['started_at'],
+          'time_taken_seconds': sessionRes['time_spent_seconds'],
+          'attempt_count': sessionRes['attempt'],
+          'score': null,
+          'correct_count': 0,
+          'wrong_count': 0,
+        };
+
+        // Đếm số câu đã auto-save
+        try {
+          final autosaveRes = await _client
+              .from('autosave_answers')
+              .select('id')
+              .eq('session_id', sessionRes['id'] as String);
+          data['answered_count'] = (autosaveRes as List).length;
+        } catch (e) {
+          AppLogger.warning('[SubmissionDS] Cannot fetch autosave_answers: $e');
+          data['answered_count'] = 0;
+        }
+
+        return data;
+      }
+    } catch (e) {
+      AppLogger.warning('[SubmissionDS] Cannot fetch work_sessions fallback: $e');
+    }
+
+    // Không có submission lẫn work_session → học sinh thực sự chưa bắt đầu
     return null;
   }
 
@@ -84,12 +180,12 @@ class SubmissionDataSource {
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', existing['id']);
     } else {
-      // Insert mới
+      // Insert mới — KHÔNG set 'status': submissions table không có status column
+      // (status lives on work_sessions)
       final now = DateTime.now().toUtc().toIso8601String();
       await _client.from('submissions').insert({
         'assignment_distribution_id': distributionId,
         'student_id': studentId,
-        'status': 'draft',
         'answers': answers,
         'uploaded_files': uploadedFiles,
         'created_at': now,
@@ -152,20 +248,22 @@ class SubmissionDataSource {
           student_id,
           assignment_id,
           assignment_distribution_id,
+          session_id,
           submitted_at,
           is_late,
           total_score,
           ai_graded,
           is_voided,
           assignment_distributions(
-            due_at
+            due_at,
+            assignments(total_points)
           ),
           profiles!submissions_student_id_fkey(
             id,
             full_name,
             avatar_url
           ),
-          work_sessions(
+          work_sessions!submissions_session_id_fkey(
             id,
             status,
             submitted_at
@@ -176,17 +274,19 @@ class SubmissionDataSource {
 
     final submissions = List<Map<String, dynamic>>.from(result);
 
-    // Map work_sessions.status → status field for filter logic
-    // is_late comes directly from submissions.is_late (set at submit time — authoritative)
+    // work_sessions!submissions_session_id_fkey là many-to-one (submissions.session_id → work_sessions.id)
+    // Supabase trả về single Map, KHÔNG phải List
     for (final sub in submissions) {
-      final workSessions = sub['work_sessions'];
-      if (workSessions is List && workSessions.isNotEmpty) {
-        sub['status'] = (workSessions.first as Map<String, dynamic>)['status'] ?? 'submitted';
+      final ws = sub['work_sessions'];
+      if (ws is Map) {
+        // many-to-one: single object
+        sub['status'] = (ws as Map<String, dynamic>)['status'] ?? 'submitted';
+      } else if (ws is List && ws.isNotEmpty) {
+        // fallback nếu Supabase trả về List
+        sub['status'] = (ws.first as Map<String, dynamic>)['status'] ?? 'submitted';
       } else {
         sub['status'] = 'submitted';
       }
-      // NOTE: is_late is read directly from submissions.is_late (line 156 in SELECT).
-      // Do NOT overwrite with client-side computation — DB value was set correctly at submit time.
     }
 
     return submissions;
@@ -262,6 +362,74 @@ class SubmissionDataSource {
     return submission;
   }
 
+  /// Lấy chi tiết bài làm của học sinh theo distributionId + studentId.
+  /// Dùng cho trang "Xem lại bài làm" của học sinh (không cần submissionId).
+  Future<Map<String, dynamic>?> getStudentSubmissionDetail(
+    String distributionId,
+    String studentId,
+  ) async {
+    // Query 1: tìm submission theo distributionId + studentId
+    final result = await _client
+        .from('submissions')
+        .select('''
+          *,
+          assignment_distributions(
+            *,
+            assignments(*),
+            classes(name)
+          ),
+          work_sessions(
+            id,
+            status,
+            submitted_at,
+            time_spent_seconds
+          )
+        ''')
+        .eq('assignment_distribution_id', distributionId)
+        .eq('student_id', studentId)
+        .order('created_at', ascending: false)
+        .maybeSingle();
+
+    if (result == null) return null;
+
+    final submission = Map<String, dynamic>.from(result);
+
+    // Normalize work_sessions → dùng record đầu tiên
+    final workSessionsRaw = submission['work_sessions'];
+    Map<String, dynamic>? workSession;
+    if (workSessionsRaw is List && workSessionsRaw.isNotEmpty) {
+      workSession = Map<String, dynamic>.from(workSessionsRaw.first as Map);
+    } else if (workSessionsRaw is Map) {
+      workSession = Map<String, dynamic>.from(workSessionsRaw);
+    }
+    submission['workSessions'] = workSession;
+
+    // Query 2: submission_answers qua session_id
+    final sessionId = (workSession?['id'] ?? submission['session_id']) as String?;
+    if (sessionId != null) {
+      final answersRes = await _client
+          .from('submission_answers')
+          .select('''
+            *,
+            assignment_questions(
+              id,
+              question_id(
+                type
+              ),
+              points,
+              custom_content
+            )
+          ''')
+          .eq('session_id', sessionId)
+          .order('created_at', ascending: true);
+      submission['submission_answers'] = answersRes;
+    } else {
+      submission['submission_answers'] = <Map<String, dynamic>>[];
+    }
+
+    return submission;
+  }
+
   /// Cập nhật điểm và phản hồi (teacher grading).
   Future<void> updateSubmissionGrade(
     String submissionId, {
@@ -270,10 +438,11 @@ class SubmissionDataSource {
   }) async {
     final now = DateTime.now().toUtc().toIso8601String();
 
+    // L7 fix: KHÔNG set 'status' — submissions table không có status column
+    // Status của session được manage qua work_sessions.status (publishGrades flow)
     await _client.from('submissions').update({
       'total_score': score,
       'feedback': feedback,
-      'status': 'graded',
       'updated_at': now,
     }).eq('id', submissionId);
   }

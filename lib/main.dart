@@ -258,6 +258,7 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // #region agent log
+    
     _log('main.dart:51', 'MyApp build called', {}, 'G');
     // #endregion
     final router = ref.watch(appRouterProvider);
@@ -297,6 +298,7 @@ class MyApp extends ConsumerWidget {
               },
               behavior: HitTestBehavior.opaque,
               child: MaterialApp.router(
+        debugShowCheckedModeBanner: false, // Disable debug banner
                 title: 'AI Learning App',
                 theme: AppTheme.lightTheme,
                 routerConfig: router,
