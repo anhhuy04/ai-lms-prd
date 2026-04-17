@@ -1,7 +1,10 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/domain/entities/assignment.dart';
 import 'package:ai_mls/domain/entities/assignment_distribution.dart';
+import 'package:ai_mls/presentation/providers/assignment_providers.dart';
+import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/teacher_assignment_hub_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -108,6 +111,59 @@ class _TeacherAssignmentManagementScreenState
     );
   }
 
+  void _onDistribute(Assignment assignment) {
+    context.pushNamed(
+      AppRoute.teacherDistributeAssignment,
+      extra: {'assignmentId': assignment.id},
+    );
+  }
+
+  Future<void> _onClone(Assignment assignment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nhân bản bài tập'),
+        content: Text(
+          'Tạo bản sao của "${assignment.title}"?\n'
+          'Bạn có thể chỉnh sửa bản sao mà không ảnh hưởng đến bài gốc.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Nhân bản'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final repo = ref.read(assignmentRepositoryProvider);
+      final teacherId = ref.read(authNotifierProvider).value?.id; // from auth_notifier.dart via import
+      if (teacherId == null) return;
+
+      final newId = await repo.deepCloneAssignment(assignment.id, teacherId);
+
+      if (!mounted) return;
+      context.pushNamed(
+        AppRoute.teacherCreateAssignment,
+        extra: {'assignmentId': newId},
+      );
+    } catch (e) {
+      if (!mounted) return;
+      AppLogger.error('[ManagementScreen] deepCloneAssignment error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Lỗi khi nhân bản: $e'),
+        backgroundColor: DesignColors.error,
+      ));
+    }
+  }
+
   /// Build list of assignments (draft/published)
   Widget _buildAssignmentList(
     List<Assignment> assignments,
@@ -130,6 +186,8 @@ class _TeacherAssignmentManagementScreenState
         return _AssignmentCard(
           assignment: assignment,
           distributions: relatedDistributions,
+          onDistribute: _onDistribute,
+          onClone: _onClone,
         );
       },
     );
@@ -178,10 +236,14 @@ class _TeacherAssignmentManagementScreenState
 class _AssignmentCard extends StatelessWidget {
   final Assignment assignment;
   final List<AssignmentDistribution> distributions;
+  final void Function(Assignment)? onDistribute;
+  final void Function(Assignment)? onClone;
 
   const _AssignmentCard({
     required this.assignment,
     required this.distributions,
+    this.onDistribute,
+    this.onClone,
   });
 
   @override
@@ -346,6 +408,24 @@ class _AssignmentCard extends StatelessWidget {
                 pathParameters: {'distributionId': distributions.first.id},
               );
             },
+          ),
+
+        // Giao lớp khác (chỉ khi đã published)
+        if (!isDraft && onDistribute != null)
+          _ActionButton(
+            icon: Icons.send_outlined,
+            label: 'Giao lớp khác',
+            color: DesignColors.tealPrimary,
+            onTap: () => onDistribute!(assignment),
+          ),
+
+        // Nhân bản & Chỉnh sửa
+        if (onClone != null)
+          _ActionButton(
+            icon: Icons.copy_all_outlined,
+            label: 'Nhân bản',
+            color: DesignColors.textSecondary,
+            onTap: () => onClone!(assignment),
           ),
       ],
     );

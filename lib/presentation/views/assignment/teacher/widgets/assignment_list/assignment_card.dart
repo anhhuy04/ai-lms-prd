@@ -13,6 +13,8 @@ class AssignmentCard extends StatelessWidget {
   final AssignmentActionConfig actionConfig;
   final AssignmentMetadataConfig metadataConfig;
   final VoidCallback? onTap;
+  final void Function(Assignment)? onDistribute;
+  final void Function(Assignment)? onClone;
 
   const AssignmentCard({
     super.key,
@@ -21,6 +23,8 @@ class AssignmentCard extends StatelessWidget {
     required this.actionConfig,
     required this.metadataConfig,
     this.onTap,
+    this.onDistribute,
+    this.onClone,
   });
 
   @override
@@ -134,12 +138,44 @@ class AssignmentCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (onDistribute != null || onClone != null)
+                    _buildMoreMenu(),
                 ],
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMoreMenu() {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, size: 20),
+      onSelected: (value) {
+        if (value == 'distribute') onDistribute?.call(assignment);
+        if (value == 'clone') onClone?.call(assignment);
+      },
+      itemBuilder: (ctx) => [
+        const PopupMenuItem(
+          value: 'distribute',
+          child: ListTile(
+            leading: Icon(Icons.send_outlined),
+            title: Text('Giao bài cho lớp khác'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'clone',
+          child: ListTile(
+            leading: Icon(Icons.copy_all_outlined),
+            title: Text('Nhân bản & Chỉnh sửa'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      ],
     );
   }
 

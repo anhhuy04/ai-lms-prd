@@ -63,6 +63,12 @@ class _TeacherCreateAssignmentScreenState
   Set<int> _publishValidationErrors = {};
   bool _isRubricLocked = false;
 
+  // Hotfix state: lock UI nếu đã có work_sessions (học sinh đã bắt đầu)
+  bool _hasActiveSessions = false;
+
+  // Reuse state: track xem assignment đã published chưa
+  bool _isPublished = false;
+
   // Track original values để detect "unsaved changes" giống pattern ở AddStudentByCodeScreen.
   // Chỉ show back dialog khi có thay đổi so với original values này.
   String? _originalAssignmentId;
@@ -1648,6 +1654,77 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
     }
   }
 
+  /// Kiểm tra có work_sessions nào tồn tại cho assignment này không.
+  /// Nếu có → UI lock: không cho thêm/xóa choice trong hotfix dialog.
+  Future<void> _checkActiveSessions() async {
+    if (_assignmentId == null) return;
+    try {
+      final repo = ref.read(assignmentRepositoryProvider);
+      final has = await repo.hasActiveWorkSessions(_assignmentId!);
+      if (mounted) setState(() => _hasActiveSessions = has);
+    } catch (e) {
+      AppLogger.warning('[CreateAssignment] _checkActiveSessions error: $e');
+    }
+  }
+
+  /// Giao bài cho lớp khác — navigate to distribute screen với assignmentId cũ.
+  void _onDistributeFromDetail() {
+    if (_assignmentId == null) return;
+    context.pushNamed(
+      AppRoute.teacherDistributeAssignment,
+      extra: {'assignmentId': _assignmentId!},
+    );
+  }
+
+  /// Nhân bản & Chỉnh sửa — deep clone → redirect editor với bài mới.
+  Future<void> _onCloneFromDetail() async {
+    if (_assignmentId == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nhân bản bài tập'),
+        content: const Text(
+          'Tạo bản sao để chỉnh sửa cho khoá sau?\n'
+          'Bài gốc và dữ liệu học sinh cũ sẽ không bị ảnh hưởng.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Nhân bản'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final repo = ref.read(assignmentRepositoryProvider);
+      final teacherId = ref.read(currentUserProvider).value?.id;
+      if (teacherId == null) return;
+
+      final newId = await repo.deepCloneAssignment(_assignmentId!, teacherId);
+
+      if (!mounted) return;
+      context.pushReplacementNamed(
+        AppRoute.teacherCreateAssignment,
+        extra: {'assignmentId': newId},
+      );
+    } catch (e) {
+      if (!mounted) return;
+      AppLogger.error('[CreateAssignment] deepClone error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Lỗi khi nhân bản: $e'),
+        backgroundColor: DesignColors.error,
+      ));
+    }
+  }
+
   /// Build rubric section for essay/shortAnswer questions (D-07).
   Widget _buildRubricSection(int questionIndex) {
     final q = _questions[questionIndex];
@@ -1769,6 +1846,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
     if (assignmentIdFromWidget != null && assignmentIdFromWidget.isNotEmpty) {
       await _loadAssignment(assignmentIdFromWidget);
       await _checkRubricLock();
+      await _checkActiveSessions();
     } else {
       // Khởi tạo điểm cho các câu hỏi ban đầu (nếu có)
       _updateQuestionPoints();
@@ -1797,6 +1875,9 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
 
       final assignment = results[0] as Assignment;
       final questions = results[1] as List<AssignmentQuestion>;
+
+      // Track published state for reuse buttons
+      if (mounted) setState(() => _isPublished = assignment.isPublished);
 
       // Populate UI với assignment data
       _titleController.text = assignment.title;
@@ -2096,6 +2177,56 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                     ],
                   ),
                 ),
+
+                // Reuse bar: chỉ hiện khi assignment đã published
+                if (_isPublished && _assignmentId != null)
+                  Container(
+                    color: DesignColors.success.withValues(alpha: 0.06),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: DesignSpacing.md,
+                      vertical: DesignSpacing.xs,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle_outline,
+                            size: 14, color: DesignColors.success),
+                        SizedBox(width: DesignSpacing.xs),
+                        Text(
+                          'Đã xuất bản',
+                          style: DesignTypography.caption.copyWith(
+                            color: DesignColors.success,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: _onDistributeFromDetail,
+                          icon: const Icon(Icons.send_outlined, size: 16),
+                          label: const Text('Giao lớp khác'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: DesignColors.tealPrimary,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: DesignSpacing.sm,
+                              vertical: DesignSpacing.xs,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: DesignSpacing.xs),
+                        TextButton.icon(
+                          onPressed: _onCloneFromDetail,
+                          icon: const Icon(Icons.copy_all_outlined, size: 16),
+                          label: const Text('Nhân bản'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: DesignColors.primary,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: DesignSpacing.sm,
+                              vertical: DesignSpacing.xs,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
                 // Form Content
                 Expanded(
