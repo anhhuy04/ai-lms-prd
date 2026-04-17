@@ -214,8 +214,14 @@ class _$GradeTrendImpl implements _GradeTrend {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, date, score, assignmentName, assignmentId, className);
+  int get hashCode => Object.hash(
+    runtimeType,
+    date,
+    score,
+    assignmentName,
+    assignmentId,
+    className,
+  );
 
   /// Create a copy of GradeTrend
   /// with the given fields replaced by the non-null parameter values.
