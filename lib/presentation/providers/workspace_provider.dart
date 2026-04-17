@@ -55,6 +55,9 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
   /// Debounce timer cho auto-save
   Timer? _debounceTimer;
 
+  /// Realtime channel: lắng nghe GV hotfix assignment_questions
+  RealtimeChannel? _questionChannel;
+
   /// Khởi tạo workspace - load assignment và submission
   Future<void> initialize() async {
     if (_isUpdating) return;
@@ -125,6 +128,13 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
       );
 
       state = AsyncData(wsState);
+
+      // Subscribe Realtime: lắng nghe GV hotfix assignment_questions
+      final assignmentId = detail['assignment']?['id'] as String? ??
+          detail['assignment_id'] as String?;
+      if (assignmentId != null) {
+        _subscribeToQuestionChanges(assignmentId);
+      }
     } catch (e, stackTrace) {
       AppLogger.error(
         '🔴 [WORKSPACE ERROR] initialize: $e',
@@ -337,6 +347,49 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
       default:
         return 'application/octet-stream';
     }
+  }
+
+  void _subscribeToQuestionChanges(String assignmentId) {
+    _questionChannel?.unsubscribe();
+    _questionChannel = SupabaseService.client
+        .channel('aq_hotfix_$assignmentId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'assignment_questions',
+          filter: PostgresChangeFilter(
+            type: PostgresFilterType.eq,
+            column: 'assignment_id',
+            value: assignmentId,
+          ),
+          callback: (payload) => _onQuestionUpdated(payload.newRecord),
+        )
+        .subscribe();
+  }
+
+  void _onQuestionUpdated(Map<String, dynamic> updatedAq) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    final aqId = updatedAq['id'] as String?;
+    if (aqId == null) return;
+    final customContent =
+        updatedAq['custom_content'] as Map<String, dynamic>?;
+    if (customContent == null) return;
+
+    final updatedQuestions = current.questions.map((q) {
+      if (q.id != aqId) return q;
+      final newText = customContent['override_text'] as String?;
+      if (newText == null) return q;
+      return q.copyWith(text: newText);
+    }).toList();
+
+    state = AsyncData(current.copyWith(questions: updatedQuestions));
+  }
+
+  @override
+  void dispose() {
+    _questionChannel?.unsubscribe();
+    super.dispose();
   }
 }
 

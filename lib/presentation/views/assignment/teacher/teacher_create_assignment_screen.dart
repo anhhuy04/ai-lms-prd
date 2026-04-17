@@ -1667,6 +1667,188 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
     }
   }
 
+  Future<void> _showHotfixDialog(
+    BuildContext context,
+    Map<String, dynamic> question,
+    int questionIndex,
+  ) async {
+    final aqId = question['id'] as String?;
+    if (aqId == null) return;
+
+    final currentText = question['text'] as String? ?? '';
+    final options = _getOptionsAsMapList(question['options']) ?? [];
+    final choices = options.map((o) => Map<String, dynamic>.from(o)).toList();
+    final textCtrl = TextEditingController(text: currentText);
+    final choiceCtrls = choices
+        .map((c) => TextEditingController(
+              text: c['text'] as String? ?? '',
+            ))
+        .toList();
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: DesignSpacing.md,
+            right: DesignSpacing.md,
+            top: DesignSpacing.md,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Sửa câu hỏi (Chỉ đề này)',
+                    style: DesignTypography.titleMedium
+                        .copyWith(fontWeight: FontWeight.bold)),
+                if (_hasActiveSessions)
+                  Container(
+                    margin:
+                        EdgeInsets.symmetric(vertical: DesignSpacing.sm),
+                    padding: EdgeInsets.all(DesignSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: DesignColors.warning.withValues(alpha: 0.1),
+                      borderRadius:
+                          BorderRadius.circular(DesignRadius.sm),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.lock_outline,
+                          size: 16, color: DesignColors.warning),
+                      SizedBox(width: DesignSpacing.xs),
+                      Expanded(
+                        child: Text(
+                          'Học sinh đã bắt đầu làm bài. Chỉ sửa nội dung, không thêm/xóa đáp án.',
+                          style: DesignTypography.bodySmall,
+                        ),
+                      ),
+                    ]),
+                  ),
+                SizedBox(height: DesignSpacing.sm),
+                TextField(
+                  controller: textCtrl,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Nội dung câu hỏi',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: DesignSpacing.sm),
+                ...choices.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final c = entry.value;
+                  final isCorrect = c['isCorrect'] as bool? ?? false;
+                  return Row(children: [
+                    Checkbox(
+                      value: isCorrect,
+                      onChanged: (val) =>
+                          setModal(() => choices[idx]['isCorrect'] = val),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: choiceCtrls[idx],
+                        onChanged: (v) => choices[idx]['text'] = v,
+                        decoration: InputDecoration(
+                            labelText: 'Đáp án ${idx + 1}'),
+                      ),
+                    ),
+                  ]);
+                }),
+                SizedBox(height: DesignSpacing.md),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Hủy'),
+                    ),
+                    SizedBox(width: DesignSpacing.sm),
+                    ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await _saveHotfix(aqId, textCtrl.text, choices);
+                      },
+                      child: const Text('Lưu thay đổi'),
+                    ),
+                  ],
+                ),
+                SizedBox(height: DesignSpacing.md),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    textCtrl.dispose();
+    for (final c in choiceCtrls) {
+      c.dispose();
+    }
+  }
+
+  Future<void> _saveHotfix(
+    String aqId,
+    String newText,
+    List<Map<String, dynamic>> choices,
+  ) async {
+    final repo = ref.read(assignmentRepositoryProvider);
+    final patch = <String, dynamic>{
+      'override_text': newText,
+      'choices': choices
+          .asMap()
+          .entries
+          .map((e) => {
+                'id': e.key,
+                'text': e.value['text'] ?? '',
+                'isCorrect': e.value['isCorrect'] ?? false,
+              })
+          .toList(),
+    };
+    try {
+      await repo.updateAssignmentQuestionContent(aqId, patch);
+      if (!mounted) return;
+      if (_assignmentId != null) await _loadAssignment(_assignmentId!);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text(
+            'Câu hỏi đã sửa. Học sinh đã nộp có thể bị ảnh hưởng.'),
+        action: SnackBarAction(
+          label: 'Chấm lại tất cả',
+          onPressed: _batchRegrade,
+        ),
+        duration: const Duration(seconds: 8),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Lỗi khi lưu: $e'),
+        backgroundColor: DesignColors.error,
+      ));
+    }
+  }
+
+  Future<void> _batchRegrade() async {
+    if (_assignmentId == null) return;
+    final repo = ref.read(assignmentRepositoryProvider);
+    final teacherId = ref.read(currentUserProvider).value?.id;
+    if (teacherId == null) return;
+    try {
+      final count =
+          await repo.batchRegradeAssignment(_assignmentId!, teacherId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Đã chấm lại $count bài nộp.'),
+        backgroundColor: DesignColors.success,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Lỗi khi chấm lại: $e'),
+        backgroundColor: DesignColors.error,
+      ));
+    }
+  }
+
   /// Giao bài cho lớp khác — navigate to distribute screen với assignmentId cũ.
   void _onDistributeFromDetail() {
     if (_assignmentId == null) return;
@@ -2343,6 +2525,9 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                                       ),
                                       tags: (q['tags'] as List<String>?) ?? [],
                                       onEdit: () => _editQuestion(index),
+                                      onHotfix: _isPublished && _assignmentId != null
+                                          ? () => _showHotfixDialog(context, q, index)
+                                          : null,
                                       onDelete: () async {
                                         final confirmed =
                                             await DeleteQuestionDialog.show(
@@ -2898,6 +3083,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
     List<String> tags = const [],
     VoidCallback? onEdit,
     VoidCallback? onDelete,
+    VoidCallback? onHotfix,
   }) {
     final borderRadius = BorderRadius.circular(DesignRadius.lg * 1.5);
     final hasValidationError = _publishValidationErrors.contains(questionIndex);
@@ -3137,6 +3323,20 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
+                      if (onHotfix != null)
+                        IconButton(
+                          onPressed: onHotfix,
+                          tooltip: 'Sửa đề/đáp án (chỉ bài này)',
+                          icon: Icon(
+                            Icons.edit_note_outlined,
+                            size: 18,
+                            color: DesignColors.warning,
+                          ),
+                          style: IconButton.styleFrom(
+                            backgroundColor: DesignColors.warning
+                                .withValues(alpha: 0.1),
+                          ),
+                        ),
                       IconButton(
                         onPressed: onEdit,
                         icon: Icon(
