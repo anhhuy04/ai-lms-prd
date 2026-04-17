@@ -1986,7 +1986,10 @@ class AssignmentDataSource {
         'p_cloned_by': clonedBy,
       },
     );
-    return result as String;
+    if (result is! String || result.isEmpty) {
+      throw Exception('deep_clone_assignment RPC returned invalid UUID: $result');
+    }
+    return result;
   }
 
   /// Hotfix: Update nội dung câu hỏi trong đề (Delta Override Pattern).
@@ -2037,13 +2040,15 @@ class AssignmentDataSource {
     return (result as int?) ?? 0;
   }
 
-  /// Kiểm tra có work_sessions nào đã tạo cho assignment này chưa.
-  /// Dùng để UI lock: nếu true → disable thêm/xóa choice.
+  /// Kiểm tra có work_sessions "đang hoạt động" cho assignment này không.
+  /// "Active" = học sinh đang làm hoặc chờ chấm (chưa hoàn thành).
+  /// Dùng để UI lock: nếu true → disable thêm/xóa choice (chỉ cho sửa text/isCorrect).
   Future<bool> hasActiveWorkSessions(String assignmentId) async {
     final res = await _client
         .from('work_sessions')
         .select('id')
         .eq('assignment_id', assignmentId)
+        .inFilter('status', ['in_progress', 'ai_processing', 'pending_review'])
         .limit(1);
     return (res as List).isNotEmpty;
   }

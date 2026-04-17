@@ -46,6 +46,12 @@ enum WorkspaceSubmissionStatus {
 class WorkspaceNotifier extends _$WorkspaceNotifier {
   @override
   AsyncValue<WorkspaceState> build(String distributionId) {
+    // Cleanup khi provider bị dispose (auto-dispose notifier)
+    ref.onDispose(() {
+      _debounceTimer?.cancel();
+      _questionChannel?.unsubscribe();
+      _questionChannel = null;
+    });
     return const AsyncLoading();
   }
 
@@ -350,7 +356,11 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
   }
 
   void _subscribeToQuestionChanges(String assignmentId) {
-    _questionChannel?.unsubscribe();
+    // Unsubscribe channel cũ trước, null out để tránh ghost reference
+    if (_questionChannel != null) {
+      _questionChannel!.unsubscribe();
+      _questionChannel = null;
+    }
     _questionChannel = SupabaseService.client
         .channel('aq_hotfix_$assignmentId')
         .onPostgresChanges(
@@ -358,20 +368,30 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
           schema: 'public',
           table: 'assignment_questions',
           filter: PostgresChangeFilter(
-            type: PostgresFilterType.eq,
+            type: PostgresChangeFilterType.eq,
             column: 'assignment_id',
             value: assignmentId,
           ),
           callback: (payload) => _onQuestionUpdated(payload.newRecord),
         )
-        .subscribe();
+        .subscribe((status, [error]) {
+          if (error != null) {
+            AppLogger.warning('[WORKSPACE] Realtime subscription error: $error');
+          }
+        });
   }
 
   void _onQuestionUpdated(Map<String, dynamic> updatedAq) {
+    // Concurrency guard: không update state khi đang có operation khác chạy
+    if (_isUpdating) return;
+
     final current = state.valueOrNull;
     if (current == null) return;
     final aqId = updatedAq['id'] as String?;
-    if (aqId == null) return;
+    if (aqId == null) {
+      AppLogger.warning('[WORKSPACE] Realtime: missing id in payload');
+      return;
+    }
     final customContent =
         updatedAq['custom_content'] as Map<String, dynamic>?;
     if (customContent == null) return;
@@ -380,17 +400,12 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
       if (q.id != aqId) return q;
       final newText = customContent['override_text'] as String?;
       if (newText == null) return q;
-      return q.copyWith(text: newText);
+      return q.copyWith(content: newText);
     }).toList();
 
     state = AsyncData(current.copyWith(questions: updatedQuestions));
   }
 
-  @override
-  void dispose() {
-    _questionChannel?.unsubscribe();
-    super.dispose();
-  }
 }
 
 /// State cho workspace
@@ -501,6 +516,34 @@ class QuestionState {
     this.aiGradingKeywords,
     this.rubric,
   });
+
+  QuestionState copyWith({
+    String? id,
+    String? content,
+    String? type,
+    double? points,
+    List<QuestionChoiceState>? choices,
+    List<Map<String, dynamic>>? blanks,
+    List<Map<String, dynamic>>? pairs,
+    List<Map<String, dynamic>>? distractors,
+    String? expectedAnswer,
+    List<Map<String, dynamic>>? aiGradingKeywords,
+    Map<String, dynamic>? rubric,
+  }) {
+    return QuestionState(
+      id: id ?? this.id,
+      content: content ?? this.content,
+      type: type ?? this.type,
+      points: points ?? this.points,
+      choices: choices ?? this.choices,
+      blanks: blanks ?? this.blanks,
+      pairs: pairs ?? this.pairs,
+      distractors: distractors ?? this.distractors,
+      expectedAnswer: expectedAnswer ?? this.expectedAnswer,
+      aiGradingKeywords: aiGradingKeywords ?? this.aiGradingKeywords,
+      rubric: rubric ?? this.rubric,
+    );
+  }
 
   factory QuestionState.fromJson(Map<String, dynamic> json) {
     // DEBUG: Log đầu vào

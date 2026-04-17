@@ -65,6 +65,7 @@ class _TeacherCreateAssignmentScreenState
 
   // Hotfix state: lock UI nếu đã có work_sessions (học sinh đã bắt đầu)
   bool _hasActiveSessions = false;
+  bool _isRegrading = false;
 
   // Reuse state: track xem assignment đã published chưa
   bool _isPublished = false;
@@ -1828,10 +1829,11 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
   }
 
   Future<void> _batchRegrade() async {
-    if (_assignmentId == null) return;
+    if (_assignmentId == null || _isRegrading) return;
     final repo = ref.read(assignmentRepositoryProvider);
     final teacherId = ref.read(currentUserProvider).value?.id;
     if (teacherId == null) return;
+    setState(() => _isRegrading = true);
     try {
       final count =
           await repo.batchRegradeAssignment(_assignmentId!, teacherId);
@@ -1846,6 +1848,8 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
         content: Text('Lỗi khi chấm lại: $e'),
         backgroundColor: DesignColors.error,
       ));
+    } finally {
+      if (mounted) setState(() => _isRegrading = false);
     }
   }
 
@@ -1893,7 +1897,8 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
       final newId = await repo.deepCloneAssignment(_assignmentId!, teacherId);
 
       if (!mounted) return;
-      context.pushReplacementNamed(
+      // pushNamed (không pushReplacement) để user có thể back về bài gốc
+      context.pushNamed(
         AppRoute.teacherCreateAssignment,
         extra: {'assignmentId': newId},
       );

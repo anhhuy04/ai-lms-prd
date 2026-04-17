@@ -1,10 +1,7 @@
 -- =============================================================
--- RPC: deep_clone_assignment
--- Tạo bản sao bất biến (Immutable Deep Clone) của assignment.
--- Logic:
---   1. INSERT assignments row mới (copy fields từ src, reset is_published=false)
---   2. INSERT assignment_questions rows mới (copy từ src, giữ question_id, custom_content=NULL)
--- Returns: new_assignment_id (UUID)
+-- FIX: deep_clone_assignment — add auth.uid() verification
+-- Issue: SECURITY DEFINER function didn't verify auth.uid() = p_cloned_by,
+--        allowing spoofing if another user obtained a valid teacher UUID.
 -- =============================================================
 CREATE OR REPLACE FUNCTION public.deep_clone_assignment(
   p_src_assignment_id UUID,
@@ -86,5 +83,4 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Grant execute
 GRANT EXECUTE ON FUNCTION public.deep_clone_assignment(UUID, UUID) TO authenticated;

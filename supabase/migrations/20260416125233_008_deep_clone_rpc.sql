@@ -25,8 +25,9 @@ BEGIN
     RAISE EXCEPTION 'Assignment % not found', p_src_assignment_id;
   END IF;
 
-  -- Verify người gọi là teacher của assignment này
-  IF v_src.teacher_id != p_cloned_by THEN
+  -- [SECURITY] Verify caller là teacher sở hữu assignment
+  -- auth.uid() phải khớp p_cloned_by để tránh spoofing trong SECURITY DEFINER context
+  IF v_src.teacher_id != p_cloned_by OR auth.uid() != p_cloned_by THEN
     RAISE EXCEPTION 'Permission denied: only assignment owner can clone';
   END IF;
 

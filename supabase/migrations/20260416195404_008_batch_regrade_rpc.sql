@@ -2,10 +2,12 @@
 -- RPC: batch_regrade_assignment
 -- Khi GV sửa đề/đáp án, gọi RPC này để chấm lại toàn bộ bài nộp.
 -- Logic:
---   1. Lấy tất cả submission_answers cho assignment này
---   2. Với mỗi câu trắc nghiệm: so sánh selected_choice_ids với correct IDs mới
---   3. INSERT vào grade_overrides (Trigger D-01 sẽ tự update skill_mastery)
+--   1. Verify teacher là owner của assignment
+--   2. Lấy tất cả submission_answers cho assignment này
+--   3. Với mỗi câu trắc nghiệm: so sánh selected_choice_ids (INT) với correct IDs mới (INT)
+--   4. INSERT vào grade_overrides (Trigger D-01 sẽ tự update skill_mastery)
 -- Returns: số bài được chấm lại
+-- NOTE: choice IDs được lưu dạng INTEGER (0, 1, 2...) nhất quán cả correct và selected
 -- =============================================================
 CREATE OR REPLACE FUNCTION batch_regrade_assignment(
   p_assignment_id UUID,
@@ -19,7 +21,21 @@ DECLARE
   v_correct_ids JSONB;
   v_selected_ids JSONB;
   v_max_points NUMERIC;
+  v_teacher_id UUID;
 BEGIN
+  -- [SECURITY] Verify caller là teacher sở hữu assignment
+  SELECT teacher_id INTO v_teacher_id
+  FROM assignments
+  WHERE id = p_assignment_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Assignment % not found', p_assignment_id;
+  END IF;
+
+  IF v_teacher_id != p_graded_by OR auth.uid() != p_graded_by THEN
+    RAISE EXCEPTION 'Permission denied: only assignment owner can regrade';
+  END IF;
+
   -- Lặp qua tất cả submission_answers của assignment này
   FOR rec IN
     SELECT
@@ -38,17 +54,19 @@ BEGIN
 
     -- Lấy correct_choice_ids mới nhất từ custom_content (delta override ưu tiên)
     -- Fallback về question_choices nếu không có override
+    -- CRITICAL: Dùng -> (giữ nguyên INT type từ JSONB), KHÔNG dùng ->> (trả về TEXT)
     IF rec.custom_content IS NOT NULL AND rec.custom_content ? 'choices' THEN
       -- Lấy từ custom_content.choices (đã sửa bởi GV)
-      SELECT jsonb_agg(c->>'id')
+      -- c->'id' giữ nguyên INT (0,1,2...) — match với student selected_choice_ids
+      SELECT jsonb_agg(c->'id')
       INTO v_correct_ids
       FROM jsonb_array_elements(rec.custom_content->'choices') c
       WHERE (c->>'isCorrect')::BOOLEAN = true
          OR (c->>'is_correct')::BOOLEAN = true;
 
     ELSIF rec.question_id IS NOT NULL THEN
-      -- Lấy từ question bank
-      SELECT jsonb_agg(qc.id::TEXT)
+      -- Lấy từ question bank — qc.id là INTEGER, không cast TEXT
+      SELECT jsonb_agg(qc.id)
       INTO v_correct_ids
       FROM question_choices qc
       WHERE qc.question_id = rec.question_id
@@ -59,16 +77,17 @@ BEGIN
 
     v_correct_ids := COALESCE(v_correct_ids, '[]'::JSONB);
 
-    -- Lấy selected_choice_ids từ student answer
+    -- Lấy selected_choice_ids từ student answer (lưu dạng INT array)
     v_selected_ids := COALESCE(
       rec.student_answer->'selected_choice_ids',
       '[]'::JSONB
     );
 
     -- Tính điểm mới: trắc nghiệm → đúng hết = full points, còn lại = 0
+    -- Dùng @> và <@ thay = để so sánh không phụ thuộc thứ tự (set containment)
     IF v_correct_ids = '[]'::JSONB OR v_selected_ids = '[]'::JSONB THEN
       v_new_score := 0;
-    ELSIF v_correct_ids = v_selected_ids THEN
+    ELSIF v_correct_ids @> v_selected_ids AND v_selected_ids @> v_correct_ids THEN
       v_new_score := v_max_points;
     ELSE
       v_new_score := 0;

@@ -1,13 +1,10 @@
 -- =============================================================
--- RPC: batch_regrade_assignment
--- Khi GV sửa đề/đáp án, gọi RPC này để chấm lại toàn bộ bài nộp.
--- Logic:
---   1. Verify teacher là owner của assignment
---   2. Lấy tất cả submission_answers cho assignment này
---   3. Với mỗi câu trắc nghiệm: so sánh selected_choice_ids (INT) với correct IDs mới (INT)
---   4. INSERT vào grade_overrides (Trigger D-01 sẽ tự update skill_mastery)
--- Returns: số bài được chấm lại
--- NOTE: choice IDs được lưu dạng INTEGER (0, 1, 2...) nhất quán cả correct và selected
+-- FIX: batch_regrade_assignment — correct INT type + permission check
+-- Issues fixed:
+--   1. c->>'id' (TEXT) → c->'id' (preserves INT) for custom_content choices
+--   2. qc.id::TEXT → qc.id (keep INTEGER to match student answer format)
+--   3. v_correct_ids = v_selected_ids → @> <@ (order-independent set comparison)
+--   4. Added teacher ownership + auth.uid() permission check
 -- =============================================================
 CREATE OR REPLACE FUNCTION batch_regrade_assignment(
   p_assignment_id UUID,
@@ -125,5 +122,4 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Grant execute cho authenticated users (GV sẽ gọi)
 GRANT EXECUTE ON FUNCTION batch_regrade_assignment(UUID, UUID) TO authenticated;
