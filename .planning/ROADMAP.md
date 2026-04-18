@@ -176,5 +176,31 @@ Plans:
 
 ---
 
+---
+
+## Phase 8: Shuffle, Hotfix & Reuse COMPLETE
+
+**Goal:** Hardening submit flow, server-side timing, shuffle wiring, deep clone & reuse
+
+**Status:** Code complete — pending manual end-to-end testing
+
+---
+
+## Phase 9: AI Settings Refactor & Document Import
+
+**Goal:** Cải thiện trải nghiệm tạo câu hỏi AI — refactor trang cài đặt AI và thêm tính năng import tài liệu (Excel/Word) để AI tự động phân tích và sinh câu hỏi
+
+**Requirements:**
+- 9-01: AI Settings Screen — chỉ hiện các settings liên quan đến AI (tạo câu hỏi), loại bỏ phần không liên quan
+- 9-02: Document Upload — giáo viên upload file Excel/Word
+- 9-03: AI phân tích tài liệu và sinh câu hỏi theo form mẫu hoặc extract câu hỏi có sẵn
+
+**Success Criteria:**
+1. Trang cài đặt AI (gear icon) chỉ hiển thị config liên quan đến AI tạo câu hỏi
+2. Giáo viên có thể upload file Excel/Word từ màn hình tạo câu hỏi AI
+3. AI phân tích tài liệu và trả về danh sách câu hỏi có thể lưu vào Question Bank
+
+---
+
 *Roadmap created: 2026-03-05*
-*Last updated: 2026-04-09 - Phase 7 complete: 11 plans in 5 waves (added 07-10 Flutter 7-11b + 07-11 SubmissionStatus UI 7-12)*
+*Last updated: 2026-04-18 - Phase 9: AI Settings Refactor & Document Import*

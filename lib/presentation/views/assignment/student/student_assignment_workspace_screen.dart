@@ -166,6 +166,7 @@ class _StudentAssignmentWorkspaceScreenState
                 return _CountdownTimerWidget(
                   totalSeconds: workspace.timeLimitMinutes! * 60,
                   startedAt: workspace.sessionStartedAt!,
+                  onTimeUp: _onTimeUp,
                 );
               }
               return const SizedBox.shrink();
@@ -1084,6 +1085,45 @@ class _StudentAssignmentWorkspaceScreenState
     );
   }
 
+  /// Tự động nộp bài khi hết giờ — không cần xác nhận
+  Future<void> _onTimeUp() async {
+    if (!mounted) return;
+    final timeLog = getTimeLog();
+    final success = await ref
+        .read(workspaceNotifierProvider(widget.distributionId).notifier)
+        .submit(timeLog: timeLog);
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [
+          Icon(Icons.timer_off, color: Colors.red.shade700),
+          const SizedBox(width: 8),
+          const Text('Hết giờ!'),
+        ]),
+        content: Text(
+          success
+              ? 'Bài làm của bạn đã được nộp tự động.'
+              : 'Hết giờ nhưng nộp bài thất bại. Vui lòng thử lại.',
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              if (success && context.mounted) context.pop();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: DesignColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showSubmitConfirmation(
     BuildContext context,
     WorkspaceState workspace,
@@ -1399,13 +1439,16 @@ class _StudentAssignmentWorkspaceScreenState
 /// - Tính thời gian còn lại dựa trên [startedAt] (từ server) + [totalSeconds]
 /// - Hiển thị MM:SS
 /// - Đổi màu đỏ khi còn ≤ 120 giây
+/// - Gọi [onTimeUp] khi hết giờ (kể cả khi đã hết giờ lúc khởi tạo)
 class _CountdownTimerWidget extends StatefulWidget {
   final int totalSeconds;
   final DateTime startedAt;
+  final VoidCallback? onTimeUp;
 
   const _CountdownTimerWidget({
     required this.totalSeconds,
     required this.startedAt,
+    this.onTimeUp,
   });
 
   @override
@@ -1420,13 +1463,21 @@ class _CountdownTimerWidgetState extends State<_CountdownTimerWidget> {
   void initState() {
     super.initState();
     _initRemaining();
-    // Chỉ bắt đầu đếm nếu còn thời gian
-    if (_remainingSeconds > 0) {
+    if (_remainingSeconds <= 0) {
+      // Đã hết giờ ngay lúc vào (ví dụ: thoát ra rồi vào lại sau khi quá hạn)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onTimeUp?.call();
+      });
+    } else {
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
         setState(() {
           if (_remainingSeconds > 0) {
             _remainingSeconds--;
+            if (_remainingSeconds == 0) {
+              _timer?.cancel();
+              widget.onTimeUp?.call();
+            }
           } else {
             _timer?.cancel();
           }

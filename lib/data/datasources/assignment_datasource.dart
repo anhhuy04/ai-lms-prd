@@ -318,39 +318,55 @@ class AssignmentDataSource {
   ) => _assignmentDistributions.update(distributionId, patch);
 
   /// Replace toàn bộ questions của assignment (simple & predictable).
-  /// Chỉ cho phép replace nếu CHƯA có submission.
-  /// Nếu đã có submission → chỉ insert thêm câu mới, không xóa câu cũ.
+  /// Chỉ cho phép replace nếu CHƯA có work_session.
+  /// Nếu đã có work_session → chỉ update custom_content câu hiện có + insert câu mới.
   Future<void> replaceAssignmentQuestions(
     String assignmentId,
     List<Map<String, dynamic>> items,
   ) async {
-    // Kiểm tra xem đã có submission chưa
-    final submissions = await _client
-        .from('submissions')
+    // Kiểm tra work_sessions qua assignment_id (trường trực tiếp trên work_sessions).
+    // Bug cũ: check submissions.assignment_distribution_id = assignmentId (sai — đó là distribution ID).
+    final ws = await _client
+        .from('work_sessions')
         .select('id')
-        .eq('assignment_distribution_id', assignmentId)
+        .eq('assignment_id', assignmentId)
+        .limit(1)
         .maybeSingle();
 
-    if (submissions != null) {
-      // Đã có submission → chỉ insert câu mới (chưa tồn tại)
-      // Lấy danh sách câu hỏi hiện có
-      final existingQuestions = await _client
+    if (ws != null) {
+      // Đã có học sinh làm bài → chỉ update câu hiện có + insert câu mới.
+      // KHÔNG xóa — submission_answers.assignment_question_id FK sẽ gây lỗi.
+      final existingRows = await _client
           .from('assignment_questions')
           .select('id')
           .eq('assignment_id', assignmentId);
-      final existingIds = existingQuestions.map((q) => q['id']).toSet();
+      final existingIds =
+          (existingRows as List).map((q) => q['id'] as String).toSet();
 
-      // Chỉ insert những câu chưa tồn tại
-      final newItems = items
-          .where((item) => !existingIds.contains(item['id']))
-          .toList();
-      if (newItems.isNotEmpty) {
-        await _assignmentQuestions.insertMany(newItems);
+      for (final item in items) {
+        final itemId = item['id'] as String?;
+        if (itemId != null && existingIds.contains(itemId)) {
+          // Chỉ update custom_content và points của câu đã tồn tại
+          final patch = <String, dynamic>{};
+          if (item['custom_content'] != null) {
+            patch['custom_content'] = item['custom_content'];
+          }
+          if (item['points'] != null) patch['points'] = item['points'];
+          if (patch.isNotEmpty) {
+            await _client
+                .from('assignment_questions')
+                .update(patch)
+                .eq('id', itemId);
+          }
+        } else {
+          // Câu mới chưa tồn tại → insert
+          await _assignmentQuestions.insert(item);
+        }
       }
       return;
     }
 
-    // Chưa có submission → được phép replace
+    // Chưa có học sinh làm bài → được phép replace toàn bộ
     await _assignmentQuestions.deleteWhere('assignment_id', assignmentId);
     if (items.isEmpty) return;
     await _assignmentQuestions.insertMany(items);
@@ -597,23 +613,76 @@ class AssignmentDataSource {
 
             if (qId != null && questionBankData.containsKey(qId)) {
               // Case 1: Câu hỏi từ question bank
-              // Schema mới: questions.content = { text, latex, assets[] }, questions.answer = { correct_choice_ids, ... }
+              // Delta Override Pattern: custom_content chứa các thay đổi so với bank gốc.
+              // Luôn dùng bank làm nền, sau đó apply override lên trên.
               final qDetail = questionBankData[qId]!;
               final qContent =
                   qDetail['content'] as Map<String, dynamic>? ?? {};
               final qAnswer = qDetail['answer'] as Map<String, dynamic>? ?? {};
 
+              // Resolved content = bank content + custom_content overrides
+              final resolvedContent = Map<String, dynamic>.from(qContent);
+              final bankChoices =
+                  List<dynamic>.from(qDetail['question_choices'] ?? []);
+              List<dynamic> resolvedChoices = bankChoices;
+
+              if (customContent != null) {
+                final overrideText =
+                    customContent['override_text'] as String?;
+                if (overrideText != null && overrideText.isNotEmpty) {
+                  resolvedContent['text'] = overrideText;
+                }
+                final overrideChoices =
+                    customContent['choices'] as List<dynamic>?;
+                // Merge override choices with bank choice IDs to preserve
+                // shuffle compatibility: assignment_variants.shuffled_choices
+                // stores bank question_choices.id (DB PKs), so resolved choices
+                // must keep those same IDs for the byId lookup in QuestionState.fromJson.
+                if (overrideChoices != null &&
+                    overrideChoices.isNotEmpty &&
+                    overrideChoices.length == bankChoices.length) {
+                  resolvedChoices =
+                      overrideChoices.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final c = entry.value as Map<String, dynamic>;
+                    final bankChoice =
+                        bankChoices[idx] as Map<String, dynamic>;
+                    return <String, dynamic>{
+                      // Keep bank ID so shuffled_choices mapping still works
+                      'id': bankChoice['id'],
+                      'content': {'text': c['text'] ?? ''},
+                      'is_correct':
+                          c['isCorrect'] ?? c['is_correct'] ?? false,
+                    };
+                  }).toList();
+                } else if (overrideChoices != null &&
+                    overrideChoices.isNotEmpty) {
+                  // Choice count changed — can't align with bank IDs;
+                  // use idx IDs (shuffle won't work but content is correct)
+                  resolvedChoices =
+                      overrideChoices.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final c = entry.value as Map<String, dynamic>;
+                    return <String, dynamic>{
+                      'id': c['id'] is int ? c['id'] : idx,
+                      'content': {'text': c['text'] ?? ''},
+                      'is_correct':
+                          c['isCorrect'] ?? c['is_correct'] ?? false,
+                    };
+                  }).toList();
+                }
+              }
+
               questions.add({
                 'id': aq['id'],
                 'question_id': qId,
-                'content': qContent, // { text, latex, assets[] }
-                'answer':
-                    qAnswer, // { correct_choice_ids, general_explanation, ... }
+                'content': resolvedContent,
+                'answer': qAnswer,
                 'type': qDetail['type'],
                 'points': aq['points'],
                 'order_idx': aq['order_idx'],
-                'question_choices': qDetail['question_choices'] ?? [],
-                'rubric': aq['rubric'], // D-02: rubric JSONB từ assignment_questions
+                'question_choices': resolvedChoices,
+                'rubric': aq['rubric'],
               });
             } else if (customContent != null) {
               // Case 2: Câu hỏi tạo mới (custom_content) - Format mới
@@ -1137,6 +1206,22 @@ class AssignmentDataSource {
         }
       }
 
+      // ensure_student_variant cũng cần gọi khi session đã tồn tại
+      // vì lần đầu tạo session có thể đã fail (thiếu SECURITY DEFINER cũ)
+      // RPC idempotent — gọi nhiều lần an toàn
+      if (!isSubmitted) {
+        try {
+          await _client.rpc('ensure_student_variant', params: {
+            'p_assignment_id': assignmentId,
+            'p_student_id': studentId,
+          });
+        } catch (e) {
+          AppLogger.warning(
+            '[AssignmentDS] ensure_student_variant (existing session) failed: $e',
+          );
+        }
+      }
+
       return result;
     }
 
@@ -1191,41 +1276,23 @@ class AssignmentDataSource {
 
     final sessionId = session['id'] as String;
 
-    // Save each answer to autosave_answers table
-    for (final entry in answers.entries) {
-      final questionId = entry.key;
-      final answerValue = entry.value;
+    if (answers.isNotEmpty) {
+      // Batch upsert — 1 round-trip thay vì N select + N insert/update.
+      // Unique constraint (session_id, assignment_question_id) đảm bảo idempotent.
+      final now = DateTime.now().toIso8601String();
+      final rows = answers.entries.map((entry) => {
+        'session_id': sessionId,
+        'assignment_question_id': entry.key,
+        'answer_content': entry.value,
+        'updated_at': now,
+      }).toList();
 
-      // Check if exists first, then update or insert
-      final existing = await _client
+      await _client
           .from('autosave_answers')
-          .select('id')
-          .eq('session_id', sessionId)
-          .eq('assignment_question_id', questionId)
-          .maybeSingle();
-
-      if (existing != null) {
-        // Update existing
-        await _client
-            .from('autosave_answers')
-            .update({
-              'answer_content': answerValue,
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .eq('id', existing['id']);
-      } else {
-        // Insert new
-        await _client.from('autosave_answers').insert({
-          'session_id': sessionId,
-          'assignment_question_id': questionId,
-          'answer_content': answerValue,
-          'updated_at': DateTime.now().toIso8601String(),
-        });
-      }
+          .upsert(rows, onConflict: 'session_id,assignment_question_id');
     }
 
-    // Update work_sessions status (use UPDATE since we know session exists)
-    // NOTE: Schema only accepts 'in_progress', 'submitted', 'graded' - NOT 'draft'
+    // Update work_sessions status
     await _client
         .from('work_sessions')
         .update({
@@ -1266,8 +1333,9 @@ class AssignmentDataSource {
     }
 
     final sessionId = session['id'] as String;
-    final now = DateTime.now().toIso8601String();
-    final submittedAt = DateTime.parse(now);
+    // localNow: chỉ dùng cho metadata (created_at, updated_at) — KHÔNG dùng cho submitted_at.
+    // submitted_at và time_spent_seconds được tính bởi finalize_work_session (server-side).
+    final localNow = DateTime.now().toIso8601String();
 
     // ========== PRO I/O OPTIMIZATION ==========
     // 1️⃣ + 1.1 + 1.2: Parallel reads (no dependencies)
@@ -1293,12 +1361,8 @@ class AssignmentDataSource {
         : <String, dynamic>{};
     final aiEnabled = distSettings['ai_feedback_enabled'] as bool? ?? false;
 
-    // Check if late
-    bool isLate = false;
-    if (distribution != null && distribution['due_at'] != null) {
-      final dueAt = DateTime.parse(distribution['due_at'] as String);
-      isLate = submittedAt.isAfter(dueAt);
-    }
+    // is_late và submitted_at sẽ được tính server-side bởi finalize_work_session.
+    // Không tính từ client để tránh gian lận đồng hồ máy.
 
     // 1.2 READ: assignment_questions JOIN questions (Lấy points, type và answer gốc)
     // This depends on autosaveAnswers, so runs after
@@ -1642,10 +1706,40 @@ class AssignmentDataSource {
       }
     }
 
-    // 3️⃣ Create submission record (CQRS - for fast queries)
-    // Schema now has both assignment_id (for AI backward compat) AND assignment_distribution_id (for fast queries)
-    // assignmentId already declared above (step 2.5)
+    // 3️⃣ Finalize work_sessions — "Chiếc đồng hồ Trọng tài" (server-side timestamps)
+    // D-12 status logic:
+    //   has essay   → 'submitted'     (chờ giáo viên duyệt)
+    //   MCQ + AI    → 'ai_processing' (điểm hiện ngay, AI chạy ngầm → graded khi xong)
+    //   MCQ + no AI → 'graded'        (xong ngay)
+    final String submitStatus;
+    if (hasEssay) {
+      submitStatus = 'submitted';
+    } else if (aiEnabled) {
+      submitStatus = 'ai_processing';
+    } else {
+      submitStatus = 'graded';
+    }
+    AppLogger.info(
+      '[SUBMIT] hasEssay=$hasEssay hasMcq=$hasMcq aiEnabled=$aiEnabled → status=$submitStatus',
+    );
 
+    // RPC chốt submitted_at = now() và tính time_spent_seconds = submitted_at − started_at
+    // trên server — không nhận bất kỳ tham số thời gian nào từ client
+    final timingResult = await _client.rpc('finalize_work_session', params: {
+      'p_session_id': sessionId,
+      'p_distribution_id': distributionId,
+      'p_student_id': studentId,
+      'p_status': submitStatus,
+    }) as Map<String, dynamic>;
+
+    final serverSubmittedAt = timingResult['submitted_at'] as String;
+    final serverIsLate = timingResult['is_late'] as bool? ?? false;
+    AppLogger.info(
+      '[SUBMIT] Server timing: submitted_at=$serverSubmittedAt '
+      'time_spent=${timingResult['time_spent_seconds']}s is_late=$serverIsLate',
+    );
+
+    // 4️⃣ Create/update submission record (CQRS) với server-side values
     final existingSubmission = await _client
         .from('submissions')
         .select()
@@ -1654,57 +1748,36 @@ class AssignmentDataSource {
         .maybeSingle();
 
     if (existingSubmission != null) {
-      // Update existing submission (CQRS - only score-related fields)
       await _client
           .from('submissions')
           .update({
             'session_id': sessionId,
-            'submitted_at': now,
+            'submitted_at': serverSubmittedAt,
             'total_score': totalMcqScore,
-            'is_late': isLate,
-            'ai_graded': false, // Reset: AI grading pending
-            'updated_at': now,
+            'is_late': serverIsLate,
+            'ai_graded': false,
+            'updated_at': localNow,
           })
           .eq('id', existingSubmission['id']);
     } else {
-      // Create new submission record (CQRS - for fast queries by distribution)
-      // Both assignment_id (for AI backward compat) and assignment_distribution_id (for fast queries)
       await _client.from('submissions').insert({
         'assignment_id': assignmentId,
         'assignment_distribution_id': distributionId,
         'student_id': studentId,
         'session_id': sessionId,
         'total_score': totalMcqScore,
-        'is_late': isLate,
-        'ai_graded': false, // AI grading pending
-        'submitted_at': now,
-        'created_at': now,
-        'updated_at': now,
+        'is_late': serverIsLate,
+        'ai_graded': false,
+        'submitted_at': serverSubmittedAt,
+        'created_at': localNow,
+        'updated_at': localNow,
       });
     }
 
-    // 1️⃣ Update session status (AFTER grading so status reflects completion)
-    // D-12 status logic:
-    //   has essay  → 'submitted'     (chờ giáo viên duyệt)
-    //   MCQ + AI   → 'ai_processing' (điểm hiện ngay, AI chạy ngầm → graded khi xong)
-    //   MCQ + no AI → 'graded'       (xong ngay)
-    final String submitStatus;
-    if (hasEssay) {
-      submitStatus = 'submitted'; // PURE_ESSAY or MIXED → wait for teacher
-    } else if (aiEnabled) {
-      submitStatus = 'ai_processing'; // PURE_MCQ + AI on
-    } else {
-      submitStatus = 'graded'; // PURE_MCQ + AI off
-    }
-    AppLogger.info(
-      '[SUBMIT] hasEssay=$hasEssay hasMcq=$hasMcq aiEnabled=$aiEnabled → status=$submitStatus',
-    );
     final result = await _client
         .from('work_sessions')
-        .update({'status': submitStatus, 'submitted_at': now, 'updated_at': now})
-        .eq('assignment_distribution_id', distributionId)
-        .eq('student_id', studentId)
         .select()
+        .eq('id', sessionId)
         .single();
 
     // 5️⃣ Cleanup: Delete autosave_answers (reduce DB size)

@@ -80,12 +80,14 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
         throw Exception('User not authenticated');
       }
 
-      // Load distribution detail và submission
+      // getOrCreateSubmission phải chạy TRƯỚC getDistributionDetail.
+      // Lý do: ensure_student_variant được gọi bên trong getOrCreateSubmission.
+      // Nếu gọi getDistributionDetail trước, variant chưa tồn tại → shuffle không apply.
+      final submission = await repo.getOrCreateSubmission(distributionId, studentId);
       final detail = await repo.getDistributionDetail(
         distributionId,
         studentId: studentId,
       );
-      final submission = await repo.getOrCreateSubmission(distributionId, studentId);
 
       // Extract data từ detail (cấu trúc mới)
       final assignment = detail['assignment'] as Map<String, dynamic>? ?? {};
@@ -207,10 +209,10 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
       if (savedState != null) {
         state = AsyncData(savedState.copyWith(savingStatus: SavingStatus.saved));
 
-        // Reset to idle after 2 seconds
+        // Reset to idle after 2 seconds — chỉ khi vẫn đang inProgress
         Future.delayed(const Duration(seconds: 2), () {
           final s = state.valueOrNull;
-          if (s != null) {
+          if (s != null && s.submissionStatus == WorkspaceSubmissionStatus.inProgress) {
             state = AsyncData(s.copyWith(savingStatus: SavingStatus.idle));
           }
         });
@@ -289,17 +291,16 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
     final currentState = state.valueOrNull;
     if (currentState == null) return false;
     if (currentState.submissionStatus != WorkspaceSubmissionStatus.inProgress) return false;
+    // Double-submit guard: ngăn 2 lần bấm nộp đồng thời
+    if (_isUpdating) return false;
+    _isUpdating = true;
 
     _debounceTimer?.cancel();
+    EasyDebounce.cancel('workspace-autosave');
 
-    // Force save draft before submitting
     state = AsyncData(currentState.copyWith(savingStatus: SavingStatus.saving));
 
     try {
-      state = AsyncData(currentState.copyWith(
-        submissionStatus: WorkspaceSubmissionStatus.submitting,
-      ));
-
       final repo = ref.read(assignmentRepositoryProvider);
       final auth = ref.read(authNotifierProvider);
       final studentId = auth.value?.id;
@@ -307,6 +308,20 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
       if (studentId == null) {
         throw Exception('User not authenticated');
       }
+
+      // Force-save trực tiếp (throws on error) trước khi submit.
+      // Gọi repo thẳng thay vì _saveDraft() để lỗi không bị nuốt.
+      await repo.saveSubmissionDraft(
+        distributionId,
+        studentId,
+        currentState.answers,
+        currentState.uploadedFiles,
+      );
+
+      state = AsyncData(currentState.copyWith(
+        submissionStatus: WorkspaceSubmissionStatus.submitting,
+        savingStatus: SavingStatus.saved,
+      ));
 
       await repo.submitAssignment(distributionId, studentId, timeLog: timeLog);
 
@@ -327,6 +342,8 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
         savingStatus: SavingStatus.error,
       ));
       return false;
+    } finally {
+      _isUpdating = false;
     }
   }
 
@@ -398,9 +415,28 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
 
     final updatedQuestions = current.questions.map((q) {
       if (q.id != aqId) return q;
+
+      // Patch text
       final newText = customContent['override_text'] as String?;
-      if (newText == null) return q;
-      return q.copyWith(content: newText);
+
+      // Patch choices — apply isCorrect từ override, giữ nguyên id/content
+      final overrideChoices = customContent['choices'] as List<dynamic>?;
+      List<QuestionChoiceState> newChoices = q.choices;
+      if (overrideChoices != null &&
+          overrideChoices.length == q.choices.length) {
+        newChoices = overrideChoices.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final c = entry.value as Map<String, dynamic>;
+          return q.choices[idx].copyWith(
+            isCorrect: c['isCorrect'] as bool? ?? c['is_correct'] as bool?,
+          );
+        }).toList();
+      }
+
+      return q.copyWith(
+        content: newText ?? q.content,
+        choices: newChoices,
+      );
     }).toList();
 
     state = AsyncData(current.copyWith(questions: updatedQuestions));
@@ -681,6 +717,13 @@ class QuestionChoiceState {
     required this.content,
     required this.isCorrect,
   });
+
+  QuestionChoiceState copyWith({int? id, String? content, bool? isCorrect}) =>
+      QuestionChoiceState(
+        id: id ?? this.id,
+        content: content ?? this.content,
+        isCorrect: isCorrect ?? this.isCorrect,
+      );
 
   factory QuestionChoiceState.fromJson(Map<String, dynamic> json, {int? index}) {
     // Handle content - could be String or Map with 'text'
