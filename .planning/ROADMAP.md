@@ -118,7 +118,7 @@
 ## Phase 6: AI Grading ⏸ MERGED INTO PHASE 7
 
 > Context da duoc tich hop vao Phase 7. Infrastructure (ai_queue worker, ai_evaluations) se duoc build trong Phase 7.
-> Essay-specific AI grading (rubric scoring) defer den khi Phase 3 duoc re-enable.
+> Essay-specific AI grading (rubric scoring) defer den khi Phase 3 duoc re-enabled.
 
 **Context:**
 - [x] 06-CONTEXT.md (reference only)
@@ -200,7 +200,19 @@ Plans:
 2. Giáo viên có thể upload file Excel/Word từ màn hình tạo câu hỏi AI
 3. AI phân tích tài liệu và trả về danh sách câu hỏi có thể lưu vào Question Bank
 
+**Plans:** 8 plans in 4 waves
+
+Plans:
+- [ ] 09-00-PLAN.md — Wave 0 test stubs (5 files: unit, widget, Edge Function)
+- [ ] 09-01-PLAN.md — DB Migrations 011-013: pgvector (768-dim), document_chunks, ai_queue constraint, Storage bucket, save_questions_to_assignment RPC
+- [ ] 09-02-PLAN.md — file_picker approval checkpoint + install (autonomous: false)
+- [ ] 09-03-PLAN.md — AiQuestionSettingsScreen + aiQuestionSettings route + gear icon fix (9-01)
+- [ ] 09-04-PLAN.md — TeacherFileDataSource + TeacherFileRepositoryImpl + teacherFilesProvider (9-02)
+- [ ] 09-05-PLAN.md — ContextSourcesSection widget + AI mode toggle + AiQuestionSettingsScreen doc library (9-02)
+- [ ] 09-06-PLAN.md — process-document-queue Edge Function: heuristic router, Gemini embedding 768-dim, checkpointing (D-29), content hashing (D-30) (9-03)
+- [ ] 09-07-PLAN.md — StagingAreaWidget (DraggableScrollableSheet) + QuestionDTO + save_questions_to_assignment wiring (9-03)
+
 ---
 
 *Roadmap created: 2026-03-05*
-*Last updated: 2026-04-18 - Phase 9: AI Settings Refactor & Document Import*
+*Last updated: 2026-04-19 - Phase 9: 8 plans created*
