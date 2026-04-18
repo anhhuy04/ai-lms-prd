@@ -28,8 +28,13 @@ Không bao gồm: Vector DB / Pinecone setup, general settings refactor, student
 ### Knowledge Library Architecture
 
 - **D-04:** Files LUÔN được lưu persistent — không bao giờ throw away sau 1 lần dùng (Knowledge Library model, không phải Incinerator model)
-- **D-05:** File pipeline khi upload mới: Supabase Storage → INSERT `files` table → INSERT `file_links` (target_type='teacher' hoặc 'class') → file xuất hiện ngay trong danh sách đã chọn
-- **D-06:** `file_links.target_type` dùng giá trị mới: `'teacher_document'` để phân biệt với các link type hiện có ('assignment', 'submission', 'question')
+- **D-05:** File upload pipeline (5 bước):
+  1. Upload binary lên Supabase Storage (`teachers/{teacher_id}/{filename}`)
+  2. INSERT vào `files` table (metadata + URL)
+  3. INSERT vào `file_links` (`target_type='teacher'`, `target_id=teacher_id`)
+  4. INSERT vào `ai_queue` payload `{"file_id": "uuid", "action": "extract_or_vectorize"}` — AI Worker xử lý ngầm
+  5. UI hiển thị chip ngay lập tức — **không chờ AI chạy xong**
+- **D-06:** `file_links.target_type = 'teacher'`, `target_id = teacher_id (profile UUID)` — file là Intellectual Property của giáo viên, đi theo profile suốt đời, không bị giới hạn theo lớp. Tính đa hình: cùng 1 file vật lý có thể có thêm link `target_type='assignment'` khi được đính kèm vào bài tập — INSERT thêm 1 dòng, không duplicate file.
 
 ### Context Sources UI (TeacherAiGenerateQuestionScreen)
 
