@@ -49,12 +49,25 @@ Không bao gồm: Pinecone external setup, general settings refactor, student-fa
   - **Trích xuất** (Extraction): File đã có câu hỏi sẵn (đề thi cũ, bộ câu hỏi)
   - **Sinh câu hỏi** (Generation): Tài liệu học, giáo trình (AI sáng tác dựa trên nội dung)
 
-### Extraction Pipeline (Luồng 1 — "Nhà máy Tái chế")
+### Extraction Pipeline (Luồng 1 — "Nhà máy Tái chế") — Heuristic Routing + LLM Fallback
 
-- **D-12:** Xử lý: Parse file → Direct LLM call với Few-Shot Prompting → Strict JSON output
-- **D-13:** KHÔNG qua Vector DB — fast path, xử lý vài chục giây
-- **D-14:** Prompt dùng kỹ thuật Few-Shot: bơm format chuẩn của bảng `questions` vào prompt, ép AI nhả ra đúng schema
-- **D-15:** Yêu cầu độ chính xác tuyệt đối — AI không được tự chế thêm nội dung ngoài file
+- **D-12:** Edge Function nhận file từ `ai_queue`, bước đầu parse theo loại file:
+  - `.docx` → `mammoth.js` bóc ra plain text → **100% qua LLM** (Word luôn là Unstructured Data)
+  - `.xlsx` → `xlsx` library parse Sheet đầu tiên thành JSON array → vào **Heuristic Router**
+
+- **D-13: Heuristic Router cho Excel** — kiểm tra `Object.keys(rows[0])`:
+  - **Fast Track** (header chuẩn): Nếu keys chứa các từ khoá chuẩn như `["Câu hỏi", "Đáp án A", "Đáp án B", "Đáp án đúng"]` hoặc tương đương → dùng hàm `map()` thuần code biến thẳng thành `List<QuestionDTO>`. **$0 API cost, ~0.1s, không gọi LLM.**
+  - **LLM Fallback** (header lộn xộn): Nếu format không nhận ra → `JSON.stringify(rows)` → gửi LLM kèm Few-Shot Prompt
+
+- **D-14:** Few-Shot Prompt cho LLM Fallback (Excel lộn xộn):
+  - `[Context]` — dữ liệu thô JSON parse từ Excel, format lộn xộn
+  - `[Objective]` — đọc cấu trúc ẩn, trích xuất câu hỏi trắc nghiệm + đáp án
+  - `[Constraint]` — bỏ qua dữ liệu nhiễu ("Họ tên HS", "Ngày thi"), KHÔNG tự sáng tác câu hỏi
+  - `[Response Format]` — JSON Array `List<QuestionDTO>` strict, không bọc markdown. Schema mẫu nhúng trực tiếp trong prompt.
+
+- **D-15:** Word (.docx) prompt — tương tự D-14 nhưng đầu vào là plain text (từ mammoth), không phải JSON. Yêu cầu AI nhận diện cấu trúc đề thi trong văn bản tự do.
+
+- **D-16-ext:** Nút **[Xuất file mẫu Excel]** trong `AiQuestionSettingsScreen` — GV download template chuẩn với đúng headers để tận dụng Fast Track ($0, 0.1s). Template chứa headers + 2-3 dòng ví dụ minh hoạ.
 
 ### Generation Pipeline (Luồng 2 — "Nhà máy Chế tác") — RAG Architecture
 
@@ -88,8 +101,9 @@ Không bao gồm: Pinecone external setup, general settings refactor, student-fa
 
 - Animation/loading state khi pipeline đang xử lý (progress indicator, estimated time)
 - Error handling cho file parse failures (file bị hỏng, format không hỗ trợ)
-- File size limit và supported MIME types cụ thể
+- File size limit và supported MIME types cụ thể (`.docx`, `.xlsx` confirmed; PDF deferred)
 - Cách hiển thị staging area (bottom sheet vs full screen)
+- Cách generate file Excel template: static file từ Supabase Storage hoặc generate on-device bằng `excel` Dart package
 
 </decisions>
 
@@ -149,6 +163,7 @@ Không bao gồm: Pinecone external setup, general settings refactor, student-fa
 - **Kiến trúc tư duy "Lò đốt rác vs Thư viện Tri thức"**: Files là Data Asset của trường, không phải throwaway. Lưu vào `files` + `file_links` để AI có thể reuse.
 - **Kiến trúc tư duy "Trạm phân luồng cao tốc"**: UI Toggle → người dùng declare intent → Backend route đúng pipeline. Không dùng "God Prompt".
 - **RAG = "Ổ cắm quốc tế"**: Chuẩn hoá đầu vào (Top 5 chunks ~2500 tokens), mọi LLM provider đều hoạt động. Tránh Vendor Lock-in. Single Pipeline — không maintain 2 luồng song song.
+- **"Trạm Phân Loại Ma Thuật"**: Excel chuẩn → Fast Track map() $0/0.1s. Excel lộn xộn + Word → LLM Fallback. Không bắt ép GV dùng template, nhưng cung cấp [Xuất mẫu] để ai muốn Fast Track thì tự chọn.
 - **"Cửa hàng trưng bày và Đơn hàng"**: Staging Area xem trước → 1-click lưu cả Bank + Assignment (DB Transaction). Không để Orphan Data.
 
 </specifics>
