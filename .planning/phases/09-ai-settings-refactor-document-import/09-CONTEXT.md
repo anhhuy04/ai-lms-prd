@@ -10,7 +10,7 @@ Phase 9 cải thiện trải nghiệm tạo câu hỏi AI theo 2 hướng:
 1. **Refactor Settings**: Tạo màn hình AI Settings mới, tách khỏi general settings, gear icon link trực tiếp đến đây
 2. **Document Import**: Giáo viên upload file Excel/Word, AI phân tích theo 2 pipeline độc lập và trả về List<QuestionDTO> thống nhất
 
-Không bao gồm: Vector DB / Pinecone setup, general settings refactor, student-facing features.
+Không bao gồm: Pinecone external setup, general settings refactor, student-facing features.
 
 </domain>
 
@@ -56,26 +56,33 @@ Không bao gồm: Vector DB / Pinecone setup, general settings refactor, student
 - **D-14:** Prompt dùng kỹ thuật Few-Shot: bơm format chuẩn của bảng `questions` vào prompt, ép AI nhả ra đúng schema
 - **D-15:** Yêu cầu độ chính xác tuyệt đối — AI không được tự chế thêm nội dung ngoài file
 
-### Generation Pipeline (Luồng 2 — "Nhà máy Chế tác")
+### Generation Pipeline (Luồng 2 — "Nhà máy Chế tác") — RAG Architecture
 
-- **D-16:** **Không dùng Vector DB cho Phase 9 MVP** — thay bằng Long Context Window (Gemini 1.5 Pro/Flash: 1M-2M tokens)
-- **D-17:** Xử lý: Parse file → extract plain text → nhét toàn bộ text vào prompt với kỹ thuật CO-STAR → AI sinh câu hỏi
-- **D-18:** 100% Serverless (Edge Function) — zero extra infra, không tốn RAM Supabase
-- **D-19:** Temperature cao hơn Luồng 1 — cho phép tính sáng tạo
-- **D-20:** Upgrade path sau này: khi có 10,000+ tài liệu thì mới nâng lên Pinecone + chunking
+- **D-16 (REVISED):** Dùng **RAG + pgvector** cho cả Phase 9 — KHÔNG dùng Long Context Window. Lý do: Decouple hoàn toàn Data Pipeline khỏi LLM Provider, tránh Vendor Lock-in (Gemini/Groq/Ollama đều hoạt động), Single Pipeline duy nhất dễ maintain.
+- **D-17:** Chunking — dùng `RecursiveCharacterTextSplitter`: `chunk_size=500 tokens`, `chunk_overlap=100 tokens`. Cắt theo dấu câu/xuống dòng trước, khoảng trắng sau. Overlap đảm bảo Semantic Integrity — không bao giờ cắt đứt giữa câu.
+- **D-18:** Embedding — gọi Embedding Model (text-embedding-3-small hoặc nomic-embed-text mã nguồn mở) để biến mỗi chunk thành vector float array. Lưu vào bảng `document_chunks` (file_id, chunk_text, embedding vector).
+- **D-19:** pgvector trên Supabase — `CREATE EXTENSION vector;` + bảng `document_chunks`. Không cần Pinecone external.
+- **D-20:** Batch processing qua `ai_queue` để tránh OOM (500MB RAM Free Tier): Edge Function xử lý 10 trang/lần → chunking → embedding → lưu → sleep 2s → 10 trang tiếp. Async hoàn toàn.
+- **D-21:** Retrieval khi sinh câu hỏi: Query = vector hoá câu hỏi của GV → Cosine Similarity trên `document_chunks` → lấy Top 5 chunks (~2500 tokens) → nhét vào CO-STAR prompt → AI sinh câu hỏi.
+- **D-22:** CO-STAR Prompt template cho Generation Pipeline:
+  - `[Context]` — tài liệu trích xuất từ DB, giới hạn nghiêm ngặt
+  - `[Objective]` — tạo N câu hỏi dựa HOÀN TOÀN vào tài liệu
+  - `[Constraint]` — nếu không đủ thông tin → trả `[]`, KHÔNG tự bịa
+  - `[Response Format]` — JSON Array chuẩn `List<QuestionDTO>`
+- **D-23:** Temperature cao hơn Luồng 1 — cho phép tính sáng tạo trong ngữ cảnh được cung cấp
 
 ### Unified DTO Output
 
-- **D-21:** Cả 2 pipeline đều trả về cùng 1 format: `List<QuestionDTO>` — same JSON schema
-- **D-22:** Flutter Frontend không biết và không cần biết pipeline nào đã chạy — Clean Architecture
+- **D-24:** Cả 2 pipeline đều trả về cùng 1 format: `List<QuestionDTO>` — same JSON schema
+- **D-25:** Flutter Frontend không biết và không cần biết pipeline nào đã chạy — Clean Architecture. Tầng Data hoàn toàn Decoupled khỏi LLM Provider.
 
 ### Staging Area & Output Flow
 
-- **D-23:** Sau khi AI trả về List<QuestionDTO>, hiển thị "Staging Area" — giáo viên xem trước, chỉnh sửa nếu cần
-- **D-24:** 2 nút action:
+- **D-26:** Sau khi AI trả về List<QuestionDTO>, hiển thị "Staging Area" — giáo viên xem trước, chỉnh sửa nếu cần
+- **D-27:** 2 nút action:
   - **[Lưu vào Ngân hàng]** → INSERT vào bảng `questions` only
   - **[Lưu và Thêm vào Đề thi]** → DB Transaction: INSERT questions → lấy UUIDs → INSERT assignment_questions (với assignment_id hiện tại)
-- **D-25:** Không có Option "Thêm thẳng vào Đề thi mà không lưu Bank" — tránh Orphan Data
+- **D-28:** Không có Option "Thêm thẳng vào Đề thi mà không lưu Bank" — tránh Orphan Data
 
 ### Claude's Discretion
 
@@ -91,8 +98,10 @@ Không bao gồm: Vector DB / Pinecone setup, general settings refactor, student
 
 **Downstream agents MUST read these before planning or implementing.**
 
-### Schema — Files & File Links
+### Schema — Files & File Links & Chunks
 - `db/schema_03_submissions_ai_analytics.sql` — Định nghĩa `files` table (storage_path, mime_type, metadata, uploaded_by) và `file_links` table (polymorphic: file_id, target_type, target_id)
+- Cần tạo migration mới: bảng `document_chunks` (file_id, chunk_index, chunk_text, embedding vector) + `CREATE EXTENSION vector;`
+- Cần tạo migration mới: thêm `target_type='teacher'` vào check constraint của `file_links` (nếu có)
 
 ### Schema — Questions & Assignments
 - `db/schema_02_questions_assignments.sql` — Định nghĩa `questions` table và `assignment_questions` table (để hiểu DB Transaction ở D-24)
@@ -119,7 +128,7 @@ Không bao gồm: Vector DB / Pinecone setup, general settings refactor, student
 ### Reusable Assets
 - `_handleSaveToQuestionBank()` trong `TeacherAiGenerateQuestionScreen` — existing save-to-bank logic, reuse/extend cho D-24
 - `ApiKeySetupScreen` — giữ nguyên, `AiQuestionSettingsScreen` chỉ navigation đến nó
-- `ai_queue` infrastructure (Phase 7) — nếu Generation Pipeline cần async, có thể tái dùng
+- `ai_queue` infrastructure (Phase 7) — tái dùng cho RAG batch processing. Action mới: `'vectorize_document'`. Batch 10 trang/lần, sleep 2s giữa các batch tránh OOM.
 
 ### Established Patterns
 - File upload flow đã có trong student workspace (tham khảo cho upload UI)
@@ -139,7 +148,7 @@ Không bao gồm: Vector DB / Pinecone setup, general settings refactor, student
 
 - **Kiến trúc tư duy "Lò đốt rác vs Thư viện Tri thức"**: Files là Data Asset của trường, không phải throwaway. Lưu vào `files` + `file_links` để AI có thể reuse.
 - **Kiến trúc tư duy "Trạm phân luồng cao tốc"**: UI Toggle → người dùng declare intent → Backend route đúng pipeline. Không dùng "God Prompt".
-- **Long Context Window thay RAG cho MVP**: Gemini 1.5 Pro/Flash đọc 50 trang Word trực tiếp trong prompt — Serverless, zero infra. Upgrade lên Pinecone sau khi cần scale.
+- **RAG = "Ổ cắm quốc tế"**: Chuẩn hoá đầu vào (Top 5 chunks ~2500 tokens), mọi LLM provider đều hoạt động. Tránh Vendor Lock-in. Single Pipeline — không maintain 2 luồng song song.
 - **"Cửa hàng trưng bày và Đơn hàng"**: Staging Area xem trước → 1-click lưu cả Bank + Assignment (DB Transaction). Không để Orphan Data.
 
 </specifics>
@@ -147,7 +156,7 @@ Không bao gồm: Vector DB / Pinecone setup, general settings refactor, student
 <deferred>
 ## Deferred Ideas
 
-- **Vector DB / RAG đầy đủ** — Pinecone hoặc pgvector chunking, dùng khi tài liệu > hàng nghìn files. Phase 10+.
+- **Pinecone external** — pgvector đủ dùng cho Phase 9. Upgrade Pinecone chỉ khi > hàng chục nghìn tài liệu.
 - **AI Grading từ tài liệu** — Dùng uploaded docs làm grading rubric. Liên quan Phase 3 (Rubric System).
 - **Analytics section trong settings** — `ApiKeySetupScreen` có phần "Phân tích dữ liệu học tập" riêng, không thuộc scope Phase 9.
 - **PDF support** — User chỉ đề cập Excel + Word. PDF có thể thêm sau.
