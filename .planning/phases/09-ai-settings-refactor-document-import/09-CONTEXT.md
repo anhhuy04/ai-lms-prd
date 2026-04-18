@@ -75,7 +75,22 @@ Không bao gồm: Pinecone external setup, general settings refactor, student-fa
 - **D-17:** Chunking — dùng `RecursiveCharacterTextSplitter`: `chunk_size=500 tokens`, `chunk_overlap=100 tokens`. Cắt theo dấu câu/xuống dòng trước, khoảng trắng sau. Overlap đảm bảo Semantic Integrity — không bao giờ cắt đứt giữa câu.
 - **D-18:** Embedding — gọi Embedding Model (text-embedding-3-small hoặc nomic-embed-text mã nguồn mở) để biến mỗi chunk thành vector float array. Lưu vào bảng `document_chunks` (file_id, chunk_text, embedding vector).
 - **D-19:** pgvector trên Supabase — `CREATE EXTENSION vector;` + bảng `document_chunks`. Không cần Pinecone external.
-- **D-20:** Batch processing qua `ai_queue` để tránh OOM (500MB RAM Free Tier): Edge Function xử lý 10 trang/lần → chunking → embedding → lưu → sleep 2s → 10 trang tiếp. Async hoàn toàn.
+- **D-20:** Batch processing qua `ai_queue` để tránh OOM (500MB RAM Free Tier): Edge Function xử lý theo mẻ → chunking → embedding → lưu → sleep 2s → mẻ tiếp. Async hoàn toàn.
+
+- **D-29: Stateful Checkpointing (Resume Batching)** — Tránh lãng phí API khi Edge Function sập giữa chừng:
+  - Trước khi bắt đầu: UPDATE `ai_queue.result = {"total_chunks": N, "processed_chunks": 0}`
+  - Sau mỗi batch thành công: UPDATE `ai_queue.result.processed_chunks += batch_size`
+  - Khi retry (attempts=2): đọc `processed_chunks` từ `ai_queue.result`, slice array bỏ qua phần đã xử lý, tiếp tục từ chunk tiếp theo
+  - Đảm bảo Idempotency: không bao giờ tạo duplicate vectors, không bao giờ lãng phí API cost
+
+- **D-30: Content Hashing / Differential Update** — Khi GV upload đè file mới (chỉ sửa vài trang):
+  - Thêm cột `content_hash VARCHAR` vào bảng `document_chunks`
+  - Mỗi chunk được hash bằng SHA-256 trước khi embed (0.01s, $0 API cost)
+  - So sánh Set Difference: hash_mới vs hash_cũ trong DB
+    - Hash có ở MỚI, không có ở CŨ → gọi Embedding API + INSERT
+    - Hash có ở CŨ, không có ở MỚI → DELETE khỏi DB
+    - Hash có ở CẢ HAI → bỏ qua hoàn toàn (không tốn 1 đồng API)
+  - Kết quả: Sửa 1 trang → chỉ trả tiền API cho đúng 1 trang đó
 - **D-21:** Retrieval khi sinh câu hỏi: Query = vector hoá câu hỏi của GV → Cosine Similarity trên `document_chunks` → lấy Top 5 chunks (~2500 tokens) → nhét vào CO-STAR prompt → AI sinh câu hỏi.
 - **D-22:** CO-STAR Prompt template cho Generation Pipeline:
   - `[Context]` — tài liệu trích xuất từ DB, giới hạn nghiêm ngặt
@@ -114,7 +129,8 @@ Không bao gồm: Pinecone external setup, general settings refactor, student-fa
 
 ### Schema — Files & File Links & Chunks
 - `db/schema_03_submissions_ai_analytics.sql` — Định nghĩa `files` table (storage_path, mime_type, metadata, uploaded_by) và `file_links` table (polymorphic: file_id, target_type, target_id)
-- Cần tạo migration mới: bảng `document_chunks` (file_id, chunk_index, chunk_text, embedding vector) + `CREATE EXTENSION vector;`
+- Cần tạo migration mới: bảng `document_chunks` (file_id, chunk_index, chunk_text, **content_hash VARCHAR**, embedding vector) + `CREATE EXTENSION vector;`
+- `content_hash` — SHA-256 của chunk_text, dùng cho Differential Update (D-30)
 - Cần tạo migration mới: thêm `target_type='teacher'` vào check constraint của `file_links` (nếu có)
 
 ### Schema — Questions & Assignments
