@@ -200,16 +200,16 @@ Plans:
 2. Giáo viên có thể upload file Excel/Word từ màn hình tạo câu hỏi AI
 3. AI phân tích tài liệu và trả về danh sách câu hỏi có thể lưu vào Question Bank
 
-**Plans:** 3/8 plans executed
+**Plans:** 6/8 plans executed
 
 Plans:
 - [x] 09-00-PLAN.md — Wave 0 test stubs (5 files: unit, widget, Edge Function)
 - [x] 09-01-PLAN.md — DB Migrations 011-013: pgvector (768-dim), document_chunks, ai_queue constraint, Storage bucket, save_questions_to_assignment RPC
 - [x] 09-02-PLAN.md — file_picker approval checkpoint + install (autonomous: false)
-- [ ] 09-03-PLAN.md — AiQuestionSettingsScreen + aiQuestionSettings route + gear icon fix (9-01)
-- [ ] 09-04-PLAN.md — TeacherFileDataSource + TeacherFileRepositoryImpl + teacherFilesProvider (9-02)
+- [x] 09-03-PLAN.md — AiQuestionSettingsScreen + aiQuestionSettings route + gear icon fix (9-01)
+- [x] 09-04-PLAN.md — TeacherFileDataSource + TeacherFileRepositoryImpl + teacherFilesProvider (9-02)
 - [ ] 09-05-PLAN.md — ContextSourcesSection widget + AI mode toggle + AiQuestionSettingsScreen doc library (9-02)
-- [ ] 09-06-PLAN.md — process-document-queue Edge Function: heuristic router, Gemini embedding 768-dim, checkpointing (D-29), content hashing (D-30) (9-03)
+- [x] 09-06-PLAN.md — process-document-queue Edge Function: heuristic router, Gemini embedding 768-dim, checkpointing (D-29), content hashing (D-30) (9-03)
 - [ ] 09-07-PLAN.md — StagingAreaWidget (DraggableScrollableSheet) + QuestionDTO + save_questions_to_assignment wiring (9-03)
 
 ---

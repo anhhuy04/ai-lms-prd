@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-19T08:18:00.000Z"
+last_updated: "2026-04-19T08:21:20.061Z"
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 43
-  completed_plans: 37
+  completed_plans: 39
 ---
 
 # Project State
@@ -166,8 +166,8 @@ Cần chạy trước khi test end-to-end.
 | 09-02 | AiQuestionSettingsScreen + Gear icon route | 1 | ⬜ Pending |
 | 09-03 | AiQuestionSettingsScreen + Gear icon route | 1 | ✅ Done |
 | 09-04 | TeacherFileDataSource + Clean Architecture Upload Pipeline | 2 | ✅ Done |
-| 09-05 | Edge Function process-document-queue | 2 | ⬜ Pending |
-| 09-06 | QuestionDTO unified schema + Staging Area | 3 | ⬜ Pending |
+| 09-05 | Edge Function process-document-queue | 2 | ✅ Done |
+| 09-06 | process-document-queue Edge Function (full impl + deploy) | 3 | ✅ Done |
 | 09-07 | Context Sources UI + RAG wiring | 3 | ⬜ Pending |
 
 ---
@@ -180,6 +180,13 @@ Cần chạy trước khi test end-to-end.
 - **Deviation 2**: Added null-guard in `getTeacherFiles` (`whereType<>()` filter).
 - `flutter analyze`: 0 issues. All files committed.
 
+## Session 2026-04-19 — 09-06 process-document-queue Edge Function
+
+- **Task 1** [1ad8b65] — `supabase/functions/process-document-queue/index.ts`: Full Edge Function with heuristic router (Excel Fast Track / LLM Fallback), mammoth Word extraction, Gemini text-embedding-004 (768-dim, NOT 1536), stateful checkpointing (result.vectorize.processed_chunks), SHA-256 content hashing + stale chunk deletion.
+- Deployed to Supabase project `vazhgunhcjdwlkbslroc` via CLI. Dashboard: https://supabase.com/dashboard/project/vazhgunhcjdwlkbslroc/functions
+- **Key decisions**: payload column (NOT request_payload); nested result structure (extraction + vectorize); 'completed'/'failed' status.
+- `flutter analyze`: N/A (TypeScript Edge Function).
+
 ## Continue-here
 
-Next: 09-05 (Edge Function process-document-queue)
+Next: 09-07 (Context Sources UI + RAG wiring)
