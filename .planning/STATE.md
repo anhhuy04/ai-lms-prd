@@ -165,13 +165,21 @@ Cần chạy trước khi test end-to-end.
 | 09-01 | DB Schema + RLS (files, file_links, document_chunks) | 1 | ⬜ Pending |
 | 09-02 | AiQuestionSettingsScreen + Gear icon route | 1 | ⬜ Pending |
 | 09-03 | AiQuestionSettingsScreen + Gear icon route | 1 | ✅ Done |
-| 09-04 | File Library UI in AiQuestionSettingsScreen | 2 | ⬜ Pending |
+| 09-04 | TeacherFileDataSource + Clean Architecture Upload Pipeline | 2 | ✅ Done |
 | 09-05 | Edge Function process-document-queue | 2 | ⬜ Pending |
 | 09-06 | QuestionDTO unified schema + Staging Area | 3 | ⬜ Pending |
 | 09-07 | Context Sources UI + RAG wiring | 3 | ⬜ Pending |
 
 ---
 
+## Session 2026-04-19 — 09-04 TeacherFileDataSource + Upload Pipeline
+
+- **Task 1** [9953d76] — `lib/data/models/teacher_file_model.dart` (Freezed + @JsonKey) + `lib/data/datasources/teacher_file_datasource.dart` (D-05 5-step pipeline). 4 model unit tests pass.
+- **Task 2** [ddb2839] — `lib/domain/repositories/teacher_file_repository.dart` + `lib/data/repositories/teacher_file_repository_impl.dart` + `lib/presentation/providers/teacher_file_notifier.dart` (TeacherFiles AsyncNotifier). `teacherFilesProvider` + `teacherFileRepositoryProvider` generated.
+- **Deviation 1**: Added `flutter_riverpod` import for `Ref` type (plan omitted it).
+- **Deviation 2**: Added null-guard in `getTeacherFiles` (`whereType<>()` filter).
+- `flutter analyze`: 0 issues. All files committed.
+
 ## Continue-here
 
-Xem `.planning/phases/07-ai-analytics-pipeline/.continue-here.md`
+Next: 09-05 (Edge Function process-document-queue)
