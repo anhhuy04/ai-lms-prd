@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-19T03:03:54.654Z"
+last_updated: "2026-04-19T08:18:00.000Z"
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 43
-  completed_plans: 35
+  completed_plans: 37
 ---
 
 # Project State
@@ -21,7 +21,16 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Efficiently manage the complete assignment lifecycle
 
-**Current focus:** Phase 09 — ai-settings-refactor-document-import (Plan 01 next)
+**Current focus:** Phase 09 — ai-settings-refactor-document-import
+
+---
+
+## Session 2026-04-19 — 09-03 AiQuestionSettingsScreen + Gear Icon Route
+
+- **Task 1** [21f897f] — `route_constants.dart` + `app_router.dart` + `ai_question_settings_screen.dart`: Added `aiQuestionSettings` route constant + path, added to `teacherRoutes` in `canAccessRoute()`, registered GoRoute, created full `AiQuestionSettingsScreen` with API Key tile + Thư viện Tài liệu empty state + Excel template tool.
+- **Task 2** [5fbe741] — `teacher_ai_generate_question_screen.dart`: Gear icon at line ~904 updated from `context.push(AppRoute.settingsPath)` to `context.pushNamed(AppRoute.aiQuestionSettings)`.
+- `flutter analyze` lib/core/routes/ + lib/presentation/views/settings/: 0 issues.
+- **Phase 9 Plan 03 complete.** REQ 9-01 implemented: dedicated AI settings decoupled from general settings.
 
 ---
 
@@ -155,7 +164,7 @@ Cần chạy trước khi test end-to-end.
 | 09-00 | Wave 0 Test Stubs | 0 | ✅ Done |
 | 09-01 | DB Schema + RLS (files, file_links, document_chunks) | 1 | ⬜ Pending |
 | 09-02 | AiQuestionSettingsScreen + Gear icon route | 1 | ⬜ Pending |
-| 09-03 | TeacherFileDataSource + Upload Pipeline | 1 | ⬜ Pending |
+| 09-03 | AiQuestionSettingsScreen + Gear icon route | 1 | ✅ Done |
 | 09-04 | File Library UI in AiQuestionSettingsScreen | 2 | ⬜ Pending |
 | 09-05 | Edge Function process-document-queue | 2 | ⬜ Pending |
 | 09-06 | QuestionDTO unified schema + Staging Area | 3 | ⬜ Pending |
