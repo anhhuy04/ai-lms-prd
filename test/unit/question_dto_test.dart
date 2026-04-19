@@ -142,4 +142,182 @@ void main() {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Edge cases (Phase 9 expansion)
+  // ---------------------------------------------------------------------------
+  group('QuestionDTO — edge cases', () {
+    test('fromJson với content.text là null → content map có null value (no crash)', () {
+      // content is a Map<String, dynamic> — text key can be null
+      final json = {
+        'type': 'multiple_choice',
+        'content': {'text': null},
+        'answer': {'correct_index': 0},
+      };
+      final dto = QuestionDTO.fromJson(json);
+      expect(dto.content['text'], isNull);
+    });
+
+    test('fromJson với content là empty map không crash', () {
+      final json = {
+        'type': 'short_answer',
+        'content': <String, dynamic>{},
+        'answer': {'sample_response': ''},
+      };
+      final dto = QuestionDTO.fromJson(json);
+      expect(dto.content, isEmpty);
+      expect(dto.type, equals('short_answer'));
+    });
+
+    test('fromJson với choices là null → empty list (default applied)', () {
+      // Generated code: (json['choices'] as List<dynamic>?)?.map(...)?.toList() ?? const []
+      final json = {
+        'type': 'multiple_choice',
+        'content': {'text': 'Q?'},
+        'answer': {'correct_index': 0},
+        'choices': null,
+      };
+      final dto = QuestionDTO.fromJson(json);
+      expect(dto.choices, isEmpty,
+          reason: 'null choices should fallback to empty list via ?? const []');
+    });
+
+    test('fromJson với unknown type string không throw', () {
+      // No enum validation — any string is accepted
+      final json = {
+        'type': 'essay_long_form',
+        'content': {'text': 'Write an essay'},
+        'answer': {'rubric': 'grade by teacher'},
+      };
+      final dto = QuestionDTO.fromJson(json);
+      expect(dto.type, equals('essay_long_form'));
+    });
+
+    test('difficulty bounds: value 0 được accept (không có validation)', () {
+      // NOTE: No min/max validation in QuestionDTO — caller must validate.
+      // DB schema has difficulty INT 1-5, but DTO has no guard.
+      final json = {
+        'type': 'multiple_choice',
+        'content': {'text': 'Q?'},
+        'answer': {'correct_index': 0},
+        'difficulty': 0,
+      };
+      final dto = QuestionDTO.fromJson(json);
+      expect(dto.difficulty, equals(0),
+          reason: 'BUG RISK: DTO accepts difficulty=0 but DB expects 1-5');
+    });
+
+    test('difficulty bounds: value 6 được accept (không có validation)', () {
+      // NOTE: Same issue — no upper bound check.
+      final json = {
+        'type': 'multiple_choice',
+        'content': {'text': 'Q?'},
+        'answer': {'correct_index': 0},
+        'difficulty': 6,
+      };
+      final dto = QuestionDTO.fromJson(json);
+      expect(dto.difficulty, equals(6),
+          reason: 'BUG RISK: DTO accepts difficulty=6 but DB expects 1-5');
+    });
+
+    test('toDbInsert không chứa choices field (DB questions table không có choices column)', () {
+      final dto = QuestionDTO(
+        type: 'multiple_choice',
+        content: {'text': 'Q?'},
+        choices: [ChoiceDTO(id: 0, text: 'A'), ChoiceDTO(id: 1, text: 'B')],
+        answer: {'correct_index': 0},
+      );
+      final insert = dto.toDbInsert();
+      expect(insert.containsKey('choices'), isFalse,
+          reason: 'choices is not a column in questions table — RPC handles it separately');
+    });
+
+    // -------------------------------------------------------------------------
+    // ChoiceDTO camelCase vs snake_case behavior (BUG DOCUMENTATION)
+    // -------------------------------------------------------------------------
+    test('ChoiceDTO.fromJson với isCorrect (camelCase) — works correctly', () {
+      // Generated code uses json['isCorrect'] (camelCase) — the ONLY accepted key.
+      final json = {'id': 0, 'text': 'Answer A', 'isCorrect': true};
+      final choice = ChoiceDTO.fromJson(json);
+      expect(choice.isCorrect, isTrue);
+    });
+
+    test('ChoiceDTO.fromJson với is_correct (snake_case) — BUG: silently ignored, falls back to false', () {
+      // BUG: Edge Function may output snake_case JSON. The generated code reads
+      // json['isCorrect'], so snake_case 'is_correct' is silently ignored.
+      // This causes isCorrect to always be false when Edge Function uses snake_case.
+      // Fix: Add @JsonKey(name: 'is_correct') to ChoiceDTO.isCorrect field.
+      final jsonSnakeCase = {'id': 0, 'text': 'Answer A', 'is_correct': true};
+      final choice = ChoiceDTO.fromJson(jsonSnakeCase);
+      // Documents the BUG: is_correct is ignored → isCorrect defaults to false
+      expect(choice.isCorrect, isFalse,
+          reason: 'BUG CONFIRMED: snake_case is_correct is not read by generated code. '
+              'Fix: add @JsonKey(name: "is_correct") to ChoiceDTO.isCorrect');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Round-trip with Edge Function output (Fast Track pipeline)
+  // ---------------------------------------------------------------------------
+  group('QuestionDTO — round-trip với Edge Function output', () {
+    test('parse output từ Fast Track pipeline — defaults apply for missing fields', () {
+      // Simulate exact JSON from fastTrackMap() in Edge Function.
+      // Fast Track does NOT include difficulty, tags, or defaultPoints.
+      final edgeFunctionOutput = {
+        'type': 'multiple_choice',
+        'content': {'text': 'Question from fast track'},
+        'answer': {'correct_index': 0},
+        'choices': [
+          {'id': 0, 'text': 'A'},
+          {'id': 1, 'text': 'B'},
+        ],
+        // NOTE: 'difficulty', 'tags', 'defaultPoints' NOT present
+      };
+      final dto = QuestionDTO.fromJson(edgeFunctionOutput);
+      expect(dto.difficulty, equals(3), reason: 'default difficulty applies');
+      expect(dto.tags, isEmpty, reason: 'default tags (empty) applies');
+      expect(dto.defaultPoints, equals(1), reason: 'default defaultPoints applies');
+      expect(dto.choices.length, equals(2));
+    });
+
+    test('choices.isCorrect từ Edge Function Fast Track là false (isCorrect không được set)', () {
+      // fastTrackMap() chỉ set answer.correct_index, KHÔNG set isCorrect trong choices.
+      // StagingAreaWidget cần dùng answer.correct_index (không phải choice.isCorrect)
+      // để hiển thị đúng đáp án.
+      final edgeFunctionOutput = {
+        'type': 'multiple_choice',
+        'content': {'text': 'Q?'},
+        'answer': {'correct_index': 1},
+        'choices': [
+          {'id': 0, 'text': 'Wrong'},
+          {'id': 1, 'text': 'Correct'},
+        ],
+      };
+      final dto = QuestionDTO.fromJson(edgeFunctionOutput);
+      // All choices have isCorrect=false because Edge Function doesn't set it
+      expect(dto.choices.every((c) => !c.isCorrect), isTrue,
+          reason: 'Edge Function fastTrackMap does not set isCorrect in choices. '
+              'StagingAreaWidget MUST rely on answer.correct_index for display');
+      // Correct answer is conveyed through answer map
+      expect(dto.answer['correct_index'], equals(1));
+    });
+
+    test('fromJson với content null → TypeError (không graceful fallback)', () {
+      // content is required Map<String, dynamic> — generated code casts directly
+      // without null-check: json['content'] as Map<String, dynamic>
+      // This will throw TypeError if content is null.
+      final json = {
+        'type': 'multiple_choice',
+        'content': null, // null required field
+        'answer': {'correct_index': 0},
+      };
+      // Documents actual behavior: THROWS — there is no graceful fallback.
+      expect(
+        () => QuestionDTO.fromJson(json),
+        throwsA(isA<TypeError>()),
+        reason: 'BUG RISK: content is required — null content throws TypeError. '
+            'Callers must ensure content is never null in Edge Function output.',
+      );
+    });
+  });
 }
