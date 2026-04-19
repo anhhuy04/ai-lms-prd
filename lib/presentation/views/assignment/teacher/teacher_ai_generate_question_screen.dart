@@ -901,7 +901,7 @@ class _TeacherAiGenerateQuestionScreenState
                     Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () => context.push(AppRoute.settingsPath),
+                        onTap: () => context.pushNamed(AppRoute.aiQuestionSettings),
                         borderRadius: BorderRadius.circular(DesignRadius.full),
                         child: Padding(
                           padding: const EdgeInsets.all(8),
