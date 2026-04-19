@@ -168,7 +168,7 @@ Cần chạy trước khi test end-to-end.
 | 09-04 | TeacherFileDataSource + Clean Architecture Upload Pipeline | 2 | ✅ Done |
 | 09-05 | Edge Function process-document-queue | 2 | ✅ Done |
 | 09-06 | process-document-queue Edge Function (full impl + deploy) | 3 | ✅ Done |
-| 09-07 | Context Sources UI + RAG wiring | 3 | ⬜ Pending |
+| 09-07 | Staging Area — StagingAreaWidget + QuestionDTO + Polling | 4 | ✅ Done |
 
 ---
 
@@ -187,6 +187,16 @@ Cần chạy trước khi test end-to-end.
 - **Key decisions**: payload column (NOT request_payload); nested result structure (extraction + vectorize); 'completed'/'failed' status.
 - `flutter analyze`: N/A (TypeScript Edge Function).
 
+## Session 2026-04-19 — 09-07 Staging Area (QuestionDTO + StagingAreaWidget + Polling)
+
+- **Task 1 TDD RED** [1d64b23] — `test/unit/question_dto_test.dart`: Rewrote 6 real failing tests (fromJson MC/TF/SA, defaults, toDbInsert, pipeline agnosticism)
+- **Task 1 GREEN** [a00d365] — `lib/data/models/question_dto.dart` + generated `.freezed.dart` + `.g.dart`: QuestionDTO unified DTO + ChoiceDTO + toDbInsert() extension. All 6 tests pass.
+- **Task 2** [33877ef] — `staging_area_widget.dart` + `teacher_ai_generate_question_screen.dart` + `app_router.dart`: StagingAreaWidget ConsumerStatefulWidget with DraggableScrollableSheet, dual-action save buttons (RPC calls), polling mechanism for extraction pipeline (ai_queue status='completed', reads result.extraction.questions).
+- **Deviation**: Added `assignmentId` param to screen constructor (plan's code referenced it but constructor lacked it).
+- **Deviation**: Added guard when extraction mode but no files selected.
+- `flutter analyze` on all 4 files: 0 issues. All 6 unit tests pass.
+- **Phase 9 Plan 07 complete.** REQ 9-03 data contract + output flow implemented.
+
 ## Continue-here
 
-Next: 09-07 (Context Sources UI + RAG wiring)
+Next: Phase 09 wave 4 complete. All 8 plans done (09-00 through 09-07).
