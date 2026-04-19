@@ -87,7 +87,14 @@ BEGIN
       (v_question->'content'),
       (v_question->'answer'),
       COALESCE((v_question->>'default_points')::NUMERIC, 1),
-      COALESCE((v_question->>'difficulty')::INT, 3),   -- INT default 3 = medium (NOT string 'medium')
+      -- Safe difficulty cast: handles both INT ('3') and string ('medium'/'easy'/'hard')
+      -- QuestionDTO may send string label; CASE maps to INT 1-5 schema range
+      CASE v_question->>'difficulty'
+        WHEN 'easy'   THEN 1
+        WHEN 'medium' THEN 3
+        WHEN 'hard'   THEN 5
+        ELSE COALESCE(NULLIF(v_question->>'difficulty','')::INT, 3)
+      END,
       COALESCE(
         ARRAY(SELECT jsonb_array_elements_text(v_question->'tags')),
         ARRAY[]::text[]

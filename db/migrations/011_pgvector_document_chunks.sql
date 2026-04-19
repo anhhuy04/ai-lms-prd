@@ -18,10 +18,12 @@ CREATE TABLE IF NOT EXISTS public.document_chunks (
 );
 
 -- Index for cosine similarity search (D-21)
+-- HNSW preferred over IVFFlat: no training required, effective from 0 rows
+-- IVFFlat needs ~sqrt(n_rows) lists → ineffective on new/small tables
 CREATE INDEX IF NOT EXISTS document_chunks_embedding_cosine_idx
   ON public.document_chunks
-  USING ivfflat (embedding extensions.vector_cosine_ops)
-  WITH (lists = 100);
+  USING hnsw (embedding extensions.vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
 
 -- Index for differential update lookup by content_hash (D-30)
 CREATE INDEX IF NOT EXISTS document_chunks_file_hash_idx
@@ -86,3 +88,6 @@ AS $$
   ORDER BY dc.embedding <=> query_embedding
   LIMIT match_count;
 $$;
+
+-- Teachers (authenticated) need EXECUTE to call RAG retrieval from Flutter
+GRANT EXECUTE ON FUNCTION public.match_document_chunks(extensions.vector(768), UUID[], INT) TO authenticated;
