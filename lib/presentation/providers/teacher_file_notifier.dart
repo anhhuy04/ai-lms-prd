@@ -40,6 +40,10 @@ class TeacherFiles extends _$TeacherFiles {
     String filename,
     String mimeType,
   ) async {
+    // BUG-01 fix: capture current list BEFORE setting AsyncLoading.
+    // Reading state.valueOrNull after state=AsyncLoading() returns null,
+    // causing every upload to drop the previous list.
+    final current = state.valueOrNull ?? [];
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(teacherFileRepositoryProvider);
@@ -48,8 +52,6 @@ class TeacherFiles extends _$TeacherFiles {
         filename: filename,
         mimeType: mimeType,
       );
-      // Prepend new file to existing list
-      final current = state.valueOrNull ?? [];
       AppLogger.info('[TeacherFiles] Upload success: ${newFile.filename}');
       return [newFile, ...current];
     });

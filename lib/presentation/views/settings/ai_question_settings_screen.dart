@@ -209,7 +209,8 @@ class AiQuestionSettingsScreen extends ConsumerWidget {
     final isProcessing =
         file.processingStatus == 'queued' ||
         file.processingStatus == 'processing';
-    final isDone = file.processingStatus == 'done';
+    // BUG-02 fix: Edge Function sets ai_queue.status='completed', not 'done'
+    final isDone = file.processingStatus == 'completed';
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(

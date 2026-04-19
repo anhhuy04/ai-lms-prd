@@ -67,13 +67,33 @@ function splitText(text: string): string[] {
       if (candidate.length <= CHUNK_SIZE) {
         currentChunk = candidate;
       } else {
-        if (currentChunk.trim()) chunks.push(currentChunk.trim());
+        if (currentChunk.trim()) {
+          // BUG-04 fix: if accumulated chunk still exceeds limit, recurse with
+          // next separator instead of pushing oversized text directly.
+          if (currentChunk.trim().length > CHUNK_SIZE) {
+            split(currentChunk.trim(), separatorIdx + 1);
+          } else {
+            chunks.push(currentChunk.trim());
+          }
+        }
         // Apply overlap: take last CHUNK_OVERLAP chars of previous chunk
         const overlap = currentChunk.slice(-CHUNK_OVERLAP);
-        currentChunk = overlap ? `${overlap} ${part}` : part;
+        // BUG-04 fix: if the new part itself exceeds CHUNK_SIZE, recurse on it too
+        if (part.length > CHUNK_SIZE) {
+          currentChunk = '';
+          split((overlap ? `${overlap} ` : '') + part, separatorIdx + 1);
+        } else {
+          currentChunk = overlap ? `${overlap} ${part}` : part;
+        }
       }
     }
-    if (currentChunk.trim()) chunks.push(currentChunk.trim());
+    if (currentChunk.trim()) {
+      if (currentChunk.trim().length > CHUNK_SIZE) {
+        split(currentChunk.trim(), separatorIdx + 1);
+      } else {
+        chunks.push(currentChunk.trim());
+      }
+    }
   }
 
   split(text, 0);

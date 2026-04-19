@@ -81,8 +81,8 @@ class TeacherFileDataSource {
     });
   }
 
-  /// Query teacher's files via file_links join.
-  /// Only returns files linked with target_type='teacher' for the given teacher.
+  /// Query teacher's files via file_links join, enriched with real AI processing
+  /// status from ai_queue (BUG-02 fix: processingStatus was always stuck at 'queued').
   Future<List<TeacherFileModel>> getTeacherFiles(String teacherId) async {
     final rows = await _supabase
         .from('file_links')
@@ -91,10 +91,32 @@ class TeacherFileDataSource {
         .eq('target_id', teacherId)
         .order('created_at', ascending: false);
 
-    return rows
+    final files = rows
         .map((r) => r['files'] as Map<String, dynamic>?)
         .whereType<Map<String, dynamic>>()
-        .map(TeacherFileModel.fromJson)
         .toList();
+
+    if (files.isEmpty) return [];
+
+    // Fetch real processing status from ai_queue for each file
+    final fileIds = files.map((f) => f['id'] as String).toList();
+    final queueRows = await _supabase
+        .from('ai_queue')
+        .select('payload, status')
+        .eq('request_type', 'vectorize_document')
+        .inFilter('payload->>file_id', fileIds);
+
+    // Map fileId → ai_queue.status (latest queue entry wins)
+    final statusMap = <String, String>{};
+    for (final q in queueRows) {
+      final fileId = q['payload']?['file_id'] as String?;
+      if (fileId != null) statusMap[fileId] = q['status'] as String? ?? 'queued';
+    }
+
+    return files.map((f) {
+      final fileId = f['id'] as String;
+      final queueStatus = statusMap[fileId] ?? 'queued';
+      return TeacherFileModel.fromJson({...f, 'processing_status': queueStatus});
+    }).toList();
   }
 }
