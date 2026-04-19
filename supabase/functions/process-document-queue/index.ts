@@ -105,7 +105,12 @@ function fastTrackMap(rows: Record<string, unknown>[], headers: string[]): Quest
   const lower = headers.map(h => h.toLowerCase().trim());
 
   const questionKey = headers[lower.findIndex(h => h.includes('câu hỏi') || h.includes('question') || h.includes('nội dung'))];
-  const correctKey = headers[lower.findIndex(h => h.includes('đáp án đúng') || h.includes('correct') || h.includes('đáp án'))];
+  // BUG-A fix: prioritise exact/longer match so 'đáp án a'/'đáp án b' do NOT win over 'đáp án đúng'.
+  // Use h === 'đáp án' for bare exact match (pattern-3); h.includes('đáp án đúng') for pattern-1;
+  // h.includes('correct answer') for pattern-2 (more specific than bare 'correct').
+  const correctKey = headers[lower.findIndex(h =>
+    h.includes('đáp án đúng') || h.includes('correct answer') || h === 'đáp án'
+  )];
   const choiceKeys = headers.filter((_, i) =>
     lower[i].includes('đáp án') || lower[i].includes('option') || lower[i].includes('lựa chọn')
   ).filter(k => k !== correctKey);
@@ -319,10 +324,11 @@ serve(async (_req) => {
             questions = await callLLMForExtraction(JSON.stringify(rows.slice(0, 50)), apiKey, false);
           }
 
-          // Store extraction result in nested key to avoid overwrite by vectorizeDocument below
-          // Plan 07 polling reads: row['result']['extraction']['questions']
+          // BUG-B fix: deep-merge into existing result so result.vectorize checkpoint is preserved on retry.
+          // Plain `.update({ result: {...} })` replaces the entire JSONB column — wiping vectorize progress.
+          const { data: _curEx } = await supabase.from('ai_queue').select('result').eq('id', job.id).single();
           await supabase.from('ai_queue').update({
-            result: { extraction: { questions, path: fastTrackHeaders ? 'fast_track' : 'llm_fallback' } },
+            result: { ...(_curEx?.result ?? {}), extraction: { questions, path: fastTrackHeaders ? 'fast_track' : 'llm_fallback' } },
           }).eq('id', job.id);
 
         } else {
@@ -330,9 +336,10 @@ serve(async (_req) => {
           const { value: text } = await mammoth.extractRawText({ buffer: fileBytes });
           const questions = await callLLMForExtraction(text.slice(0, 8000), apiKey, true);
 
-          // Store under nested key — vectorizeDocument writes to result.vectorize, not result.extraction
+          // BUG-B fix: deep-merge to preserve result.vectorize checkpoint across retries.
+          const { data: _curWord } = await supabase.from('ai_queue').select('result').eq('id', job.id).single();
           await supabase.from('ai_queue').update({
-            result: { extraction: { questions, path: 'llm_word' } },
+            result: { ...(_curWord?.result ?? {}), extraction: { questions, path: 'llm_word' } },
           }).eq('id', job.id);
         }
 
@@ -360,3 +367,9 @@ serve(async (_req) => {
 
   return new Response(JSON.stringify({ processed }), { status: 200 });
 });
+
+// ---------------------------------------------------------------------------
+// Export internal helpers for unit tests (index.test.ts)
+// ---------------------------------------------------------------------------
+export { detectFastTrack, fastTrackMap, sha256, splitText };
+export type { QuestionDTO };
