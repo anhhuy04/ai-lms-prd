@@ -570,7 +570,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
           final questions = extra?['questions'] as List<Map<String, dynamic>>?;
-          return TeacherAiGenerateQuestionScreen(questions: questions);
+          final assignmentId = extra?['assignmentId'] as String?;
+          return TeacherAiGenerateQuestionScreen(
+            questions: questions,
+            assignmentId: assignmentId,
+          );
         },
       ),
       // Route create question (standalone - no bottom nav)

@@ -5,6 +5,7 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/services/ai_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/data/models/question_dto.dart';
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/presentation/providers/ai_providers.dart';
@@ -12,11 +13,13 @@ import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/learning_objective_providers.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/context_sources_section.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/widgets/staging_area_widget.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Chế độ xử lý AI: trích xuất từ tài liệu có sẵn hoặc sinh câu hỏi mới.
 enum ProcessingMode { extraction, generation }
@@ -25,7 +28,15 @@ enum ProcessingMode { extraction, generation }
 class TeacherAiGenerateQuestionScreen extends ConsumerStatefulWidget {
   final List<Map<String, dynamic>>? questions; // Danh sách câu hỏi hiện tại
 
-  const TeacherAiGenerateQuestionScreen({super.key, this.questions});
+  /// Optional: ID đề thi. Nếu có, StagingAreaWidget sẽ cho phép
+  /// "Lưu và Thêm vào Đề thi" (gọi save_questions_to_assignment với p_assignment_id).
+  final String? assignmentId;
+
+  const TeacherAiGenerateQuestionScreen({
+    super.key,
+    this.questions,
+    this.assignmentId,
+  });
 
   @override
   ConsumerState<TeacherAiGenerateQuestionScreen> createState() =>
@@ -69,6 +80,10 @@ class _TeacherAiGenerateQuestionScreenState
 
   // D-10, D-11: AI processing mode (Extraction vs Generation)
   ProcessingMode _processingMode = ProcessingMode.generation;
+
+  // D-26: Polling for document processing results (Extraction pipeline)
+  bool _isPolling = false;
+  String? _pollingStatus; // Status text shown while polling ai_queue
 
   @override
   void dispose() {
@@ -352,6 +367,91 @@ class _TeacherAiGenerateQuestionScreenState
     );
   }
 
+  /// Polls ai_queue every 3s (max 20 attempts = 60s) waiting for document
+  /// processing to complete. When status='completed', reads result.extraction.questions
+  /// and shows StagingAreaWidget (D-26).
+  ///
+  /// Status path: result.extraction.questions (nested under 'extraction' key to
+  /// avoid conflict with result.vectorize — see Plan 06 Edge Function).
+  Future<void> _pollForDocumentResults(String queueId) async {
+    if (mounted) {
+      setState(() {
+        _isPolling = true;
+        _pollingStatus = 'Đang xử lý tài liệu...';
+      });
+    }
+    try {
+      for (int attempt = 0; attempt < 20; attempt++) {
+        await Future.delayed(const Duration(seconds: 3));
+        if (!mounted) return;
+
+        if (mounted) {
+          setState(() => _pollingStatus =
+              'Đang xử lý tài liệu... (${(attempt + 1) * 3}s)');
+        }
+
+        final row = await Supabase.instance.client
+            .from('ai_queue')
+            .select('status, result')
+            .eq('id', queueId)
+            .single();
+
+        final status = row['status'] as String?;
+        // Status values: 'completed' | 'failed' (process-document-queue convention)
+        if (status == 'completed') {
+          final result = row['result'] as Map<String, dynamic>?;
+          // result.extraction.questions — nested to avoid overwrite by result.vectorize
+          final extraction = result?['extraction'] as Map<String, dynamic>?;
+          final rawQuestions = extraction?['questions'] as List? ?? [];
+          final questions = rawQuestions
+              .map((q) => QuestionDTO.fromJson(q as Map<String, dynamic>))
+              .toList();
+
+          if (mounted) {
+            setState(() {
+              _isPolling = false;
+              _pollingStatus = null;
+              _isGenerating = false;
+            });
+            showStagingArea(
+              context,
+              questions: questions,
+              assignmentId: widget.assignmentId,
+              onComplete: () {
+                if (mounted) {
+                  setState(() {
+                    _generatedQuestions =
+                        questions.map((q) => q.content).toList();
+                  });
+                }
+              },
+            );
+          }
+          return;
+        }
+        if (status == 'failed') {
+          throw Exception('Xử lý tài liệu thất bại. Vui lòng thử lại.');
+        }
+      }
+      throw Exception('Xử lý tài liệu hết thời gian chờ (60s). Vui lòng thử lại.');
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isPolling = false;
+          _pollingStatus = null;
+          _isGenerating = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi xử lý tài liệu: $e'),
+            backgroundColor: DesignColors.error,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _handleGenerate() async {
     AppLogger.info('🔵 [Generate] _handleGenerate called');
     AppLogger.info('🔵 [Generate] topic="${_topicController.text.trim()}", '
@@ -406,6 +506,48 @@ class _TeacherAiGenerateQuestionScreenState
         '[Generate] processingMode=$_processingMode, '
         'selectedFileIds(${_selectedFileIds.length})=$_selectedFileIds',
       );
+
+      // D-26: Extraction pipeline — poll ai_queue instead of inline generation
+      if (_processingMode == ProcessingMode.extraction &&
+          _selectedFileIds.isNotEmpty) {
+        // Find the most recent pending ai_queue row for selected files
+        // The row was inserted by TeacherFileDataSource.enqueueProcessing()
+        // when the teacher uploaded the file in ContextSourcesSection.
+        final queueRows = await Supabase.instance.client
+            .from('ai_queue')
+            .select('id, status')
+            .inFilter('payload->>file_id', _selectedFileIds)
+            .inFilter('status', ['pending', 'processing', 'completed'])
+            .order('created_at', ascending: false)
+            .limit(1);
+
+        if (queueRows.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Chưa có tài liệu nào đang xử lý. '
+                  'Vui lòng chọn tài liệu ở Nguồn Dữ Liệu.'),
+              backgroundColor: DesignColors.warning,
+            ),
+          );
+          setState(() => _isGenerating = false);
+          return;
+        }
+
+        final queueId = queueRows.first['id'] as String;
+        final queueStatus = queueRows.first['status'] as String;
+
+        if (queueStatus == 'completed') {
+          // Already done — read result immediately and show staging area
+          await _pollForDocumentResults(queueId);
+        } else {
+          // Still processing — start polling
+          _pollForDocumentResults(queueId);
+          // _pollForDocumentResults handles setState for _isGenerating
+        }
+        return; // Don't fall through to inline AI generation
+      }
+
       final aiRepository = ref.read(aiRepositoryProvider);
       int batchCount = 0;
 
@@ -1203,7 +1345,7 @@ class _TeacherAiGenerateQuestionScreenState
           ),
 
           // Loading overlay
-          if (_isGenerating)
+          if (_isGenerating || _isPolling)
             Positioned.fill(
               child: Container(
                 color: Colors.black.withValues(alpha: 0.3),
@@ -1212,7 +1354,20 @@ class _TeacherAiGenerateQuestionScreenState
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const CircularProgressIndicator(color: Colors.white),
-                      if (_batchProgress != null) ...[
+                      if (_pollingStatus != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(DesignRadius.lg),
+                          ),
+                          child: Text(
+                            _pollingStatus!,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                          ),
+                        ),
+                      ] else if (_batchProgress != null) ...[
                         const SizedBox(height: 16),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
