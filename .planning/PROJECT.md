@@ -220,10 +220,12 @@ lib/
 | GoRouter for routing | Existing routing pattern | — Pending |
 | Design Tokens | Enforce consistency | — Pending |
 | Auto-save pattern | Debounce 2s + SharedPreferences | — Pending |
-| File upload | Supabase Storage integration | — Pending |
+| File upload | Supabase Storage integration | ✅ Implemented (Phase 9) |
 | **Auto-Grading** | Sync MCQ scoring on submit | ✅ Implemented |
 | **SSOT Pattern** | Status only in work_sessions | ✅ Implemented |
+| **AI Settings Screen** | Dedicated AI config screen | ✅ Implemented (Phase 9) |
+| **Document AI Pipeline** | Excel/Word → QuestionDTO → Question Bank | ✅ Implemented (Phase 9) |
 
 ---
 
-*Last updated: 2026-03-10 - Added data structure & submission flows*
+*Last updated: 2026-04-19 - Phase 9 complete — AI Settings refactor, document import pipeline, StagingArea*
