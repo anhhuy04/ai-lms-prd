@@ -208,7 +208,7 @@ Plans:
 - [x] 09-02-PLAN.md — file_picker approval checkpoint + install (autonomous: false)
 - [x] 09-03-PLAN.md — AiQuestionSettingsScreen + aiQuestionSettings route + gear icon fix (9-01)
 - [x] 09-04-PLAN.md — TeacherFileDataSource + TeacherFileRepositoryImpl + teacherFilesProvider (9-02)
-- [ ] 09-05-PLAN.md — ContextSourcesSection widget + AI mode toggle + AiQuestionSettingsScreen doc library (9-02)
+- [x] 09-05-PLAN.md — ContextSourcesSection widget + AI mode toggle + AiQuestionSettingsScreen doc library (9-02)
 - [x] 09-06-PLAN.md — process-document-queue Edge Function: heuristic router, Gemini embedding 768-dim, checkpointing (D-29), content hashing (D-30) (9-03)
 - [ ] 09-07-PLAN.md — StagingAreaWidget (DraggableScrollableSheet) + QuestionDTO + save_questions_to_assignment wiring (9-03)
 
