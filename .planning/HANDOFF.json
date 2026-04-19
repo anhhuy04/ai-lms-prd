@@ -1,61 +1,46 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-17T15:46:13.908Z",
-  "phase": "08",
-  "phase_name": "Shuffle, Hotfix & Reuse",
-  "phase_dir": ".planning/phases/08-shuffle-hotfix-reuse",
-  "plan": null,
-  "task": "all-complete",
-  "total_tasks": "all-code-done",
+  "timestamp": "2026-04-19T03:28:17.624Z",
+  "phase": "09",
+  "phase_name": "ai-settings-refactor-document-import",
+  "phase_dir": ".planning/phases/09-ai-settings-refactor-document-import",
+  "plan": 3,
+  "task": 0,
+  "total_tasks": 0,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "08-A Data Contract Fix (INT choice IDs, Delta Override)", "status": "done", "commit": "a0582a0"},
-    {"id": 2, "name": "08-B Shuffle Wiring vào Workspace", "status": "done", "commit": "a0582a0"},
-    {"id": 3, "name": "08-C Hotfix câu hỏi sau Publish + Batch Regrade", "status": "done", "commit": "a0582a0"},
-    {"id": 4, "name": "08-D Reuse + Deep Clone", "status": "done", "commit": "a0582a0"},
-    {"id": 5, "name": "Migration 009: SECURITY DEFINER cho variant RPCs", "status": "done"},
-    {"id": 6, "name": "Migration 010: publish_assignment bảo vệ has_sessions", "status": "done"},
-    {"id": 7, "name": "Variant race condition fix (getOrCreateSubmission trước getDistributionDetail)", "status": "done"},
-    {"id": 8, "name": "Delta Override fix Case 1 (bank questions + custom_content)", "status": "done"},
-    {"id": 9, "name": "Submit button hardening (force-save, double-submit guard, idle timer)", "status": "done"},
-    {"id": 10, "name": "Migration 011: batch_regrade recalculate total_score", "status": "done"},
-    {"id": 11, "name": "Migration 012: unique constraint autosave_answers", "status": "done"},
-    {"id": 12, "name": "Migration 013: unique constraint submission_answers", "status": "done"},
-    {"id": 13, "name": "Batch upsert cho saveSubmissionDraft", "status": "done"},
-    {"id": 14, "name": "Auto-submit khi hết giờ (_CountdownTimerWidget.onTimeUp)", "status": "done"},
-    {"id": 15, "name": "Migration 014: Server-side timing (finalize_work_session RPC)", "status": "done"},
-    {"id": 16, "name": "Migration 015: Time cap fix (LEAST now(), exam_expires_at)", "status": "done"},
-    {"id": 17, "name": "Flutter: xóa client DateTime.now() cho critical fields, dùng server values", "status": "done"}
+    {"id": "09-00", "name": "Wave 0 TDD test stubs (5 files)", "status": "done", "commit": "418caf9"},
+    {"id": "09-01", "name": "DB migrations: pgvector + document_chunks + Storage + save RPC", "status": "done", "commit": "602c2b9"},
+    {"id": "09-02", "name": "file_picker ^11.0.2 install + Android/iOS permissions", "status": "done", "commit": "9ba412e"},
+    {"id": "wave1-fixes", "name": "Fix HNSW index, match_document_chunks GRANT, difficulty safe cast, QuestionDTO int", "status": "done", "commit": "4942665"}
   ],
   "remaining_tasks": [
-    {"id": 18, "name": "Manual test: shuffle flow end-to-end (HS làm bài, verify assignment_variants DB)", "status": "not_started"},
-    {"id": 19, "name": "Manual test: hotfix flow (GV sửa sau HS nộp, verify regrade)", "status": "not_started"},
-    {"id": 20, "name": "Manual test: submit timing (work_sessions.time_spent_seconds ≠ 0)", "status": "not_started"},
-    {"id": 21, "name": "Manual test: auto-submit khi hết giờ", "status": "not_started"}
+    {"id": "09-03", "name": "AiQuestionSettingsScreen + aiQuestionSettings route + gear icon fix", "status": "not_started", "wave": 2},
+    {"id": "09-04", "name": "TeacherFileModel + TeacherFileDataSource + repository + teacherFilesProvider", "status": "not_started", "wave": 2},
+    {"id": "09-05", "name": "ContextSourcesSection widget + AI mode toggle + activate document library", "status": "not_started", "wave": 3},
+    {"id": "09-06", "name": "process-document-queue Edge Function (heuristic router + vectorize + checkpoint)", "status": "not_started", "wave": 3},
+    {"id": "09-07", "name": "QuestionDTO model + StagingAreaWidget + polling in AI generate screen", "status": "not_started", "wave": 4}
   ],
   "blockers": [],
   "human_actions_pending": [
-    {"action": "Manual testing end-to-end", "context": "Tất cả code done, cần test thực tế trên device", "blocking": false}
+    {
+      "action": "Re-apply migrations 011 and 013 to Supabase after Wave 1 fixes",
+      "context": "Migration 011 changed ivfflat->hnsw and added GRANT EXECUTE for match_document_chunks. Migration 013 added safe difficulty CASE WHEN cast. Files committed but Supabase DB may have old versions. Use Supabase MCP apply_migration or dashboard SQL editor.",
+      "blocking": false,
+      "when": "Before Wave 4 (09-07) exercises save_questions_to_assignment RPC. Wave 2+3 only touch Flutter code so re-apply is not urgent."
+    }
   ],
   "decisions": [
-    {"decision": "Snapshot Architecture cho variants", "rationale": "Chỉ lưu ORDER pointer, không lưu content — hotfix không cần tạo lại variant", "phase": "08"},
-    {"decision": "Delta Override Pattern cho hotfix", "rationale": "Ghi vào assignment_questions.custom_content, không đụng questions bank (immutable)", "phase": "08"},
-    {"decision": "has_sessions=true → lock structural (thêm/xóa choice)", "rationale": "Thêm/xóa choice làm lệch shuffled_choices indices trong variants đang dùng", "phase": "08"},
-    {"decision": "finalize_work_session RPC — no client timestamps", "rationale": "Server-side: submitted_at=now(), time_spent=server math, is_late=server comparison. Học sinh không thể giả mạo đồng hồ.", "phase": "08"},
-    {"decision": "Time cap: submitted_at = LEAST(now(), started_at + time_limit)", "rationale": "HS tắt máy sau hết giờ → bật lại → submitted_at = lúc hết giờ (fair)", "phase": "08"},
-    {"decision": "Force-save trong submit() gọi repo trực tiếp, không qua _saveDraft()", "rationale": "Lỗi network phải propagate, ngăn submitAssignment chạy với stale data", "phase": "08"}
+    {"decision": "HNSW index over IVFFlat for document_chunks", "rationale": "IVFFlat needs sqrt(n) rows training — HNSW effective from 0 rows", "phase": "09"},
+    {"decision": "difficulty: int 1-5 in QuestionDTO (not String medium)", "rationale": "questions.difficulty is INTEGER — string crashes save_questions_to_assignment RPC cast", "phase": "09"},
+    {"decision": "CASE WHEN safe difficulty cast in RPC", "rationale": "Handle both string labels (easy/medium/hard) and numeric strings (1-5)", "phase": "09"},
+    {"decision": "result.extraction + result.vectorize nested structure", "rationale": "vectorizeDocument checkpoint writes to result.vectorize to avoid overwriting result.extraction.questions", "phase": "09"},
+    {"decision": "payload column not request_payload in ai_queue", "rationale": "Verified against existing process-ai-queue/index.ts — column is payload", "phase": "09"},
+    {"decision": "Supabase.instance.client (not supabaseClientProvider)", "rationale": "Codebase does not have supabaseClientProvider or authStateProvider Riverpod providers", "phase": "09"},
+    {"decision": "Class name TeacherFiles for @riverpod notifier", "rationale": "Generator produces teacherFilesProvider — Plan 05 watches teacherFilesProvider", "phase": "09"},
+    {"decision": "Pre-execution audit before Wave 1", "rationale": "Found 9 critical issues across all 8 PLANs — all fixed in PLAN.md files before execution began", "phase": "09"}
   ],
-  "uncommitted_files": [
-    "lib/data/datasources/assignment_datasource.dart",
-    "lib/presentation/providers/workspace_provider.dart",
-    "lib/presentation/views/assignment/student/student_assignment_workspace_screen.dart",
-    "db/migrations/011_batch_regrade_recalc_total_score.sql",
-    "db/migrations/012_autosave_answers_unique_constraint.sql",
-    "db/migrations/013_submission_answers_unique_constraint.sql",
-    "db/migrations/014_server_side_timing.sql",
-    "db/migrations/015_fix_time_cap_on_submit.sql",
-    ".planning/phases/08-shuffle-hotfix-reuse/.continue-here.md"
-  ],
-  "next_action": "Manual test: login HS → làm bài có shuffle → kiểm tra assignment_variants trong Supabase dashboard. Sau đó test hotfix flow và submit timing.",
-  "context_notes": "Triết lý: Server is Source of Truth, Client là Dumb TV. Tất cả critical security (timestamp, timing, shuffle order) đã xử lý ở DB layer. Flutter chỉ gọi RPC và render. Migrations 009-015 đã apply."
+  "uncommitted_files": [],
+  "next_action": "Run /gsd:execute-phase 9 --wave 2 to spawn 09-03 and 09-04 in parallel (both autonomous:true, no checkpoint). Fresh /clear first.",
+  "context_notes": "Wave 1 is fully complete. All 8 PLAN.md files were audited and 9 critical bugs fixed before execution. Key fixes: package name ai_mls not ai_lms_prd; payload not request_payload; Supabase.instance.client not supabaseClientProvider; ConsumerStatefulWidget not StatefulConsumerWidget; status completed/failed not done/error; nested result structure; GRANT EXECUTE missing; difficulty type mismatch. Migrations on disk are correct (post-fix). Supabase DB may need re-apply of 011+013 but not blocking for Wave 2+3."
 }
