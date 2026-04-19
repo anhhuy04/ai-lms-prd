@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-11T12:00:00.000Z"
+last_updated: "2026-04-19T03:00:32.752Z"
 progress:
-  total_phases: 9
-  completed_phases: 3
-  total_plans: 35
-  completed_plans: 33
+  total_phases: 11
+  completed_phases: 4
+  total_plans: 43
+  completed_plans: 34
 ---
 
 # Project State
 
-**Updated:** 2026-04-10
+**Updated:** 2026-04-19
 
 ## Project Reference
 
@@ -21,7 +21,18 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Efficiently manage the complete assignment lifecycle
 
-**Current focus:** Phase 07 — ai-analytics-pipeline
+**Current focus:** Phase 09 — ai-settings-refactor-document-import (Plan 01 next)
+
+---
+
+## Session 2026-04-19 — 09-00 Wave 0 Test Stubs
+
+- **Task 1** [10554d8] — `test/unit/teacher_file_datasource_test.dart` + `test/unit/question_dto_test.dart`: 12 unit test stubs (all skip), covering TeacherFileDataSource upload/metadata/enqueue/getFiles and QuestionDTO fromJson/toInsert/pipeline-agnosticism.
+- **Task 2** [1f217ab] — `test/widget/ai_settings_test.dart` + `test/widget/staging_area_test.dart`: 14 widget test stubs (all skip via markTestSkipped), covering AiQuestionSettingsScreen navigation/gear-icon/file-library and StagingAreaWidget display/actions/scrollable-sheet.
+- **Task 3** [b4e1718] — `supabase/functions/process-document-queue/index.test.ts`: 11 TypeScript test stubs (all ignore: true), covering D-13 Heuristic Router, D-29 Stateful Checkpointing, D-30 Content Hashing, D-18 Gemini Embedding.
+- **Deviation**: `testWidgets` skip parameter is `bool?` not `String` — fixed by using `markTestSkipped()` inside test body.
+- `flutter analyze test/` 0 issues. All 26 Flutter tests skipped. All 5 stub files exist.
+- **Phase 9 Wave 0 complete.** Nyquist contract established for Plans 01-07.
 
 ---
 
@@ -134,6 +145,21 @@ supabase functions deploy process-ai-queue
 ```
 
 Cần chạy trước khi test end-to-end.
+
+---
+
+## Phase 09 Plan Status
+
+| Plan | Nội dung | Wave | Status |
+|------|---------|------|--------|
+| 09-00 | Wave 0 Test Stubs | 0 | ✅ Done |
+| 09-01 | DB Schema + RLS (files, file_links, document_chunks) | 1 | ⬜ Pending |
+| 09-02 | AiQuestionSettingsScreen + Gear icon route | 1 | ⬜ Pending |
+| 09-03 | TeacherFileDataSource + Upload Pipeline | 1 | ⬜ Pending |
+| 09-04 | File Library UI in AiQuestionSettingsScreen | 2 | ⬜ Pending |
+| 09-05 | Edge Function process-document-queue | 2 | ⬜ Pending |
+| 09-06 | QuestionDTO unified schema + Staging Area | 3 | ⬜ Pending |
+| 09-07 | Context Sources UI + RAG wiring | 3 | ⬜ Pending |
 
 ---
 

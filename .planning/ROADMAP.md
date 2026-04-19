@@ -200,10 +200,10 @@ Plans:
 2. Giáo viên có thể upload file Excel/Word từ màn hình tạo câu hỏi AI
 3. AI phân tích tài liệu và trả về danh sách câu hỏi có thể lưu vào Question Bank
 
-**Plans:** 8 plans in 4 waves
+**Plans:** 1/8 plans executed
 
 Plans:
-- [ ] 09-00-PLAN.md — Wave 0 test stubs (5 files: unit, widget, Edge Function)
+- [x] 09-00-PLAN.md — Wave 0 test stubs (5 files: unit, widget, Edge Function)
 - [ ] 09-01-PLAN.md — DB Migrations 011-013: pgvector (768-dim), document_chunks, ai_queue constraint, Storage bucket, save_questions_to_assignment RPC
 - [ ] 09-02-PLAN.md — file_picker approval checkpoint + install (autonomous: false)
 - [ ] 09-03-PLAN.md — AiQuestionSettingsScreen + aiQuestionSettings route + gear icon fix (9-01)
