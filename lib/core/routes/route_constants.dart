@@ -157,6 +157,21 @@ class AppRoute {
   static String teacherAddStudentByCodePath(String classId) =>
       '/teacher/class/$classId/add-student';
 
+  /// Teacher - Group management (danh sách nhóm trong lớp)
+  static const String teacherGroupManagement = 'teacher-group-management';
+  static String teacherGroupManagementPath(String classId) =>
+      '/teacher/class/$classId/groups';
+
+  /// Teacher - Group detail (chi tiết nhóm + thành viên)
+  static const String teacherGroupDetail = 'teacher-group-detail';
+  static String teacherGroupDetailPath(String classId, String groupId) =>
+      '/teacher/class/$classId/groups/$groupId';
+
+  /// Student - Group view (nhóm học sinh đang tham gia)
+  static const String studentGroupView = 'student-group-view';
+  static String studentGroupViewPath(String classId) =>
+      '/student/class/$classId/groups';
+
   /// Teacher - Assignment Hub (overview screen)
   static const String teacherAssignmentHub = 'teacher-assignment-hub';
   static const String teacherAssignmentHubPath = '/teacher/assignments/hub';
@@ -298,6 +313,10 @@ class AppRoute {
   static const String apiKeySetup = 'api-key-setup';
   static const String apiKeySetupPath = '/settings/api-keys';
 
+  /// Teacher - AI Question Settings screen (dedicated AI config + document library)
+  static const String aiQuestionSettings = 'ai-question-settings';
+  static const String aiQuestionSettingsPath = '/settings/ai-questions';
+
   /// Error page (403 - Access Denied)
   static const String forbidden = 'forbidden';
   static const String forbiddenPath = '/403';
@@ -379,6 +398,7 @@ class AppRoute {
       studentAssignmentWorkspace,
       studentSubmissionHistory,
       studentSubmissionReview,
+      studentGroupView,
       studentScores,
       studentAnalytics,
       studentRecommendationsTab,
@@ -401,6 +421,8 @@ class AppRoute {
       teacherEditClass,
       teacherStudentList,
       teacherAddStudentByCode,
+      teacherGroupManagement,
+      teacherGroupDetail,
       teacherAssignmentHub,
       teacherAssignmentList,
       teacherCreateAssignment,
@@ -424,6 +446,7 @@ class AppRoute {
       editProfile,
       settings,
       apiKeySetup,
+      aiQuestionSettings,
     };
     if (role == 'teacher' && teacherRoutes.contains(routeName)) {
       return true;

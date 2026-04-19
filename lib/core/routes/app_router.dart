@@ -34,6 +34,9 @@ import 'package:ai_mls/presentation/views/class/teacher/student_list_screen.dart
 import 'package:ai_mls/presentation/views/class/teacher/teacher_assignment_detail_screen.dart';
 import 'package:ai_mls/presentation/views/class/teacher/teacher_class_detail_screen.dart';
 import 'package:ai_mls/presentation/views/class/teacher/teacher_class_list_screen.dart';
+import 'package:ai_mls/presentation/views/class/teacher/teacher_group_management_screen.dart';
+import 'package:ai_mls/presentation/views/class/teacher/teacher_group_detail_screen.dart';
+import 'package:ai_mls/presentation/views/class/student/student_group_screen.dart';
 import 'package:ai_mls/presentation/views/class/teacher/widgets/search/teacher_class_search_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/admin_dashboard_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/home/student_home_content_screen.dart';
@@ -47,6 +50,7 @@ import 'package:ai_mls/presentation/views/recommendation/teacher/teacher_recomme
 import 'package:ai_mls/presentation/views/recommendation/student/student_recommendations_tab.dart';
 import 'package:ai_mls/presentation/views/network/no_internet_screen.dart';
 import 'package:ai_mls/presentation/views/profile/profile_screen.dart';
+import 'package:ai_mls/presentation/views/settings/ai_question_settings_screen.dart';
 import 'package:ai_mls/presentation/views/settings/api_key_setup_screen.dart';
 import 'package:ai_mls/presentation/views/settings/settings_screen.dart';
 import 'package:ai_mls/presentation/views/splash/splash_screen.dart';
@@ -766,6 +770,49 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      // ── Teacher: Group Management ──
+      GoRoute(
+        path: AppRoute.teacherGroupManagementPath(':classId'),
+        name: AppRoute.teacherGroupManagement,
+        builder: (context, state) {
+          final classId = state.pathParameters['classId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          return TeacherGroupManagementScreen(
+            classId: classId,
+            className: extra?['className'] as String? ?? '',
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoute.teacherGroupDetailPath(':classId', ':groupId'),
+        name: AppRoute.teacherGroupDetail,
+        builder: (context, state) {
+          final classId = state.pathParameters['classId']!;
+          final groupId = state.pathParameters['groupId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          return TeacherGroupDetailScreen(
+            classId: classId,
+            groupId: groupId,
+            groupName: extra?['groupName'] as String? ?? '',
+            className: extra?['className'] as String? ?? '',
+          );
+        },
+      ),
+
+      // ── Student: Group View ──
+      GoRoute(
+        path: AppRoute.studentGroupViewPath(':classId'),
+        name: AppRoute.studentGroupView,
+        builder: (context, state) {
+          final classId = state.pathParameters['classId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          return StudentGroupScreen(
+            classId: classId,
+            className: extra?['className'] as String? ?? '',
+          );
+        },
+      ),
+
       // ==================== SHARED ROUTES ====================
       // Available to all authenticated users
       GoRoute(
@@ -784,6 +831,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.apiKeySetupPath,
         name: AppRoute.apiKeySetup,
         builder: (context, state) => const ApiKeySetupScreen(),
+      ),
+
+      GoRoute(
+        path: AppRoute.aiQuestionSettingsPath,
+        name: AppRoute.aiQuestionSettings,
+        builder: (context, state) => const AiQuestionSettingsScreen(),
       ),
 
       GoRoute(
