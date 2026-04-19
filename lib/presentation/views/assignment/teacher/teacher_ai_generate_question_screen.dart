@@ -11,11 +11,15 @@ import 'package:ai_mls/presentation/providers/ai_providers.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/learning_objective_providers.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/widgets/context_sources_section.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+/// Chế độ xử lý AI: trích xuất từ tài liệu có sẵn hoặc sinh câu hỏi mới.
+enum ProcessingMode { extraction, generation }
 
 /// Màn hình tạo câu hỏi bằng AI
 class TeacherAiGenerateQuestionScreen extends ConsumerStatefulWidget {
@@ -59,6 +63,12 @@ class _TeacherAiGenerateQuestionScreenState
   bool _explanationFeatureEnabled = false; // Global toggle — tiết kiệm token
   final Set<int> _expandedExplanations = {};
   final Set<int> _regeneratingExplanationSet = {};
+
+  // D-07, D-08, D-09: Context sources (tài liệu tham khảo)
+  List<String> _selectedFileIds = [];
+
+  // D-10, D-11: AI processing mode (Extraction vs Generation)
+  ProcessingMode _processingMode = ProcessingMode.generation;
 
   @override
   void dispose() {
@@ -391,6 +401,11 @@ class _TeacherAiGenerateQuestionScreenState
     });
 
     try {
+      // D-07~D-11: Log selected file IDs and processing mode for Plan 07 wiring
+      AppLogger.info(
+        '[Generate] processingMode=$_processingMode, '
+        'selectedFileIds(${_selectedFileIds.length})=$_selectedFileIds',
+      );
       final aiRepository = ref.read(aiRepositoryProvider);
       int batchCount = 0;
 
@@ -947,6 +962,14 @@ class _TeacherAiGenerateQuestionScreenState
 
                         // Question Type Selector (multi-select chips)
                         _buildQuestionTypeSection(context, isDark),
+                        SizedBox(height: DesignSpacing.xxl),
+
+                        // D-10, D-11: AI Mode Toggle (Extraction vs Generation)
+                        _buildModeToggle(context, isDark),
+                        SizedBox(height: DesignSpacing.xxl),
+
+                        // D-07, D-08, D-09: Context Sources (tài liệu tham khảo)
+                        _buildContextSources(),
 
                         // AI Response Section (hiển thị sau khi generate)
                         if (_generatedQuestions != null) ...[
@@ -1661,6 +1684,59 @@ class _TeacherAiGenerateQuestionScreenState
 
         ],
       ),
+    );
+  }
+
+  /// D-10, D-11: AI mode toggle (Extraction vs Generation)
+  Widget _buildModeToggle(BuildContext context, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Chế độ xử lý',
+          style: DesignTypography.bodyLarge.copyWith(
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : DesignColors.textPrimary,
+          ),
+        ),
+        SizedBox(height: DesignSpacing.sm),
+        SegmentedButton<ProcessingMode>(
+          segments: const [
+            ButtonSegment(
+              value: ProcessingMode.extraction,
+              label: Text('Trích xuất'),
+              icon: Icon(Icons.recycling),
+            ),
+            ButtonSegment(
+              value: ProcessingMode.generation,
+              label: Text('Sinh câu hỏi'),
+              icon: Icon(Icons.auto_fix_high),
+            ),
+          ],
+          selected: {_processingMode},
+          onSelectionChanged: (Set<ProcessingMode> selected) {
+            setState(() => _processingMode = selected.first);
+          },
+        ),
+        SizedBox(height: DesignSpacing.xs),
+        Text(
+          _processingMode == ProcessingMode.extraction
+              ? 'Trích xuất câu hỏi từ tài liệu có sẵn (đề thi cũ, bộ câu hỏi)'
+              : 'Sinh câu hỏi mới dựa trên nội dung tài liệu học',
+          style: DesignTypography.bodySmall.copyWith(
+            color: isDark ? Colors.grey[400] : DesignColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// D-07, D-08, D-09: Context sources section
+  Widget _buildContextSources() {
+    return ContextSourcesSection(
+      onSelectionChanged: (fileIds) {
+        setState(() => _selectedFileIds = fileIds);
+      },
     );
   }
 

@@ -1,16 +1,20 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/data/models/teacher_file_model.dart';
+import 'package:ai_mls/presentation/providers/teacher_file_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// AI Question Settings Screen — dedicated AI config screen.
 ///
 /// Contains:
 ///  1. API Key Setup tile → pushes to ApiKeySetupScreen
-///  2. Thư viện Tài liệu section — empty state (upload enabled in Plan 05)
+///  2. Thư viện Tài liệu section — real file list from teacherFilesProvider
 ///  3. Công cụ section — "Xuất file mẫu Excel" (D-16-ext)
-class AiQuestionSettingsScreen extends StatelessWidget {
+class AiQuestionSettingsScreen extends ConsumerWidget {
   const AiQuestionSettingsScreen({super.key});
 
   // TODO: replace <YOUR_SUPABASE_PROJECT> with actual project ref
@@ -18,7 +22,7 @@ class AiQuestionSettingsScreen extends StatelessWidget {
       'https://<YOUR_SUPABASE_PROJECT>.supabase.co/storage/v1/object/public/teacher-documents/templates/question_template.xlsx';
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -46,7 +50,7 @@ class AiQuestionSettingsScreen extends StatelessWidget {
         children: [
           _buildApiKeySection(context, isDark: isDark),
           SizedBox(height: DesignSpacing.xl),
-          _buildDocumentLibrarySection(context, isDark: isDark),
+          _buildDocumentLibrarySection(context, ref, isDark: isDark),
           SizedBox(height: DesignSpacing.xl),
           _buildToolsSection(context, isDark: isDark),
         ],
@@ -88,49 +92,168 @@ class AiQuestionSettingsScreen extends StatelessWidget {
   }
 
   Widget _buildDocumentLibrarySection(
-    BuildContext context, {
+    BuildContext context,
+    WidgetRef ref, {
     required bool isDark,
   }) {
+    final filesAsync = ref.watch(teacherFilesProvider);
+
     return _SectionCard(
       title: 'Thư viện Tài liệu',
       icon: Icons.folder_outlined,
       isDark: isDark,
-      child: Column(
-        children: [
-          const SizedBox(height: DesignSpacing.md),
-          Icon(
-            Icons.folder_open_outlined,
-            size: 48,
-            color: isDark ? Colors.grey[500] : DesignColors.textTertiary,
-          ),
-          const SizedBox(height: DesignSpacing.sm),
-          Text(
-            'Chưa có tài liệu nào',
-            style: DesignTypography.bodyLarge.copyWith(
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.grey[300] : DesignColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: DesignSpacing.xs),
-          Text(
-            'Thêm tài liệu để AI phân tích khi tạo câu hỏi',
-            textAlign: TextAlign.center,
+      child: filesAsync.when(
+        loading: () => _buildDocumentLibraryLoading(),
+        error: (e, _) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: DesignSpacing.md),
+          child: Text(
+            'Lỗi tải tài liệu',
             style: DesignTypography.bodySmall.copyWith(
-              color: isDark ? Colors.grey[500] : DesignColors.textSecondary,
+              color: DesignColors.error,
             ),
           ),
-          const SizedBox(height: DesignSpacing.lg),
-          Tooltip(
-            message: 'Tính năng sẽ được kích hoạt sau khi cài đặt',
-            child: OutlinedButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.add),
-              label: const Text('Thêm tài liệu'),
-            ),
-          ),
-          const SizedBox(height: DesignSpacing.md),
-        ],
+        ),
+        data: (files) => files.isEmpty
+            ? _buildEmptyLibrary(isDark)
+            : _buildFileList(files, isDark),
       ),
+    );
+  }
+
+  Widget _buildDocumentLibraryLoading() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Column(
+        children: List.generate(
+          3,
+          (_) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: DesignSpacing.sm),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(DesignRadius.md),
+                  ),
+                ),
+                const SizedBox(width: DesignSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 14,
+                        width: double.infinity,
+                        color: Colors.grey[300],
+                      ),
+                      const SizedBox(height: DesignSpacing.xs),
+                      Container(
+                        height: 12,
+                        width: 120,
+                        color: Colors.grey[300],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyLibrary(bool isDark) {
+    return Column(
+      children: [
+        const SizedBox(height: DesignSpacing.md),
+        Icon(
+          Icons.folder_open_outlined,
+          size: 48,
+          color: isDark ? Colors.grey[500] : DesignColors.textTertiary,
+        ),
+        const SizedBox(height: DesignSpacing.sm),
+        Text(
+          'Chưa có tài liệu nào',
+          style: DesignTypography.bodyLarge.copyWith(
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.grey[300] : DesignColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: DesignSpacing.xs),
+        Text(
+          'Thêm tài liệu từ màn hình Tạo câu hỏi AI để AI phân tích',
+          textAlign: TextAlign.center,
+          style: DesignTypography.bodySmall.copyWith(
+            color: isDark ? Colors.grey[500] : DesignColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: DesignSpacing.md),
+      ],
+    );
+  }
+
+  Widget _buildFileList(List<TeacherFileModel> files, bool isDark) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: files.length,
+      itemBuilder: (_, i) => _buildFileListTile(files[i], isDark),
+    );
+  }
+
+  Widget _buildFileListTile(TeacherFileModel file, bool isDark) {
+    final isProcessing =
+        file.processingStatus == 'queued' ||
+        file.processingStatus == 'processing';
+    final isDone = file.processingStatus == 'done';
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 0,
+        vertical: DesignSpacing.xs,
+      ),
+      leading: _IconBox(
+        icon: Icons.description_outlined,
+        color: isDone ? DesignColors.success : DesignColors.primary,
+      ),
+      title: Text(
+        file.filename,
+        style: DesignTypography.bodyLarge.copyWith(
+          fontWeight: FontWeight.w500,
+          color: isDark ? Colors.white : DesignColors.textPrimary,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        isProcessing
+            ? 'Đang xử lý...'
+            : isDone
+                ? 'Sẵn sàng'
+                : 'Lỗi xử lý',
+        style: DesignTypography.bodySmall.copyWith(
+          color: isProcessing
+              ? DesignColors.warning
+              : isDone
+                  ? DesignColors.success
+                  : DesignColors.error,
+        ),
+      ),
+      trailing: isProcessing
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              isDone ? Icons.check_circle_outline : Icons.error_outline,
+              color: isDone ? DesignColors.success : DesignColors.error,
+              size: 20,
+            ),
     );
   }
 
