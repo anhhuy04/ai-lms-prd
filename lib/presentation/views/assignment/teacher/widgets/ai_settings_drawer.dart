@@ -21,7 +21,7 @@ class AiSettingsDrawer extends ConsumerWidget {
 
     return Drawer(
       width: 340,
-      backgroundColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+      backgroundColor: isDark ? const Color(0xFF1A2632) : DesignColors.white,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,21 +37,21 @@ class AiSettingsDrawer extends ConsumerWidget {
                     'Cài đặt AI',
                     style: DesignTypography.titleLarge.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : DesignColors.textPrimary,
+                      color: isDark ? DesignColors.white : DesignColors.textPrimary,
                     ),
                   ),
                   const Spacer(),
                   IconButton(
                     icon: Icon(
                       Icons.close_rounded,
-                      color: isDark ? Colors.white70 : Colors.grey[600],
+                      color: isDark ? Colors.white70 : DesignColors.textSecondary,
                     ),
                     onPressed: () => Scaffold.of(context).closeEndDrawer(),
                   ),
                 ],
               ),
             ),
-            Divider(height: 1, color: Colors.grey[200]),
+            Divider(height: 1, color: DesignColors.dividerLight),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.all(DesignSpacing.lg),
@@ -87,7 +87,7 @@ class _ApiKeySection extends StatelessWidget {
       isDark: isDark,
       child: ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: Icon(Icons.vpn_key_outlined, color: DesignColors.primary, size: 20),
+        leading: Icon(Icons.vpn_key_outlined, color: DesignColors.primary, size: DesignIcons.mdSize),
         title: Text(
           'Cài đặt API Key',
           style: DesignTypography.bodyMedium.copyWith(
@@ -98,10 +98,10 @@ class _ApiKeySection extends StatelessWidget {
         subtitle: Text(
           'Quản lý Gemini API Key',
           style: DesignTypography.bodySmall.copyWith(
-            color: isDark ? Colors.grey[400] : DesignColors.textSecondary,
+            color: isDark ? DesignColors.textSecondary : DesignColors.textSecondary,
           ),
         ),
-        trailing: Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+        trailing: Icon(Icons.chevron_right, color: DesignColors.textSecondary, size: DesignIcons.mdSize),
         onTap: () {
           Scaffold.of(context).closeEndDrawer();
           context.pushNamed(AppRoute.apiKeySetup);
@@ -150,7 +150,7 @@ class _DocumentLibrarySection extends StatelessWidget {
           Text(
             'File tạm thời — tự xóa sau khi xử lý',
             style: DesignTypography.bodySmall.copyWith(
-              color: isDark ? Colors.grey[400] : DesignColors.textSecondary,
+              color: isDark ? DesignColors.textSecondary : DesignColors.textSecondary,
             ),
           ),
           SizedBox(height: DesignSpacing.sm),
@@ -161,7 +161,7 @@ class _DocumentLibrarySection extends StatelessWidget {
             ),
             error: (e, _) => Text(
               'Lỗi tải danh sách: $e',
-              style: TextStyle(color: DesignColors.error, fontSize: 12),
+              style: DesignTypography.bodySmall.copyWith(color: DesignColors.error),
             ),
             data: (files) => files.isEmpty
                 ? Padding(
@@ -169,7 +169,7 @@ class _DocumentLibrarySection extends StatelessWidget {
                     child: Text(
                       'Chưa có tài liệu nào',
                       style: DesignTypography.bodySmall.copyWith(
-                        color: isDark ? Colors.grey[500] : DesignColors.textSecondary,
+                        color: isDark ? DesignColors.textSecondary : DesignColors.textSecondary,
                       ),
                     ),
                   )
@@ -221,7 +221,7 @@ class _FileListTile extends StatelessWidget {
       dense: true,
       leading: Icon(
         Icons.insert_drive_file_outlined,
-        size: 18,
+        size: DesignIcons.smSize,
         color: isProcessing
             ? DesignColors.warning
             : isDone
@@ -231,15 +231,14 @@ class _FileListTile extends StatelessWidget {
       title: Text(
         file.filename,
         style: DesignTypography.bodySmall.copyWith(
-          color: isDark ? Colors.white : DesignColors.textPrimary,
+          color: isDark ? DesignColors.white : DesignColors.textPrimary,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
         isProcessing ? 'Đang xử lý...' : isDone ? 'Sẵn sàng' : 'Đang xếp hàng',
-        style: TextStyle(
-          fontSize: 11,
+        style: DesignTypography.bodySmall.copyWith(
           color: isProcessing
               ? DesignColors.warning
               : isDone
@@ -248,7 +247,7 @@ class _FileListTile extends StatelessWidget {
         ),
       ),
       trailing: IconButton(
-        icon: Icon(Icons.delete_outline_rounded, size: 18, color: DesignColors.error),
+        icon: Icon(Icons.delete_outline_rounded, size: DesignIcons.smSize, color: DesignColors.error),
         tooltip: 'Xóa',
         onPressed: () => ref.read(teacherFilesProvider.notifier).deleteFile(file.id),
       ),
@@ -268,15 +267,15 @@ class _ToolsSection extends StatelessWidget {
       isDark: isDark,
       child: ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: Icon(Icons.download_outlined, color: DesignColors.tealPrimary, size: 20),
+        leading: Icon(Icons.download_outlined, color: DesignColors.drawerIcon, size: DesignIcons.mdSize),
         title: Text(
           'Xuất file mẫu Excel',
           style: DesignTypography.bodyMedium.copyWith(
             fontWeight: FontWeight.w500,
-            color: isDark ? Colors.white : DesignColors.textPrimary,
+            color: isDark ? DesignColors.white : DesignColors.textPrimary,
           ),
         ),
-        trailing: Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+        trailing: Icon(Icons.chevron_right, color: DesignColors.textSecondary, size: DesignIcons.mdSize),
         onTap: () {
           Scaffold.of(context).closeEndDrawer();
           ExportTemplateBottomSheet.show(context);
@@ -304,9 +303,9 @@ class _DrawerSectionCard extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(DesignSpacing.md),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF243040) : Colors.white,
+        color: isDark ? const Color(0xFF243040) : DesignColors.white,
         borderRadius: BorderRadius.circular(DesignRadius.md),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: DesignColors.dividerLight),
         boxShadow: [DesignElevation.level1],
       ),
       child: Column(
@@ -314,7 +313,7 @@ class _DrawerSectionCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 14, color: DesignColors.primary),
+              Icon(icon, size: DesignIcons.xsSize, color: DesignColors.primary),
               SizedBox(width: DesignSpacing.xs),
               Text(
                 title,
