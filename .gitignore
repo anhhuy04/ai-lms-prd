@@ -59,3 +59,5 @@ lib/core/env/env.g.dart
 # MCP config (contains secrets)
 .mcp.json
 android/java_pid37916.hprof
+.worktrees/
+.worktrees/
