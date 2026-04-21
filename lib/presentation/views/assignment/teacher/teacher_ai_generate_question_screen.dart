@@ -8,6 +8,7 @@ import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/data/models/question_dto.dart';
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
+import 'package:ai_mls/presentation/providers/ai_generation_settings_notifier.dart';
 import 'package:ai_mls/presentation/providers/ai_providers.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/learning_objective_providers.dart';
@@ -20,9 +21,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-/// Chế độ xử lý AI: trích xuất từ tài liệu có sẵn hoặc sinh câu hỏi mới.
-enum ProcessingMode { extraction, promptOnly }
 
 /// Màn hình tạo câu hỏi bằng AI
 class TeacherAiGenerateQuestionScreen extends ConsumerStatefulWidget {
