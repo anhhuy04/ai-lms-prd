@@ -28,6 +28,8 @@ ITeacherFileRepository teacherFileRepository(Ref ref) {
 /// Plan 05 (ContextSourcesSection) uses: ref.watch(teacherFilesProvider)
 @riverpod
 class TeacherFiles extends _$TeacherFiles {
+  bool _isDeleting = false;
+
   @override
   Future<List<TeacherFileModel>> build() async {
     return ref.read(teacherFileRepositoryProvider).getTeacherFiles();
@@ -59,6 +61,8 @@ class TeacherFiles extends _$TeacherFiles {
 
   /// Remove a file from state + delete from Supabase.
   Future<void> deleteFile(String fileId) async {
+    if (_isDeleting) return;
+    _isDeleting = true;
     final current = state.valueOrNull ?? [];
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -66,5 +70,6 @@ class TeacherFiles extends _$TeacherFiles {
       AppLogger.info('[TeacherFiles] deleteFile success: $fileId');
       return current.where((f) => f.id != fileId).toList();
     });
+    _isDeleting = false;
   }
 }

@@ -98,11 +98,13 @@ class TeacherFileDataSource {
       return;
     }
 
-    final storagePath = fileRow['storage_path'] as String;
-
-    // Delete from Storage bucket
-    await _supabase.storage.from('teacher-documents').remove([storagePath]);
-    AppLogger.info('[TeacherFile] deleteFile: storage removed path=$storagePath');
+    final storagePath = fileRow['storage_path'] as String?;
+    if (storagePath == null) {
+      AppLogger.warning('[TeacherFile] deleteFile: storage_path null for $fileId — skipping storage removal');
+    } else {
+      await _supabase.storage.from('teacher-documents').remove([storagePath]);
+      AppLogger.info('[TeacherFile] deleteFile: storage removed path=$storagePath');
+    }
 
     // Delete ai_queue rows for this file
     await _supabase

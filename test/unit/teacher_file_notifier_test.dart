@@ -40,7 +40,7 @@ void main() {
   setUpAll(() {
     // mocktail requires fallback values for non-nullable types used in any()
     registerFallbackValue(Uint8List(0));
-    registerFallbackValue('');   // ADD THIS LINE
+    registerFallbackValue('');
   });
 
   late MockTeacherFileRepository mockRepo;
