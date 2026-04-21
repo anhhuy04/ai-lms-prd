@@ -56,4 +56,15 @@ class TeacherFiles extends _$TeacherFiles {
       return [newFile, ...current];
     });
   }
+
+  /// Remove a file from state + delete from Supabase.
+  Future<void> deleteFile(String fileId) async {
+    final current = state.valueOrNull ?? [];
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      await ref.read(teacherFileRepositoryProvider).deleteFile(fileId);
+      AppLogger.info('[TeacherFiles] deleteFile success: $fileId');
+      return current.where((f) => f.id != fileId).toList();
+    });
+  }
 }

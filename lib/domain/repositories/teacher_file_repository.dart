@@ -14,4 +14,7 @@ abstract class ITeacherFileRepository {
 
   /// Retrieve all files belonging to this teacher (via file_links join).
   Future<List<TeacherFileModel>> getTeacherFiles();
+
+  /// Delete a file from Storage + files/file_links/ai_queue tables.
+  Future<void> deleteFile(String fileId);
 }
