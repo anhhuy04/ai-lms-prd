@@ -22,7 +22,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Chế độ xử lý AI: trích xuất từ tài liệu có sẵn hoặc sinh câu hỏi mới.
-enum ProcessingMode { extraction, generation }
+enum ProcessingMode { extraction, promptOnly }
 
 /// Màn hình tạo câu hỏi bằng AI
 class TeacherAiGenerateQuestionScreen extends ConsumerStatefulWidget {
@@ -79,7 +79,7 @@ class _TeacherAiGenerateQuestionScreenState
   List<String> _selectedFileIds = [];
 
   // D-10, D-11: AI processing mode (Extraction vs Generation)
-  ProcessingMode _processingMode = ProcessingMode.generation;
+  ProcessingMode _processingMode = ProcessingMode.promptOnly;
 
   // D-26: Polling for document processing results (Extraction pipeline)
   bool _isPolling = false;
@@ -1863,7 +1863,7 @@ class _TeacherAiGenerateQuestionScreenState
               icon: Icon(Icons.recycling),
             ),
             ButtonSegment(
-              value: ProcessingMode.generation,
+              value: ProcessingMode.promptOnly,
               label: Text('Sinh câu hỏi'),
               icon: Icon(Icons.auto_fix_high),
             ),
