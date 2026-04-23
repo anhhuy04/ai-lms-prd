@@ -1,46 +1,117 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-19T03:28:17.624Z",
-  "phase": "09",
-  "phase_name": "ai-settings-refactor-document-import",
+  "timestamp": "2026-04-23T07:38:08.435Z",
+  "phase": "09-ai-settings-refactor-document-import",
+  "phase_name": "AI 3-Mode Redesign (superpowers plan)",
   "phase_dir": ".planning/phases/09-ai-settings-refactor-document-import",
-  "plan": 3,
-  "task": 0,
-  "total_tasks": 0,
+  "plan": "superpowers",
+  "plan_file": "docs/superpowers/plans/2026-04-21-ai-generate-question-redesign.md",
+  "worktree": ".worktrees/feature/ai-3mode-redesign",
+  "branch": "feature/ai-3mode-redesign",
+  "task": 3,
+  "total_tasks": 9,
   "status": "paused",
   "completed_tasks": [
-    {"id": "09-00", "name": "Wave 0 TDD test stubs (5 files)", "status": "done", "commit": "418caf9"},
-    {"id": "09-01", "name": "DB migrations: pgvector + document_chunks + Storage + save RPC", "status": "done", "commit": "602c2b9"},
-    {"id": "09-02", "name": "file_picker ^11.0.2 install + Android/iOS permissions", "status": "done", "commit": "9ba412e"},
-    {"id": "wave1-fixes", "name": "Fix HNSW index, match_document_chunks GRANT, difficulty safe cast, QuestionDTO int", "status": "done", "commit": "4942665"}
-  ],
-  "remaining_tasks": [
-    {"id": "09-03", "name": "AiQuestionSettingsScreen + aiQuestionSettings route + gear icon fix", "status": "not_started", "wave": 2},
-    {"id": "09-04", "name": "TeacherFileModel + TeacherFileDataSource + repository + teacherFilesProvider", "status": "not_started", "wave": 2},
-    {"id": "09-05", "name": "ContextSourcesSection widget + AI mode toggle + activate document library", "status": "not_started", "wave": 3},
-    {"id": "09-06", "name": "process-document-queue Edge Function (heuristic router + vectorize + checkpoint)", "status": "not_started", "wave": 3},
-    {"id": "09-07", "name": "QuestionDTO model + StagingAreaWidget + polling in AI generate screen", "status": "not_started", "wave": 4}
-  ],
-  "blockers": [],
-  "human_actions_pending": [
     {
-      "action": "Re-apply migrations 011 and 013 to Supabase after Wave 1 fixes",
-      "context": "Migration 011 changed ivfflat->hnsw and added GRANT EXECUTE for match_document_chunks. Migration 013 added safe difficulty CASE WHEN cast. Files committed but Supabase DB may have old versions. Use Supabase MCP apply_migration or dashboard SQL editor.",
-      "blocking": false,
-      "when": "Before Wave 4 (09-07) exercises save_questions_to_assignment RPC. Wave 2+3 only touch Flutter code so re-apply is not urgent."
+      "id": 1,
+      "name": "ProcessingMode enum — rename generation→promptOnly, add ragGeneration",
+      "status": "done",
+      "commits": ["972d8bf", "318d1f5", "e747dcc"]
+    },
+    {
+      "id": 2,
+      "name": "deleteFile() through data layer (datasource → repository → notifier + tests)",
+      "status": "done",
+      "commits": ["d7a1720", "3bd969e"]
+    },
+    {
+      "id": 3,
+      "name": "AiSettingsDrawer — new EndDrawer widget",
+      "status": "in_progress",
+      "commits": ["4f504d2", "8e71815"],
+      "progress": "Widget created (3 sections: API Key, Document Library, Tools). Design token violations fixed. Code quality review returned 'Needs Work' — 2 important + 5 minor issues remain."
     }
   ],
+  "remaining_tasks": [
+    {
+      "id": 3,
+      "name": "AiSettingsDrawer — fix code quality issues then re-review",
+      "status": "in_progress",
+      "issues": [
+        "IMPORTANT: _DocumentLibrarySection and _FileListTile are StatelessWidget with WidgetRef ref constructor field — violates widget lifecycle. Fix: convert both to ConsumerWidget.",
+        "IMPORTANT: _pickAndUploadFile() — file.extension == 'docx' check has no fallback for unexpected extensions. Fix: explicit guard 'docx'|'xlsx', throw StateError otherwise.",
+        "MINOR: 3 redundant ternaries at lines 101, 153, 172 of ai_settings_drawer.dart — both branches return DesignColors.textSecondary, remove ternary.",
+        "MINOR: Colors.white at line 95 → DesignColors.white",
+        "MINOR: debugPrint in export_template_bottom_sheet.dart → AppLogger.info"
+      ],
+      "file": "lib/presentation/views/assignment/teacher/widgets/ai_settings_drawer.dart"
+    },
+    {
+      "id": 4,
+      "name": "Main screen — add GlobalKey<ScaffoldState>, endDrawer: AiSettingsDrawer(), header button settings_rounded→menu_rounded → openEndDrawer()",
+      "status": "not_started"
+    },
+    {
+      "id": 5,
+      "name": "Mode tabs — _buildModeTabsSection() SegmentedButton<ProcessingMode> with 3 segments, inserted after header in Column",
+      "status": "not_started"
+    },
+    {
+      "id": 6,
+      "name": "Context-aware body — hint card + ContextSourcesSection inline for modes 2&3, focus hint for mode 3, topic/difficulty/types only for mode 1",
+      "status": "not_started"
+    },
+    {
+      "id": 7,
+      "name": "Validation fix + Mode 3 guard — read mode at top of _handleGenerate(), ragGeneration→'coming soon' SnackBar, wrap topic validation in if(promptOnly)",
+      "status": "not_started"
+    },
+    {
+      "id": 8,
+      "name": "Auto-delete temp files after extraction completes in _pollForDocumentResults()",
+      "status": "not_started"
+    },
+    {
+      "id": 9,
+      "name": "Simplify AiQuestionSettingsScreen — remove _buildAdvancedSection() (mode toggle + ContextSourcesSection moved to main screen)",
+      "status": "not_started"
+    }
+  ],
+  "blockers": [],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "HNSW index over IVFFlat for document_chunks", "rationale": "IVFFlat needs sqrt(n) rows training — HNSW effective from 0 rows", "phase": "09"},
-    {"decision": "difficulty: int 1-5 in QuestionDTO (not String medium)", "rationale": "questions.difficulty is INTEGER — string crashes save_questions_to_assignment RPC cast", "phase": "09"},
-    {"decision": "CASE WHEN safe difficulty cast in RPC", "rationale": "Handle both string labels (easy/medium/hard) and numeric strings (1-5)", "phase": "09"},
-    {"decision": "result.extraction + result.vectorize nested structure", "rationale": "vectorizeDocument checkpoint writes to result.vectorize to avoid overwriting result.extraction.questions", "phase": "09"},
-    {"decision": "payload column not request_payload in ai_queue", "rationale": "Verified against existing process-ai-queue/index.ts — column is payload", "phase": "09"},
-    {"decision": "Supabase.instance.client (not supabaseClientProvider)", "rationale": "Codebase does not have supabaseClientProvider or authStateProvider Riverpod providers", "phase": "09"},
-    {"decision": "Class name TeacherFiles for @riverpod notifier", "rationale": "Generator produces teacherFilesProvider — Plan 05 watches teacherFilesProvider", "phase": "09"},
-    {"decision": "Pre-execution audit before Wave 1", "rationale": "Found 9 critical issues across all 8 PLANs — all fixed in PLAN.md files before execution began", "phase": "09"}
+    {
+      "decision": "Use Subagent-Driven Development via git worktree feature/ai-3mode-redesign",
+      "rationale": "Isolate branch from main, fresh subagent per task + 2-stage review per task",
+      "phase": "09"
+    },
+    {
+      "decision": "Dark mode surface colors 0xFF1A2632 / 0xFF243040 kept as raw hex in AiSettingsDrawer",
+      "rationale": "Used 68+ times in codebase, no DesignColors tokens exist for these dark surface values",
+      "phase": "09"
+    },
+    {
+      "decision": "Mode 3 (ragGeneration) shows SnackBar 'Tính năng đang phát triển — sắp ra mắt' instead of disabled button",
+      "rationale": "Spec section 11: avoid confusing user about feature existence while backend not ready",
+      "phase": "09"
+    },
+    {
+      "decision": "ContextSourcesSection kept as-is without initialSelectedIds prop change",
+      "rationale": "Spec says 'giữ nguyên' for this widget — only wire it inline in main screen body for modes 2 & 3",
+      "phase": "09"
+    },
+    {
+      "decision": "WSL2 dart wrapper created at /mnt/e/Flutter_SDK/flutter/bin/cache/dart-sdk/bin/dart",
+      "rationale": "dart.exe on Windows drive cannot process /mnt/X/ WSL paths — wrapper converts them to X:\\",
+      "phase": "09"
+    },
+    {
+      "decision": "This superpowers plan (9 tasks) is SEPARATE from GSD phase 09 plans (09-00 to 09-07)",
+      "rationale": "GSD phase 09 plans are the original implementation. Superpowers plan is the 3-mode redesign layered on top after all 09-07 tasks were done.",
+      "phase": "09"
+    }
   ],
   "uncommitted_files": [],
-  "next_action": "Run /gsd:execute-phase 9 --wave 2 to spawn 09-03 and 09-04 in parallel (both autonomous:true, no checkpoint). Fresh /clear first.",
-  "context_notes": "Wave 1 is fully complete. All 8 PLAN.md files were audited and 9 critical bugs fixed before execution. Key fixes: package name ai_mls not ai_lms_prd; payload not request_payload; Supabase.instance.client not supabaseClientProvider; ConsumerStatefulWidget not StatefulConsumerWidget; status completed/failed not done/error; nested result structure; GRANT EXECUTE missing; difficulty type mismatch. Migrations on disk are correct (post-fix). Supabase DB may need re-apply of 011+013 but not blocking for Wave 2+3."
+  "next_action": "Fix Task 3 code quality: (1) convert _DocumentLibrarySection + _FileListTile to ConsumerWidget removing WidgetRef constructor field, (2) add MIME type guard with StateError in _pickAndUploadFile(), (3) remove 3 redundant ternaries lines 101/153/172 in ai_settings_drawer.dart, (4) Colors.white→DesignColors.white line 95, (5) debugPrint→AppLogger in export_template_bottom_sheet.dart. Commit. Dispatch code quality re-review. On approval → mark Task 3 done → start Task 4.",
+  "context_notes": "All work is in worktree .worktrees/feature/ai-3mode-redesign (branch: feature/ai-3mode-redesign). The plan to follow is docs/superpowers/plans/2026-04-21-ai-generate-question-redesign.md — 9 tasks total. Spec is at docs/superpowers/specs/2026-04-21-ai-generate-question-redesign.md. DO NOT confuse with GSD phase 09 plans which are already completed. Workflow: dispatch implementer subagent → spec reviewer → code quality reviewer per task. On Task 3 fix, only dispatch code quality reviewer (spec was already approved). Files to read for Task 4+: teacher_ai_generate_question_screen.dart (main screen), ai_settings_drawer.dart (just completed), context_sources_section.dart (to be wired inline)."
 }
