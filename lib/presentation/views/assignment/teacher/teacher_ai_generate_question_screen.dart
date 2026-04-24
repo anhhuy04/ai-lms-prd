@@ -1076,6 +1076,8 @@ class _TeacherAiGenerateQuestionScreenState
                 ),
               ),
 
+              _buildModeTabsSection(context, isDark),
+
               // Form Content
               Expanded(
                 child: Form(
@@ -1840,6 +1842,49 @@ class _TeacherAiGenerateQuestionScreenState
           ),
 
         ],
+      ),
+    );
+  }
+
+  /// Task 5: Mode tabs section — 3-mode SegmentedButton
+  Widget _buildModeTabsSection(BuildContext context, bool isDark) {
+    final mode = ref.watch(aiGenerationSettingsNotifierProvider).processingMode;
+
+    return Container(
+      color: isDark ? const Color(0xFF1A2632) : Colors.white,
+      padding: EdgeInsets.symmetric(
+        horizontal: DesignSpacing.lg,
+        vertical: DesignSpacing.sm,
+      ),
+      child: SegmentedButton<ProcessingMode>(
+        segments: const [
+          ButtonSegment(
+            value: ProcessingMode.promptOnly,
+            icon: Icon(Icons.edit_note_rounded, size: 16),
+            label: Text('Nhập Prompt'),
+          ),
+          ButtonSegment(
+            value: ProcessingMode.extraction,
+            icon: Icon(Icons.content_paste_search_rounded, size: 16),
+            label: Text('Trích xuất'),
+          ),
+          ButtonSegment(
+            value: ProcessingMode.ragGeneration,
+            icon: Icon(Icons.auto_stories_rounded, size: 16),
+            label: Text('Từ Tài liệu'),
+          ),
+        ],
+        selected: {mode},
+        onSelectionChanged: (selected) {
+          ref
+              .read(aiGenerationSettingsNotifierProvider.notifier)
+              .setMode(selected.first);
+        },
+        style: ButtonStyle(
+          textStyle: WidgetStateProperty.all(
+            DesignTypography.bodySmall.copyWith(fontWeight: FontWeight.w500),
+          ),
+        ),
       ),
     );
   }
