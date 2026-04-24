@@ -77,12 +77,6 @@ class _TeacherAiGenerateQuestionScreenState
   final Set<int> _expandedExplanations = {};
   final Set<int> _regeneratingExplanationSet = {};
 
-  // D-07, D-08, D-09: Context sources (tài liệu tham khảo)
-  List<String> _selectedFileIds = [];
-
-  // D-10, D-11: AI processing mode (Extraction vs Generation)
-  ProcessingMode _processingMode = ProcessingMode.promptOnly;
-
   // D-26: Polling for document processing results (Extraction pipeline)
   bool _isPolling = false;
   String? _pollingStatus; // Status text shown while polling ai_queue
@@ -2048,59 +2042,6 @@ class _TeacherAiGenerateQuestionScreenState
           ),
         ],
       ),
-    );
-  }
-
-  /// D-10, D-11: AI mode toggle (Extraction vs Generation)
-  Widget _buildModeToggle(BuildContext context, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Chế độ xử lý',
-          style: DesignTypography.bodyLarge.copyWith(
-            fontWeight: FontWeight.w600,
-            color: isDark ? Colors.white : DesignColors.textPrimary,
-          ),
-        ),
-        SizedBox(height: DesignSpacing.sm),
-        SegmentedButton<ProcessingMode>(
-          segments: const [
-            ButtonSegment(
-              value: ProcessingMode.extraction,
-              label: Text('Trích xuất'),
-              icon: Icon(Icons.recycling),
-            ),
-            ButtonSegment(
-              value: ProcessingMode.promptOnly,
-              label: Text('Sinh câu hỏi'),
-              icon: Icon(Icons.auto_fix_high),
-            ),
-          ],
-          selected: {_processingMode},
-          onSelectionChanged: (Set<ProcessingMode> selected) {
-            setState(() => _processingMode = selected.first);
-          },
-        ),
-        SizedBox(height: DesignSpacing.xs),
-        Text(
-          _processingMode == ProcessingMode.extraction
-              ? 'Trích xuất câu hỏi từ tài liệu có sẵn (đề thi cũ, bộ câu hỏi)'
-              : 'Sinh câu hỏi mới dựa trên nội dung tài liệu học',
-          style: DesignTypography.bodySmall.copyWith(
-            color: isDark ? Colors.grey[400] : DesignColors.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// D-07, D-08, D-09: Context sources section
-  Widget _buildContextSources() {
-    return ContextSourcesSection(
-      onSelectionChanged: (fileIds) {
-        setState(() => _selectedFileIds = fileIds);
-      },
     );
   }
 
