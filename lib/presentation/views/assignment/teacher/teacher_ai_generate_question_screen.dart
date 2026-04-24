@@ -48,6 +48,7 @@ class _TeacherAiGenerateQuestionScreenState
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _topicController = TextEditingController();
   final _quantityController = TextEditingController(text: '5');
+  final _focusHintController = TextEditingController();
   int? _difficulty; // 1-5
 
   bool _isGenerating = false;
@@ -89,6 +90,7 @@ class _TeacherAiGenerateQuestionScreenState
   void dispose() {
     _topicController.dispose();
     _quantityController.dispose();
+    _focusHintController.dispose();
     super.dispose();
   }
 
@@ -998,6 +1000,7 @@ class _TeacherAiGenerateQuestionScreenState
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = ref.watch(aiGenerationSettingsNotifierProvider).processingMode;
     final statusBarHeight = MediaQuery.of(context).padding.top;
 
     return Scaffold(
@@ -1087,51 +1090,105 @@ class _TeacherAiGenerateQuestionScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Topic Input (Textarea)
-                        _buildTopicSection(context, isDark),
-                        SizedBox(height: DesignSpacing.xxl),
-
-                        // Giới hạn tổng số câu (luôn hiển thị)
-                        _buildQuantitySection(context, isDark),
-                        SizedBox(height: DesignSpacing.md),
-
-                        // Per-type qty steppers (hiện khi có loại được chọn)
-                        if (_selectedTypes.isNotEmpty) ...[
-                          _buildPerTypeQtySection(context, isDark),
-                          SizedBox(height: DesignSpacing.xxl),
-                        ] else
+                        // Modes 2 & 3: hint card + inline ContextSourcesSection
+                        if (mode != ProcessingMode.promptOnly) ...[
+                          _buildModeHintCard(context, mode, isDark),
                           SizedBox(height: DesignSpacing.lg),
+                          ContextSourcesSection(
+                            onSelectionChanged: (ids) => ref
+                                .read(aiGenerationSettingsNotifierProvider
+                                    .notifier)
+                                .setSelectedFileIds(ids),
+                          ),
+                          SizedBox(height: DesignSpacing.lg),
+                        ],
 
-                        // Difficulty Selector
-                        _buildDifficultySection(context, isDark),
-                        SizedBox(height: DesignSpacing.xxl),
+                        // Mode 3 only: optional focus hint
+                        if (mode == ProcessingMode.ragGeneration) ...[
+                          Text(
+                            'Hướng tập trung (tùy chọn)',
+                            style: DesignTypography.bodySmall.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? Colors.white
+                                  : DesignColors.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: DesignSpacing.xs),
+                          TextFormField(
+                            controller: _focusHintController,
+                            maxLines: 2,
+                            decoration: InputDecoration(
+                              hintText:
+                                  'VD: Tập trung vào chương 3, phần lý thuyết...',
+                              hintStyle: TextStyle(
+                                color: isDark
+                                    ? Colors.grey[600]
+                                    : Colors.grey[400],
+                              ),
+                              filled: true,
+                              fillColor: isDark
+                                  ? const Color(0xFF243040)
+                                  : Colors.grey[50],
+                              border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(DesignRadius.md),
+                                borderSide:
+                                    BorderSide(color: Colors.grey[300]!),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(DesignRadius.md),
+                                borderSide:
+                                    BorderSide(color: Colors.grey[300]!),
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: DesignSpacing.xl),
+                        ],
 
-                        // Question Type Selector (multi-select chips)
-                        _buildQuestionTypeSection(context, isDark),
-                        SizedBox(height: DesignSpacing.xxl),
+                        // Mode 1 only: topic input
+                        if (mode == ProcessingMode.promptOnly) ...[
+                          _buildTopicSection(context, isDark),
+                          SizedBox(height: DesignSpacing.xxl),
+                        ],
 
-                        // D-10, D-11: AI Mode Toggle (Extraction vs Generation)
-                        _buildModeToggle(context, isDark),
-                        SizedBox(height: DesignSpacing.xxl),
+                        // Quantity — modes 1 and 3 (not extraction)
+                        if (mode != ProcessingMode.extraction) ...[
+                          _buildQuantitySection(context, isDark),
+                          SizedBox(height: DesignSpacing.md),
+                          if (_selectedTypes.isNotEmpty &&
+                              mode == ProcessingMode.promptOnly) ...[
+                            _buildPerTypeQtySection(context, isDark),
+                            SizedBox(height: DesignSpacing.xxl),
+                          ] else
+                            SizedBox(height: DesignSpacing.lg),
+                        ],
 
-                        // D-07, D-08, D-09: Context Sources (tài liệu tham khảo)
-                        _buildContextSources(),
+                        // Difficulty + Type chips — Mode 1 only
+                        if (mode == ProcessingMode.promptOnly) ...[
+                          _buildDifficultySection(context, isDark),
+                          SizedBox(height: DesignSpacing.xxl),
+                          _buildQuestionTypeSection(context, isDark),
+                          SizedBox(height: DesignSpacing.xxl),
+                        ],
 
-                        // AI Response Section (hiển thị sau khi generate)
+                        // AI Response (all modes — shows after generate)
                         if (_generatedQuestions != null) ...[
                           SizedBox(height: DesignSpacing.xxl),
                           _buildAiResponseSection(context, isDark),
                         ],
 
-                        // Raw API Response Section (chỉ debug mode)
+                        // Raw API debug (Mode 1 only)
                         if (kDebugMode &&
+                            mode == ProcessingMode.promptOnly &&
                             (_rawApiResponse != null ||
                                 _rawApiResponsePretty != null)) ...[
                           SizedBox(height: DesignSpacing.lg),
                           _buildRawApiResponseSection(context, isDark),
                         ],
 
-                        SizedBox(height: 100), // Space for button
+                        SizedBox(height: 100),
                       ],
                     ),
                   ),
@@ -1205,10 +1262,21 @@ class _TeacherAiGenerateQuestionScreenState
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.auto_awesome, size: 24),
+                              Icon(
+                                mode == ProcessingMode.extraction
+                                    ? Icons.content_paste_search_rounded
+                                    : mode == ProcessingMode.ragGeneration
+                                        ? Icons.auto_stories_rounded
+                                        : Icons.auto_awesome,
+                                size: 24,
+                              ),
                               const SizedBox(width: 8),
                               Text(
-                                'Tạo câu hỏi',
+                                mode == ProcessingMode.extraction
+                                    ? 'Trích xuất câu hỏi'
+                                    : mode == ProcessingMode.ragGeneration
+                                        ? 'Sinh từ tài liệu'
+                                        : 'Tạo câu hỏi',
                                 style: DesignTypography.bodyLarge.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
@@ -1885,6 +1953,59 @@ class _TeacherAiGenerateQuestionScreenState
             DesignTypography.bodySmall.copyWith(fontWeight: FontWeight.w500),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildModeHintCard(
+    BuildContext context,
+    ProcessingMode mode,
+    bool isDark,
+  ) {
+    final isExtraction = mode == ProcessingMode.extraction;
+    final icon = isExtraction
+        ? Icons.content_paste_search_rounded
+        : Icons.auto_stories_rounded;
+    final color = isExtraction ? DesignColors.warning : DesignColors.success;
+    final title = isExtraction ? 'Chế độ Trích xuất' : 'Chế độ Từ Tài liệu';
+    final subtitle = isExtraction
+        ? 'AI sẽ đọc file và trích xuất câu hỏi có sẵn. Không sáng tác thêm.'
+        : 'AI sáng tác câu hỏi dựa trên nội dung tài liệu (RAG pipeline).';
+
+    return Container(
+      padding: EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: DesignIcons.mdSize),
+          SizedBox(width: DesignSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: DesignTypography.bodyMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: DesignTypography.bodySmall.copyWith(
+                    color: isDark ? Colors.grey[300] : DesignColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
