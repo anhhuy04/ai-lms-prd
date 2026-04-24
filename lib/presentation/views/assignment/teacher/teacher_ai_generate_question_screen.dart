@@ -21,6 +21,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/widgets/ai_settings_drawer.dart';
 
 /// Màn hình tạo câu hỏi bằng AI
 class TeacherAiGenerateQuestionScreen extends ConsumerStatefulWidget {
@@ -44,6 +45,7 @@ class TeacherAiGenerateQuestionScreen extends ConsumerStatefulWidget {
 class _TeacherAiGenerateQuestionScreenState
     extends ConsumerState<TeacherAiGenerateQuestionScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _topicController = TextEditingController();
   final _quantityController = TextEditingController(text: '5');
   int? _difficulty; // 1-5
@@ -999,7 +1001,9 @@ class _TeacherAiGenerateQuestionScreenState
     final statusBarHeight = MediaQuery.of(context).padding.top;
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: DesignColors.moonLight,
+      endDrawer: const AiSettingsDrawer(),
       body: Stack(
         children: [
           Column(
@@ -1052,16 +1056,16 @@ class _TeacherAiGenerateQuestionScreenState
                         textAlign: TextAlign.center,
                       ),
                     ),
-                    // Nút cài đặt (navigate đến Settings)
+                    // Nút mở EndDrawer cài đặt
                     Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () => context.pushNamed(AppRoute.aiQuestionSettings),
+                        onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
                         borderRadius: BorderRadius.circular(DesignRadius.full),
                         child: Padding(
                           padding: const EdgeInsets.all(8),
                           child: Icon(
-                            Icons.settings_rounded,
+                            Icons.menu_rounded,
                             size: 24,
                             color: isDark ? Colors.grey[300] : Colors.grey[700],
                           ),
