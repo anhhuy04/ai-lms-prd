@@ -456,39 +456,57 @@ class _TeacherAiGenerateQuestionScreenState
 
   Future<void> _handleGenerate() async {
     AppLogger.info('🔵 [Generate] _handleGenerate called');
-    AppLogger.info('🔵 [Generate] topic="${_topicController.text.trim()}", '
-        '_isGenerating=$_isGenerating, _isQtyMismatch=$_isQtyMismatch, '
-        '_selectedTypes=$_selectedTypes, _totalTypedQty=$_totalTypedQty, _limitQty=$_limitQty');
 
-    final topic = _topicController.text.trim();
-    if (topic.isEmpty) {
-      AppLogger.warning('🟡 [Generate] EXIT: topic empty');
+    // Read mode first — determines validation path
+    final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
+    final currentMode = aiSettings.processingMode;
+
+    // Mode 3 guard — RAG backend not yet ready
+    if (currentMode == ProcessingMode.ragGeneration) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng nhập chủ đề câu hỏi'),
-          backgroundColor: DesignColors.error,
+          content: Text('Tính năng đang phát triển — sắp ra mắt'),
+          backgroundColor: DesignColors.primary,
         ),
       );
       return;
     }
 
-    // Validate quantity
-    final formState = _formKey.currentState;
-    AppLogger.info('🔵 [Generate] formState=$formState');
-    if (formState == null) {
-      AppLogger.error('🔴 [Generate] EXIT: _formKey.currentState is NULL!');
-      return;
-    }
-    final isValid = formState.validate();
-    AppLogger.info('🔵 [Generate] form.validate()=$isValid');
-    if (!isValid) {
-      AppLogger.warning('🟡 [Generate] EXIT: form validation failed');
-      return;
-    }
-    // Guard mismatch (button đã disable nhưng thêm guard để chắc chắn)
-    if (_isQtyMismatch) {
-      AppLogger.warning('🟡 [Generate] EXIT: _isQtyMismatch=true');
-      return;
+    // Mode 1 only: validate topic + form fields
+    final topic = _topicController.text.trim();
+    if (currentMode == ProcessingMode.promptOnly) {
+      AppLogger.info(
+        '🔵 [Generate] topic="$topic", _isQtyMismatch=$_isQtyMismatch, '
+        '_selectedTypes=$_selectedTypes, _totalTypedQty=$_totalTypedQty, _limitQty=$_limitQty',
+      );
+
+      if (topic.isEmpty) {
+        AppLogger.warning('🟡 [Generate] EXIT: topic empty');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng nhập chủ đề câu hỏi'),
+            backgroundColor: DesignColors.error,
+          ),
+        );
+        return;
+      }
+
+      final formState = _formKey.currentState;
+      AppLogger.info('🔵 [Generate] formState=$formState');
+      if (formState == null) {
+        AppLogger.error('🔴 [Generate] EXIT: _formKey.currentState is NULL!');
+        return;
+      }
+      final isValid = formState.validate();
+      AppLogger.info('🔵 [Generate] form.validate()=$isValid');
+      if (!isValid) {
+        AppLogger.warning('🟡 [Generate] EXIT: form validation failed');
+        return;
+      }
+      if (_isQtyMismatch) {
+        AppLogger.warning('🟡 [Generate] EXIT: _isQtyMismatch=true');
+        return;
+      }
     }
 
     setState(() {
@@ -505,20 +523,20 @@ class _TeacherAiGenerateQuestionScreenState
     try {
       // D-07~D-11: Log selected file IDs and processing mode for Plan 07 wiring
       AppLogger.info(
-        '[Generate] processingMode=$_processingMode, '
-        'selectedFileIds(${_selectedFileIds.length})=$_selectedFileIds',
+        '[Generate] processingMode=${currentMode.name}, '
+        'selectedFileIds(${aiSettings.selectedFileIds.length})=${aiSettings.selectedFileIds}',
       );
 
       // D-26: Extraction pipeline — poll ai_queue instead of inline generation
-      if (_processingMode == ProcessingMode.extraction &&
-          _selectedFileIds.isNotEmpty) {
+      if (currentMode == ProcessingMode.extraction &&
+          aiSettings.selectedFileIds.isNotEmpty) {
         // Find the most recent pending ai_queue row for selected files
         // The row was inserted by TeacherFileDataSource.enqueueProcessing()
         // when the teacher uploaded the file in ContextSourcesSection.
         final queueRows = await Supabase.instance.client
             .from('ai_queue')
             .select('id, status')
-            .inFilter('payload->>file_id', _selectedFileIds)
+            .inFilter('payload->>file_id', aiSettings.selectedFileIds)
             .inFilter('status', ['pending', 'processing', 'completed'])
             .order('created_at', ascending: false)
             .limit(1);
