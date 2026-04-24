@@ -40,6 +40,7 @@ void main() {
   setUpAll(() {
     // mocktail requires fallback values for non-nullable types used in any()
     registerFallbackValue(Uint8List(0));
+    registerFallbackValue('');
   });
 
   late MockTeacherFileRepository mockRepo;
@@ -204,6 +205,54 @@ void main() {
         expect(result.first.id, equals('f3'), reason: 'new file prepended');
       },
     );
+  });
+
+  // -------------------------------------------------------------------------
+  group('deleteFile', () {
+    test('removes the file from state on success', () async {
+      final file1 = _makeFile(id: 'file-1', filename: 'a.xlsx');
+      final file2 = _makeFile(id: 'file-2', filename: 'b.xlsx');
+
+      when(() => mockRepo.getTeacherFiles())
+          .thenAnswer((_) async => [file1, file2]);
+      when(() => mockRepo.deleteFile(any()))
+          .thenAnswer((_) async {});
+
+      // prime the state
+      await container.read(teacherFilesProvider.future);
+      expect(
+        container.read(teacherFilesProvider).value,
+        containsAll([file1, file2]),
+      );
+
+      await container
+          .read(teacherFilesProvider.notifier)
+          .deleteFile('file-1');
+
+      final remaining = container.read(teacherFilesProvider).value!;
+      expect(remaining, isNot(contains(file1)));
+      expect(remaining, contains(file2));
+    });
+
+    test('propagates error when repo throws', () async {
+      final file = _makeFile(id: 'file-err');
+
+      when(() => mockRepo.getTeacherFiles())
+          .thenAnswer((_) async => [file]);
+      when(() => mockRepo.deleteFile(any()))
+          .thenThrow(Exception('delete failed'));
+
+      await container.read(teacherFilesProvider.future);
+
+      await container
+          .read(teacherFilesProvider.notifier)
+          .deleteFile('file-err');
+
+      expect(
+        container.read(teacherFilesProvider),
+        isA<AsyncError>(),
+      );
+    });
   });
 
   // -------------------------------------------------------------------------

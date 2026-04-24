@@ -8,21 +8,21 @@ import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/data/models/question_dto.dart';
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
+import 'package:ai_mls/presentation/providers/ai_generation_settings_notifier.dart';
 import 'package:ai_mls/presentation/providers/ai_providers.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/learning_objective_providers.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/context_sources_section.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/staging_area_widget.dart';
+import 'package:ai_mls/presentation/providers/teacher_file_notifier.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-/// Chế độ xử lý AI: trích xuất từ tài liệu có sẵn hoặc sinh câu hỏi mới.
-enum ProcessingMode { extraction, generation }
+import 'package:ai_mls/presentation/views/assignment/teacher/widgets/ai_settings_drawer.dart';
 
 /// Màn hình tạo câu hỏi bằng AI
 class TeacherAiGenerateQuestionScreen extends ConsumerStatefulWidget {
@@ -46,8 +46,10 @@ class TeacherAiGenerateQuestionScreen extends ConsumerStatefulWidget {
 class _TeacherAiGenerateQuestionScreenState
     extends ConsumerState<TeacherAiGenerateQuestionScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _topicController = TextEditingController();
   final _quantityController = TextEditingController(text: '5');
+  final _focusHintController = TextEditingController();
   int? _difficulty; // 1-5
 
   bool _isGenerating = false;
@@ -75,12 +77,6 @@ class _TeacherAiGenerateQuestionScreenState
   final Set<int> _expandedExplanations = {};
   final Set<int> _regeneratingExplanationSet = {};
 
-  // D-07, D-08, D-09: Context sources (tài liệu tham khảo)
-  List<String> _selectedFileIds = [];
-
-  // D-10, D-11: AI processing mode (Extraction vs Generation)
-  ProcessingMode _processingMode = ProcessingMode.generation;
-
   // D-26: Polling for document processing results (Extraction pipeline)
   bool _isPolling = false;
   String? _pollingStatus; // Status text shown while polling ai_queue
@@ -89,6 +85,7 @@ class _TeacherAiGenerateQuestionScreenState
   void dispose() {
     _topicController.dispose();
     _quantityController.dispose();
+    _focusHintController.dispose();
     super.dispose();
   }
 
@@ -406,6 +403,28 @@ class _TeacherAiGenerateQuestionScreenState
           final questions = rawQuestions
               .map((q) => QuestionDTO.fromJson(q as Map<String, dynamic>))
               .toList();
+          AppLogger.info('[Poll] completed — extracted ${questions.length} question(s)');
+
+          // Auto-delete temp files after successful extraction
+          final selectedIds =
+              ref.read(aiGenerationSettingsNotifierProvider).selectedFileIds;
+          for (final fileId in selectedIds) {
+            try {
+              await ref
+                  .read(teacherFileRepositoryProvider)
+                  .deleteFile(fileId);
+              AppLogger.info('[Poll] auto-deleted temp fileId=$fileId');
+            } catch (e) {
+              AppLogger.warning(
+                  '[Poll] auto-delete failed for fileId=$fileId: $e');
+            }
+          }
+          if (selectedIds.isNotEmpty) {
+            ref
+                .read(aiGenerationSettingsNotifierProvider.notifier)
+                .setSelectedFileIds([]);
+            ref.invalidate(teacherFilesProvider);
+          }
 
           if (mounted) {
             setState(() {
@@ -454,39 +473,57 @@ class _TeacherAiGenerateQuestionScreenState
 
   Future<void> _handleGenerate() async {
     AppLogger.info('🔵 [Generate] _handleGenerate called');
-    AppLogger.info('🔵 [Generate] topic="${_topicController.text.trim()}", '
-        '_isGenerating=$_isGenerating, _isQtyMismatch=$_isQtyMismatch, '
-        '_selectedTypes=$_selectedTypes, _totalTypedQty=$_totalTypedQty, _limitQty=$_limitQty');
 
-    final topic = _topicController.text.trim();
-    if (topic.isEmpty) {
-      AppLogger.warning('🟡 [Generate] EXIT: topic empty');
+    // Read mode first — determines validation path
+    final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
+    final currentMode = aiSettings.processingMode;
+
+    // Mode 3 guard — RAG backend not yet ready
+    if (currentMode == ProcessingMode.ragGeneration) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng nhập chủ đề câu hỏi'),
-          backgroundColor: DesignColors.error,
+          content: Text('Tính năng đang phát triển — sắp ra mắt'),
+          backgroundColor: DesignColors.primary,
         ),
       );
       return;
     }
 
-    // Validate quantity
-    final formState = _formKey.currentState;
-    AppLogger.info('🔵 [Generate] formState=$formState');
-    if (formState == null) {
-      AppLogger.error('🔴 [Generate] EXIT: _formKey.currentState is NULL!');
-      return;
-    }
-    final isValid = formState.validate();
-    AppLogger.info('🔵 [Generate] form.validate()=$isValid');
-    if (!isValid) {
-      AppLogger.warning('🟡 [Generate] EXIT: form validation failed');
-      return;
-    }
-    // Guard mismatch (button đã disable nhưng thêm guard để chắc chắn)
-    if (_isQtyMismatch) {
-      AppLogger.warning('🟡 [Generate] EXIT: _isQtyMismatch=true');
-      return;
+    // Mode 1 only: validate topic + form fields
+    final topic = _topicController.text.trim();
+    if (currentMode == ProcessingMode.promptOnly) {
+      AppLogger.info(
+        '🔵 [Generate] topic="$topic", _isQtyMismatch=$_isQtyMismatch, '
+        '_selectedTypes=$_selectedTypes, _totalTypedQty=$_totalTypedQty, _limitQty=$_limitQty',
+      );
+
+      if (topic.isEmpty) {
+        AppLogger.warning('🟡 [Generate] EXIT: topic empty');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng nhập chủ đề câu hỏi'),
+            backgroundColor: DesignColors.error,
+          ),
+        );
+        return;
+      }
+
+      final formState = _formKey.currentState;
+      AppLogger.info('🔵 [Generate] formState=$formState');
+      if (formState == null) {
+        AppLogger.error('🔴 [Generate] EXIT: _formKey.currentState is NULL!');
+        return;
+      }
+      final isValid = formState.validate();
+      AppLogger.info('🔵 [Generate] form.validate()=$isValid');
+      if (!isValid) {
+        AppLogger.warning('🟡 [Generate] EXIT: form validation failed');
+        return;
+      }
+      if (_isQtyMismatch) {
+        AppLogger.warning('🟡 [Generate] EXIT: _isQtyMismatch=true');
+        return;
+      }
     }
 
     setState(() {
@@ -503,20 +540,20 @@ class _TeacherAiGenerateQuestionScreenState
     try {
       // D-07~D-11: Log selected file IDs and processing mode for Plan 07 wiring
       AppLogger.info(
-        '[Generate] processingMode=$_processingMode, '
-        'selectedFileIds(${_selectedFileIds.length})=$_selectedFileIds',
+        '[Generate] processingMode=${currentMode.name}, '
+        'selectedFileIds(${aiSettings.selectedFileIds.length})=${aiSettings.selectedFileIds}',
       );
 
       // D-26: Extraction pipeline — poll ai_queue instead of inline generation
-      if (_processingMode == ProcessingMode.extraction &&
-          _selectedFileIds.isNotEmpty) {
+      if (currentMode == ProcessingMode.extraction &&
+          aiSettings.selectedFileIds.isNotEmpty) {
         // Find the most recent pending ai_queue row for selected files
         // The row was inserted by TeacherFileDataSource.enqueueProcessing()
         // when the teacher uploaded the file in ContextSourcesSection.
         final queueRows = await Supabase.instance.client
             .from('ai_queue')
             .select('id, status')
-            .inFilter('payload->>file_id', _selectedFileIds)
+            .inFilter('payload->>file_id', aiSettings.selectedFileIds)
             .inFilter('status', ['pending', 'processing', 'completed'])
             .order('created_at', ascending: false)
             .limit(1);
@@ -998,10 +1035,13 @@ class _TeacherAiGenerateQuestionScreenState
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = ref.watch(aiGenerationSettingsNotifierProvider).processingMode;
     final statusBarHeight = MediaQuery.of(context).padding.top;
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: DesignColors.moonLight,
+      endDrawer: const AiSettingsDrawer(),
       body: Stack(
         children: [
           Column(
@@ -1054,16 +1094,16 @@ class _TeacherAiGenerateQuestionScreenState
                         textAlign: TextAlign.center,
                       ),
                     ),
-                    // Nút cài đặt (navigate đến Settings)
+                    // Nút mở EndDrawer cài đặt
                     Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () => context.pushNamed(AppRoute.aiQuestionSettings),
+                        onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
                         borderRadius: BorderRadius.circular(DesignRadius.full),
                         child: Padding(
                           padding: const EdgeInsets.all(8),
                           child: Icon(
-                            Icons.settings_rounded,
+                            Icons.menu_rounded,
                             size: 24,
                             color: isDark ? Colors.grey[300] : Colors.grey[700],
                           ),
@@ -1074,6 +1114,8 @@ class _TeacherAiGenerateQuestionScreenState
                 ),
               ),
 
+              _buildModeTabsSection(context, isDark),
+
               // Form Content
               Expanded(
                 child: Form(
@@ -1083,51 +1125,105 @@ class _TeacherAiGenerateQuestionScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Topic Input (Textarea)
-                        _buildTopicSection(context, isDark),
-                        SizedBox(height: DesignSpacing.xxl),
-
-                        // Giới hạn tổng số câu (luôn hiển thị)
-                        _buildQuantitySection(context, isDark),
-                        SizedBox(height: DesignSpacing.md),
-
-                        // Per-type qty steppers (hiện khi có loại được chọn)
-                        if (_selectedTypes.isNotEmpty) ...[
-                          _buildPerTypeQtySection(context, isDark),
-                          SizedBox(height: DesignSpacing.xxl),
-                        ] else
+                        // Modes 2 & 3: hint card + inline ContextSourcesSection
+                        if (mode != ProcessingMode.promptOnly) ...[
+                          _buildModeHintCard(context, mode, isDark),
                           SizedBox(height: DesignSpacing.lg),
+                          ContextSourcesSection(
+                            onSelectionChanged: (ids) => ref
+                                .read(aiGenerationSettingsNotifierProvider
+                                    .notifier)
+                                .setSelectedFileIds(ids),
+                          ),
+                          SizedBox(height: DesignSpacing.lg),
+                        ],
 
-                        // Difficulty Selector
-                        _buildDifficultySection(context, isDark),
-                        SizedBox(height: DesignSpacing.xxl),
+                        // Mode 3 only: optional focus hint
+                        if (mode == ProcessingMode.ragGeneration) ...[
+                          Text(
+                            'Hướng tập trung (tùy chọn)',
+                            style: DesignTypography.bodySmall.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? Colors.white
+                                  : DesignColors.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: DesignSpacing.xs),
+                          TextFormField(
+                            controller: _focusHintController,
+                            maxLines: 2,
+                            decoration: InputDecoration(
+                              hintText:
+                                  'VD: Tập trung vào chương 3, phần lý thuyết...',
+                              hintStyle: TextStyle(
+                                color: isDark
+                                    ? Colors.grey[600]
+                                    : Colors.grey[400],
+                              ),
+                              filled: true,
+                              fillColor: isDark
+                                  ? Colors.grey[800]!.withValues(alpha: 0.5)
+                                  : Colors.grey[50],
+                              border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(DesignRadius.md),
+                                borderSide:
+                                    BorderSide(color: Colors.grey[300]!),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(DesignRadius.md),
+                                borderSide:
+                                    BorderSide(color: Colors.grey[300]!),
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: DesignSpacing.xl),
+                        ],
 
-                        // Question Type Selector (multi-select chips)
-                        _buildQuestionTypeSection(context, isDark),
-                        SizedBox(height: DesignSpacing.xxl),
+                        // Mode 1 only: topic input
+                        if (mode == ProcessingMode.promptOnly) ...[
+                          _buildTopicSection(context, isDark),
+                          SizedBox(height: DesignSpacing.xxl),
+                        ],
 
-                        // D-10, D-11: AI Mode Toggle (Extraction vs Generation)
-                        _buildModeToggle(context, isDark),
-                        SizedBox(height: DesignSpacing.xxl),
+                        // Quantity — modes 1 and 3 (not extraction)
+                        if (mode != ProcessingMode.extraction) ...[
+                          _buildQuantitySection(context, isDark),
+                          SizedBox(height: DesignSpacing.md),
+                          if (_selectedTypes.isNotEmpty &&
+                              mode == ProcessingMode.promptOnly) ...[
+                            _buildPerTypeQtySection(context, isDark),
+                            SizedBox(height: DesignSpacing.xxl),
+                          ] else
+                            SizedBox(height: DesignSpacing.lg),
+                        ],
 
-                        // D-07, D-08, D-09: Context Sources (tài liệu tham khảo)
-                        _buildContextSources(),
+                        // Difficulty + Type chips — Mode 1 only
+                        if (mode == ProcessingMode.promptOnly) ...[
+                          _buildDifficultySection(context, isDark),
+                          SizedBox(height: DesignSpacing.xxl),
+                          _buildQuestionTypeSection(context, isDark),
+                          SizedBox(height: DesignSpacing.xxl),
+                        ],
 
-                        // AI Response Section (hiển thị sau khi generate)
+                        // AI Response (all modes — shows after generate)
                         if (_generatedQuestions != null) ...[
                           SizedBox(height: DesignSpacing.xxl),
                           _buildAiResponseSection(context, isDark),
                         ],
 
-                        // Raw API Response Section (chỉ debug mode)
+                        // Raw API debug (Mode 1 only)
                         if (kDebugMode &&
+                            mode == ProcessingMode.promptOnly &&
                             (_rawApiResponse != null ||
                                 _rawApiResponsePretty != null)) ...[
                           SizedBox(height: DesignSpacing.lg),
                           _buildRawApiResponseSection(context, isDark),
                         ],
 
-                        SizedBox(height: 100), // Space for button
+                        SizedBox(height: 100),
                       ],
                     ),
                   ),
@@ -1201,10 +1297,21 @@ class _TeacherAiGenerateQuestionScreenState
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.auto_awesome, size: 24),
+                              Icon(
+                                mode == ProcessingMode.extraction
+                                    ? Icons.content_paste_search_rounded
+                                    : mode == ProcessingMode.ragGeneration
+                                        ? Icons.auto_stories_rounded
+                                        : Icons.auto_awesome,
+                                size: DesignIcons.buttonIconSize,
+                              ),
                               const SizedBox(width: 8),
                               Text(
-                                'Tạo câu hỏi',
+                                mode == ProcessingMode.extraction
+                                    ? 'Trích xuất câu hỏi'
+                                    : mode == ProcessingMode.ragGeneration
+                                        ? 'Sinh từ tài liệu'
+                                        : 'Tạo câu hỏi',
                                 style: DesignTypography.bodyLarge.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
@@ -1842,56 +1949,99 @@ class _TeacherAiGenerateQuestionScreenState
     );
   }
 
-  /// D-10, D-11: AI mode toggle (Extraction vs Generation)
-  Widget _buildModeToggle(BuildContext context, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Chế độ xử lý',
-          style: DesignTypography.bodyLarge.copyWith(
-            fontWeight: FontWeight.w600,
-            color: isDark ? Colors.white : DesignColors.textPrimary,
+  /// Task 5: Mode tabs section — 3-mode SegmentedButton
+  Widget _buildModeTabsSection(BuildContext context, bool isDark) {
+    final mode = ref.watch(aiGenerationSettingsNotifierProvider).processingMode;
+
+    return Container(
+      color: isDark ? const Color(0xFF1A2632) : Colors.white,
+      padding: EdgeInsets.symmetric(
+        horizontal: DesignSpacing.lg,
+        vertical: DesignSpacing.sm,
+      ),
+      child: SegmentedButton<ProcessingMode>(
+        segments: const [
+          ButtonSegment(
+            value: ProcessingMode.promptOnly,
+            icon: Icon(Icons.edit_note_rounded, size: DesignIcons.xsSize),
+            label: Text('Nhập Prompt'),
+          ),
+          ButtonSegment(
+            value: ProcessingMode.extraction,
+            icon: Icon(Icons.content_paste_search_rounded, size: DesignIcons.xsSize),
+            label: Text('Trích xuất'),
+          ),
+          ButtonSegment(
+            value: ProcessingMode.ragGeneration,
+            icon: Icon(Icons.auto_stories_rounded, size: DesignIcons.xsSize),
+            label: Text('Từ Tài liệu'),
+          ),
+        ],
+        selected: {mode},
+        onSelectionChanged: (selected) {
+          ref
+              .read(aiGenerationSettingsNotifierProvider.notifier)
+              .setMode(selected.first);
+        },
+        style: ButtonStyle(
+          textStyle: WidgetStateProperty.all(
+            DesignTypography.bodySmall.copyWith(fontWeight: FontWeight.w500),
           ),
         ),
-        SizedBox(height: DesignSpacing.sm),
-        SegmentedButton<ProcessingMode>(
-          segments: const [
-            ButtonSegment(
-              value: ProcessingMode.extraction,
-              label: Text('Trích xuất'),
-              icon: Icon(Icons.recycling),
-            ),
-            ButtonSegment(
-              value: ProcessingMode.generation,
-              label: Text('Sinh câu hỏi'),
-              icon: Icon(Icons.auto_fix_high),
-            ),
-          ],
-          selected: {_processingMode},
-          onSelectionChanged: (Set<ProcessingMode> selected) {
-            setState(() => _processingMode = selected.first);
-          },
-        ),
-        SizedBox(height: DesignSpacing.xs),
-        Text(
-          _processingMode == ProcessingMode.extraction
-              ? 'Trích xuất câu hỏi từ tài liệu có sẵn (đề thi cũ, bộ câu hỏi)'
-              : 'Sinh câu hỏi mới dựa trên nội dung tài liệu học',
-          style: DesignTypography.bodySmall.copyWith(
-            color: isDark ? Colors.grey[400] : DesignColors.textSecondary,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  /// D-07, D-08, D-09: Context sources section
-  Widget _buildContextSources() {
-    return ContextSourcesSection(
-      onSelectionChanged: (fileIds) {
-        setState(() => _selectedFileIds = fileIds);
-      },
+  Widget _buildModeHintCard(
+    BuildContext context,
+    ProcessingMode mode,
+    bool isDark,
+  ) {
+    final isExtraction = mode == ProcessingMode.extraction;
+    final icon = isExtraction
+        ? Icons.content_paste_search_rounded
+        : Icons.auto_stories_rounded;
+    final color = isExtraction ? DesignColors.warning : DesignColors.success;
+    final title = isExtraction ? 'Chế độ Trích xuất' : 'Chế độ Từ Tài liệu';
+    final subtitle = isExtraction
+        ? 'AI sẽ đọc file và trích xuất câu hỏi có sẵn. Không sáng tác thêm.'
+        : 'AI sáng tác câu hỏi dựa trên nội dung tài liệu (RAG pipeline).';
+
+    return Container(
+      padding: EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: DesignIcons.mdSize),
+          SizedBox(width: DesignSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: DesignTypography.bodyMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                SizedBox(height: DesignSpacing.xs),
+                Text(
+                  subtitle,
+                  style: DesignTypography.bodySmall.copyWith(
+                    color: isDark ? Colors.grey[300] : DesignColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

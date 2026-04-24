@@ -81,6 +81,47 @@ class TeacherFileDataSource {
     });
   }
 
+  /// Delete a temp file: Storage object + ai_queue rows + file_links + files row.
+  /// Deletion order respects FK constraints: ai_queue/file_links first, then files.
+  Future<void> deleteFile(String fileId) async {
+    AppLogger.info('[TeacherFile] deleteFile: start fileId=$fileId');
+
+    // Read storage_path before deleting the files row
+    final fileRow = await _supabase
+        .from('files')
+        .select('storage_path')
+        .eq('id', fileId)
+        .maybeSingle();
+
+    if (fileRow == null) {
+      AppLogger.warning('[TeacherFile] deleteFile: fileId=$fileId not found — skipping');
+      return;
+    }
+
+    final storagePath = fileRow['storage_path'] as String?;
+    if (storagePath == null) {
+      AppLogger.warning('[TeacherFile] deleteFile: storage_path null for $fileId — skipping storage removal');
+    } else {
+      await _supabase.storage.from('teacher-documents').remove([storagePath]);
+      AppLogger.info('[TeacherFile] deleteFile: storage removed path=$storagePath');
+    }
+
+    // Delete ai_queue rows for this file
+    await _supabase
+        .from('ai_queue')
+        .delete()
+        .filter('payload->>file_id', 'eq', fileId);
+    AppLogger.info('[TeacherFile] deleteFile: ai_queue rows deleted');
+
+    // Delete file_links row
+    await _supabase.from('file_links').delete().eq('file_id', fileId);
+    AppLogger.info('[TeacherFile] deleteFile: file_links row deleted');
+
+    // Delete files row
+    await _supabase.from('files').delete().eq('id', fileId);
+    AppLogger.info('[TeacherFile] deleteFile: files row deleted — done');
+  }
+
   /// Query teacher's files via file_links join, enriched with real AI processing
   /// status from ai_queue (BUG-02 fix: processingStatus was always stuck at 'queued').
   Future<List<TeacherFileModel>> getTeacherFiles(String teacherId) async {

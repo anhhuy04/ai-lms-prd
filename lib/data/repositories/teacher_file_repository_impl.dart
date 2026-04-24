@@ -49,4 +49,18 @@ class TeacherFileRepositoryImpl implements ITeacherFileRepository {
       rethrow;
     }
   }
+
+  @override
+  Future<void> deleteFile(String fileId) async {
+    try {
+      await _dataSource.deleteFile(fileId);
+    } catch (e, st) {
+      AppLogger.error(
+        '[TeacherFileRepo] deleteFile failed: $e',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
+  }
 }
