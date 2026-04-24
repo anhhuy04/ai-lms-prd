@@ -1117,21 +1117,14 @@ class _TeacherAiGenerateQuestionScreenState
                         textAlign: TextAlign.center,
                       ),
                     ),
-                    // Nút mở EndDrawer cài đặt
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
-                        borderRadius: BorderRadius.circular(DesignRadius.full),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Icon(
-                            Icons.menu_rounded,
-                            size: 24,
-                            color: isDark ? Colors.grey[300] : Colors.grey[700],
-                          ),
-                        ),
+                    IconButton(
+                      onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+                      icon: Icon(
+                        Icons.more_vert,
+                        size: DesignIcons.mdSize,
+                        color: isDark ? DesignColors.white : DesignColors.textSecondary,
                       ),
+                      tooltip: 'Cài đặt AI',
                     ),
                   ],
                 ),
@@ -1972,43 +1965,103 @@ class _TeacherAiGenerateQuestionScreenState
     );
   }
 
-  /// Task 5: Mode tabs section — 3-mode SegmentedButton
   Widget _buildModeTabsSection(BuildContext context, bool isDark) {
     final mode = ref.watch(aiGenerationSettingsNotifierProvider).processingMode;
 
     return Container(
-      color: isDark ? const Color(0xFF1A2632) : Colors.white,
+      color: isDark ? const Color(0xFF1A2632) : DesignColors.white,
       padding: EdgeInsets.symmetric(
         horizontal: DesignSpacing.lg,
         vertical: DesignSpacing.sm,
       ),
-      child: SegmentedButton<ProcessingMode>(
-        segments: const [
-          ButtonSegment(
-            value: ProcessingMode.promptOnly,
-            icon: Icon(Icons.edit_note_rounded, size: DesignIcons.xsSize),
-            label: Text('Nhập Prompt'),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF243040) : DesignColors.moonLight,
+          borderRadius: BorderRadius.circular(DesignRadius.md),
+        ),
+        padding: const EdgeInsets.all(3),
+        child: Row(
+          children: [
+            _buildModeTab(
+              context, isDark,
+              mode: ProcessingMode.promptOnly,
+              selected: mode,
+              icon: Icons.edit_note_rounded,
+              label: 'Nhập Prompt',
+            ),
+            _buildModeTab(
+              context, isDark,
+              mode: ProcessingMode.extraction,
+              selected: mode,
+              icon: Icons.content_paste_search_rounded,
+              label: 'Trích xuất',
+            ),
+            _buildModeTab(
+              context, isDark,
+              mode: ProcessingMode.ragGeneration,
+              selected: mode,
+              icon: Icons.auto_stories_rounded,
+              label: 'Tài liệu',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeTab(
+    BuildContext context,
+    bool isDark, {
+    required ProcessingMode mode,
+    required ProcessingMode selected,
+    required IconData icon,
+    required String label,
+  }) {
+    final isSelected = mode == selected;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => ref
+            .read(aiGenerationSettingsNotifierProvider.notifier)
+            .setMode(mode),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: EdgeInsets.symmetric(
+            vertical: DesignSpacing.xs,
+            horizontal: DesignSpacing.xs,
           ),
-          ButtonSegment(
-            value: ProcessingMode.extraction,
-            icon: Icon(Icons.content_paste_search_rounded, size: DesignIcons.xsSize),
-            label: Text('Trích xuất'),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? DesignColors.primary
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(DesignRadius.sm),
+            boxShadow: isSelected ? [DesignElevation.level1] : null,
           ),
-          ButtonSegment(
-            value: ProcessingMode.ragGeneration,
-            icon: Icon(Icons.auto_stories_rounded, size: DesignIcons.xsSize),
-            label: Text('Từ Tài liệu'),
-          ),
-        ],
-        selected: {mode},
-        onSelectionChanged: (selected) {
-          ref
-              .read(aiGenerationSettingsNotifierProvider.notifier)
-              .setMode(selected.first);
-        },
-        style: ButtonStyle(
-          textStyle: WidgetStateProperty.all(
-            DesignTypography.bodySmall.copyWith(fontWeight: FontWeight.w500),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: DesignIcons.xsSize,
+                color: isSelected
+                    ? DesignColors.white
+                    : (isDark ? DesignColors.textSecondary : DesignColors.textSecondary),
+              ),
+              SizedBox(width: DesignSpacing.xs / 2),
+              Flexible(
+                child: Text(
+                  label,
+                  style: DesignTypography.bodySmall.copyWith(
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: isSelected
+                        ? DesignColors.white
+                        : (isDark ? DesignColors.textSecondary : DesignColors.textSecondary),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            ],
           ),
         ),
       ),
