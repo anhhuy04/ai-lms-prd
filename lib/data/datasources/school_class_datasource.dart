@@ -639,6 +639,238 @@ class SchoolClassDataSource {
     );
   }
 
+  /// Thành viên nhóm kèm profile (full_name, avatar_url)
+  Future<List<Map<String, dynamic>>> getGroupMembersWithProfiles(
+    String groupId,
+  ) async {
+    try {
+      final response = await _client
+          .from('group_members')
+          .select('*, profiles!student_id(full_name, avatar_url)')
+          .eq('group_id', groupId);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] getGroupMembersWithProfiles(groupId: $groupId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw Exception('Lỗi khi lấy thành viên nhóm kèm profile: $e');
+    }
+  }
+
+  /// Thành viên lớp đã duyệt kèm profile — dùng trong sheet chọn thành viên nhóm.
+  ///
+  /// IMPORTANT: class_members.student_id FK references auth.users(id), NOT profiles.
+  /// PostgREST embedded join `profiles!student_id` không hoạt động ở đây vì không có FK
+  /// trực tiếp từ class_members → profiles. Thay vào đó dùng 2 queries riêng biệt.
+  Future<List<Map<String, dynamic>>> getClassMembersWithProfiles(
+    String classId, {
+    String? status,
+  }) async {
+    try {
+      // Step 1: lấy class_members
+      var query = _client
+          .from('class_members')
+          .select()
+          .eq('class_id', classId);
+      if (status != null) {
+        query = query.eq('status', status) as dynamic;
+      }
+      final members = List<Map<String, dynamic>>.from(await query);
+      if (members.isEmpty) return [];
+
+      // Step 2: lấy profiles theo student_id (profiles.id = auth.users.id)
+      final studentIds = members
+          .map((m) => m['student_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final profilesRes = await _client
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .inFilter('id', studentIds);
+      final profileMap = <String, Map<String, dynamic>>{
+        for (final p in List<Map<String, dynamic>>.from(profilesRes))
+          (p['id'] as String): p,
+      };
+
+      // Step 3: merge profile vào mỗi member
+      return members.map((m) {
+        final sid = m['student_id'] as String?;
+        return <String, dynamic>{
+          ...m,
+          'profiles': sid != null ? profileMap[sid] : null,
+        };
+      }).toList();
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] getClassMembersWithProfiles(classId: $classId, status: $status): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw Exception('Lỗi khi lấy thành viên lớp kèm profile: $e');
+    }
+  }
+
+  /// Đếm số thành viên của nhiều nhóm cùng lúc (batch, tránh N+1)
+  Future<Map<String, int>> getGroupMemberCounts(
+    List<String> groupIds,
+  ) async {
+    if (groupIds.isEmpty) return {};
+    try {
+      final response = await _client
+          .from('group_members')
+          .select('group_id')
+          .inFilter('group_id', groupIds);
+      final counts = <String, int>{};
+      for (final row in response) {
+        final id = row['group_id'] as String?;
+        if (id == null) continue;
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
+      return counts;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] getGroupMemberCounts: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw Exception('Lỗi khi đếm thành viên nhóm: $e');
+    }
+  }
+
+  /// Bài tập đã giao cho nhóm kèm tiến độ nộp bài
+  Future<List<Map<String, dynamic>>> getGroupAssignmentProgress(
+    String groupId,
+  ) async {
+    try {
+      final response = await _client
+          .from('assignment_distributions')
+          .select('*, assignments(id, title, total_points)')
+          .eq('group_id', groupId)
+          .eq('distribution_type', 'group')
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] getGroupAssignmentProgress(groupId: $groupId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw Exception('Lỗi khi lấy tiến độ bài tập nhóm: $e');
+    }
+  }
+
+  /// Xóa nhóm học tập
+  Future<void> deleteGroup(String groupId) async {
+    try {
+      await _client.from('groups').delete().eq('id', groupId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] deleteGroup(groupId: $groupId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw Exception('Lỗi khi xóa nhóm: $e');
+    }
+  }
+
+  /// Set nhóm trưởng (2-step: unset leader cũ → set leader mới).
+  ///
+  /// WARNING: Đây KHÔNG thực sự atomic vì client Supabase không hỗ trợ transaction.
+  /// Nếu step 1 thành công nhưng step 2 thất bại → mọi member trong nhóm sẽ bị
+  /// giữ nguyên là 'member', không có leader. Để atomic thật sự, cần tạo DB function
+  /// `set_group_leader(p_group_id uuid, p_student_id uuid)` với SECURITY DEFINER.
+  Future<void> setGroupLeaderAtomic(String groupId, String studentId) async {
+    try {
+      // Step 1: reset tất cả về 'member'
+      await _client
+          .from('group_members')
+          .update({'role': 'member'})
+          .eq('group_id', groupId);
+      // Step 2: set leader mới
+      await _client
+          .from('group_members')
+          .update({'role': 'leader'})
+          .eq('group_id', groupId)
+          .eq('student_id', studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] setGroupLeaderAtomic(groupId: $groupId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw Exception('Lỗi khi set nhóm trưởng: $e');
+    }
+  }
+
+  /// Cập nhật vai trò thành viên nhóm
+  Future<void> setGroupMemberRole(
+    String groupId,
+    String studentId,
+    String role,
+  ) async {
+    try {
+      await _client
+          .from('group_members')
+          .update({'role': role})
+          .eq('group_id', groupId)
+          .eq('student_id', studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] setGroupMemberRole(groupId: $groupId, studentId: $studentId, role: $role): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw Exception('Lỗi khi cập nhật vai trò thành viên: $e');
+    }
+  }
+
+  /// Tự động chia học sinh vào các nhóm mới (round-robin).
+  ///
+  /// WARNING: Không atomic — nếu thất bại giữa chừng (ví dụ sau khi tạo được 2/3 nhóm),
+  /// các nhóm đã tạo sẽ tồn tại mà không có đầy đủ thành viên (partial state).
+  /// Caller nên xử lý bằng cách hiển thị thông báo lỗi và cho phép retry hoặc xóa thủ công.
+  Future<void> autoAssignStudentsToGroups({
+    required String classId,
+    required int numGroups,
+    required String groupPrefix,
+  }) async {
+    try {
+      // Lấy học sinh đã duyệt
+      final members = await getClassMembers(classId, status: 'approved');
+      if (members.isEmpty) return;
+
+      // Tạo numGroups nhóm (sequential — không có bulk insert để giữ được id từng nhóm)
+      final groupIds = <String>[];
+      for (int i = 1; i <= numGroups; i++) {
+        final result = await _client.from('groups').insert({
+          'class_id': classId,
+          'name': '$groupPrefix $i',
+        }).select('id').single();
+        groupIds.add(result['id'] as String);
+      }
+
+      // Phân chia học sinh round-robin
+      for (int i = 0; i < members.length; i++) {
+        final studentId = members[i]['student_id'] as String;
+        final groupId = groupIds[i % numGroups];
+        await _client.from('group_members').insert({
+          'group_id': groupId,
+          'student_id': studentId,
+        });
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [DATASOURCE ERROR] autoAssignStudentsToGroups(classId: $classId, numGroups: $numGroups): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw Exception('Lỗi khi tự động chia nhóm: $e');
+    }
+  }
+
   // ==================== Join Code Validation ====================
 
   /// Kiểm tra xem join code đã tồn tại trong database chưa.

@@ -20,7 +20,7 @@ class AiSettingsDrawer extends ConsumerWidget {
 
     return Drawer(
       width: 340,
-      backgroundColor: isDark ? const Color(0xFF1A2632) : DesignColors.white,
+      backgroundColor: isDark ? DesignColors.textPrimary : DesignColors.white,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,7 +43,7 @@ class AiSettingsDrawer extends ConsumerWidget {
                   IconButton(
                     icon: Icon(
                       Icons.close_rounded,
-                      color: isDark ? Colors.white70 : DesignColors.textSecondary,
+                      color: isDark ? DesignColors.textTertiary : DesignColors.textSecondary,
                     ),
                     onPressed: () => Scaffold.of(context).closeEndDrawer(),
                   ),
@@ -181,12 +181,12 @@ class _DocumentLibrarySection extends ConsumerWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () => _pickAndUploadFile(ref),
-              icon: const Icon(Icons.upload_file_outlined, size: 16),
+              icon: const Icon(Icons.upload_file_outlined, size: DesignIcons.xsSize),
               label: const Text('Tải file lên'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: DesignColors.primary,
                 side: BorderSide(color: DesignColors.primary),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: DesignSpacing.sm),
               ),
             ),
           ),
@@ -295,7 +295,7 @@ class _DrawerSectionCard extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(DesignSpacing.md),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF243040) : DesignColors.white,
+        color: isDark ? DesignColors.primaryDark : DesignColors.white,
         borderRadius: BorderRadius.circular(DesignRadius.md),
         border: Border.all(color: DesignColors.dividerLight),
         boxShadow: [DesignElevation.level1],

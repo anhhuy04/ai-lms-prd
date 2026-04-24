@@ -106,6 +106,37 @@ abstract class SchoolClassRepository {
   /// Trả về danh sách GroupMember, có thể rỗng.
   Future<List<GroupMember>> getGroupMembers(String groupId);
 
+  /// Thành viên nhóm kèm full_name, avatar_url từ profiles.
+  Future<List<Map<String, dynamic>>> getGroupMembersWithProfiles(String groupId);
+
+  /// Thành viên lớp kèm profile. [status] filter: 'approved' | 'pending' | 'rejected' | null.
+  Future<List<Map<String, dynamic>>> getClassMembersWithProfiles(
+    String classId, {
+    String? status,
+  });
+
+  /// Số thành viên của nhiều nhóm cùng lúc — trả về Map của groupId → count.
+  Future<Map<String, int>> getGroupMemberCounts(List<String> groupIds);
+
+  /// Bài tập đã giao cho nhóm kèm tiến độ nộp bài.
+  Future<List<Map<String, dynamic>>> getGroupAssignmentProgress(String groupId);
+
+  /// Xóa nhóm học tập.
+  Future<void> deleteGroup(String groupId);
+
+  /// Set nhóm trưởng (atomic: unset leader cũ → set leader mới).
+  Future<void> setGroupLeaderAtomic(String groupId, String studentId);
+
+  /// Cập nhật vai trò thành viên nhóm ('member' hoặc 'leader').
+  Future<void> setGroupMemberRole(String groupId, String studentId, String role);
+
+  /// Tự động tạo nhóm và chia học sinh đã duyệt vào theo round-robin.
+  Future<void> autoAssignStudentsToGroups({
+    required String classId,
+    required int numGroups,
+    required String groupPrefix,
+  });
+
   // ==================== Class Settings ====================
 
   /// Cập nhật toàn bộ class_settings.

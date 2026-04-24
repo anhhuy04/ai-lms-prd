@@ -172,6 +172,11 @@ class AppRoute {
   static String studentGroupViewPath(String classId) =>
       '/student/class/$classId/groups';
 
+  /// Student - Group detail (chi tiết nhóm cụ thể)
+  static const String studentGroupDetail = 'student-group-detail';
+  static String studentGroupDetailPath(String classId, String groupId) =>
+      '/student/class/$classId/groups/$groupId';
+
   /// Teacher - Assignment Hub (overview screen)
   static const String teacherAssignmentHub = 'teacher-assignment-hub';
   static const String teacherAssignmentHubPath = '/teacher/assignments/hub';

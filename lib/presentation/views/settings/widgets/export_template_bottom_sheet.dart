@@ -31,12 +31,12 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF1A2632) : Colors.white;
+    final bg = isDark ? DesignColors.textPrimary : DesignColors.white;
 
     return Container(
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(DesignRadius.lg)),
       ),
       child: SafeArea(
         child: SingleChildScrollView(
@@ -80,10 +80,10 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
     return Center(
       child: Container(
         width: 40,
-        height: 4,
+        height: DesignSpacing.xs,
         decoration: BoxDecoration(
-          color: isDark ? Colors.grey[600] : Colors.grey[300],
-          borderRadius: BorderRadius.circular(2),
+          color: isDark ? DesignColors.textSecondary : DesignColors.dividerMedium,
+          borderRadius: BorderRadius.circular(DesignRadius.xs),
         ),
       ),
     );
@@ -93,13 +93,13 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
     return Row(
       children: [
         Container(
-          width: 48,
-          height: 48,
+          width: DesignComponents.buttonHeightLarge,
+          height: DesignComponents.buttonHeightLarge,
           decoration: BoxDecoration(
             color: DesignColors.tealPrimary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(DesignRadius.md),
           ),
-          child: Icon(Icons.table_chart_outlined, color: DesignColors.tealPrimary, size: 26),
+          child: Icon(Icons.table_chart_outlined, color: DesignColors.tealPrimary, size: DesignIcons.mdSize),
         ),
         SizedBox(width: DesignSpacing.md),
         Expanded(
@@ -110,14 +110,14 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
                 'Xuất File Mẫu Excel',
                 style: DesignTypography.titleLarge.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : DesignColors.textPrimary,
+                  color: isDark ? DesignColors.white : DesignColors.textPrimary,
                 ),
               ),
-              SizedBox(height: 2),
+              SizedBox(height: DesignSpacing.xs),
               Text(
                 'Tạo template chuẩn để import câu hỏi vào AI',
                 style: DesignTypography.bodySmall.copyWith(
-                  color: isDark ? Colors.grey[400] : DesignColors.textSecondary,
+                  color: isDark ? DesignColors.textTertiary : DesignColors.textSecondary,
                 ),
               ),
             ],
@@ -130,11 +130,10 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
   Widget _buildSectionLabel(String label, bool isDark) {
     return Text(
       label.toUpperCase(),
-      style: TextStyle(
-        fontSize: DesignTypography.labelSmallSize,
+      style: DesignTypography.labelSmall.copyWith(
         fontWeight: FontWeight.bold,
         letterSpacing: 0.6,
-        color: isDark ? Colors.grey[400] : Colors.grey[600],
+        color: isDark ? DesignColors.textTertiary : DesignColors.textSecondary,
       ),
     );
   }
@@ -160,16 +159,16 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
         decoration: BoxDecoration(
           color: selected
               ? DesignColors.primary.withValues(alpha: 0.08)
-              : (isDark ? const Color(0xFF243040) : Colors.grey[50]),
+              : (isDark ? DesignColors.primaryDark : DesignColors.moonLight),
           borderRadius: BorderRadius.circular(DesignRadius.md),
           border: Border.all(
             color: selected
                 ? DesignColors.primary
-                : (isDark ? Colors.grey[700]! : Colors.grey[200]!),
+                : (isDark ? DesignColors.textSecondary : DesignColors.dividerMedium),
             width: selected ? 2 : 1,
           ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: DesignSpacing.md, vertical: DesignSpacing.xs + 2),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -177,19 +176,17 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
           children: [
             Text(
               type.label,
-              style: TextStyle(
+              style: DesignTypography.titleSmall.copyWith(
                 fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                fontSize: 13,
                 color: selected
                     ? DesignColors.primary
-                    : (isDark ? Colors.white : DesignColors.textPrimary),
+                    : (isDark ? DesignColors.white : DesignColors.textPrimary),
               ),
             ),
             Text(
               type.description,
-              style: TextStyle(
-                fontSize: 10,
-                color: isDark ? Colors.grey[500] : Colors.grey[500],
+              style: DesignTypography.labelSmall.copyWith(
+                color: DesignColors.textTertiary,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -211,18 +208,16 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
         SizedBox(width: DesignSpacing.md),
         Container(
           width: 64,
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: DesignSpacing.sm),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF243040) : Colors.grey[50],
+            color: isDark ? DesignColors.primaryDark : DesignColors.moonLight,
             borderRadius: BorderRadius.circular(DesignRadius.md),
             border: Border.all(color: DesignColors.primary.withValues(alpha: 0.4)),
           ),
           child: Text(
             '$_sampleCount',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
+            style: DesignTypography.headlineMedium.copyWith(
               color: DesignColors.primary,
             ),
           ),
@@ -236,9 +231,8 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
         SizedBox(width: DesignSpacing.lg),
         Text(
           'câu (tối đa 20)',
-          style: TextStyle(
-            fontSize: 12,
-            color: isDark ? Colors.grey[500] : Colors.grey[500],
+          style: DesignTypography.caption.copyWith(
+            color: DesignColors.textTertiary,
           ),
         ),
       ],
@@ -285,26 +279,27 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
       children: [
         Text(
           'Sheets:',
-          style: TextStyle(
-            fontSize: 12,
+          style: DesignTypography.caption.copyWith(
             fontWeight: FontWeight.w500,
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            color: isDark ? DesignColors.textTertiary : DesignColors.textSecondary,
           ),
         ),
         ...sheets.map(
           (s) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            padding: const EdgeInsets.symmetric(
+              horizontal: DesignSpacing.sm + 2,
+              vertical: DesignSpacing.xs - 1,
+            ),
             decoration: BoxDecoration(
               color: DesignColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(DesignRadius.full),
               border: Border.all(
                 color: DesignColors.primary.withValues(alpha: 0.25),
               ),
             ),
             child: Text(
               s,
-              style: TextStyle(
-                fontSize: 11,
+              style: DesignTypography.labelSmall.copyWith(
                 color: DesignColors.primary,
                 fontWeight: FontWeight.w600,
               ),
@@ -323,14 +318,14 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
         onPressed: _isGenerating ? null : _generate,
         icon: _isGenerating
             ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                width: DesignIcons.smSize,
+                height: DesignIcons.smSize,
+                child: CircularProgressIndicator(strokeWidth: 2, color: DesignColors.white),
               )
-            : const Icon(Icons.download_rounded, size: 20),
+            : const Icon(Icons.download_rounded, size: DesignIcons.mdSize),
         label: Text(
           _isGenerating ? 'Đang tạo file...' : 'Tạo & Xuất File Excel',
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          style: DesignTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold, color: DesignColors.white),
         ),
         style: FilledButton.styleFrom(
           backgroundColor: DesignColors.primary,
@@ -399,12 +394,12 @@ class _CounterButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 42,
-        height: 42,
+        width: DesignComponents.buttonHeightMedium,
+        height: DesignComponents.buttonHeightMedium,
         decoration: BoxDecoration(
           color: enabled
               ? DesignColors.primary.withValues(alpha: 0.1)
-              : (isDark ? Colors.grey[800] : Colors.grey[100]),
+              : (isDark ? DesignColors.textPrimary : DesignColors.disabledLight),
           borderRadius: BorderRadius.circular(DesignRadius.md),
           border: Border.all(
             color: enabled
@@ -414,8 +409,8 @@ class _CounterButton extends StatelessWidget {
         ),
         child: Icon(
           icon,
-          color: enabled ? DesignColors.primary : Colors.grey[400],
-          size: 20,
+          color: enabled ? DesignColors.primary : DesignColors.textTertiary,
+          size: DesignIcons.mdSize,
         ),
       ),
     );
@@ -440,7 +435,7 @@ class _OptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: DesignSpacing.xs),
       child: Row(
         children: [
           Expanded(
@@ -449,17 +444,15 @@ class _OptionTile extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 14,
+                  style: DesignTypography.bodyMedium.copyWith(
                     fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white : DesignColors.textPrimary,
+                    color: isDark ? DesignColors.white : DesignColors.textPrimary,
                   ),
                 ),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.grey[400] : DesignColors.textSecondary,
+                  style: DesignTypography.caption.copyWith(
+                    color: isDark ? DesignColors.textTertiary : DesignColors.textSecondary,
                   ),
                 ),
               ],

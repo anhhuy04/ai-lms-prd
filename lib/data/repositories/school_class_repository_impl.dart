@@ -413,6 +413,137 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
     }
   }
 
+  @override
+  Future<List<Map<String, dynamic>>> getGroupMembersWithProfiles(
+    String groupId,
+  ) async {
+    try {
+      return await _dataSource.getGroupMembersWithProfiles(groupId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getGroupMembersWithProfiles(groupId: $groupId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy thành viên nhóm kèm profile');
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getClassMembersWithProfiles(
+    String classId, {
+    String? status,
+  }) async {
+    try {
+      return await _dataSource.getClassMembersWithProfiles(classId, status: status);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getClassMembersWithProfiles(classId: $classId, status: $status): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy thành viên lớp kèm profile');
+    }
+  }
+
+  @override
+  Future<Map<String, int>> getGroupMemberCounts(List<String> groupIds) async {
+    try {
+      return await _dataSource.getGroupMemberCounts(groupIds);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getGroupMemberCounts: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Đếm thành viên nhóm');
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getGroupAssignmentProgress(
+    String groupId,
+  ) async {
+    try {
+      return await _dataSource.getGroupAssignmentProgress(groupId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getGroupAssignmentProgress(groupId: $groupId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy tiến độ bài tập nhóm');
+    }
+  }
+
+  @override
+  Future<void> deleteGroup(String groupId) async {
+    try {
+      await _dataSource.deleteGroup(groupId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] deleteGroup(groupId: $groupId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Xóa nhóm học tập');
+    }
+  }
+
+  @override
+  Future<void> setGroupLeaderAtomic(String groupId, String studentId) async {
+    try {
+      await _dataSource.setGroupLeaderAtomic(groupId, studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] setGroupLeaderAtomic(groupId: $groupId, studentId: $studentId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Set nhóm trưởng');
+    }
+  }
+
+  @override
+  Future<void> setGroupMemberRole(
+    String groupId,
+    String studentId,
+    String role,
+  ) async {
+    try {
+      await _dataSource.setGroupMemberRole(groupId, studentId, role);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] setGroupMemberRole(groupId: $groupId, studentId: $studentId, role: $role): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Cập nhật vai trò thành viên');
+    }
+  }
+
+  @override
+  Future<void> autoAssignStudentsToGroups({
+    required String classId,
+    required int numGroups,
+    required String groupPrefix,
+  }) async {
+    try {
+      await _dataSource.autoAssignStudentsToGroups(
+        classId: classId,
+        numGroups: numGroups,
+        groupPrefix: groupPrefix,
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] autoAssignStudentsToGroups(classId: $classId, numGroups: $numGroups): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Tự động chia nhóm');
+    }
+  }
+
   // ==================== Class Settings ====================
 
   @override

@@ -28,11 +28,12 @@ ITeacherFileRepository teacherFileRepository(Ref ref) {
 /// Plan 05 (ContextSourcesSection) uses: ref.watch(teacherFilesProvider)
 @riverpod
 class TeacherFiles extends _$TeacherFiles {
+  bool _isUploading = false;
   bool _isDeleting = false;
 
   @override
   Future<List<TeacherFileModel>> build() async {
-    return ref.read(teacherFileRepositoryProvider).getTeacherFiles();
+    return ref.watch(teacherFileRepositoryProvider).getTeacherFiles();
   }
 
   /// Upload a new file and prepend it to the list.
@@ -42,6 +43,8 @@ class TeacherFiles extends _$TeacherFiles {
     String filename,
     String mimeType,
   ) async {
+    if (_isUploading) return;
+    _isUploading = true;
     // BUG-01 fix: capture current list BEFORE setting AsyncLoading.
     // Reading state.valueOrNull after state=AsyncLoading() returns null,
     // causing every upload to drop the previous list.
@@ -57,6 +60,7 @@ class TeacherFiles extends _$TeacherFiles {
       AppLogger.info('[TeacherFiles] Upload success: ${newFile.filename}');
       return [newFile, ...current];
     });
+    _isUploading = false;
   }
 
   /// Remove a file from state + delete from Supabase.

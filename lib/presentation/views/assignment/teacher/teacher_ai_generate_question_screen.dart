@@ -167,7 +167,7 @@ class _TeacherAiGenerateQuestionScreenState
                   if (success > 0)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Text('✅ Đã lưu thành công: $success câu', style: const TextStyle(color: Colors.green)),
+                      child: Text('✅ Đã lưu thành công: $success câu', style: const TextStyle(color: DesignColors.success)),
                     ),
                   Text('❌ Lỗi:\n${errors.join('\n')}'),
                 ],
@@ -537,6 +537,11 @@ class _TeacherAiGenerateQuestionScreenState
       _regeneratingExplanationSet.clear();
     });
 
+    // BUG-02 fix: track whether extraction polling was started without await.
+    // When true, _pollForDocumentResults owns the _isGenerating lifecycle,
+    // so the finally block must NOT reset it.
+    bool extractionPollingStarted = false;
+
     try {
       // D-07~D-11: Log selected file IDs and processing mode for Plan 07 wiring
       AppLogger.info(
@@ -545,8 +550,22 @@ class _TeacherAiGenerateQuestionScreenState
       );
 
       // D-26: Extraction pipeline — poll ai_queue instead of inline generation
+      // BUG-01 fix: guard empty selectedFileIds in extraction mode early,
+      // before the try block can fall through to inline AI generation.
       if (currentMode == ProcessingMode.extraction &&
-          aiSettings.selectedFileIds.isNotEmpty) {
+          aiSettings.selectedFileIds.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu trước khi trích xuất.'),
+            backgroundColor: DesignColors.warning,
+          ),
+        );
+        setState(() => _isGenerating = false);
+        return;
+      }
+
+      if (currentMode == ProcessingMode.extraction) {
         // Find the most recent pending ai_queue row for selected files
         // The row was inserted by TeacherFileDataSource.enqueueProcessing()
         // when the teacher uploaded the file in ContextSourcesSection.
@@ -578,9 +597,12 @@ class _TeacherAiGenerateQuestionScreenState
           // Already done — read result immediately and show staging area
           await _pollForDocumentResults(queueId);
         } else {
-          // Still processing — start polling
+          // Still processing — fire-and-forget background polling.
+          // BUG-02 fix: set flag so finally block does NOT reset _isGenerating;
+          // _pollForDocumentResults owns the _isGenerating lifecycle from here.
+          extractionPollingStarted = true;
+          // ignore: discarded_futures
           _pollForDocumentResults(queueId);
-          // _pollForDocumentResults handles setState for _isGenerating
         }
         return; // Don't fall through to inline AI generation
       }
@@ -675,7 +697,7 @@ class _TeacherAiGenerateQuestionScreenState
           builder: (context) => AlertDialog(
             title: const Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                Icon(Icons.warning_amber_rounded, color: DesignColors.warning),
                 SizedBox(width: 8),
                 Text('Quota đã hết'),
               ],
@@ -754,7 +776,8 @@ class _TeacherAiGenerateQuestionScreenState
         );
       }
     } finally {
-      if (mounted) {
+      // BUG-02 fix: skip reset when background polling owns the lifecycle.
+      if (mounted && !extractionPollingStarted) {
         setState(() => _isGenerating = false);
       }
     }
