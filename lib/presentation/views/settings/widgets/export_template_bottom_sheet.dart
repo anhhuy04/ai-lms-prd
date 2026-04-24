@@ -1,4 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/excel_template_generator.dart';
 import 'package:ai_mls/core/utils/file_exporter.dart';
 import 'package:flutter/material.dart';
@@ -353,20 +354,19 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
         colorHeaders: _colorHeaders,
       );
 
-      debugPrint('[ExportTemplate] Bắt đầu tạo Excel — type=${_type.name} sampleCount=$_sampleCount');
+      AppLogger.info('[ExportTemplate] Bắt đầu tạo Excel — type=${_type.name} sampleCount=$_sampleCount');
       final bytes = ExcelTemplateGenerator.generate(config);
-      debugPrint('[ExportTemplate] generate() trả về ${bytes?.length ?? "null"} bytes');
+      AppLogger.info('[ExportTemplate] generate() trả về ${bytes?.length ?? "null"} bytes');
       if (bytes == null) throw Exception('ExcelTemplateGenerator.generate() trả về null');
 
       final fileName = 'mau_cau_hoi_${_type.name}_${DateTime.now().millisecondsSinceEpoch}.xlsx';
-      debugPrint('[ExportTemplate] Xuất file: $fileName');
+      AppLogger.info('[ExportTemplate] Xuất file: $fileName');
       if (!mounted) return;
       final saved = await exportExcelFile(bytes, fileName);
-      debugPrint('[ExportTemplate] Kết quả lưu: $saved');
+      AppLogger.info('[ExportTemplate] Kết quả lưu: $saved');
       if (saved && mounted) Navigator.of(context).pop();
     } catch (e, st) {
-      debugPrint('[ExportTemplate] LỖI: $e');
-      debugPrint('[ExportTemplate] StackTrace: $st');
+      AppLogger.error('[ExportTemplate] LỖI', error: e, stackTrace: st);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

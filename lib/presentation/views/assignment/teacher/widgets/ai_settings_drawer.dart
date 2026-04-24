@@ -17,7 +17,6 @@ class AiSettingsDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final filesAsync = ref.watch(teacherFilesProvider);
 
     return Drawer(
       width: 340,
@@ -58,11 +57,7 @@ class AiSettingsDrawer extends ConsumerWidget {
                 children: [
                   _ApiKeySection(isDark: isDark),
                   SizedBox(height: DesignSpacing.xl),
-                  _DocumentLibrarySection(
-                    isDark: isDark,
-                    filesAsync: filesAsync,
-                    ref: ref,
-                  ),
+                  _DocumentLibrarySection(isDark: isDark),
                   SizedBox(height: DesignSpacing.xl),
                   _ToolsSection(isDark: isDark),
                 ],
@@ -92,13 +87,13 @@ class _ApiKeySection extends StatelessWidget {
           'Cài đặt API Key',
           style: DesignTypography.bodyMedium.copyWith(
             fontWeight: FontWeight.w500,
-            color: isDark ? Colors.white : DesignColors.textPrimary,
+            color: isDark ? DesignColors.white : DesignColors.textPrimary,
           ),
         ),
         subtitle: Text(
           'Quản lý Gemini API Key',
           style: DesignTypography.bodySmall.copyWith(
-            color: isDark ? DesignColors.textSecondary : DesignColors.textSecondary,
+            color: DesignColors.textSecondary,
           ),
         ),
         trailing: Icon(Icons.chevron_right, color: DesignColors.textSecondary, size: DesignIcons.mdSize),
@@ -111,18 +106,12 @@ class _ApiKeySection extends StatelessWidget {
   }
 }
 
-class _DocumentLibrarySection extends StatelessWidget {
-  const _DocumentLibrarySection({
-    required this.isDark,
-    required this.filesAsync,
-    required this.ref,
-  });
+class _DocumentLibrarySection extends ConsumerWidget {
+  const _DocumentLibrarySection({required this.isDark});
 
   final bool isDark;
-  final AsyncValue<List<TeacherFileModel>> filesAsync;
-  final WidgetRef ref;
 
-  Future<void> _pickAndUploadFile() async {
+  Future<void> _pickAndUploadFile(WidgetRef ref) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['xlsx', 'docx'],
@@ -132,14 +121,22 @@ class _DocumentLibrarySection extends StatelessWidget {
     final file = result.files.single;
     final bytes = file.bytes;
     if (bytes == null) return;
-    final mimeType = file.extension == 'docx'
-        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    final ext = file.extension?.toLowerCase();
+    final String mimeType;
+    if (ext == 'docx') {
+      mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    } else if (ext == 'xlsx') {
+      mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    } else {
+      throw StateError('Unexpected file extension: $ext — only docx/xlsx supported');
+    }
     await ref.read(teacherFilesProvider.notifier).uploadFile(bytes, file.name, mimeType);
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filesAsync = ref.watch(teacherFilesProvider);
+
     return _DrawerSectionCard(
       title: 'Thư viện tài liệu',
       icon: Icons.folder_outlined,
@@ -150,7 +147,7 @@ class _DocumentLibrarySection extends StatelessWidget {
           Text(
             'File tạm thời — tự xóa sau khi xử lý',
             style: DesignTypography.bodySmall.copyWith(
-              color: isDark ? DesignColors.textSecondary : DesignColors.textSecondary,
+              color: DesignColors.textSecondary,
             ),
           ),
           SizedBox(height: DesignSpacing.sm),
@@ -169,13 +166,13 @@ class _DocumentLibrarySection extends StatelessWidget {
                     child: Text(
                       'Chưa có tài liệu nào',
                       style: DesignTypography.bodySmall.copyWith(
-                        color: isDark ? DesignColors.textSecondary : DesignColors.textSecondary,
+                        color: DesignColors.textSecondary,
                       ),
                     ),
                   )
                 : Column(
                     children: files
-                        .map((f) => _FileListTile(file: f, isDark: isDark, ref: ref))
+                        .map((f) => _FileListTile(file: f, isDark: isDark))
                         .toList(),
                   ),
           ),
@@ -183,7 +180,7 @@ class _DocumentLibrarySection extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: _pickAndUploadFile,
+              onPressed: () => _pickAndUploadFile(ref),
               icon: const Icon(Icons.upload_file_outlined, size: 16),
               label: const Text('Tải file lên'),
               style: OutlinedButton.styleFrom(
@@ -199,19 +196,14 @@ class _DocumentLibrarySection extends StatelessWidget {
   }
 }
 
-class _FileListTile extends StatelessWidget {
-  const _FileListTile({
-    required this.file,
-    required this.isDark,
-    required this.ref,
-  });
+class _FileListTile extends ConsumerWidget {
+  const _FileListTile({required this.file, required this.isDark});
 
   final TeacherFileModel file;
   final bool isDark;
-  final WidgetRef ref;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isProcessing =
         file.processingStatus == 'pending' || file.processingStatus == 'processing';
     final isDone = file.processingStatus == 'completed';
