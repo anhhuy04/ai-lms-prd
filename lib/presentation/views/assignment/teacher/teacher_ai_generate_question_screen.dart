@@ -15,6 +15,7 @@ import 'package:ai_mls/presentation/providers/learning_objective_providers.dart'
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/context_sources_section.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/staging_area_widget.dart';
+import 'package:ai_mls/presentation/providers/teacher_file_notifier.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -408,6 +409,28 @@ class _TeacherAiGenerateQuestionScreenState
           final questions = rawQuestions
               .map((q) => QuestionDTO.fromJson(q as Map<String, dynamic>))
               .toList();
+          AppLogger.info('[Poll] completed — extracted ${questions.length} question(s)');
+
+          // Auto-delete temp files after successful extraction
+          final selectedIds =
+              ref.read(aiGenerationSettingsNotifierProvider).selectedFileIds;
+          for (final fileId in selectedIds) {
+            try {
+              await ref
+                  .read(teacherFileRepositoryProvider)
+                  .deleteFile(fileId);
+              AppLogger.info('[Poll] auto-deleted temp fileId=$fileId');
+            } catch (e) {
+              AppLogger.warning(
+                  '[Poll] auto-delete failed for fileId=$fileId: $e');
+            }
+          }
+          if (selectedIds.isNotEmpty) {
+            ref
+                .read(aiGenerationSettingsNotifierProvider.notifier)
+                .setSelectedFileIds([]);
+            ref.invalidate(teacherFilesProvider);
+          }
 
           if (mounted) {
             setState(() {
