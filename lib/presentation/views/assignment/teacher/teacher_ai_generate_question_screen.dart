@@ -1860,17 +1860,17 @@ class _TeacherAiGenerateQuestionScreenState
         segments: const [
           ButtonSegment(
             value: ProcessingMode.promptOnly,
-            icon: Icon(Icons.edit_note_rounded, size: 16),
+            icon: Icon(Icons.edit_note_rounded, size: DesignIcons.xsSize),
             label: Text('Nhập Prompt'),
           ),
           ButtonSegment(
             value: ProcessingMode.extraction,
-            icon: Icon(Icons.content_paste_search_rounded, size: 16),
+            icon: Icon(Icons.content_paste_search_rounded, size: DesignIcons.xsSize),
             label: Text('Trích xuất'),
           ),
           ButtonSegment(
             value: ProcessingMode.ragGeneration,
-            icon: Icon(Icons.auto_stories_rounded, size: 16),
+            icon: Icon(Icons.auto_stories_rounded, size: DesignIcons.xsSize),
             label: Text('Từ Tài liệu'),
           ),
         ],
