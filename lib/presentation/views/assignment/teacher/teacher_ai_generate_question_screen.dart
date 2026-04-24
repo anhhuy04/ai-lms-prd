@@ -1128,7 +1128,7 @@ class _TeacherAiGenerateQuestionScreenState
                               ),
                               filled: true,
                               fillColor: isDark
-                                  ? const Color(0xFF243040)
+                                  ? Colors.grey[800]!.withValues(alpha: 0.5)
                                   : Colors.grey[50],
                               border: OutlineInputBorder(
                                 borderRadius:
@@ -1268,7 +1268,7 @@ class _TeacherAiGenerateQuestionScreenState
                                     : mode == ProcessingMode.ragGeneration
                                         ? Icons.auto_stories_rounded
                                         : Icons.auto_awesome,
-                                size: 24,
+                                size: DesignIcons.buttonIconSize,
                               ),
                               const SizedBox(width: 8),
                               Text(
@@ -1995,7 +1995,7 @@ class _TeacherAiGenerateQuestionScreenState
                     color: color,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: DesignSpacing.xs),
                 Text(
                   subtitle,
                   style: DesignTypography.bodySmall.copyWith(
