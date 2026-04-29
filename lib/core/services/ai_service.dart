@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:ai_mls/core/env/env.dart';
 import 'package:ai_mls/core/services/api_key_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
+import 'package:ai_mls/domain/entities/template_mode.dart';
 import 'package:dio/dio.dart';
 
 /// AI Service tập trung để quản lý tất cả AI API calls và prompts
@@ -182,6 +183,59 @@ class AiService {
     return result;
   }
 
+  /// Phát hiện tài liệu có cấu trúc câu hỏi mẫu rõ ràng.
+  ///
+  /// Trả về true nếu thoả 1 trong 2:
+  ///   (A) ≥ 2 marker câu hỏi rõ ràng (VN/EN + số):
+  ///       "Câu 1:", "Bài 1.", "Bài tập 1)", "Bài toán 1:", "Câu hỏi 1:",
+  ///       "Ví dụ 1:", "Question 1:", "Exercise 1:", "Problem 1:", "Ex 1:", "Q1:".
+  ///   (B) Cấu trúc trắc nghiệm rõ ràng: ≥ 4 dòng bắt đầu "A./B./C./D." VÀ
+  ///       có ≥ 1 marker đáp án ("Đáp án:", "Trả lời:", "Answer:").
+  ///
+  /// CỐ Ý KHÔNG nhận diện chỉ bằng numbered list ("1.", "1)") vì pattern này
+  /// rất phổ biến trong tài liệu lý thuyết đánh số mục → dễ false positive.
+  ///
+  /// LƯU Ý: Excel template (`.xlsx`) sau khi extract thành tab-separated rows
+  /// KHÔNG có literal "Câu N:" → hàm này luôn trả false. Caller phải check
+  /// `parsedQuestions != null` riêng cho Excel template trước khi gọi.
+  static bool isTemplateStyleDoc(String text) {
+    if (text.trim().isEmpty) return false;
+
+    // (A) Marker câu hỏi tường minh — VN/EN + số.
+    final explicitMarkers = RegExp(
+      r'(?:câu(?:\s*hỏi)?|bài(?:\s*(?:tập|toán))?|ví\s*dụ|question|exercise|problem|example|ex|q)\s*\.?\s*\d+\s*[:\.\)]',
+      caseSensitive: false,
+    ).allMatches(text).length;
+    if (explicitMarkers >= 2) return true;
+
+    // (B) MCQ structure: ≥ 4 dòng bắt đầu A./B./C./D. (cho phép a)/b)/c)/d))
+    final mcqMarkers = RegExp(
+      r'(?:^|\n)\s*[A-Da-d]\s*[\.\)]\s+\S',
+      multiLine: true,
+    ).allMatches(text).length;
+    final answerMarkers = RegExp(
+      r'(?:đáp\s*án|trả\s*lời|answer)\s*[:\.]',
+      caseSensitive: false,
+    ).allMatches(text).length;
+    if (mcqMarkers >= 4 && answerMarkers >= 1) return true;
+
+    return false;
+  }
+
+  /// Cắt ngắn tài liệu nếu vượt giới hạn an toàn.
+  /// Chiến lược: giữ 60% đầu + 40% cuối để bảo toàn phần mở và kết.
+  static ({String text, bool wasTruncated, int totalChars, int usedChars})
+      smartTruncate(String text, {int maxChars = 40000}) {
+    if (text.length <= maxChars) {
+      return (text: text, wasTruncated: false, totalChars: text.length, usedChars: text.length);
+    }
+    final head = (maxChars * 0.6).toInt();
+    final tail = maxChars - head;
+    final truncated = '${text.substring(0, head)}\n\n[... nội dung giữa đã lược bỏ ...]\n\n'
+        '${text.substring(text.length - tail)}';
+    return (text: truncated, wasTruncated: true, totalChars: text.length, usedChars: maxChars);
+  }
+
   /// Build prompt tối ưu cho mọi loại model (kể cả model yếu).
   ///
   /// Nguyên tắc:
@@ -194,27 +248,102 @@ class AiService {
     required int quantity,
     int? difficulty,
     String? questionType, // null = tự động chọn type phù hợp
+    String? documentContext, // nội dung tài liệu local
+    bool useAsStyleTemplate = false, // true = tài liệu là khuôn mẫu, không phải nguồn nội dung
+    // Sub-mode khi useAsStyleTemplate=true. null + useAsStyleTemplate=true
+    // → backward-compat: rơi về `styleOnly` (an toàn).
+    TemplateMode? templateMode,
   }) {
     final difficultyLine = _buildDifficultyLine(difficulty);
     final typeRule = _buildTypeRule(questionType);
     final formatExample = _buildFormatExample(questionType);
+    final hasDoc = documentContext != null && documentContext.isNotEmpty;
 
-    return '''Tạo $quantity câu hỏi về: "$topic".
+    // ── Chế độ khuôn mẫu: tài liệu định nghĩa văn phong + cấu trúc ─────────
+    if (useAsStyleTemplate && hasDoc) {
+      // Resolve sub-mode: null = legacy caller → mặc định styleOnly (an toàn).
+      final resolvedMode = templateMode ?? TemplateMode.styleOnly;
+      AppLogger.info(
+        '🧠 [Prompt] Template mode → branch=${resolvedMode.name} '
+        'qty=$quantity type=$questionType',
+      );
+      final hasFocusHint = topic.isNotEmpty && topic != 'Câu hỏi từ tài liệu';
+      final topicLine = hasFocusHint
+          ? 'BẮT BUỘC tập trung vào "$topic" (yêu cầu giáo viên)'
+          : 'mở rộng cùng chủ đề/lĩnh vực gợi ý qua tags trong schema';
+
+      String prompt;
+      switch (resolvedMode) {
+        case TemplateMode.styleOnly:
+          prompt = _buildStyleOnlyPrompt(
+            topic: topic,
+            quantity: quantity,
+            difficultyLine: difficultyLine,
+            topicLine: topicLine,
+            documentContext: documentContext,
+            formatExample: formatExample,
+          );
+        case TemplateMode.sameForm:
+          prompt = _buildSameFormPrompt(
+            topic: topic,
+            quantity: quantity,
+            difficultyLine: difficultyLine,
+            topicLine: topicLine,
+            documentContext: documentContext,
+            formatExample: formatExample,
+          );
+      }
+      AppLogger.info(
+        '🧠 [Prompt] Built ${resolvedMode.name} prompt: ${prompt.length} chars. '
+        'Preview:\n${prompt.substring(0, prompt.length.clamp(0, 400))}…',
+      );
+      return prompt;
+    }
+
+    // ── Chế độ nguồn nội dung: tài liệu cung cấp kiến thức để tạo câu hỏi ──
+    final contextSection = hasDoc
+        ? '''Dựa vào nội dung tài liệu sau đây để tạo câu hỏi:
+
+--- NỘI DUNG TÀI LIỆU ---
+$documentContext
+--- KẾT THÚC TÀI LIỆU ---
+
+'''
+        : '';
+
+    final hasFocusHint = hasDoc && topic != 'Câu hỏi từ tài liệu' && topic.isNotEmpty;
+    final topicRule = hasDoc
+        ? (hasFocusHint
+            ? 'Câu hỏi PHẢI đúng chủ đề/nội dung: "$topic" (yêu cầu bắt buộc của giáo viên). Lấy kiến thức từ NỘI DUNG TÀI LIỆU ở trên để xây dựng câu hỏi.'
+            : 'Câu hỏi dựa trên NỘI DUNG TÀI LIỆU ở trên. Chọn kiến thức quan trọng, đa dạng từ tài liệu.')
+        : 'Câu hỏi PHẢI nói về "$topic". Không được lạc sang chủ đề khác.';
+
+    final openingLine = hasDoc
+        ? (hasFocusHint
+            ? 'Tạo $quantity câu hỏi về "$topic" từ nội dung tài liệu.'
+            : 'Tạo $quantity câu hỏi từ nội dung tài liệu.')
+        : 'Tạo $quantity câu hỏi về: "$topic".';
+
+    return '''${contextSection}$openingLine
 $difficultyLine
 
 QUY TẮC (bắt buộc tuân thủ):
-1. Câu hỏi PHẢI nói về "$topic". Không được lạc sang chủ đề khác.
+1. $topicRule
 2. $typeRule
 3. Trả về JSON ARRAY. Không có markdown, không giải thích, không ký tự thừa.
 4. Mỗi câu hỏi là 1 object trong array.
 5. ĐA DẠNG HÓA câu hỏi: kết hợp câu cơ bản, câu cần suy luận 2-3 bước, câu áp dụng thực tế, câu có dữ liệu thực (số, ngày, tên người). Không tạo toàn câu đơn giản tính trực tiếp.
+6. KIỂM TRA ĐÁP ÁN ĐÚNG: trước khi xuất JSON, xác nhận lại rằng choice có isCorrect=true là đúng về mặt kiến thức. Các choice sai phải là lựa chọn có vẻ hợp lý nhưng thực sự sai (nhiễu tốt).
+7. ĐA DẠNG VỊ TRÍ ĐÁP ÁN ĐÚNG: trong toàn bộ $quantity câu, phân bố đáp án đúng đều ở các id 0, 1, 2, 3. Tuyệt đối không để đáp án đúng ở cùng id cho mọi câu (ví dụ không được tất cả đều isCorrect ở id 2).
+${hasDoc ? '8. TUYỆT ĐỐI KHÔNG sao chép, diễn đạt lại, hay đảo vị trí đáp án của bất kỳ câu nào trong tài liệu. Dùng tài liệu làm nguồn kiến thức — tạo câu hỏi MỚI hoàn toàn về ngôn từ và cấu trúc.' : ''}
 
 $formatExample
 
 RÀNG BUỘC FORMAT:
-- multiple_choice: 4 choices (id 0,1,2,3), đúng 1 cái isCorrect=true, 3 cái isCorrect=false.
-- true_false: 2 choices: {"id":0,"text":"Đúng","isCorrect":true/false} và {"id":1,"text":"Sai","isCorrect":false/true}.
-- essay/short_answer: có expected_answer (chuỗi văn bản).
+- MỌI loại câu: LUÔN có field "override_text" chứa nội dung câu hỏi đầy đủ.
+- multiple_choice: override_text + 4 choices (id 0,1,2,3), đúng 1 cái isCorrect=true, 3 cái isCorrect=false.
+- true_false: override_text + 2 choices: {"id":0,"text":"Đúng","isCorrect":true/false} và {"id":1,"text":"Sai","isCorrect":false/true}.
+- essay/short_answer: override_text (nội dung câu hỏi) + expected_answer (chuỗi văn bản đáp án mẫu).
 - fill_blank: override_text dùng [___1], [___2]... để đánh dấu chỗ trống. blanks liệt kê đáp án đúng với id khớp.
 - tags: 1-3 từ khóa liên quan topic.
 - KHÔNG tạo field "explanation" — giáo viên sẽ tự tạo gợi ý riêng cho từng câu.''';
@@ -288,6 +417,121 @@ RÀNG BUỘC FORMAT:
     }
   }
 
+  /// Prompt cho TemplateMode.styleOnly — anti-leak strict.
+  ///
+  /// Context AI nhận: schema-only (KHÔNG có text câu hỏi gốc) — chỉ tags +
+  /// difficulty + type. AI buộc phải tạo nội dung MỚI hoàn toàn dựa trên
+  /// gợi ý chủ đề từ tags.
+  ///
+  /// Universal prompt: hoạt động với mọi LLM hỗ trợ JSON output (Gemini,
+  /// Groq Llama, OpenAI, Anthropic, Ollama). Rule cấm sao chép đặt ở primacy
+  /// VÀ recency để cover middle-context drop trên model yếu.
+  static String _buildStyleOnlyPrompt({
+    required String topic,
+    required int quantity,
+    required String difficultyLine,
+    required String topicLine,
+    required String documentContext,
+    required String formatExample,
+  }) {
+    return '''OUTPUT: JSON ARRAY thuần túy. KHÔNG text giải thích, KHÔNG markdown fence, KHÔNG ký tự nào trước dấu "[" đầu tiên.
+
+CẤM TUYỆT ĐỐI: KHÔNG sao chép, paraphrase, hay tạo biến thể của bất cứ câu nào trong schema dưới đây. Schema CHỈ có metadata, không có nội dung gốc — bạn KHÔNG biết câu mẫu nói gì, KHÔNG được đoán.
+
+NHIỆM VỤ: Tạo $quantity câu hỏi MỚI HOÀN TOÀN, kế thừa CHỈ phong cách từ schema mẫu (loại câu, độ khó, tỉ lệ type, chủ đề gợi ý qua tags).
+
+--- SCHEMA BÀI MẪU ---
+$documentContext
+--- HẾT SCHEMA ---
+
+$difficultyLine
+Chủ đề: $topicLine.
+
+QUY TẮC:
+1. Mỗi câu mới = chủ đề CON khác nhau trong cùng lĩnh vực với tags. Không lặp lại đúng key concept của bất cứ câu nào.
+2. Giữ ĐÚNG: loại câu (type), số lựa chọn, độ khó tương ứng từng câu trong schema.
+3. MCQ: đúng 1 isCorrect=true, 3 cái false. Phân bố đáp án đúng đều ở id 0,1,2,3 qua $quantity câu.
+4. Distractor (đáp án sai) phải HỢP LÝ — sai vì lý do giáo dục được, không sai trắng trợn.
+5. Output JSON ARRAY thuần. KHÔNG markdown code fence, KHÔNG giải thích, KHÔNG ký tự thừa trước/sau JSON.
+
+--- VÍ DỤ NGƯỠNG (schema 1 câu MCQ độ khó 3, tags: "flutter, cơ bản") ---
+[{"type":"multiple_choice","override_text":"Widget nào dùng để hiển thị danh sách cuộn được trong Flutter?","choices":[{"id":0,"text":"Container","isCorrect":false},{"id":1,"text":"ListView","isCorrect":true},{"id":2,"text":"Row","isCorrect":false},{"id":3,"text":"Stack","isCorrect":false}],"tags":["flutter","widget"]}]
+
+$formatExample
+
+RÀNG BUỘC FORMAT:
+- MỌI loại câu: LUÔN có "override_text" chứa nội dung câu hỏi đầy đủ.
+- multiple_choice: override_text + 4 choices (id 0,1,2,3), đúng 1 isCorrect=true.
+- true_false: override_text + 2 choices id 0/1 với text "Đúng"/"Sai".
+- essay/short_answer: override_text + expected_answer.
+- fill_blank: override_text dùng [___1], [___2]…; blanks liệt kê đáp án.
+- tags: 1-3 từ khóa.
+- KHÔNG tạo field "explanation".
+
+NHẮC LẠI LẦN CUỐI: CẤM sao chép/đoán nội dung câu mẫu (bạn không thấy chúng). Trả về đúng JSON ARRAY $quantity object.''';
+  }
+
+  /// Prompt cho TemplateMode.sameForm — math drill / structure clone.
+  ///
+  /// Context AI nhận: text + options đã shuffle (ẩn isCorrect). AI giữ
+  /// NGUYÊN cấu trúc câu hỏi, CHỈ đổi giá trị cụ thể (số/dữ kiện), TÍNH
+  /// LẠI 4 lựa chọn theo giá trị mới.
+  ///
+  /// Universal prompt: 3 ví dụ chain-of-thought rõ ràng để cover model yếu
+  /// về math reasoning (8B trở xuống thường drift sang dạng khác).
+  static String _buildSameFormPrompt({
+    required String topic,
+    required int quantity,
+    required String difficultyLine,
+    required String topicLine,
+    required String documentContext,
+    required String formatExample,
+  }) {
+    return '''NHIỆM VỤ: Bạn nhận các câu hỏi MẪU dưới đây. Tạo $quantity câu hỏi MỚI giữ NGUYÊN CẤU TRÚC nhưng ĐỔI GIÁ TRỊ CỤ THỂ rồi TÍNH LẠI 4 LỰA CHỌN.
+
+QUY TRÌNH BẮT BUỘC (làm đúng thứ tự cho TỪNG câu):
+BƯỚC 1 — PHÂN TÍCH STRUCTURE: tách câu mẫu thành (a) khung cố định = khái niệm/công thức/dạng đề; (b) biến thay đổi được = số/tên/đơn vị/dữ liệu cụ thể.
+BƯỚC 2 — ĐỔI VALUE: thay biến (b) bằng giá trị mới hợp lý (cùng phạm vi độ khó, không quá lệch).
+BƯỚC 3 — TÍNH LẠI 4 OPTIONS: tự giải đáp án mới, sinh 3 distractor là lỗi sai HỢP LÝ (cộng/trừ thiếu, quên đơn vị, nhầm công thức tương tự…).
+
+--- TÀI LIỆU MẪU ---
+$documentContext
+--- HẾT MẪU ---
+
+$difficultyLine
+Chủ đề: $topicLine.
+
+QUY TẮC CỨNG:
+1. GIỮ NGUYÊN: dạng đề, công thức, đơn vị tổng quát, độ dài câu hỏi.
+2. ĐỔI: số liệu/tên/giá trị cụ thể. KHÔNG dùng lại bộ số y hệt mẫu.
+3. PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OPTIONS — không bao giờ copy options từ mẫu.
+4. Đúng 1 isCorrect=true. Distractor phải khác đáp án đúng và khác nhau từng đôi một.
+5. Phân bố đáp án đúng đều id 0,1,2,3 qua $quantity câu.
+6. Output JSON ARRAY thuần. KHÔNG markdown, KHÔNG giải thích.
+
+--- VÍ DỤ 1 (Toán cộng) ---
+Mẫu: "Tính 12 + 8 = ?"  Options: 18/20/22/24
+Phân tích: khung "Tính A + B = ?", biến A=12, B=8.
+Đổi: A=15, B=7. Tính: 15+7=22. Distractors: 21 (cộng thiếu), 23 (cộng dư), 20 (nhớ nhầm).
+Output: [{"type":"multiple_choice","override_text":"Tính 15 + 7 = ?","choices":[{"id":0,"text":"21","isCorrect":false},{"id":1,"text":"22","isCorrect":true},{"id":2,"text":"23","isCorrect":false},{"id":3,"text":"20","isCorrect":false}],"tags":["toán","cộng"]}]
+
+--- VÍ DỤ 2 (Hình học) ---
+Mẫu: "Diện tích hình tròn bán kính r=5cm là?"  Options: 25π/10π/50/15π
+Phân tích: khung "Diện tích hình tròn r=R", công thức S=π·R². Biến R=5.
+Đổi: R=7. Tính: π·49 = 49π. Distractors: 14π (nhầm chu vi 2πR), 49 (quên π), 7π (nhầm π·R).
+Output: [{"type":"multiple_choice","override_text":"Diện tích hình tròn bán kính r=7cm là?","choices":[{"id":0,"text":"14π cm²","isCorrect":false},{"id":1,"text":"49 cm²","isCorrect":false},{"id":2,"text":"49π cm²","isCorrect":true},{"id":3,"text":"7π cm²","isCorrect":false}],"tags":["hình học","diện tích"]}]
+
+--- VÍ DỤ 3 (Đại số) ---
+Mẫu: "Giải 2x+3=11, x=?"  Options: 4/5/3/8
+Phân tích: khung "ax+b=c, x=?", giải x=(c-b)/a. Biến a=2, b=3, c=11.
+Đổi: a=3, b=5, c=20. Tính: x=(20-5)/3=5. Distractors: 15 (quên chia), 6 (chia sai), 25/3 (cộng b thay vì trừ).
+Output: [{"type":"multiple_choice","override_text":"Giải phương trình 3x+5=20, x=?","choices":[{"id":0,"text":"6","isCorrect":false},{"id":1,"text":"15","isCorrect":false},{"id":2,"text":"5","isCorrect":true},{"id":3,"text":"25/3","isCorrect":false}],"tags":["đại số","phương trình"]}]
+
+$formatExample
+
+NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OPTIONS. Trả về JSON ARRAY $quantity object đúng format ví dụ.''';
+  }
+
   /// Call AI API với endpoint và payload
   ///
   /// Generic method để gọi bất kỳ AI API endpoint nào
@@ -359,12 +603,18 @@ RÀNG BUỘC FORMAT:
     required int quantity,
     int? difficulty,
     String? questionType, // null hoặc 'auto' = AI tự chọn
+    String? documentContext,
+    bool useAsStyleTemplate = false,
+    TemplateMode? templateMode,
   }) async {
     final prompt = getGenerateQuestionsPrompt(
       topic: topic,
       quantity: quantity,
       difficulty: difficulty,
       questionType: questionType,
+      documentContext: documentContext,
+      useAsStyleTemplate: useAsStyleTemplate,
+      templateMode: templateMode,
     );
     return await callActiveAi(prompt);
   }
@@ -526,6 +776,10 @@ RÀNG BUỘC FORMAT:
             ],
           },
         ],
+        // Force pure JSON output — tránh Gemini bọc JSON trong markdown/text thừa
+        'generationConfig': {
+          'responseMimeType': 'application/json',
+        },
       };
 
       AppLogger.info('🤖 [AI Service] Calling Gemini API...');
@@ -726,18 +980,16 @@ RÀNG BUỘC FORMAT:
   }
 
   static int _groqMaxTokensFromPrompt(String prompt) {
-    // Heuristic: cố gắng đọc số lượng câu trong prompt để ước lượng output.
-    // Mục tiêu: giảm TPM + tránh lãng phí token. Batch đang chạy ~10 câu.
     final m = RegExp(
       r'tạo\s+(\d+)\s+câu\s+hỏi',
       caseSensitive: false,
     ).firstMatch(prompt);
     final qty = int.tryParse(m?.group(1) ?? '') ?? 10;
-    // Mỗi câu MCQ gọn: ~80-120 tokens output. Dự phòng chút.
-    final estimated = 250 + (qty * 110);
-    // Hard cap để tránh request TPM quá lớn
-    if (estimated < 600) return 600;
-    if (estimated > 1400) return 1400;
+    // MCQ đầy đủ (override_text + 4 choices + tags): ~200-250 tokens mỗi câu.
+    // Cap cũ 1400 quá thấp — JSON bị truncate giữa chừng → parse fail → fallback.
+    final estimated = 400 + (qty * 220);
+    if (estimated < 800) return 800;
+    if (estimated > 4000) return 4000;
     return estimated;
   }
 

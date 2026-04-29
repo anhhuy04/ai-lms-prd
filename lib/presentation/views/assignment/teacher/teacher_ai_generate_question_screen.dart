@@ -2,27 +2,25 @@
 import 'dart:convert';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/services/ai_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
-import 'package:ai_mls/core/routes/route_constants.dart';
-import 'package:ai_mls/data/models/question_dto.dart';
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
+import 'package:ai_mls/domain/entities/template_mode.dart';
 import 'package:ai_mls/presentation/providers/ai_generation_settings_notifier.dart';
 import 'package:ai_mls/presentation/providers/ai_providers.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/learning_objective_providers.dart';
+import 'package:ai_mls/presentation/providers/local_temp_file_notifier.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/widgets/ai_settings_drawer.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/context_sources_section.dart';
-import 'package:ai_mls/presentation/views/assignment/teacher/widgets/staging_area_widget.dart';
-import 'package:ai_mls/presentation/providers/teacher_file_notifier.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:ai_mls/presentation/views/assignment/teacher/widgets/ai_settings_drawer.dart';
 
 /// Màn hình tạo câu hỏi bằng AI
 class TeacherAiGenerateQuestionScreen extends ConsumerStatefulWidget {
@@ -48,7 +46,7 @@ class _TeacherAiGenerateQuestionScreenState
   final _formKey = GlobalKey<FormState>();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _topicController = TextEditingController();
-  final _quantityController = TextEditingController(text: '5');
+  final _quantityController = TextEditingController();
   final _focusHintController = TextEditingController();
   int? _difficulty; // 1-5
 
@@ -69,6 +67,19 @@ class _TeacherAiGenerateQuestionScreenState
   // Batch progress
   String? _batchProgress;
 
+  // Style-template mode: tài liệu là khuôn mẫu về văn phong/cấu trúc
+  bool _useAsStyleTemplate = false;
+
+  // Sub-mode cuối cùng dùng khi gọi AI (đã apply auto-downgrade nếu cần).
+  // Reset null mỗi lần generate; chỉ set khi Mode 3 + template detect.
+  TemplateMode? _effectiveTemplateMode;
+
+  // Câu mẫu gốc dùng cho similarity verification post-hoc.
+  List<Map<String, dynamic>>? _templateQuestionsForVerify;
+
+  // Template chỉ chứa MCQ → cho phép sameForm. Dùng để render UI chip.
+  bool _templateAllMcq = false;
+
   // Index đang regenerate đơn lẻ
   int? _regeneratingIndex;
 
@@ -76,10 +87,6 @@ class _TeacherAiGenerateQuestionScreenState
   bool _explanationFeatureEnabled = false; // Global toggle — tiết kiệm token
   final Set<int> _expandedExplanations = {};
   final Set<int> _regeneratingExplanationSet = {};
-
-  // D-26: Polling for document processing results (Extraction pipeline)
-  bool _isPolling = false;
-  String? _pollingStatus; // Status text shown while polling ai_queue
 
   @override
   void dispose() {
@@ -141,7 +148,9 @@ class _TeacherAiGenerateQuestionScreenState
           await questionRepo.createQuestion(params);
           success++;
         } catch (e) {
-          errors.add('Câu ${i + 1}: ${e.toString().replaceAll('Exception: ', '')}');
+          errors.add(
+            'Câu ${i + 1}: ${e.toString().replaceAll('Exception: ', '')}',
+          );
         }
       }
 
@@ -158,7 +167,11 @@ class _TeacherAiGenerateQuestionScreenState
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text(success > 0 ? 'Lưu một phần ($success/${questions.length} câu)' : 'Lưu thất bại'),
+            title: Text(
+              success > 0
+                  ? 'Lưu một phần ($success/${questions.length} câu)'
+                  : 'Lưu thất bại',
+            ),
             content: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,7 +180,10 @@ class _TeacherAiGenerateQuestionScreenState
                   if (success > 0)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Text('✅ Đã lưu thành công: $success câu', style: const TextStyle(color: DesignColors.success)),
+                      child: Text(
+                        '✅ Đã lưu thành công: $success câu',
+                        style: const TextStyle(color: DesignColors.success),
+                      ),
                     ),
                   Text('❌ Lỗi:\n${errors.join('\n')}'),
                 ],
@@ -247,13 +263,13 @@ class _TeacherAiGenerateQuestionScreenState
         final opt = entry.value;
         // Extract text: hỗ trợ cả format {content: {text}} và {text}
         final choiceContent = opt['content'];
-        final text = (choiceContent is Map<String, dynamic>
+        final text =
+            (choiceContent is Map<String, dynamic>
                 ? choiceContent['text']
                 : null) ??
             opt['text'] ??
             '';
-        final isCorrect =
-            opt['is_correct'] == true || opt['isCorrect'] == true;
+        final isCorrect = opt['is_correct'] == true || opt['isCorrect'] == true;
         // Build với format chuẩn DB: {id: int, content: {text}, is_correct: bool}
         return <String, dynamic>{
           'id': idx,
@@ -279,7 +295,9 @@ class _TeacherAiGenerateQuestionScreenState
     if (includeExplanation) {
       final explanationForSave =
           (q['explanation'] as String?)?.trim() ??
-          (q['answer'] is Map ? (q['answer'] as Map)['general_explanation']?.toString().trim() : null);
+          (q['answer'] is Map
+              ? (q['answer'] as Map)['general_explanation']?.toString().trim()
+              : null);
       if (explanationForSave != null && explanationForSave.isNotEmpty) {
         answer ??= {};
         answer['general_explanation'] = explanationForSave;
@@ -337,9 +355,9 @@ class _TeacherAiGenerateQuestionScreenState
           'subject_code': subjectCode,
           'code': code,
           'description': desc,
-          'is_global': false,       // private của GV này
+          'is_global': false, // private của GV này
           'source': 'ai_generated', // track provenance
-          'created_by': userId,     // BẮT BUỘC để RLS không nuốt mất
+          'created_by': userId, // BẮT BUỘC để RLS không nuốt mất
         });
         objectiveIds.add(created.id as String);
 
@@ -364,113 +382,6 @@ class _TeacherAiGenerateQuestionScreenState
     );
   }
 
-  /// Polls ai_queue every 3s (max 20 attempts = 60s) waiting for document
-  /// processing to complete. When status='completed', reads result.extraction.questions
-  /// and shows StagingAreaWidget (D-26).
-  ///
-  /// Status path: result.extraction.questions (nested under 'extraction' key to
-  /// avoid conflict with result.vectorize — see Plan 06 Edge Function).
-  Future<void> _pollForDocumentResults(String queueId) async {
-    if (mounted) {
-      setState(() {
-        _isPolling = true;
-        _pollingStatus = 'Đang xử lý tài liệu...';
-      });
-    }
-    try {
-      for (int attempt = 0; attempt < 20; attempt++) {
-        await Future.delayed(const Duration(seconds: 3));
-        if (!mounted) return;
-
-        if (mounted) {
-          setState(() => _pollingStatus =
-              'Đang xử lý tài liệu... (${(attempt + 1) * 3}s)');
-        }
-
-        final row = await Supabase.instance.client
-            .from('ai_queue')
-            .select('status, result')
-            .eq('id', queueId)
-            .single();
-
-        final status = row['status'] as String?;
-        // Status values: 'completed' | 'failed' (process-document-queue convention)
-        if (status == 'completed') {
-          final result = row['result'] as Map<String, dynamic>?;
-          // result.extraction.questions — nested to avoid overwrite by result.vectorize
-          final extraction = result?['extraction'] as Map<String, dynamic>?;
-          final rawQuestions = extraction?['questions'] as List? ?? [];
-          final questions = rawQuestions
-              .map((q) => QuestionDTO.fromJson(q as Map<String, dynamic>))
-              .toList();
-          AppLogger.info('[Poll] completed — extracted ${questions.length} question(s)');
-
-          // Auto-delete temp files after successful extraction
-          final selectedIds =
-              ref.read(aiGenerationSettingsNotifierProvider).selectedFileIds;
-          for (final fileId in selectedIds) {
-            try {
-              await ref
-                  .read(teacherFileRepositoryProvider)
-                  .deleteFile(fileId);
-              AppLogger.info('[Poll] auto-deleted temp fileId=$fileId');
-            } catch (e) {
-              AppLogger.warning(
-                  '[Poll] auto-delete failed for fileId=$fileId: $e');
-            }
-          }
-          if (selectedIds.isNotEmpty) {
-            ref
-                .read(aiGenerationSettingsNotifierProvider.notifier)
-                .setSelectedFileIds([]);
-            ref.invalidate(teacherFilesProvider);
-          }
-
-          if (mounted) {
-            setState(() {
-              _isPolling = false;
-              _pollingStatus = null;
-              _isGenerating = false;
-            });
-            showStagingArea(
-              context,
-              questions: questions,
-              assignmentId: widget.assignmentId,
-              onComplete: () {
-                if (mounted) {
-                  setState(() {
-                    _generatedQuestions =
-                        questions.map((q) => q.content).toList();
-                  });
-                }
-              },
-            );
-          }
-          return;
-        }
-        if (status == 'failed') {
-          throw Exception('Xử lý tài liệu thất bại. Vui lòng thử lại.');
-        }
-      }
-      throw Exception('Xử lý tài liệu hết thời gian chờ (60s). Vui lòng thử lại.');
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isPolling = false;
-          _pollingStatus = null;
-          _isGenerating = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi xử lý tài liệu: $e'),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    }
-  }
-
   Future<void> _handleGenerate() async {
     AppLogger.info('🔵 [Generate] _handleGenerate called');
 
@@ -478,19 +389,8 @@ class _TeacherAiGenerateQuestionScreenState
     final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
     final currentMode = aiSettings.processingMode;
 
-    // Mode 3 guard — RAG backend not yet ready
-    if (currentMode == ProcessingMode.ragGeneration) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tính năng đang phát triển — sắp ra mắt'),
-          backgroundColor: DesignColors.primary,
-        ),
-      );
-      return;
-    }
-
     // Mode 1 only: validate topic + form fields
-    final topic = _topicController.text.trim();
+    var topic = _topicController.text.trim();
     if (currentMode == ProcessingMode.promptOnly) {
       AppLogger.info(
         '🔵 [Generate] topic="$topic", _isQtyMismatch=$_isQtyMismatch, '
@@ -535,12 +435,10 @@ class _TeacherAiGenerateQuestionScreenState
       _explanationFeatureEnabled = false;
       _expandedExplanations.clear();
       _regeneratingExplanationSet.clear();
+      _useAsStyleTemplate = false; // reset mỗi lần generate
+      _effectiveTemplateMode = null;
+      _templateQuestionsForVerify = null;
     });
-
-    // BUG-02 fix: track whether extraction polling was started without await.
-    // When true, _pollForDocumentResults owns the _isGenerating lifecycle,
-    // so the finally block must NOT reset it.
-    bool extractionPollingStarted = false;
 
     try {
       // D-07~D-11: Log selected file IDs and processing mode for Plan 07 wiring
@@ -549,40 +447,17 @@ class _TeacherAiGenerateQuestionScreenState
         'selectedFileIds(${aiSettings.selectedFileIds.length})=${aiSettings.selectedFileIds}',
       );
 
-      // D-26: Extraction pipeline — poll ai_queue instead of inline generation
-      // BUG-01 fix: guard empty selectedFileIds in extraction mode early,
-      // before the try block can fall through to inline AI generation.
-      if (currentMode == ProcessingMode.extraction &&
-          aiSettings.selectedFileIds.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu trước khi trích xuất.'),
-            backgroundColor: DesignColors.warning,
-          ),
-        );
-        setState(() => _isGenerating = false);
-        return;
-      }
+      // documentContext: text extracted from local files for extraction mode
+      String? documentContext;
 
       if (currentMode == ProcessingMode.extraction) {
-        // Find the most recent pending ai_queue row for selected files
-        // The row was inserted by TeacherFileDataSource.enqueueProcessing()
-        // when the teacher uploaded the file in ContextSourcesSection.
-        final queueRows = await Supabase.instance.client
-            .from('ai_queue')
-            .select('id, status')
-            .inFilter('payload->>file_id', aiSettings.selectedFileIds)
-            .inFilter('status', ['pending', 'processing', 'completed'])
-            .order('created_at', ascending: false)
-            .limit(1);
-
-        if (queueRows.isEmpty) {
+        final selectedIds = aiSettings.selectedFileIds;
+        if (selectedIds.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                  'Chưa có tài liệu nào đang xử lý. '
-                  'Vui lòng chọn tài liệu ở Nguồn Dữ Liệu.'),
+                'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu trước khi trích xuất.',
+              ),
               backgroundColor: DesignColors.warning,
             ),
           );
@@ -590,21 +465,246 @@ class _TeacherAiGenerateQuestionScreenState
           return;
         }
 
-        final queueId = queueRows.first['id'] as String;
-        final queueStatus = queueRows.first['status'] as String;
+        // ── Excel template: parse trực tiếp, không cần AI ─────────────────
+        final templateQuestions = ref
+            .read(localTempFilesProvider.notifier)
+            .getTemplateQuestionsForIds(selectedIds);
 
-        if (queueStatus == 'completed') {
-          // Already done — read result immediately and show staging area
-          await _pollForDocumentResults(queueId);
-        } else {
-          // Still processing — fire-and-forget background polling.
-          // BUG-02 fix: set flag so finally block does NOT reset _isGenerating;
-          // _pollForDocumentResults owns the _isGenerating lifecycle from here.
-          extractionPollingStarted = true;
-          // ignore: discarded_futures
-          _pollForDocumentResults(queueId);
+        if (templateQuestions.isNotEmpty) {
+          if (mounted) {
+            setState(() {
+              _generatedQuestions = templateQuestions;
+              _isGenerating = false;
+              _batchProgress = null;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Đã tải ${templateQuestions.length} câu hỏi từ file Excel',
+                ),
+                backgroundColor: DesignColors.success,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
         }
-        return; // Don't fall through to inline AI generation
+
+        // ── Word (.docx): extract text → AI ───────────────────────────────
+        final docText = ref
+            .read(localTempFilesProvider.notifier)
+            .getExtractedTextForIds(selectedIds);
+
+        if (docText.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'File Excel không đúng định dạng mẫu và file Word không có nội dung đọc được. '
+                'Vui lòng dùng file mẫu Excel hoặc file Word có nội dung.',
+              ),
+              backgroundColor: DesignColors.warning,
+            ),
+          );
+          setState(() => _isGenerating = false);
+          return;
+        }
+
+        // Smart truncate nếu tài liệu quá dài
+        final truncated = AiService.smartTruncate(docText);
+        if (truncated.wasTruncated && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Tài liệu dài (${truncated.totalChars} ký tự) — '
+                'đã dùng ${truncated.usedChars} ký tự để tránh tràn context AI.',
+              ),
+              backgroundColor: DesignColors.warning,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+        documentContext = truncated.text;
+
+        // Phát hiện tài liệu mẫu (có cấu trúc "Câu N:") → dùng style-template mode
+        _useAsStyleTemplate = AiService.isTemplateStyleDoc(docText);
+        AppLogger.info(
+          '[Generate] useAsStyleTemplate=$_useAsStyleTemplate, '
+          'docChars=${truncated.usedChars}/${truncated.totalChars}',
+        );
+
+        // Tiếp tục xuống AI generation bên dưới (KHÔNG return)
+        if (topic.isEmpty) topic = 'Câu hỏi từ tài liệu';
+      }
+
+      if (currentMode == ProcessingMode.ragGeneration) {
+        final selectedIds = aiSettings.selectedFileIds;
+        AppLogger.info(
+          '[Mode3] selectedIds(${selectedIds.length})=$selectedIds',
+        );
+
+        // Log trạng thái từng file trong provider để debug
+        final allFiles = ref.read(localTempFilesProvider);
+        for (final f in allFiles) {
+          AppLogger.info(
+            '[Mode3] file=${f.filename} | id=${f.id} | mime=${f.mimeType} '
+            '| extractedChars=${f.extractedText?.length ?? 0} '
+            '| parsedQty=${f.parsedQuestions?.length ?? 0} '
+            '| isExtracting=${f.isExtracting} '
+            '| selected=${selectedIds.contains(f.id)}',
+          );
+        }
+
+        if (selectedIds.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu.',
+              ),
+              backgroundColor: DesignColors.warning,
+            ),
+          );
+          setState(() => _isGenerating = false);
+          return;
+        }
+
+        // Mode 3 — tách 2 đường text:
+        //   • rawText (getExtractedTextForIds): tab-separated rows nguyên xi
+        //     → CHỈ dùng để detect (regex isTemplateStyleDoc).
+        //   • aiText (getKnowledgeContextForIds khi template): cùng 1 file,
+        //     options đã shuffle + KHÔNG có cột "Đáp án đúng" + có header
+        //     "[Tài liệu mẫu — Hãy tạo câu hỏi MỚI]" → ngăn AI bê nguyên đề
+        //     và đáp án từ Excel template.
+        //   • aiText khi không phải template: rớt về raw extractedText (RAG
+        //     thuần) — không đổi behavior cho .docx/.pdf lý thuyết.
+        final notifier = ref.read(localTempFilesProvider.notifier);
+        final rawText = notifier.getExtractedTextForIds(selectedIds);
+
+        AppLogger.info('[Mode3] rawText → ${rawText.length} chars');
+
+        if (rawText.isEmpty) {
+          final selectedFiles = allFiles.where(
+            (f) => selectedIds.contains(f.id),
+          );
+          for (final f in selectedFiles) {
+            AppLogger.warning(
+              '[Mode3] EMPTY reason: ${f.filename} '
+              'extractedChars=${f.extractedText?.length ?? 0} '
+              'parsedQty=${f.parsedQuestions?.length ?? 0}',
+            );
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Tài liệu chưa có nội dung đọc được. '
+                'Hỗ trợ: Word (.docx), Excel (.xlsx), PDF (.pdf).',
+              ),
+              backgroundColor: DesignColors.warning,
+            ),
+          );
+          setState(() => _isGenerating = false);
+          return;
+        }
+
+        // Detect loại tài liệu (luôn dùng rawText vì regex cần marker tường minh).
+        // Excel template: extractedText là tab-separated rows không có "Câu N:" →
+        // regex fail; check parsedQuestions != null là fix authoritative.
+        final hasExcelTemplate = allFiles.any(
+          (f) =>
+              selectedIds.contains(f.id) &&
+              f.parsedQuestions != null &&
+              f.parsedQuestions!.isNotEmpty,
+        );
+        _useAsStyleTemplate =
+            hasExcelTemplate || AiService.isTemplateStyleDoc(rawText);
+        AppLogger.info(
+          '[Mode3] hasExcelTemplate=$hasExcelTemplate, '
+          'isTemplateStyleDoc=${AiService.isTemplateStyleDoc(rawText)} → '
+          'useAsStyleTemplate=$_useAsStyleTemplate',
+        );
+
+        // Lấy templateMode từ provider — quyết định schema-only vs full text.
+        // Default styleOnly (an toàn) nếu user chưa tương tác.
+        final templateMode = ref
+            .read(aiGenerationSettingsNotifierProvider)
+            .templateMode;
+        // Auto-disable sameForm nếu template không phải toàn MCQ
+        // (essay/fill_blank không có "giá trị" để đổi).
+        final templateQuestionsForCheck =
+            notifier.getTemplateQuestionsForIds(selectedIds);
+        final allMcq = templateQuestionsForCheck.isNotEmpty &&
+            templateQuestionsForCheck.every((q) {
+              final t = q['type'];
+              return t == QuestionType.multipleChoice ||
+                  t == QuestionType.trueFalse ||
+                  t == QuestionType.math;
+            });
+        final effectiveTemplateMode =
+            (templateMode == TemplateMode.sameForm && !allMcq)
+                ? TemplateMode.styleOnly
+                : templateMode;
+        if (effectiveTemplateMode != templateMode) {
+          AppLogger.info(
+            '[Mode3] Auto-downgrade sameForm → styleOnly: template không phải toàn MCQ',
+          );
+        }
+        // Lưu state để dùng ở các call site sau (similarity verify, regenerate).
+        _effectiveTemplateMode = _useAsStyleTemplate ? effectiveTemplateMode : null;
+        _templateQuestionsForVerify =
+            _useAsStyleTemplate && templateQuestionsForCheck.isNotEmpty
+                ? templateQuestionsForCheck
+                : null;
+        _templateAllMcq = allMcq;
+        // Build aiText: template-style dùng knowledge context (anti-leak), còn lại raw.
+        final aiText = _useAsStyleTemplate
+            ? notifier.getKnowledgeContextForIds(
+                selectedIds,
+                templateMode: effectiveTemplateMode,
+              )
+            : rawText;
+
+        final truncated = AiService.smartTruncate(aiText);
+        AppLogger.info(
+          '[Mode3] smartTruncate: total=${truncated.totalChars}, used=${truncated.usedChars}, '
+          'wasTruncated=${truncated.wasTruncated}',
+        );
+
+        if (truncated.wasTruncated && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Tài liệu dài (${truncated.totalChars} ký tự) — '
+                'đã dùng ${truncated.usedChars} ký tự để tránh tràn context AI.',
+              ),
+              backgroundColor: DesignColors.warning,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+        documentContext = truncated.text;
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                _useAsStyleTemplate
+                    ? 'Phát hiện tài liệu bài mẫu — AI sẽ tạo câu cùng dạng, nội dung mới.'
+                    : 'Phát hiện tài liệu lý thuyết — AI sẽ tạo câu dựa trên kiến thức trong tài liệu.',
+              ),
+              backgroundColor: _useAsStyleTemplate
+                  ? DesignColors.success
+                  : DesignColors.primary,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+
+        // Topic từ focus hint, fallback về tài liệu
+        final focusHint = _focusHintController.text.trim();
+        topic = focusHint.isNotEmpty ? focusHint : 'Câu hỏi từ tài liệu';
+        AppLogger.info(
+          '[Mode3] useAsStyleTemplate=$_useAsStyleTemplate, '
+          'docChars=${truncated.usedChars}, topic="$topic"',
+        );
       }
 
       final aiRepository = ref.read(aiRepositoryProvider);
@@ -617,8 +717,12 @@ class _TeacherAiGenerateQuestionScreenState
         } catch (_) {}
         if (mounted) {
           setState(() {
-            _rawApiResponse = _rawApiResponse == null ? raw : '${_rawApiResponse!}\n\n$raw';
-            _rawApiResponsePretty = _rawApiResponsePretty == null ? pretty : '${_rawApiResponsePretty!}\n\n$pretty';
+            _rawApiResponse = _rawApiResponse == null
+                ? raw
+                : '${_rawApiResponse!}\n\n$raw';
+            _rawApiResponsePretty = _rawApiResponsePretty == null
+                ? pretty
+                : '${_rawApiResponsePretty!}\n\n$pretty';
           });
         }
       }
@@ -627,15 +731,24 @@ class _TeacherAiGenerateQuestionScreenState
 
       if (_selectedTypes.isEmpty) {
         // ── Auto mode: single call ──────────────────────────────────────────
-        final quantity = int.tryParse(_quantityController.text.trim()) ?? 5;
+        final quantity = int.tryParse(_quantityController.text.trim()) ?? 10;
         generatedQuestions = await aiRepository.generateQuestions(
           topic: topic,
           quantity: quantity,
           difficulty: _difficulty,
           questionType: null,
+          documentContext: documentContext,
+          useAsStyleTemplate: _useAsStyleTemplate,
+          templateMode: _effectiveTemplateMode,
+          templateQuestions: _templateQuestionsForVerify,
           onRawResponse: (raw) {
             batchCount++;
-            if (mounted) setState(() => _batchProgress = quantity > 10 ? 'Đang tạo lô $batchCount...' : null);
+            if (mounted)
+              setState(
+                () => _batchProgress = quantity > 10
+                    ? 'Đang tạo lô $batchCount...'
+                    : null,
+              );
             appendRaw(raw);
           },
         );
@@ -647,14 +760,20 @@ class _TeacherAiGenerateQuestionScreenState
           final typeKey = typeList[i];
           final qty = _typeQuantities[typeKey] ?? 3;
           if (mounted) {
-            setState(() => _batchProgress =
-                'Đang tạo ${_typeLabel(typeKey)} ($qty câu) — ${i + 1}/${typeList.length}...');
+            setState(
+              () => _batchProgress =
+                  'Đang tạo ${_typeLabel(typeKey)} ($qty câu) — ${i + 1}/${typeList.length}...',
+            );
           }
           final results = await aiRepository.generateQuestions(
             topic: topic,
             quantity: qty,
             difficulty: _difficulty,
             questionType: typeKey,
+            documentContext: documentContext,
+            useAsStyleTemplate: _useAsStyleTemplate,
+            templateMode: _effectiveTemplateMode,
+            templateQuestions: _templateQuestionsForVerify,
             onRawResponse: (raw) {
               batchCount++;
               appendRaw(raw);
@@ -776,17 +895,15 @@ class _TeacherAiGenerateQuestionScreenState
         );
       }
     } finally {
-      // BUG-02 fix: skip reset when background polling owns the lifecycle.
-      if (mounted && !extractionPollingStarted) {
-        setState(() => _isGenerating = false);
-      }
+      if (mounted) setState(() => _isGenerating = false);
     }
   }
 
   String _extractQuestionText(Map<String, dynamic> q) {
     final isMath = _isMathQuestion(q);
 
-    String render(String t) => _renderBlankPlaceholders(t.trim(), isMath: isMath);
+    String render(String t) =>
+        _renderBlankPlaceholders(t.trim(), isMath: isMath);
 
     // Ưu tiên format mới: override_text tại top-level (AI format)
     final overrideText = q['override_text'] as String?;
@@ -828,8 +945,11 @@ class _TeacherAiGenerateQuestionScreenState
     final tags = q['tags'];
     if (tags is List) {
       final tagStr = tags.join(' ').toLowerCase();
-      if (RegExp(r'toán|math|số|phép|tính|cộng|trừ|nhân|chia|đại số|hình học|phương trình')
-          .hasMatch(tagStr)) { return true; }
+      if (RegExp(
+        r'toán|math|số|phép|tính|cộng|trừ|nhân|chia|đại số|hình học|phương trình',
+      ).hasMatch(tagStr)) {
+        return true;
+      }
     }
 
     // Kiểm tra text có chứa phép toán (số + ký tự toán học)
@@ -888,7 +1008,9 @@ class _TeacherAiGenerateQuestionScreenState
             decoration: BoxDecoration(
               color: DesignColors.success.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(DesignRadius.sm),
-              border: Border.all(color: DesignColors.success.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: DesignColors.success.withValues(alpha: 0.3),
+              ),
             ),
             child: Text(
               label,
@@ -904,9 +1026,8 @@ class _TeacherAiGenerateQuestionScreenState
   }
 
   // ─── Computed helpers ────────────────────────────────────────────────────
-  int get _limitQty => int.tryParse(_quantityController.text.trim()) ?? 5;
-  int get _totalTypedQty =>
-      _typeQuantities.values.fold(0, (a, b) => a + b);
+  int get _limitQty => int.tryParse(_quantityController.text.trim()) ?? 10;
+  int get _totalTypedQty => _typeQuantities.values.fold(0, (a, b) => a + b);
   bool get _isQtyMismatch =>
       _selectedTypes.isNotEmpty && _totalTypedQty != _limitQty;
 
@@ -929,8 +1050,54 @@ class _TeacherAiGenerateQuestionScreenState
   }
 
   Future<void> _handleRegenerateSingle(int index) async {
-    final topic = _topicController.text.trim();
-    if (topic.isEmpty) return;
+    final currentMode = ref
+        .read(aiGenerationSettingsNotifierProvider)
+        .processingMode;
+
+    String topic;
+    String? documentContext;
+    // Tái dùng kết quả detect đã lưu state từ _handleGenerate gốc thay vì
+    // re-detect — tránh inconsistency khi regex đứng sát ngưỡng và đảm bảo
+    // câu regen ra cùng "loại" với câu gốc giáo viên đã thấy.
+    final useAsStyleTemplate = _useAsStyleTemplate;
+
+    if (currentMode == ProcessingMode.ragGeneration) {
+      // Mode 3: lấy topic từ focus hint + tái dùng document context
+      final focusHint = _focusHintController.text.trim();
+      topic = focusHint.isNotEmpty ? focusHint : 'Câu hỏi từ tài liệu';
+      final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
+      final selectedIds = aiSettings.selectedFileIds;
+      if (selectedIds.isNotEmpty) {
+        // Khớp với _handleGenerate Mode 3: template-style dùng knowledge
+        // context (shuffle options, ẩn đáp án), còn lại dùng raw text.
+        final notifier = ref.read(localTempFilesProvider.notifier);
+        final docText = useAsStyleTemplate
+            ? notifier.getKnowledgeContextForIds(
+                selectedIds,
+                templateMode:
+                    _effectiveTemplateMode ?? TemplateMode.styleOnly,
+              )
+            : notifier.getExtractedTextForIds(selectedIds);
+        if (docText.isNotEmpty) {
+          documentContext = AiService.smartTruncate(docText).text;
+        }
+      }
+    } else if (currentMode == ProcessingMode.extraction) {
+      // Mode 2: tái dùng document context (loại tài liệu lấy từ state)
+      final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
+      final selectedIds = aiSettings.selectedFileIds;
+      if (selectedIds.isEmpty) return;
+      final docText = ref
+          .read(localTempFilesProvider.notifier)
+          .getExtractedTextForIds(selectedIds);
+      if (docText.isEmpty) return;
+      documentContext = AiService.smartTruncate(docText).text;
+      topic = 'Câu hỏi từ tài liệu';
+    } else {
+      // Mode 1: dùng topic từ ô nhập
+      topic = _topicController.text.trim();
+      if (topic.isEmpty) return;
+    }
 
     setState(() => _regeneratingIndex = index);
     try {
@@ -940,6 +1107,10 @@ class _TeacherAiGenerateQuestionScreenState
         quantity: 1,
         difficulty: _difficulty,
         questionType: _typeKeyForIndex(index),
+        documentContext: documentContext,
+        useAsStyleTemplate: useAsStyleTemplate,
+        templateMode: _effectiveTemplateMode,
+        templateQuestions: _templateQuestionsForVerify,
       );
       if (result.isNotEmpty && mounted) {
         setState(() {
@@ -1014,11 +1185,14 @@ class _TeacherAiGenerateQuestionScreenState
       final parsed = jsonDecode(text);
       if (parsed is Map) {
         // Hỗ trợ: Gemini/Groq (explanation/text/content), Ollama (response)
-        final v = parsed['explanation'] ??
+        final v =
+            parsed['explanation'] ??
             parsed['text'] ??
             parsed['content'] ??
             parsed['response'];
-        return v?.toString().trim().isEmpty == true ? null : v?.toString().trim();
+        return v?.toString().trim().isEmpty == true
+            ? null
+            : v?.toString().trim();
       }
       if (parsed is String) return parsed.trim().isEmpty ? null : parsed.trim();
     } catch (_) {}
@@ -1118,11 +1292,14 @@ class _TeacherAiGenerateQuestionScreenState
                       ),
                     ),
                     IconButton(
-                      onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+                      onPressed: () =>
+                          _scaffoldKey.currentState?.openEndDrawer(),
                       icon: Icon(
                         Icons.more_vert,
                         size: DesignIcons.mdSize,
-                        color: isDark ? DesignColors.white : DesignColors.textSecondary,
+                        color: isDark
+                            ? DesignColors.white
+                            : DesignColors.textSecondary,
                       ),
                       tooltip: 'Cài đặt AI',
                     ),
@@ -1147,17 +1324,18 @@ class _TeacherAiGenerateQuestionScreenState
                           SizedBox(height: DesignSpacing.lg),
                           ContextSourcesSection(
                             onSelectionChanged: (ids) => ref
-                                .read(aiGenerationSettingsNotifierProvider
-                                    .notifier)
+                                .read(
+                                  aiGenerationSettingsNotifierProvider.notifier,
+                                )
                                 .setSelectedFileIds(ids),
                           ),
                           SizedBox(height: DesignSpacing.lg),
                         ],
 
-                        // Mode 3 only: optional focus hint
+                        // Mode 3 only: focus instruction field
                         if (mode == ProcessingMode.ragGeneration) ...[
                           Text(
-                            'Hướng tập trung (tùy chọn)',
+                            'Lệnh hướng dẫn AI (tùy chọn)',
                             style: DesignTypography.bodySmall.copyWith(
                               fontWeight: FontWeight.w600,
                               color: isDark
@@ -1171,7 +1349,7 @@ class _TeacherAiGenerateQuestionScreenState
                             maxLines: 2,
                             decoration: InputDecoration(
                               hintText:
-                                  'VD: Tập trung vào chương 3, phần lý thuyết...',
+                                  'VD: Chỉ hỏi về chương 3 – quang hợp, ưu tiên câu suy luận',
                               hintStyle: TextStyle(
                                 color: isDark
                                     ? Colors.grey[600]
@@ -1182,19 +1360,28 @@ class _TeacherAiGenerateQuestionScreenState
                                   ? Colors.grey[800]!.withValues(alpha: 0.5)
                                   : Colors.grey[50],
                               border: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.circular(DesignRadius.md),
-                                borderSide:
-                                    BorderSide(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(
+                                  DesignRadius.md,
+                                ),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.circular(DesignRadius.md),
-                                borderSide:
-                                    BorderSide(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(
+                                  DesignRadius.md,
+                                ),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                             ),
                           ),
+                          // Chips chọn sub-mode chỉ hiện sau khi detect Excel mẫu
+                          if (_useAsStyleTemplate) ...[
+                            SizedBox(height: DesignSpacing.md),
+                            _buildTemplateModeChips(context, isDark),
+                          ],
                           SizedBox(height: DesignSpacing.xl),
                         ],
 
@@ -1209,15 +1396,15 @@ class _TeacherAiGenerateQuestionScreenState
                           _buildQuantitySection(context, isDark),
                           SizedBox(height: DesignSpacing.md),
                           if (_selectedTypes.isNotEmpty &&
-                              mode == ProcessingMode.promptOnly) ...[
+                              mode != ProcessingMode.extraction) ...[
                             _buildPerTypeQtySection(context, isDark),
                             SizedBox(height: DesignSpacing.xxl),
                           ] else
                             SizedBox(height: DesignSpacing.lg),
                         ],
 
-                        // Difficulty + Type chips — Mode 1 only
-                        if (mode == ProcessingMode.promptOnly) ...[
+                        // Difficulty + Type chips — Modes 1 & 3
+                        if (mode != ProcessingMode.extraction) ...[
                           _buildDifficultySection(context, isDark),
                           SizedBox(height: DesignSpacing.xxl),
                           _buildQuestionTypeSection(context, isDark),
@@ -1230,9 +1417,8 @@ class _TeacherAiGenerateQuestionScreenState
                           _buildAiResponseSection(context, isDark),
                         ],
 
-                        // Raw API debug (Mode 1 only)
+                        // Raw API debug (all modes)
                         if (kDebugMode &&
-                            mode == ProcessingMode.promptOnly &&
                             (_rawApiResponse != null ||
                                 _rawApiResponsePretty != null)) ...[
                           SizedBox(height: DesignSpacing.lg),
@@ -1260,21 +1446,33 @@ class _TeacherAiGenerateQuestionScreenState
                 if (_isQtyMismatch) ...[
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     margin: const EdgeInsets.only(bottom: 8),
                     decoration: BoxDecoration(
                       color: DesignColors.error.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(DesignRadius.lg),
-                      border: Border.all(color: DesignColors.error.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: DesignColors.error.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.warning_amber_rounded, size: 16, color: DesignColors.error),
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          size: 16,
+                          color: DesignColors.error,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Tổng số câu ($_totalTypedQty) chưa khớp giới hạn ($_limitQty). Chỉnh lại để tạo.',
-                            style: TextStyle(fontSize: 12, color: DesignColors.error),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: DesignColors.error,
+                            ),
                           ),
                         ),
                       ],
@@ -1286,7 +1484,9 @@ class _TeacherAiGenerateQuestionScreenState
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: (_isGenerating || _isQtyMismatch) ? null : _handleGenerate,
+                    onPressed: (_isGenerating || _isQtyMismatch)
+                        ? null
+                        : _handleGenerate,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: DesignColors.primary,
                       foregroundColor: Colors.white,
@@ -1317,8 +1517,8 @@ class _TeacherAiGenerateQuestionScreenState
                                 mode == ProcessingMode.extraction
                                     ? Icons.content_paste_search_rounded
                                     : mode == ProcessingMode.ragGeneration
-                                        ? Icons.auto_stories_rounded
-                                        : Icons.auto_awesome,
+                                    ? Icons.auto_stories_rounded
+                                    : Icons.auto_awesome,
                                 size: DesignIcons.buttonIconSize,
                               ),
                               const SizedBox(width: 8),
@@ -1326,8 +1526,8 @@ class _TeacherAiGenerateQuestionScreenState
                                 mode == ProcessingMode.extraction
                                     ? 'Trích xuất câu hỏi'
                                     : mode == ProcessingMode.ragGeneration
-                                        ? 'Sinh từ tài liệu'
-                                        : 'Tạo câu hỏi',
+                                    ? 'Sinh từ tài liệu'
+                                    : 'Tạo câu hỏi',
                                 style: DesignTypography.bodyLarge.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
@@ -1468,7 +1668,7 @@ class _TeacherAiGenerateQuestionScreenState
           ),
 
           // Loading overlay
-          if (_isGenerating || _isPolling)
+          if (_isGenerating)
             Positioned.fill(
               child: Container(
                 color: Colors.black.withValues(alpha: 0.3),
@@ -1477,30 +1677,25 @@ class _TeacherAiGenerateQuestionScreenState
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const CircularProgressIndicator(color: Colors.white),
-                      if (_pollingStatus != null) ...[
+                      if (_batchProgress != null) ...[
                         const SizedBox(height: 16),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(DesignRadius.lg),
-                          ),
-                          child: Text(
-                            _pollingStatus!,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
-                          ),
-                        ),
-                      ] else if (_batchProgress != null) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(DesignRadius.lg),
+                            borderRadius: BorderRadius.circular(
+                              DesignRadius.lg,
+                            ),
                           ),
                           child: Text(
                             _batchProgress!,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
                       ],
@@ -1645,13 +1840,17 @@ class _TeacherAiGenerateQuestionScreenState
           const SizedBox(height: 12),
           TextFormField(
             controller: _quantityController,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            keyboardType: const TextInputType.numberWithOptions(
+              signed: false,
+              decimal: false,
+            ),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[0-9]')),
+            ],
             onChanged: (_) => setState(() {}), // rebuild để cập nhật badge
             validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Vui lòng nhập số lượng câu hỏi';
-              }
+              if (value == null || value.trim().isEmpty)
+                return null; // trống = auto
               final quantity = int.tryParse(value.trim());
               if (quantity == null || quantity <= 0) {
                 return 'Số lượng phải lớn hơn 0';
@@ -1661,13 +1860,15 @@ class _TeacherAiGenerateQuestionScreenState
               }
               return null;
             },
-            style: DesignTypography.bodyLarge.copyWith(
+            style: TextStyle(
+              fontSize: 18,
               color: isDark ? Colors.white : DesignColors.textPrimary,
               fontWeight: FontWeight.bold,
+              fontFamily: 'Roboto',
             ),
             textAlign: TextAlign.center,
             decoration: InputDecoration(
-              hintText: 'Nhập số lượng...',
+              hintText: 'Để trống = tự động',
               hintStyle: TextStyle(
                 color: isDark ? Colors.grey[500] : Colors.grey[400],
               ),
@@ -1859,7 +2060,13 @@ class _TeacherAiGenerateQuestionScreenState
         color: cardColor,
         borderRadius: BorderRadius.circular(DesignRadius.lg * 1.5),
         border: Border.all(color: borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       padding: EdgeInsets.all(DesignSpacing.lg),
       child: Column(
@@ -1880,7 +2087,10 @@ class _TeacherAiGenerateQuestionScreenState
               const SizedBox(width: 8),
               if (_selectedTypes.isEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: DesignColors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(DesignRadius.full),
@@ -1896,7 +2106,10 @@ class _TeacherAiGenerateQuestionScreenState
                 )
               else
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: DesignColors.success.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(DesignRadius.full),
@@ -1925,11 +2138,16 @@ class _TeacherAiGenerateQuestionScreenState
                 onTap: () => _toggleType(key, !isSelected),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? DesignColors.primary.withValues(alpha: 0.12)
-                        : (isDark ? Colors.grey[800]!.withValues(alpha: 0.5) : Colors.grey[50]),
+                        : (isDark
+                              ? Colors.grey[800]!.withValues(alpha: 0.5)
+                              : Colors.grey[50]),
                     borderRadius: BorderRadius.circular(DesignRadius.lg),
                     border: Border.all(
                       color: isSelected ? DesignColors.primary : borderColor,
@@ -1942,24 +2160,36 @@ class _TeacherAiGenerateQuestionScreenState
                       if (isSelected)
                         Padding(
                           padding: const EdgeInsets.only(right: 4),
-                          child: Icon(Icons.check_circle_rounded, size: 14, color: DesignColors.primary),
+                          child: Icon(
+                            Icons.check_circle_rounded,
+                            size: 14,
+                            color: DesignColors.primary,
+                          ),
                         ),
-                      Icon(icon, size: 15,
-                          color: isSelected ? DesignColors.primary : labelColor),
+                      Icon(
+                        icon,
+                        size: 15,
+                        color: isSelected ? DesignColors.primary : labelColor,
+                      ),
                       const SizedBox(width: 5),
-                      Text(label,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected ? DesignColors.primary : (isDark ? Colors.grey[300] : Colors.grey[700]),
-                          )),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: isSelected
+                              ? DesignColors.primary
+                              : (isDark ? Colors.grey[300] : Colors.grey[700]),
+                        ),
+                      ),
                     ],
                   ),
                 ),
               );
             }).toList(),
           ),
-
         ],
       ),
     );
@@ -1972,32 +2202,35 @@ class _TeacherAiGenerateQuestionScreenState
       color: isDark ? const Color(0xFF1A2632) : DesignColors.white,
       padding: EdgeInsets.symmetric(
         horizontal: DesignSpacing.lg,
-        vertical: DesignSpacing.sm,
+        vertical: DesignSpacing.md,
       ),
       child: Container(
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF243040) : DesignColors.moonLight,
           borderRadius: BorderRadius.circular(DesignRadius.md),
         ),
-        padding: const EdgeInsets.all(3),
+        padding: const EdgeInsets.all(4),
         child: Row(
           children: [
             _buildModeTab(
-              context, isDark,
+              context,
+              isDark,
               mode: ProcessingMode.promptOnly,
               selected: mode,
               icon: Icons.edit_note_rounded,
               label: 'Nhập Prompt',
             ),
             _buildModeTab(
-              context, isDark,
+              context,
+              isDark,
               mode: ProcessingMode.extraction,
               selected: mode,
               icon: Icons.content_paste_search_rounded,
               label: 'Trích xuất',
             ),
             _buildModeTab(
-              context, isDark,
+              context,
+              isDark,
               mode: ProcessingMode.ragGeneration,
               selected: mode,
               icon: Icons.auto_stories_rounded,
@@ -2026,13 +2259,11 @@ class _TeacherAiGenerateQuestionScreenState
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: EdgeInsets.symmetric(
-            vertical: DesignSpacing.xs,
+            vertical: DesignSpacing.sm + 2,
             horizontal: DesignSpacing.xs,
           ),
           decoration: BoxDecoration(
-            color: isSelected
-                ? DesignColors.primary
-                : Colors.transparent,
+            color: isSelected ? DesignColors.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(DesignRadius.sm),
             boxShadow: isSelected ? [DesignElevation.level1] : null,
           ),
@@ -2042,20 +2273,24 @@ class _TeacherAiGenerateQuestionScreenState
             children: [
               Icon(
                 icon,
-                size: DesignIcons.xsSize,
+                size: DesignIcons.smSize,
                 color: isSelected
                     ? DesignColors.white
-                    : (isDark ? DesignColors.textSecondary : DesignColors.textSecondary),
+                    : (isDark
+                          ? DesignColors.textSecondary
+                          : DesignColors.textSecondary),
               ),
-              SizedBox(width: DesignSpacing.xs / 2),
+              SizedBox(width: DesignSpacing.xs),
               Flexible(
                 child: Text(
                   label,
-                  style: DesignTypography.bodySmall.copyWith(
+                  style: DesignTypography.bodyMedium.copyWith(
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                     color: isSelected
                         ? DesignColors.white
-                        : (isDark ? DesignColors.textSecondary : DesignColors.textSecondary),
+                        : (isDark
+                              ? DesignColors.textSecondary
+                              : DesignColors.textSecondary),
                   ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
@@ -2110,7 +2345,9 @@ class _TeacherAiGenerateQuestionScreenState
                 Text(
                   subtitle,
                   style: DesignTypography.bodySmall.copyWith(
-                    color: isDark ? Colors.grey[300] : DesignColors.textSecondary,
+                    color: isDark
+                        ? Colors.grey[300]
+                        : DesignColors.textSecondary,
                   ),
                 ),
               ],
@@ -2149,7 +2386,13 @@ class _TeacherAiGenerateQuestionScreenState
               : borderColor,
           width: (isMatch || isOver) ? 1.5 : 1,
         ),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       padding: EdgeInsets.all(DesignSpacing.lg),
       child: Column(
@@ -2170,7 +2413,10 @@ class _TeacherAiGenerateQuestionScreenState
               const Spacer(),
               // Badge tổng: "6 / 10 câu"
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
                 decoration: BoxDecoration(
                   color: badgeColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(DesignRadius.full),
@@ -2215,17 +2461,26 @@ class _TeacherAiGenerateQuestionScreenState
                         () => _typeQuantities[key] = qty + remaining,
                       ),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
                         margin: const EdgeInsets.only(right: 6),
                         decoration: BoxDecoration(
                           color: DesignColors.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(DesignRadius.md),
-                          border: Border.all(color: DesignColors.primary.withValues(alpha: 0.35)),
+                          border: Border.all(
+                            color: DesignColors.primary.withValues(alpha: 0.35),
+                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.vertical_align_top_rounded, size: 13, color: DesignColors.primary),
+                            Icon(
+                              Icons.vertical_align_top_rounded,
+                              size: 13,
+                              color: DesignColors.primary,
+                            ),
                             const SizedBox(width: 3),
                             Text(
                               '+$remaining',
@@ -2242,7 +2497,9 @@ class _TeacherAiGenerateQuestionScreenState
                   ],
                   Container(
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[800]!.withValues(alpha: 0.5) : Colors.grey[100],
+                      color: isDark
+                          ? Colors.grey[800]!.withValues(alpha: 0.5)
+                          : Colors.grey[100],
                       borderRadius: BorderRadius.circular(DesignRadius.lg),
                       border: Border.all(color: borderColor),
                     ),
@@ -2252,7 +2509,8 @@ class _TeacherAiGenerateQuestionScreenState
                         _buildStepBtn(
                           icon: Icons.remove_rounded,
                           enabled: qty > 1,
-                          onTap: () => setState(() => _typeQuantities[key] = qty - 1),
+                          onTap: () =>
+                              setState(() => _typeQuantities[key] = qty - 1),
                           isDark: isDark,
                         ),
                         SizedBox(
@@ -2262,14 +2520,17 @@ class _TeacherAiGenerateQuestionScreenState
                             textAlign: TextAlign.center,
                             style: DesignTypography.bodyMedium.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : DesignColors.textPrimary,
+                              color: isDark
+                                  ? Colors.white
+                                  : DesignColors.textPrimary,
                             ),
                           ),
                         ),
                         _buildStepBtn(
                           icon: Icons.add_rounded,
                           enabled: canAdd,
-                          onTap: () => setState(() => _typeQuantities[key] = qty + 1),
+                          onTap: () =>
+                              setState(() => _typeQuantities[key] = qty + 1),
                           isDark: isDark,
                         ),
                       ],
@@ -2286,7 +2547,9 @@ class _TeacherAiGenerateQuestionScreenState
             Row(
               children: [
                 Icon(
-                  isOver ? Icons.error_outline_rounded : Icons.info_outline_rounded,
+                  isOver
+                      ? Icons.error_outline_rounded
+                      : Icons.info_outline_rounded,
                   size: 14,
                   color: isOver ? DesignColors.error : DesignColors.primary,
                 ),
@@ -2474,19 +2737,25 @@ class _TeacherAiGenerateQuestionScreenState
             // Lấy explanation: ưu tiên top-level q['explanation'], fallback answer['general_explanation']
             final explanation =
                 (q['explanation'] as String?)?.trim().isNotEmpty == true
-                    ? (q['explanation'] as String).trim()
-                    : (answer?['general_explanation'] as String?)?.trim().isNotEmpty == true
-                    ? (answer!['general_explanation'] as String).trim()
-                    : null;
+                ? (q['explanation'] as String).trim()
+                : (answer?['general_explanation'] as String?)
+                          ?.trim()
+                          .isNotEmpty ==
+                      true
+                ? (answer!['general_explanation'] as String).trim()
+                : null;
             final isRegenerating = _regeneratingIndex == index;
-            final isRegeneratingExpl = _regeneratingExplanationSet.contains(index);
+            final isRegeneratingExpl = _regeneratingExplanationSet.contains(
+              index,
+            );
             final isExplExpanded = _expandedExplanations.contains(index);
             // Số thứ tự trong section (hoặc toàn bộ nếu auto)
             final sectionNum = _sections.isEmpty
                 ? index + 1
                 : (() {
                     for (final s in _sections) {
-                      if (index >= s.startIndex && index < s.startIndex + s.count) {
+                      if (index >= s.startIndex &&
+                          index < s.startIndex + s.count) {
                         return index - s.startIndex + 1;
                       }
                     }
@@ -2510,7 +2779,8 @@ class _TeacherAiGenerateQuestionScreenState
                       isExplanationExpanded: isExplExpanded,
                       onToggleExplanation: _explanationFeatureEnabled
                           ? () {
-                              final willAutoGenerate = !isExplExpanded &&
+                              final willAutoGenerate =
+                                  !isExplExpanded &&
                                   explanation == null &&
                                   !_regeneratingExplanationSet.contains(index);
                               setState(() {
@@ -2534,44 +2804,84 @@ class _TeacherAiGenerateQuestionScreenState
                           : null,
                       isRefreshingExplanation: isRegeneratingExpl,
                     ),
-                // Action buttons overlay (top-right)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: isRegenerating
-                      ? const SizedBox(
-                          width: 20, height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildCardActionBtn(
-                              icon: Icons.refresh_rounded,
-                              color: DesignColors.primary,
-                              tooltip: 'Tạo lại câu này',
-                              onTap: () => _handleRegenerateSingle(index),
+                    // Badge cảnh báo similarity (bottom-left)
+                    if (q['_similarityWarning'] is Map) ...() {
+                      final sw =
+                          q['_similarityWarning'] as Map<String, dynamic>;
+                      final score =
+                          ((sw['score'] as num?) ?? 0) * 100;
+                      final tplIdx =
+                          (sw['matchedTemplateIdx'] as int? ?? -1) + 1;
+                      return [
+                        Positioned(
+                          bottom: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
                             ),
-                            const SizedBox(width: 4),
-                            _buildCardActionBtn(
-                              icon: Icons.edit_outlined,
-                              color: DesignColors.textSecondary,
-                              tooltip: 'Chỉnh sửa',
-                              onTap: () => _handleEditQuestion(index),
+                            decoration: BoxDecoration(
+                              color: DesignColors.warning
+                                  .withValues(alpha: 0.15),
+                              borderRadius:
+                                  BorderRadius.circular(DesignRadius.md),
+                              border: Border.all(
+                                color: DesignColors.warning
+                                    .withValues(alpha: 0.4),
+                              ),
                             ),
-                            const SizedBox(width: 4),
-                            _buildCardActionBtn(
-                              icon: Icons.close_rounded,
-                              color: DesignColors.error,
-                              tooltip: 'Xóa câu này',
-                              onTap: () => _handleRemoveQuestion(index),
+                            child: Text(
+                              '⚠ Tương tự mẫu #$tplIdx (${score.toStringAsFixed(0)}%)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: DesignColors.warning,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ],
+                          ),
                         ),
+                      ];
+                    }(),
+                    // Action buttons overlay (top-right)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: isRegenerating
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildCardActionBtn(
+                                  icon: Icons.refresh_rounded,
+                                  color: DesignColors.primary,
+                                  tooltip: 'Tạo lại câu này',
+                                  onTap: () => _handleRegenerateSingle(index),
+                                ),
+                                const SizedBox(width: 4),
+                                _buildCardActionBtn(
+                                  icon: Icons.edit_outlined,
+                                  color: DesignColors.textSecondary,
+                                  tooltip: 'Chỉnh sửa',
+                                  onTap: () => _handleEditQuestion(index),
+                                ),
+                                const SizedBox(width: 4),
+                                _buildCardActionBtn(
+                                  icon: Icons.close_rounded,
+                                  color: DesignColors.error,
+                                  tooltip: 'Xóa câu này',
+                                  onTap: () => _handleRemoveQuestion(index),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
             );
           }
           return widgets;
@@ -2590,12 +2900,18 @@ class _TeacherAiGenerateQuestionScreenState
             decoration: BoxDecoration(
               color: DesignColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(DesignRadius.full),
-              border: Border.all(color: DesignColors.primary.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: DesignColors.primary.withValues(alpha: 0.3),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.layers_outlined, size: 14, color: DesignColors.primary),
+                Icon(
+                  Icons.layers_outlined,
+                  size: 14,
+                  color: DesignColors.primary,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   label,
@@ -2607,21 +2923,148 @@ class _TeacherAiGenerateQuestionScreenState
                 ),
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: DesignColors.primary,
                     borderRadius: BorderRadius.circular(DesignRadius.full),
                   ),
                   child: Text(
                     '$count câu',
-                    style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          Expanded(child: Divider(color: isDark ? Colors.grey[700] : Colors.grey[300], indent: 8)),
+          Expanded(
+            child: Divider(
+              color: isDark ? Colors.grey[700] : Colors.grey[300],
+              indent: 8,
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  /// Chip chọn sub-mode template: "Tạo mới" (styleOnly) / "Cùng dạng" (sameForm).
+  /// Chỉ hiển thị sau khi detect được file Excel mẫu (_useAsStyleTemplate=true).
+  Widget _buildTemplateModeChips(BuildContext context, bool isDark) {
+    final current = _effectiveTemplateMode ?? TemplateMode.styleOnly;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Kiểu tạo câu từ mẫu',
+          style: DesignTypography.bodySmall.copyWith(
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : DesignColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _buildModeChip(
+              label: 'Tạo mới',
+              icon: Icons.auto_awesome_outlined,
+              selected: current == TemplateMode.styleOnly,
+              disabled: false,
+              tooltip: 'AI tạo câu hoàn toàn mới, chỉ học văn phong từ mẫu',
+              isDark: isDark,
+              onTap: () => setState(
+                () => _effectiveTemplateMode = TemplateMode.styleOnly,
+              ),
+            ),
+            const SizedBox(width: 8),
+            _buildModeChip(
+              label: 'Cùng dạng',
+              icon: Icons.content_copy_outlined,
+              selected: current == TemplateMode.sameForm,
+              disabled: !_templateAllMcq,
+              tooltip: _templateAllMcq
+                  ? 'Giữ cấu trúc câu mẫu, đổi số liệu/tình huống (tốt nhất cho toán)'
+                  : 'Chỉ dùng được khi tất cả câu mẫu là Trắc nghiệm',
+              isDark: isDark,
+              onTap: _templateAllMcq
+                  ? () => setState(
+                      () => _effectiveTemplateMode = TemplateMode.sameForm,
+                    )
+                  : null,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModeChip({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required bool disabled,
+    required String tooltip,
+    required bool isDark,
+    VoidCallback? onTap,
+  }) {
+    final activeColor = DesignColors.primary;
+    final bg = selected
+        ? activeColor.withValues(alpha: 0.12)
+        : (isDark ? Colors.grey[850]! : Colors.grey[100]!);
+    final border = selected
+        ? activeColor.withValues(alpha: 0.5)
+        : (isDark ? Colors.grey[700]! : Colors.grey[300]!);
+    final textColor = disabled
+        ? (isDark ? Colors.grey[600]! : Colors.grey[400]!)
+        : selected
+        ? activeColor
+        : (isDark ? Colors.grey[300]! : DesignColors.textSecondary);
+
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: disabled ? null : onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: disabled
+                ? (isDark ? Colors.grey[900]! : Colors.grey[200]!)
+                : bg,
+            borderRadius: BorderRadius.circular(DesignRadius.md),
+            border: Border.all(color: border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: textColor),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight:
+                      selected ? FontWeight.w600 : FontWeight.w400,
+                  color: textColor,
+                ),
+              ),
+              if (disabled) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.lock_outline,
+                  size: 12,
+                  color: isDark ? Colors.grey[600]! : Colors.grey[400]!,
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2697,7 +3140,8 @@ class _TeacherAiGenerateQuestionScreenState
                     ),
                   ),
                   // Hiển thị expected_answer cho essay/short_answer
-                  if ((options == null || options.isEmpty) && answer != null) ...[
+                  if ((options == null || options.isEmpty) &&
+                      answer != null) ...[
                     const SizedBox(height: 10),
                     if (answer['expected_answer'] != null) ...[
                       Text(
@@ -2714,12 +3158,16 @@ class _TeacherAiGenerateQuestionScreenState
                         decoration: BoxDecoration(
                           color: DesignColors.success.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(DesignRadius.md),
-                          border: Border.all(color: DesignColors.success.withValues(alpha: 0.3)),
+                          border: Border.all(
+                            color: DesignColors.success.withValues(alpha: 0.3),
+                          ),
                         ),
                         child: Text(
                           answer['expected_answer'].toString(),
                           style: DesignTypography.bodySmall.copyWith(
-                            color: isDark ? Colors.white : DesignColors.textPrimary,
+                            color: isDark
+                                ? Colors.white
+                                : DesignColors.textPrimary,
                             height: 1.4,
                           ),
                         ),
@@ -2737,7 +3185,8 @@ class _TeacherAiGenerateQuestionScreenState
                       ..._formatBlanksDisplay(
                         answer['blanks'],
                         isDark,
-                        isMath: questionType == QuestionType.math ||
+                        isMath:
+                            questionType == QuestionType.math ||
                             questionType == QuestionType.problemSolving,
                       ),
                     ],
@@ -2921,11 +3370,13 @@ class _TeacherAiGenerateQuestionScreenState
                           ),
                           decoration: BoxDecoration(
                             color: DesignColors.primary.withValues(alpha: 0.06),
-                            borderRadius:
-                                BorderRadius.circular(DesignRadius.md),
+                            borderRadius: BorderRadius.circular(
+                              DesignRadius.md,
+                            ),
                             border: Border.all(
-                              color:
-                                  DesignColors.primary.withValues(alpha: 0.2),
+                              color: DesignColors.primary.withValues(
+                                alpha: 0.2,
+                              ),
                             ),
                           ),
                           child: Row(
@@ -3126,14 +3577,18 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
     // Choices
     final rawList = (q['options'] as List?) ?? (q['choices'] as List?) ?? [];
     final parsed = rawList.map((o) {
-      final m = o is Map<String, dynamic> ? o : Map<String, dynamic>.from(o as Map);
+      final m = o is Map<String, dynamic>
+          ? o
+          : Map<String, dynamic>.from(o as Map);
       final cc = m['content'];
       final t = (cc is Map ? cc['text'] : null) ?? m['text'] ?? '';
       final correct = m['isCorrect'] == true || m['is_correct'] == true;
       return (text: t.toString(), correct: correct);
     }).toList();
 
-    _choiceControllers = parsed.map((c) => TextEditingController(text: c.text)).toList();
+    _choiceControllers = parsed
+        .map((c) => TextEditingController(text: c.text))
+        .toList();
     _choiceCorrect = parsed.map((c) => c.correct).toList();
     _correctIndex = _choiceCorrect.indexWhere((c) => c);
     if (_correctIndex < 0) _correctIndex = 0;
@@ -3171,11 +3626,15 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
         };
       }).toList();
       updated['options'] = opts;
-      updated['choices'] = opts.map((o) => <String, dynamic>{
-            'id': o['id'],
-            'content': {'text': o['text']},
-            'is_correct': o['is_correct'],
-          }).toList();
+      updated['choices'] = opts
+          .map(
+            (o) => <String, dynamic>{
+              'id': o['id'],
+              'content': {'text': o['text']},
+              'is_correct': o['is_correct'],
+            },
+          )
+          .toList();
     } else {
       final ans = updated['answer'];
       final ansMap = ans is Map<String, dynamic>
@@ -3218,7 +3677,9 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
               padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
               decoration: BoxDecoration(
                 color: typeColor.withValues(alpha: isDark ? 0.15 : 0.07),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(DesignRadius.lg * 2)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(DesignRadius.lg * 2),
+                ),
                 border: Border(
                   bottom: BorderSide(
                     color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
@@ -3244,15 +3705,22 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                           'Chỉnh sửa câu hỏi',
                           style: DesignTypography.titleSmall.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : DesignColors.textPrimary,
+                            color: isDark
+                                ? Colors.white
+                                : DesignColors.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: typeColor.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(DesignRadius.full),
+                            borderRadius: BorderRadius.circular(
+                              DesignRadius.full,
+                            ),
                           ),
                           child: Text(
                             widget.questionType.label,
@@ -3311,11 +3779,22 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                           ),
                           const Spacer(),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: DesignColors.success.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(DesignRadius.full),
-                              border: Border.all(color: DesignColors.success.withValues(alpha: 0.3)),
+                              color: DesignColors.success.withValues(
+                                alpha: 0.1,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                DesignRadius.full,
+                              ),
+                              border: Border.all(
+                                color: DesignColors.success.withValues(
+                                  alpha: 0.3,
+                                ),
+                              ),
                             ),
                             child: Text(
                               'Tap ✓ để chọn đúng',
@@ -3340,13 +3819,21 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                               duration: const Duration(milliseconds: 180),
                               decoration: BoxDecoration(
                                 color: isCorrect
-                                    ? DesignColors.success.withValues(alpha: isDark ? 0.12 : 0.07)
-                                    : (isDark ? const Color(0xFF1A2632) : Colors.grey[50]),
-                                borderRadius: BorderRadius.circular(DesignRadius.lg * 1.2),
+                                    ? DesignColors.success.withValues(
+                                        alpha: isDark ? 0.12 : 0.07,
+                                      )
+                                    : (isDark
+                                          ? const Color(0xFF1A2632)
+                                          : Colors.grey[50]),
+                                borderRadius: BorderRadius.circular(
+                                  DesignRadius.lg * 1.2,
+                                ),
                                 border: Border.all(
                                   color: isCorrect
                                       ? DesignColors.success
-                                      : (isDark ? Colors.grey[700]! : Colors.grey[200]!),
+                                      : (isDark
+                                            ? Colors.grey[700]!
+                                            : Colors.grey[200]!),
                                   width: isCorrect ? 1.5 : 1,
                                 ),
                               ),
@@ -3356,8 +3843,14 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                                   Padding(
                                     padding: const EdgeInsets.only(left: 12),
                                     child: Icon(
-                                      isCorrect ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded,
-                                      color: isCorrect ? DesignColors.success : (isDark ? Colors.grey[600] : Colors.grey[400]),
+                                      isCorrect
+                                          ? Icons.check_circle_rounded
+                                          : Icons.check_circle_outline_rounded,
+                                      color: isCorrect
+                                          ? DesignColors.success
+                                          : (isDark
+                                                ? Colors.grey[600]
+                                                : Colors.grey[400]),
                                       size: 22,
                                     ),
                                   ),
@@ -3369,7 +3862,9 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                                     decoration: BoxDecoration(
                                       color: isCorrect
                                           ? DesignColors.success
-                                          : (isDark ? Colors.grey[700]! : Colors.grey[200]!),
+                                          : (isDark
+                                                ? Colors.grey[700]!
+                                                : Colors.grey[200]!),
                                       shape: BoxShape.circle,
                                     ),
                                     child: Center(
@@ -3378,7 +3873,11 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
-                                          color: isCorrect ? Colors.white : (isDark ? Colors.grey[300] : Colors.grey[600]),
+                                          color: isCorrect
+                                              ? Colors.white
+                                              : (isDark
+                                                    ? Colors.grey[300]
+                                                    : Colors.grey[600]),
                                         ),
                                       ),
                                     ),
@@ -3388,17 +3887,27 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                                   Expanded(
                                     child: TextField(
                                       controller: _choiceControllers[i],
-                                      style: DesignTypography.bodyMedium.copyWith(
-                                        color: isDark ? Colors.white : DesignColors.textPrimary,
-                                        fontWeight: isCorrect ? FontWeight.w600 : FontWeight.normal,
-                                      ),
+                                      style: DesignTypography.bodyMedium
+                                          .copyWith(
+                                            color: isDark
+                                                ? Colors.white
+                                                : DesignColors.textPrimary,
+                                            fontWeight: isCorrect
+                                                ? FontWeight.w600
+                                                : FontWeight.normal,
+                                          ),
                                       decoration: InputDecoration(
                                         hintText: 'Đáp án $label...',
                                         hintStyle: TextStyle(
-                                          color: isDark ? Colors.grey[600] : Colors.grey[400],
+                                          color: isDark
+                                              ? Colors.grey[600]
+                                              : Colors.grey[400],
                                         ),
                                         border: InputBorder.none,
-                                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              vertical: 14,
+                                            ),
                                       ),
                                     ),
                                   ),
@@ -3422,7 +3931,9 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                         maxLines: 4,
                         isDark: isDark,
                         fillColor: DesignColors.success.withValues(alpha: 0.05),
-                        borderColor: DesignColors.success.withValues(alpha: 0.3),
+                        borderColor: DesignColors.success.withValues(
+                          alpha: 0.3,
+                        ),
                       ),
                     ],
 
@@ -3437,7 +3948,9 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF0F1923) : Colors.white,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(DesignRadius.lg * 2)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(DesignRadius.lg * 2),
+                ),
                 border: Border(
                   top: BorderSide(
                     color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
@@ -3451,17 +3964,23 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                       onPressed: () => Navigator.of(context).pop(),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        foregroundColor: isDark ? Colors.grey[400] : Colors.grey[600],
+                        foregroundColor: isDark
+                            ? Colors.grey[400]
+                            : Colors.grey[600],
                         side: BorderSide(
                           color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(DesignRadius.lg * 1.5),
+                          borderRadius: BorderRadius.circular(
+                            DesignRadius.lg * 1.5,
+                          ),
                         ),
                       ),
                       child: Text(
                         'Hủy',
-                        style: DesignTypography.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+                        style: DesignTypography.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -3475,9 +3994,13 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         elevation: 4,
-                        shadowColor: DesignColors.primary.withValues(alpha: 0.3),
+                        shadowColor: DesignColors.primary.withValues(
+                          alpha: 0.3,
+                        ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(DesignRadius.lg * 1.5),
+                          borderRadius: BorderRadius.circular(
+                            DesignRadius.lg * 1.5,
+                          ),
                         ),
                       ),
                       child: Row(
@@ -3552,7 +4075,9 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
     Color? borderColor,
   }) {
     final bc = borderColor ?? (isDark ? Colors.grey[700]! : Colors.grey[200]!);
-    final fc = fillColor ?? (isDark ? Colors.grey[800]!.withValues(alpha: 0.5) : Colors.grey[50]!);
+    final fc =
+        fillColor ??
+        (isDark ? Colors.grey[800]!.withValues(alpha: 0.5) : Colors.grey[50]!);
     return TextField(
       controller: controller,
       maxLines: maxLines,
@@ -3562,7 +4087,9 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
       ),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: TextStyle(color: isDark ? Colors.grey[600] : Colors.grey[400]),
+        hintStyle: TextStyle(
+          color: isDark ? Colors.grey[600] : Colors.grey[400],
+        ),
         filled: true,
         fillColor: fc,
         contentPadding: const EdgeInsets.all(14),

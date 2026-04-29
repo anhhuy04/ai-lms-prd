@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:ai_mls/core/services/template_similarity_verifier.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/error_translation_utils.dart';
 import 'package:ai_mls/data/datasources/ai_datasource.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
+import 'package:ai_mls/domain/entities/template_mode.dart';
 import 'package:ai_mls/domain/repositories/ai_repository.dart';
 
 /// Implementation của AiRepository
@@ -25,8 +27,22 @@ class AiRepositoryImpl implements AiRepository {
     required int quantity,
     int? difficulty,
     String? questionType,
+    String? documentContext,
+    bool useAsStyleTemplate = false,
+    TemplateMode? templateMode,
+    List<Map<String, dynamic>>? templateQuestions,
     void Function(String rawJson)? onRawResponse,
   }) async {
+    // Resolve sub-mode: caller cũ chỉ truyền boolean → coi là styleOnly (an toàn).
+    final TemplateMode? resolvedTemplateMode = useAsStyleTemplate
+        ? (templateMode ?? TemplateMode.styleOnly)
+        : null;
+    AppLogger.info(
+      '🔧 [AI REPO] generateQuestions: qty=$quantity type=$questionType '
+      'useTemplate=$useAsStyleTemplate resolvedMode=${resolvedTemplateMode?.name ?? "null"} '
+      'templateQCount=${templateQuestions?.length ?? 0}',
+    );
+
     try {
       const int maxBatchSize = 10;
 
@@ -36,6 +52,9 @@ class AiRepositoryImpl implements AiRepository {
           quantity: quantity,
           difficulty: difficulty,
           questionType: questionType,
+          documentContext: documentContext,
+          useAsStyleTemplate: useAsStyleTemplate,
+          templateMode: resolvedTemplateMode,
         );
 
         try {
@@ -43,7 +62,18 @@ class AiRepositoryImpl implements AiRepository {
           onRawResponse?.call(rawJson);
         } catch (_) {}
 
-        final questions = _parseAiResponse(response, quantity);
+        var questions = _parseAiResponse(response, quantity);
+        questions = await _applyTemplateVerification(
+          generated: questions,
+          topic: topic,
+          difficulty: difficulty,
+          questionType: questionType,
+          documentContext: documentContext,
+          useAsStyleTemplate: useAsStyleTemplate,
+          templateMode: resolvedTemplateMode,
+          templateQuestions: templateQuestions,
+          onRawResponse: onRawResponse,
+        );
         AppLogger.info('✅ [AI REPO] Generated ${questions.length} questions');
         return questions;
       }
@@ -62,6 +92,9 @@ class AiRepositoryImpl implements AiRepository {
           quantity: batchSize,
           difficulty: difficulty,
           questionType: questionType,
+          documentContext: documentContext,
+          useAsStyleTemplate: useAsStyleTemplate,
+          templateMode: resolvedTemplateMode,
         );
 
         try {
@@ -89,6 +122,9 @@ class AiRepositoryImpl implements AiRepository {
             quantity: 5,
             difficulty: difficulty,
             questionType: questionType,
+            documentContext: documentContext,
+            useAsStyleTemplate: useAsStyleTemplate,
+            templateMode: resolvedTemplateMode,
           );
           try {
             final rawJson = retryResponse is String
@@ -110,8 +146,21 @@ class AiRepositoryImpl implements AiRepository {
         all.removeRange(quantity, all.length);
       }
 
-      AppLogger.info('✅ [AI REPO] Generated ${all.length} questions (batched)');
-      return all;
+      // Verify similarity post-hoc cho toàn bộ batch
+      final verified = await _applyTemplateVerification(
+        generated: all,
+        topic: topic,
+        difficulty: difficulty,
+        questionType: questionType,
+        documentContext: documentContext,
+        useAsStyleTemplate: useAsStyleTemplate,
+        templateMode: resolvedTemplateMode,
+        templateQuestions: templateQuestions,
+        onRawResponse: onRawResponse,
+      );
+
+      AppLogger.info('✅ [AI REPO] Generated ${verified.length} questions (batched)');
+      return verified;
     } catch (e, stackTrace) {
       AppLogger.error(
         '🔴 [AI REPO ERROR] generateQuestions: $e',
@@ -159,8 +208,12 @@ class AiRepositoryImpl implements AiRepository {
       }
 
       if (questionsList == null || questionsList.isEmpty) {
+        final rawStr = response is String
+            ? response
+            : response?.toString() ?? '';
         AppLogger.warning(
-          '⚠️ [AI REPO] No questions found in response, using fallback',
+          '⚠️ [AI REPO] No questions found. Raw response (500 chars):\n'
+          '${rawStr.substring(0, rawStr.length.clamp(0, 500))}',
         );
         return _generateFallbackQuestions(expectedQuantity);
       }
@@ -231,12 +284,22 @@ class AiRepositoryImpl implements AiRepository {
     } else if (aiQuestion['content'] is Map<String, dynamic>) {
       // New format: content object
       final contentObj = aiQuestion['content'] as Map<String, dynamic>;
-      content = {
-        'text': contentObj['text'] as String? ?? '',
-        'images': contentObj['images'] as List<dynamic>? ?? [],
-        if (contentObj['latex'] != null)
-          'latex': contentObj['latex'] as String?,
-      };
+      final contentText = (contentObj['text'] as String? ?? '').trim();
+      if (contentText.isNotEmpty) {
+        content = {
+          'text': contentText,
+          'images': contentObj['images'] as List<dynamic>? ?? [],
+          if (contentObj['latex'] != null)
+            'latex': contentObj['latex'] as String?,
+        };
+      } else {
+        // content.text rỗng, fall through sang legacy fallback
+        final text =
+            aiQuestion['text'] as String? ??
+            aiQuestion['question'] as String? ??
+            'Câu hỏi $index';
+        content = {'text': text, 'images': []};
+      }
     } else {
       // Legacy format: text string (backward compatibility)
       final text =
@@ -387,7 +450,54 @@ class AiRepositoryImpl implements AiRepository {
     // Note: grading_rubric không cần thiết vì giáo viên sẽ tự tạo ở UI sau
     // Không parse grading_rubric từ AI response - giáo viên sẽ tự tạo khi lưu vào assignment
 
-    // VALIDATION: Đảm bảo đáp án trắc nghiệm chính xác 100%
+    // VALIDATION: question text không được rỗng
+    final contentText = content['text'] as String? ?? '';
+    if (contentText.trim().isEmpty) {
+      AppLogger.warning(
+        '⚠️ [AI REPO] Question $index: content.text rỗng. Dùng fallback.',
+      );
+      content = {'text': 'Câu hỏi $index (cần chỉnh sửa)', 'images': []};
+    }
+
+    // VALIDATION STEP 1: Dedup + count fix phải chạy TRƯỚC correct-count check
+    if (choices != null &&
+        (questionType == QuestionType.multipleChoice ||
+            questionType == QuestionType.trueFalse)) {
+      // 1a. Dedup theo text (giữ thứ tự, bỏ trùng)
+      final seenTexts = <String>{};
+      choices = choices.where((c) {
+        final t = ((c['content'] as Map?)?['text'] as String? ?? '').trim();
+        return seenTexts.add(t);
+      }).toList();
+
+      // 1b. Trim true_false xuống còn 2
+      if (questionType == QuestionType.trueFalse && choices.length > 2) {
+        AppLogger.warning(
+          '⚠️ [AI REPO] Question $index: true_false có ${choices.length} choices. Trim → 2.',
+        );
+        // Giữ choice correct nếu có, sau đó fill tới 2
+        final correct = choices.where((c) => c['is_correct'] == true).toList();
+        final wrong = choices.where((c) => c['is_correct'] != true).toList();
+        final kept = [...correct, ...wrong];
+        choices = kept.sublist(0, 2);
+      }
+
+      // 1c. Pad MCQ lên 4 nếu thiếu
+      if (questionType == QuestionType.multipleChoice && choices.length < 4) {
+        AppLogger.warning(
+          '⚠️ [AI REPO] Question $index: MCQ có ${choices.length} choices. Thêm dummy → 4.',
+        );
+        while (choices.length < 4) {
+          choices.add({
+            'id': choices.length,
+            'content': {'text': 'Không có đáp án nào phù hợp'},
+            'is_correct': false,
+          });
+        }
+      }
+    }
+
+    // VALIDATION STEP 2: Đảm bảo đáp án trắc nghiệm chính xác 100%
     if ((questionType == QuestionType.multipleChoice ||
             questionType == QuestionType.trueFalse) &&
         choices != null &&
@@ -402,16 +512,12 @@ class AiRepositoryImpl implements AiRepository {
           '⚠️ [AI REPO] Question $index: Không có đáp án đúng nào! '
           'Tự động set choice đầu tiên làm đáp án đúng.',
         );
-        // Tự động sửa: set choice đầu tiên làm đáp án đúng
-        if (choices.isNotEmpty) {
-          choices[0]['is_correct'] = true;
-        }
+        choices[0]['is_correct'] = true;
       } else if (correctCount > 1) {
         AppLogger.warning(
           '⚠️ [AI REPO] Question $index: Có $correctCount đáp án đúng '
           '(chỉ được phép 1). Giữ lại đáp án đúng đầu tiên.',
         );
-        // Tự động sửa: chỉ giữ lại đáp án đúng đầu tiên
         var foundFirst = false;
         for (var i = 0; i < choices.length; i++) {
           if (choices[i]['is_correct'] as bool? ?? false) {
@@ -428,7 +534,6 @@ class AiRepositoryImpl implements AiRepository {
       if (answer != null) {
         final correctChoices = answer['correct_choices'] as List<dynamic>?;
         if (correctChoices != null) {
-          // Tìm choice có is_correct = true
           final actualCorrectIndex = choices.indexWhere(
             (c) => c['is_correct'] as bool? ?? false,
           );
@@ -442,12 +547,10 @@ class AiRepositoryImpl implements AiRepository {
                 'không khớp với choices[].is_correct (index $actualCorrectIndex). '
                 'Tự động sửa answer.correct_choices.',
               );
-              // Tự động sửa answer.correct_choices
               answer['correct_choices'] = [actualCorrectIndex];
             }
           }
         } else {
-          // Nếu không có correct_choices, tự động thêm
           final correctIndex = choices.indexWhere(
             (c) => c['is_correct'] as bool? ?? false,
           );
@@ -597,5 +700,150 @@ class AiRepositoryImpl implements AiRepository {
         ],
       };
     });
+  }
+
+  /// Hậu kiểm similarity post-hoc + retry cho câu vượt threshold.
+  ///
+  /// Skip nếu không phải template flow hoặc templateQuestions rỗng.
+  /// Hoạt động hoàn toàn trên CPU (không gọi API thêm cho check), nhưng
+  /// nếu có câu vượt regenerate threshold sẽ gọi 1 batch retry duy nhất
+  /// (budget=1) để tránh tăng cost không kiểm soát.
+  Future<List<Map<String, dynamic>>> _applyTemplateVerification({
+    required List<Map<String, dynamic>> generated,
+    required String topic,
+    required int? difficulty,
+    required String? questionType,
+    required String? documentContext,
+    required bool useAsStyleTemplate,
+    required TemplateMode? templateMode,
+    required List<Map<String, dynamic>>? templateQuestions,
+    required void Function(String rawJson)? onRawResponse,
+  }) async {
+    // Skip nếu không phải template flow
+    if (!useAsStyleTemplate ||
+        templateQuestions == null ||
+        templateQuestions.isEmpty ||
+        generated.isEmpty) {
+      return generated;
+    }
+
+    final verifier = TemplateSimilarityVerifier();
+    final results = verifier.verifyAgainstTemplate(
+      generated: generated,
+      templateQuestions: templateQuestions,
+    );
+
+    final dropIdx = <int>{};
+    final regenIdx = <int>[];
+    for (final r in results) {
+      switch (r.action) {
+        case SimilarityAction.drop:
+          dropIdx.add(r.questionIndex);
+          break;
+        case SimilarityAction.regenerate:
+          regenIdx.add(r.questionIndex);
+          break;
+        case SimilarityAction.warn:
+          // Gắn cờ vào câu để UI render badge — không block
+          generated[r.questionIndex]['_similarityWarning'] = {
+            'score': r.maxScore,
+            'matchedTemplateIdx': r.matchedTemplateIdx,
+          };
+          break;
+        case SimilarityAction.pass:
+          break;
+      }
+    }
+
+    final dropCount = dropIdx.length;
+    final regenCount = regenIdx.length;
+
+    if (dropCount == 0 && regenCount == 0) return generated;
+
+    AppLogger.warning(
+      '⚠️ [AI REPO] Similarity: drop=$dropCount, regenerate=$regenCount '
+      'của ${generated.length} câu. Bắt đầu retry budget=1.',
+    );
+
+    // Retry budget = 1: gọi 1 lần duy nhất với prompt mạnh hơn
+    final needRetry = dropCount + regenCount;
+    List<Map<String, dynamic>> replacements = [];
+    if (needRetry > 0) {
+      try {
+        final retryResponse = await _dataSource.generateQuestions(
+          topic: topic.isEmpty ? 'Câu hỏi từ tài liệu' : topic,
+          quantity: needRetry,
+          difficulty: difficulty,
+          questionType: questionType,
+          documentContext: documentContext,
+          useAsStyleTemplate: useAsStyleTemplate,
+          templateMode: templateMode,
+        );
+        try {
+          final rawJson = retryResponse is String
+              ? retryResponse
+              : jsonEncode(retryResponse);
+          onRawResponse?.call('/* similarity-retry size=$needRetry */\n$rawJson');
+        } catch (_) {}
+        replacements = _parseAiResponse(retryResponse, needRetry);
+
+        // Chạy verify trên replacements để tránh retry câu vẫn giống mẫu
+        final retryResults = verifier.verifyAgainstTemplate(
+          generated: replacements,
+          templateQuestions: templateQuestions,
+        );
+        // Loại replacements vẫn vi phạm → không thay vào
+        for (var i = retryResults.length - 1; i >= 0; i--) {
+          final action = retryResults[i].action;
+          if (action == SimilarityAction.drop ||
+              action == SimilarityAction.regenerate) {
+            replacements.removeAt(i);
+          } else if (action == SimilarityAction.warn) {
+            replacements[i]['_similarityWarning'] = {
+              'score': retryResults[i].maxScore,
+              'matchedTemplateIdx': retryResults[i].matchedTemplateIdx,
+            };
+          }
+        }
+      } catch (e) {
+        AppLogger.warning(
+          '⚠️ [AI REPO] Similarity retry failed: $e — giữ batch gốc, gắn warn.',
+        );
+      }
+    }
+
+    // Build kết quả: giữ câu pass/warn, thay regen bằng replacements, drop hẳn
+    final out = <Map<String, dynamic>>[];
+    var replacementCursor = 0;
+    for (var i = 0; i < generated.length; i++) {
+      if (dropIdx.contains(i)) {
+        // Drop: thay bằng replacement nếu còn, nếu hết → bỏ qua
+        if (replacementCursor < replacements.length) {
+          out.add(replacements[replacementCursor++]);
+        }
+        continue;
+      }
+      if (regenIdx.contains(i)) {
+        // Regen: thay bằng replacement nếu còn, nếu hết → giữ câu gốc + warn
+        if (replacementCursor < replacements.length) {
+          out.add(replacements[replacementCursor++]);
+        } else {
+          generated[i]['_similarityWarning'] = {
+            'score': results[i].maxScore,
+            'matchedTemplateIdx': results[i].matchedTemplateIdx,
+            'note': 'retry_exhausted',
+          };
+          out.add(generated[i]);
+        }
+        continue;
+      }
+      out.add(generated[i]);
+    }
+
+    AppLogger.info(
+      '✅ [AI REPO] Similarity verify done: out=${out.length} '
+      '(drop=$dropCount, regen=$regenCount, replaced=$replacementCursor)',
+    );
+    return out;
   }
 }

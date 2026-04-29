@@ -1,3 +1,4 @@
+import 'package:ai_mls/domain/entities/template_mode.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'ai_generation_settings_notifier.g.dart';
@@ -8,18 +9,26 @@ class AiGenerationConfig {
   const AiGenerationConfig({
     this.processingMode = ProcessingMode.promptOnly,
     this.selectedFileIds = const [],
+    this.templateMode = TemplateMode.styleOnly,
   });
 
   final ProcessingMode processingMode;
   final List<String> selectedFileIds;
 
+  /// Sub-mode khi Mode 3 detect tài liệu là template. Default = styleOnly.
+  /// Chỉ có ý nghĩa khi `processingMode == ragGeneration` và file detect là
+  /// template; flow khác bỏ qua field này.
+  final TemplateMode templateMode;
+
   AiGenerationConfig copyWith({
     ProcessingMode? processingMode,
     List<String>? selectedFileIds,
+    TemplateMode? templateMode,
   }) {
     return AiGenerationConfig(
       processingMode: processingMode ?? this.processingMode,
       selectedFileIds: selectedFileIds ?? this.selectedFileIds,
+      templateMode: templateMode ?? this.templateMode,
     );
   }
 }
@@ -36,4 +45,7 @@ class AiGenerationSettingsNotifier extends _$AiGenerationSettingsNotifier {
 
   void setSelectedFileIds(List<String> ids) =>
       state = state.copyWith(selectedFileIds: ids);
+
+  void setTemplateMode(TemplateMode mode) =>
+      state = state.copyWith(templateMode: mode);
 }
