@@ -1,12 +1,7 @@
+import 'package:ai_mls/domain/entities/file_role.dart';
 import 'package:flutter/foundation.dart';
 
-/// Vai trò của file trong quá trình sinh câu hỏi AI.
-///
-/// - [template]: file được dùng làm mẫu cấu trúc (schema-only hoặc sameForm).
-/// - [knowledgeSource]: file được dùng làm nguồn kiến thức (raw text).
-///
-/// Mặc định (null): auto-detect — template nếu có parsedQuestions, knowledge nếu không.
-enum FileRole { template, knowledgeSource }
+export 'package:ai_mls/domain/entities/file_role.dart' show FileRole;
 
 @immutable
 class LocalTempFile {
@@ -31,6 +26,11 @@ class LocalTempFile {
     this.isExtracting = false,
     this.fileRole,
   });
+
+  /// Effective role: fileRole nếu được set thủ công, hoặc auto-detect.
+  /// Single source of truth — dùng thay vì tính lại tại mỗi call site.
+  FileRole get effectiveRole =>
+      fileRole ?? (parsedQuestions?.isNotEmpty == true ? FileRole.template : FileRole.knowledgeSource);
 
   LocalTempFile copyWith({
     String? id,

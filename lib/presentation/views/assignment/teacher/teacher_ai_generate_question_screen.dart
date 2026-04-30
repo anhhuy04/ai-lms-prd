@@ -645,9 +645,13 @@ class _TeacherAiGenerateQuestionScreenState
         if (templateMode == TemplateMode.sameForm &&
             allMcq &&
             templateQuestionsForCheck.isNotEmpty) {
+          // BUG-FIX A2-BUG1: \b là ASCII-only → false positive với tiếng Việt.
+          // Dùng negative lookahead để đơn vị không bị nhận nhầm là ký tự đầu từ Việt.
+          // BUG-FIX A2-BUG2: thêm mm, mg vào danh sách đơn vị.
           final numericPattern = RegExp(
-            r'\d+\s*(cm|m\b|km|kg|g\b|L\b|ml|s\b|giây|phút|°|%|đồng|VND)',
+            r'\d+\s*(cm|mm|km|kg|mg|g(?![a-zA-ZÀ-ỹ])|L(?![a-zA-ZÀ-ỹ])|ml|m(?![a-zA-ZÀ-ỹ])|s(?![a-zA-ZÀ-ỹ])|giây|phút|°|%|đồng|VND)',
             caseSensitive: false,
+            unicode: true,
           );
           final numericCount = templateQuestionsForCheck.where((q) {
             final text = (q['text'] as String? ?? '') +
@@ -1273,6 +1277,7 @@ class _TeacherAiGenerateQuestionScreenState
 
     return Scaffold(
       key: _scaffoldKey,
+      resizeToAvoidBottomInset: false,
       backgroundColor: DesignColors.moonLight,
       endDrawer: const AiSettingsDrawer(),
       body: Stack(
@@ -1461,7 +1466,7 @@ class _TeacherAiGenerateQuestionScreenState
                           _buildRawApiResponseSection(context, isDark),
                         ],
 
-                        SizedBox(height: 100),
+                        SizedBox(height: DesignSpacing.md),
                       ],
                     ),
                   ),
@@ -1470,236 +1475,297 @@ class _TeacherAiGenerateQuestionScreenState
             ],
           ),
 
-          // Action Buttons
+          // ── Compact Bottom Action Bar ──────────────────────────────────
           Positioned(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-            left: DesignSpacing.lg,
-            right: DesignSpacing.lg,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Warning khi tổng chưa khớp
-                if (_isQtyMismatch) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: DesignColors.error.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(DesignRadius.lg),
-                      border: Border.all(
-                        color: DesignColors.error.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.warning_amber_rounded,
-                          size: 16,
-                          color: DesignColors.error,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Tổng số câu ($_totalTypedQty) chưa khớp giới hạn ($_limitQty). Chỉnh lại để tạo.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: DesignColors.error,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                // Generate/Reset Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: (_isGenerating || _isQtyMismatch)
-                        ? null
-                        : _handleGenerate,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: DesignColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          DesignRadius.lg * 1.5,
-                        ),
-                      ),
-                      elevation: 8,
-                      shadowColor: DesignColors.primary.withValues(alpha: 0.3),
-                    ),
-                    child: _isGenerating
-                        ? SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                mode == ProcessingMode.extraction
-                                    ? Icons.content_paste_search_rounded
-                                    : mode == ProcessingMode.ragGeneration
-                                    ? Icons.auto_stories_rounded
-                                    : Icons.auto_awesome,
-                                size: DesignIcons.buttonIconSize,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                mode == ProcessingMode.extraction
-                                    ? 'Trích xuất câu hỏi'
-                                    : mode == ProcessingMode.ragGeneration
-                                    ? 'Sinh từ tài liệu'
-                                    : 'Tạo câu hỏi',
-                                style: DesignTypography.bodyLarge.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2632) : Colors.white,
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
                   ),
                 ),
-                // Confirm và Reset buttons (hiển thị sau khi generate)
-                if (_generatedQuestions != null &&
-                    _generatedQuestions!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            // Reset để test lại
-                            setState(() {
-                              _rawApiResponse = null;
-                              _generatedQuestions = null;
-                              _rawApiResponsePretty = null;
-                              _explanationFeatureEnabled = false;
-                              _expandedExplanations.clear();
-                              _regeneratingExplanationSet.clear();
-                              _sections.clear();
-                            });
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: isDark
-                                ? Colors.grey[400]
-                                : Colors.grey[600],
-                            side: BorderSide(
-                              color: isDark
-                                  ? Colors.grey[700]!
-                                  : Colors.grey[300]!,
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                DesignRadius.lg * 1.5,
-                              ),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.refresh, size: 20),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Reset',
-                                style: DesignTypography.bodyMedium.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: (_isSavingToBank || _isGenerating)
-                              ? null
-                              : _handleSaveToQuestionBank,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: DesignColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                DesignRadius.lg * 1.5,
-                              ),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                _isSavingToBank
-                                    ? Icons.hourglass_top_rounded
-                                    : Icons.cloud_upload_outlined,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                _isSavingToBank ? 'Đang lưu...' : 'Lưu Bank',
-                                style: DesignTypography.bodyMedium.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _generatedQuestions != null
-                              ? () {
-                                  // Pop và trả về generated questions
-                                  context.pop(_generatedQuestions);
-                                }
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: DesignColors.success,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                DesignRadius.lg * 1.5,
-                              ),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.check, size: 20),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Xác nhận',
-                                style: DesignTypography.bodyMedium.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
                   ),
                 ],
-              ],
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Warning khi tổng chưa khớp — compact inline
+                      if (_isQtyMismatch)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                size: 14,
+                                color: DesignColors.error,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Tổng $_totalTypedQty ≠ $_limitQty câu. Chỉnh lại để tạo.',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: DesignColors.error,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // Trạng thái 1: Chưa generate → nút Generate đơn
+                      if (_generatedQuestions == null ||
+                          _generatedQuestions!.isEmpty)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: ElevatedButton(
+                            onPressed: (_isGenerating || _isQtyMismatch)
+                                ? null
+                                : _handleGenerate,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: DesignColors.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: _isGenerating
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        mode == ProcessingMode.extraction
+                                            ? Icons
+                                                .content_paste_search_rounded
+                                            : mode ==
+                                                ProcessingMode.ragGeneration
+                                            ? Icons.auto_stories_rounded
+                                            : Icons.auto_awesome,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        mode == ProcessingMode.extraction
+                                            ? 'Trích xuất câu hỏi'
+                                            : mode ==
+                                                ProcessingMode.ragGeneration
+                                            ? 'Sinh từ tài liệu'
+                                            : 'Tạo câu hỏi',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
+
+                      // Trạng thái 2: Đã generate → 2 hàng nút
+                      if (_generatedQuestions != null &&
+                          _generatedQuestions!.isNotEmpty)
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Hàng 1: Reset + Tạo lại
+                            SizedBox(
+                              height: 38,
+                              child: Row(
+                                children: [
+                                  // Reset — icon-only
+                                  SizedBox(
+                                    width: 38,
+                                    height: 38,
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _rawApiResponse = null;
+                                          _generatedQuestions = null;
+                                          _rawApiResponsePretty = null;
+                                          _explanationFeatureEnabled = false;
+                                          _expandedExplanations.clear();
+                                          _regeneratingExplanationSet.clear();
+                                          _sections.clear();
+                                        });
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        side: BorderSide(
+                                          color: isDark
+                                              ? Colors.grey[700]!
+                                              : Colors.grey[300]!,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.delete_outline_rounded,
+                                        size: 18,
+                                        color: isDark
+                                            ? Colors.grey[400]
+                                            : Colors.grey[500],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Tạo lại
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 38,
+                                      child: OutlinedButton.icon(
+                                        onPressed:
+                                            (_isGenerating || _isQtyMismatch)
+                                            ? null
+                                            : _handleGenerate,
+                                        icon: Icon(
+                                          Icons.auto_awesome,
+                                          size: 15,
+                                          color: _isGenerating
+                                              ? Colors.grey
+                                              : DesignColors.primary,
+                                        ),
+                                        label: Text(
+                                          'Tạo lại',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: _isGenerating
+                                                ? Colors.grey
+                                                : DesignColors.primary,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          side: BorderSide(
+                                            color: DesignColors.primary
+                                                .withValues(alpha: 0.4),
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            // Hàng 2: Lưu Bank + Xác nhận
+                            SizedBox(
+                              height: 38,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 38,
+                                      child: OutlinedButton.icon(
+                                        onPressed:
+                                            (_isSavingToBank || _isGenerating)
+                                            ? null
+                                            : _handleSaveToQuestionBank,
+                                        icon: Icon(
+                                          _isSavingToBank
+                                              ? Icons.hourglass_top_rounded
+                                              : Icons.cloud_upload_outlined,
+                                          size: 15,
+                                        ),
+                                        label: Text(
+                                          _isSavingToBank
+                                              ? 'Đang lưu...'
+                                              : 'Lưu vào Bank',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: DesignColors.primary,
+                                          side: BorderSide(
+                                            color: DesignColors.primary
+                                                .withValues(alpha: 0.4),
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 38,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          context.pop(_generatedQuestions);
+                                        },
+                                        icon: const Icon(
+                                          Icons.check_rounded,
+                                          size: 15,
+                                        ),
+                                        label: const Text(
+                                          'Xác nhận',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              DesignColors.success,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
 

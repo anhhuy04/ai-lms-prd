@@ -1,12 +1,11 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:ai_mls/core/utils/app_logger.dart';
+import 'package:ai_mls/core/utils/document_parser.dart';
 import 'package:ai_mls/data/models/local_temp_file.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/domain/entities/template_mode.dart';
-import 'package:archive/archive.dart';
-import 'package:excel/excel.dart' as ex;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -27,29 +26,25 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
     );
     state = [...state, tempFile];
 
-    // Extract text hoặc parse template
+    // Extract text + parse template (CPU-heavy ops chạy trong background isolate).
     String? extracted;
     List<Map<String, dynamic>>? parsedQuestions;
     try {
       if (mimeType.contains('spreadsheetml') || filename.toLowerCase().endsWith('.xlsx')) {
-        // Luôn extract raw text trước (để Mode 3 có thể dùng làm knowledge source)
-        extracted = _extractFromXlsx(bytes);
-        // Sau đó thử parse template — nếu có thì gán thêm parsedQuestions
-        final templateQuestions = _parseXlsxAsTemplate(bytes);
-        if (templateQuestions != null) parsedQuestions = templateQuestions;
+        // CRITICAL E-1 fix: compute() để tránh block UI thread.
+        final result = await compute(DocumentParser.processXlsx, bytes);
+        extracted = result.text;
+        parsedQuestions = result.questions;
       } else if (mimeType.contains('wordprocessingml') || filename.toLowerCase().endsWith('.docx')) {
-        extracted = _extractFromDocx(bytes);
-        // T3-2: thử parse docx như template (câu hỏi có cấu trúc "Câu N:")
-        if (extracted.isNotEmpty) {
-          final templateQuestions = _parseDocxAsTemplate(extracted);
-          if (templateQuestions != null) parsedQuestions = templateQuestions;
-        }
+        final result = await compute(DocumentParser.processDocx, bytes);
+        extracted = result.text;
+        parsedQuestions = result.questions;
       } else if (mimeType.contains('pdf') || filename.toLowerCase().endsWith('.pdf')) {
+        // pdfrx đã async (native FFI) — không cần compute.
         extracted = await _extractFromPdf(bytes);
-        // T3-2: thử parse pdf như template
         if (extracted != null && extracted.isNotEmpty) {
-          final templateQuestions = _parseDocxAsTemplate(extracted);
-          if (templateQuestions != null) parsedQuestions = templateQuestions;
+          // parseDocxAsTemplate là regex thuần — fast trên main isolate.
+          parsedQuestions = DocumentParser.parseDocxAsTemplate(extracted);
         }
       }
       if (parsedQuestions != null) {
@@ -115,9 +110,9 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
     AppLogger.info('📄 [Context] getKnowledgeContextForIds: mode=${templateMode.name}, ids=${ids.length}');
     final parts = <String>[];
     for (final f in state.where((f) => ids.contains(f.id))) {
+      // T3-3: dùng effectiveRole (single source of truth từ LocalTempFile.effectiveRole getter).
+      final role = f.effectiveRole;
       final hasQuestions = f.parsedQuestions != null && f.parsedQuestions!.isNotEmpty;
-      // T3-3: fileRole=null → auto-detect (template nếu có parsedQ, knowledge nếu không).
-      final role = f.fileRole ?? (hasQuestions ? FileRole.template : FileRole.knowledgeSource);
 
       if (role == FileRole.template && hasQuestions) {
         final branch = templateMode == TemplateMode.styleOnly ? 'schema-only' : 'sameForm-full';
@@ -183,8 +178,8 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
   /// T2-2: Nếu tags rỗng sau sanitize → fallback về topic từ tên file.
   String _buildSchemaOnlyContext(LocalTempFile f) {
     final allQuestions = f.parsedQuestions!;
-    final questions = _sampleQuestionsForSchema(allQuestions);
-    final filenameTopic = _filenameToTopic(f.filename);
+    final questions = sampleQuestionsForSchema(allQuestions);
+    final filenameTopic = filenameToTopic(f.filename);
 
     final sb = StringBuffer();
     sb.writeln(
@@ -215,7 +210,8 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
   }
 
   /// T2-1: Cluster questions by (type, difficulty) → sample evenly, max 20 total.
-  List<Map<String, dynamic>> _sampleQuestionsForSchema(
+  @visibleForTesting
+  List<Map<String, dynamic>> sampleQuestionsForSchema(
     List<Map<String, dynamic>> all,
   ) {
     const maxSample = 20;
@@ -244,7 +240,8 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
   }
 
   /// T2-2: Derive topic hint from filename (strip ext, split camelCase/separators).
-  String _filenameToTopic(String filename) {
+  @visibleForTesting
+  String filenameToTopic(String filename) {
     var name = filename.replaceAll(RegExp(r'\.\w{1,5}$'), '');
     // Split camelCase: "QuizFlutter" → "Quiz Flutter"
     name = name.replaceAllMapped(
@@ -314,14 +311,10 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
   }
 
   /// Lấy questions đã parse từ template cho các file IDs đã chọn.
-  /// T3-3: Chỉ lấy file có role=template (hoặc auto-detect là template).
+  /// T3-3: Chỉ lấy file có effectiveRole=template.
   List<Map<String, dynamic>> getTemplateQuestionsForIds(List<String> ids) {
     return state
-        .where((f) {
-          if (!ids.contains(f.id) || f.parsedQuestions == null) return false;
-          final role = f.fileRole ?? FileRole.template; // default: template
-          return role == FileRole.template;
-        })
+        .where((f) => ids.contains(f.id) && f.parsedQuestions != null && f.effectiveRole == FileRole.template)
         .expand((f) => f.parsedQuestions!)
         .toList();
   }
@@ -344,301 +337,18 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
     return buffer.toString().trim();
   }
 
-  String _extractFromXlsx(Uint8List bytes) {
-    final excel = ex.Excel.decodeBytes(bytes);
-    final buffer = StringBuffer();
-    for (final table in excel.tables.values) {
-      for (final row in table.rows) {
-        final rowText = row.map((cell) => cell?.value?.toString() ?? '').join('\t');
-        if (rowText.trim().isNotEmpty) buffer.writeln(rowText);
-      }
-    }
-    return buffer.toString();
-  }
 
-  String _extractFromDocx(Uint8List bytes) {
-    final archive = ZipDecoder().decodeBytes(bytes);
-    final documentFile = archive.findFile('word/document.xml');
-    if (documentFile == null) return '';
-    final xmlContent = utf8.decode(documentFile.content as List<int>);
-    // Strip XML tags, normalize whitespace
-    return xmlContent
-        .replaceAll(RegExp(r'<[^>]*>'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
+  // ── T3-2 delegates: parsing logic đã chuyển sang DocumentParser ──────────────
 
-  /// Parse Excel theo format mẫu. Trả về null nếu không phải template.
-  List<Map<String, dynamic>>? _parseXlsxAsTemplate(Uint8List bytes) {
-    try {
-      final excel = ex.Excel.decodeBytes(bytes);
-      final tableNames = excel.tables.keys.toSet();
+  /// @visibleForTesting wrapper — delegates sang DocumentParser.parseDocxAsTemplate.
+  @visibleForTesting
+  List<Map<String, dynamic>>? parseDocxAsTemplate(String text) =>
+      DocumentParser.parseDocxAsTemplate(text);
 
-      // Kiểm tra có ít nhất 1 sheet đúng tên
-      final hasTemplate = tableNames.contains('Trắc nghiệm') ||
-          tableNames.contains('Tự luận') ||
-          tableNames.contains('Đúng/Sai');
-      if (!hasTemplate) return null;
-
-      final questions = <Map<String, dynamic>>[];
-
-      // ── Trắc nghiệm ──────────────────────────────────────────────────────────
-      if (tableNames.contains('Trắc nghiệm')) {
-        final sheet = excel.tables['Trắc nghiệm']!;
-        for (int i = 1; i < sheet.rows.length; i++) {
-          final row = sheet.rows[i];
-          final text = _cellStr(row, 1);
-          if (text.isEmpty) continue;
-
-          final a = _cellStr(row, 2);
-          final b = _cellStr(row, 3);
-          final c = _cellStr(row, 4);
-          final d = _cellStr(row, 5);
-          final correctLetter = _cellStr(row, 6).trim().toUpperCase();
-          final difficulty = _cellInt(row, 7) ?? 3;
-          final tags = _parseTags(_cellStr(row, 8));
-          final correctIndex = const {'A': 0, 'B': 1, 'C': 2, 'D': 3}[correctLetter] ?? 0;
-
-          questions.add({
-            'type': QuestionType.multipleChoice,
-            'text': text,
-            'content': {'text': text, 'images': <dynamic>[]},
-            'choices': [
-              {'id': 0, 'content': {'text': a}, 'is_correct': correctIndex == 0},
-              {'id': 1, 'content': {'text': b}, 'is_correct': correctIndex == 1},
-              {'id': 2, 'content': {'text': c}, 'is_correct': correctIndex == 2},
-              {'id': 3, 'content': {'text': d}, 'is_correct': correctIndex == 3},
-            ],
-            // Legacy format cho UI display (q['options'])
-            'options': [
-              {'text': a, 'isCorrect': correctIndex == 0},
-              {'text': b, 'isCorrect': correctIndex == 1},
-              {'text': c, 'isCorrect': correctIndex == 2},
-              {'text': d, 'isCorrect': correctIndex == 3},
-            ],
-            'answer': {'correct_choice_ids': [correctIndex]},
-            'difficulty': difficulty,
-            'tags': tags,
-          });
-        }
-      }
-
-      // ── Tự luận ───────────────────────────────────────────────────────────────
-      if (tableNames.contains('Tự luận')) {
-        final sheet = excel.tables['Tự luận']!;
-        for (int i = 1; i < sheet.rows.length; i++) {
-          final row = sheet.rows[i];
-          final text = _cellStr(row, 1);
-          if (text.isEmpty) continue;
-
-          final expectedAnswer = _cellStr(row, 2);
-          final difficulty = _cellInt(row, 3) ?? 3;
-          final tags = _parseTags(_cellStr(row, 4));
-
-          questions.add({
-            'type': QuestionType.shortAnswer,
-            'text': text,
-            'content': {'text': text, 'images': <dynamic>[]},
-            'answer': expectedAnswer.isNotEmpty
-                ? {'expected_answer': expectedAnswer}
-                : <String, dynamic>{},
-            'difficulty': difficulty,
-            'tags': tags,
-          });
-        }
-      }
-
-      // ── Đúng/Sai ──────────────────────────────────────────────────────────────
-      if (tableNames.contains('Đúng/Sai')) {
-        final sheet = excel.tables['Đúng/Sai']!;
-        for (int i = 1; i < sheet.rows.length; i++) {
-          final row = sheet.rows[i];
-          final text = _cellStr(row, 1);
-          if (text.isEmpty) continue;
-
-          final answerStr = _cellStr(row, 2).trim();
-          final isTrue = answerStr == 'Đúng' || answerStr.toLowerCase() == 'true';
-          final difficulty = _cellInt(row, 4) ?? 3;
-          final tags = _parseTags(_cellStr(row, 5));
-
-          questions.add({
-            'type': QuestionType.trueFalse,
-            'text': text,
-            'content': {'text': text, 'images': <dynamic>[]},
-            'choices': [
-              {'id': 0, 'content': {'text': 'Đúng'}, 'is_correct': isTrue},
-              {'id': 1, 'content': {'text': 'Sai'}, 'is_correct': !isTrue},
-            ],
-            // Legacy format cho UI display (q['options'])
-            'options': [
-              {'text': 'Đúng', 'isCorrect': isTrue},
-              {'text': 'Sai', 'isCorrect': !isTrue},
-            ],
-            'answer': {'correct_choice_ids': [isTrue ? 0 : 1]},
-            'difficulty': difficulty,
-            'tags': tags,
-          });
-        }
-      }
-
-      if (questions.isEmpty) return null;
-      AppLogger.info('[LocalTempFile] Parsed ${questions.length} questions from Excel template');
-      return questions;
-    } catch (e) {
-      AppLogger.warning('[LocalTempFile] Excel template parse failed: $e');
-      return null;
-    }
-  }
-
-  // ── T3-2: Docx/PDF inline parser ─────────────────────────────────────────────
-
-  /// Parse flat text (từ docx/pdf) thành danh sách câu hỏi theo format mẫu.
-  ///
-  /// Nhận diện cấu trúc "Câu N:" / "Câu N." / "Câu N)" để tách block.
-  /// Mỗi block → MCQ (nếu có options A./B./C./D.) | Đúng/Sai | Tự luận.
-  /// Trả về null nếu không tìm thấy cấu trúc câu hỏi.
-  List<Map<String, dynamic>>? _parseDocxAsTemplate(String text) {
-    // Normalize: collapse mọi whitespace (bao gồm newline từ PDF) thành 1 space
-    final flat = text.replaceAll(RegExp(r'\s+'), ' ').trim();
-    final markerRe = RegExp(r'Câu\s+\d+\s*[:.)]', caseSensitive: false);
-    final markers = markerRe.allMatches(flat).toList();
-    if (markers.isEmpty) return null;
-
-    final questions = <Map<String, dynamic>>[];
-    for (int i = 0; i < markers.length; i++) {
-      final blockStart = markers[i].end;
-      final blockEnd = i + 1 < markers.length ? markers[i + 1].start : flat.length;
-      final block = flat.substring(blockStart, blockEnd).trim();
-      if (block.isEmpty) continue;
-      final q = _parseQuestionBlock(block);
-      if (q != null) questions.add(q);
-    }
-
-    if (questions.isEmpty) return null;
-    AppLogger.info('[LocalTempFile] Parsed ${questions.length} questions from docx/pdf template');
-    return questions;
-  }
-
-  /// Parse một block câu hỏi từ flat text.
-  Map<String, dynamic>? _parseQuestionBlock(String block) {
-    // Tìm option markers theo thứ tự A, B, C, D trong block
-    final optRe = RegExp(r'\s+([A-D])[.)]\s+');
-    final allOpts = optRe.allMatches(block).toList();
-
-    // Thu thập options đúng thứ tự A→B→C→D
-    final ordered = <RegExpMatch>[];
-    final seq = ['A', 'B', 'C', 'D'];
-    for (final m in allOpts) {
-      final letter = m.group(1)!.toUpperCase();
-      if (ordered.isEmpty && letter == 'A') {
-        ordered.add(m);
-      } else if (ordered.isNotEmpty && ordered.length < 4 && letter == seq[ordered.length]) {
-        ordered.add(m);
-      }
-    }
-
-    final answerRe = RegExp(r'Đáp án\s*[:.]\s*([A-D])', caseSensitive: false);
-
-    // ── MCQ: tìm thấy ít nhất 2 options liên tiếp ──────────────────────────
-    if (ordered.length >= 2) {
-      final qText = block.substring(0, ordered.first.start).trim();
-      if (qText.isEmpty) return null;
-
-      // Tách text từng option (từ sau marker đến trước marker tiếp / cuối block)
-      final optTexts = <String>[];
-      for (int i = 0; i < ordered.length; i++) {
-        final start = ordered[i].end;
-        final end = i + 1 < ordered.length ? ordered[i + 1].start : block.length;
-        var raw = block.substring(start, end).trim();
-        // Strip "Đáp án: X" khỏi text option cuối
-        raw = raw.replaceAll(RegExp(r'\s*Đáp án\s*[:.]\s*[A-D].*', caseSensitive: false), '').trim();
-        optTexts.add(raw);
-      }
-      while (optTexts.length < 4) optTexts.add('');
-
-      final answerMatch = answerRe.firstMatch(block);
-      final correctLetter = answerMatch?.group(1)?.toUpperCase() ?? 'A';
-      final correctIndex = const {'A': 0, 'B': 1, 'C': 2, 'D': 3}[correctLetter] ?? 0;
-
-      return {
-        'type': QuestionType.multipleChoice,
-        'text': qText,
-        'content': {'text': qText, 'images': <dynamic>[]},
-        'choices': List.generate(4, (i) => {
-          'id': i,
-          'content': {'text': optTexts[i]},
-          'is_correct': i == correctIndex,
-        }),
-        'options': List.generate(4, (i) => {
-          'text': optTexts[i],
-          'isCorrect': i == correctIndex,
-        }),
-        'answer': {'correct_choice_ids': [correctIndex]},
-        'difficulty': 3,
-        'tags': <String>[],
-      };
-    }
-
-    // ── Đúng/Sai: có đáp án "Đáp án: Đúng" hoặc "Đáp án: Sai" ─────────────
-    final tfAnsRe = RegExp(r'Đáp án\s*[:.]\s*(Đúng|Sai)', caseSensitive: false);
-    final tfAns = tfAnsRe.firstMatch(block);
-    if (tfAns != null) {
-      final qText = block.substring(0, tfAns.start).trim();
-      final isTrue = tfAns.group(1)!.toLowerCase() == 'đúng';
-
-      return {
-        'type': QuestionType.trueFalse,
-        'text': qText.isNotEmpty ? qText : block.trim(),
-        'content': {'text': qText.isNotEmpty ? qText : block.trim(), 'images': <dynamic>[]},
-        'choices': [
-          {'id': 0, 'content': {'text': 'Đúng'}, 'is_correct': isTrue},
-          {'id': 1, 'content': {'text': 'Sai'}, 'is_correct': !isTrue},
-        ],
-        'options': [
-          {'text': 'Đúng', 'isCorrect': isTrue},
-          {'text': 'Sai', 'isCorrect': !isTrue},
-        ],
-        'answer': {'correct_choice_ids': [isTrue ? 0 : 1]},
-        'difficulty': 3,
-        'tags': <String>[],
-      };
-    }
-
-    // ── Tự luận / Trả lời ngắn ──────────────────────────────────────────────
-    final saAnsRe = RegExp(r'\s*Đáp án\s*[:.]\s*(.*)', caseSensitive: false, dotAll: true);
-    final saAns = saAnsRe.firstMatch(block);
-    final qText = saAns != null ? block.substring(0, saAns.start).trim() : block.trim();
-    final expectedAnswer = saAns?.group(1)?.trim() ?? '';
-
-    if (qText.isEmpty) return null;
-    return {
-      'type': QuestionType.shortAnswer,
-      'text': qText,
-      'content': {'text': qText, 'images': <dynamic>[]},
-      'answer': expectedAnswer.isNotEmpty ? {'expected_answer': expectedAnswer} : <String, dynamic>{},
-      'difficulty': 3,
-      'tags': <String>[],
-    };
-  }
-
-  String _cellStr(List<ex.Data?> row, int col) {
-    if (col >= row.length) return '';
-    return row[col]?.value?.toString().trim() ?? '';
-  }
-
-  int? _cellInt(List<ex.Data?> row, int col) {
-    if (col >= row.length) return null;
-    final v = row[col]?.value;
-    if (v == null) return null;
-    if (v is ex.IntCellValue) return v.value;
-    if (v is ex.DoubleCellValue) return v.value.toInt();
-    return int.tryParse(v.toString());
-  }
-
-  List<String> _parseTags(String raw) {
-    if (raw.isEmpty) return [];
-    return raw.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
-  }
+  /// @visibleForTesting wrapper — delegates sang DocumentParser.parseQuestionBlock.
+  @visibleForTesting
+  Map<String, dynamic>? parseQuestionBlock(String block) =>
+      DocumentParser.parseQuestionBlock(block);
 }
 
 /// Provider không autoDispose — giữ state xuyên suốt phiên làm việc.

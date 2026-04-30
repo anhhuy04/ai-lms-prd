@@ -44,9 +44,9 @@ class _ContextSourcesSectionState
 
   /// T3-3: Toggle role template ↔ knowledgeSource.
   void _toggleFileRole(LocalTempFile file) {
-    final hasQuestions = file.parsedQuestions?.isNotEmpty == true;
-    final current = file.fileRole ?? (hasQuestions ? FileRole.template : FileRole.knowledgeSource);
-    final next = current == FileRole.template ? FileRole.knowledgeSource : FileRole.template;
+    final next = file.effectiveRole == FileRole.template
+        ? FileRole.knowledgeSource
+        : FileRole.template;
     ref.read(localTempFilesProvider.notifier).updateFileRole(file.id, next);
   }
 
@@ -64,6 +64,7 @@ class _ContextSourcesSectionState
           SimpleDialogOption(
             onPressed: () {
               Navigator.pop(ctx);
+              if (!mounted) return;
               if (_selectedFileIds.contains(file.id)) {
                 setState(() => _selectedFileIds.remove(file.id));
                 widget.onSelectionChanged(_selectedFileIds.toList());
@@ -163,8 +164,8 @@ class _ContextSourcesSectionState
     final isPdf = file.mimeType.contains('pdf') || file.filename.toLowerCase().endsWith('.pdf');
     final isUnreadable = !file.isExtracting && !hasQuestions && !hasText;
 
-    // T3-3: effective role (auto-detect nếu null)
-    final effectiveRole = file.fileRole ?? (hasQuestions ? FileRole.template : FileRole.knowledgeSource);
+    // T3-3: dùng LocalTempFile.effectiveRole (single source of truth).
+    final effectiveRole = file.effectiveRole;
 
     Widget? avatar;
     if (file.isExtracting) {
