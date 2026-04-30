@@ -158,16 +158,20 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
   /// Schema-only context: KHÔNG gửi text câu hỏi gốc, KHÔNG gửi options.
   /// Chỉ liệt kê metadata (type + difficulty + tags đã sanitize) cho mỗi câu.
   ///
-  /// Format mỗi dòng: `Câu N: <type> độ khó X/5 — Tags: a, b`
+  /// Với template > 20 câu: cluster theo (type, difficulty) rồi sample đại diện
+  /// tối đa 20 câu để tránh vượt token limit.
   ///
-  /// Tags sanitize: strip số/đơn vị/đáp án để chống leak gián tiếp khi giáo
-  /// viên ghi tags như `"r=5, S=78.5"`, `"đáp án: A"`, `"correct=Hà Nội"`.
+  /// T2-2: Nếu tags rỗng sau sanitize → fallback về topic từ tên file.
   String _buildSchemaOnlyContext(LocalTempFile f) {
-    final questions = f.parsedQuestions!;
+    final allQuestions = f.parsedQuestions!;
+    final questions = _sampleQuestionsForSchema(allQuestions);
+    final filenameTopic = _filenameToTopic(f.filename);
+
     final sb = StringBuffer();
     sb.writeln(
-      '[Schema bài mẫu — ${questions.length} câu. AI CHỈ thấy metadata, '
-      'KHÔNG có nội dung câu gốc. Hãy tạo câu MỚI hoàn toàn theo schema này.]',
+      '[Schema bài mẫu — ${allQuestions.length} câu tổng'
+      '${questions.length < allQuestions.length ? " (hiển thị ${questions.length} mẫu đại diện)" : ""}. '
+      'AI CHỈ thấy metadata, KHÔNG có nội dung câu gốc. Hãy tạo câu MỚI hoàn toàn theo schema này.]',
     );
     sb.writeln();
 
@@ -180,11 +184,57 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
       final tags = _sanitizeTagsForSchema(rawTags).join(', ');
 
       sb.write('Câu ${i + 1}: $typeStr độ khó $difficulty/5');
-      if (tags.isNotEmpty) sb.write(' — Tags: $tags');
+      if (tags.isNotEmpty) {
+        sb.write(' — Tags: $tags');
+      } else if (filenameTopic.isNotEmpty) {
+        sb.write(' — Chủ đề: $filenameTopic');
+      }
       sb.writeln();
     }
 
     return sb.toString().trimRight();
+  }
+
+  /// T2-1: Cluster questions by (type, difficulty) → sample evenly, max 20 total.
+  List<Map<String, dynamic>> _sampleQuestionsForSchema(
+    List<Map<String, dynamic>> all,
+  ) {
+    const maxSample = 20;
+    if (all.length <= maxSample) return all;
+
+    final clusters = <String, List<Map<String, dynamic>>>{};
+    for (final q in all) {
+      final key = '${q['type']}_${q['difficulty'] ?? 3}';
+      clusters.putIfAbsent(key, () => []).add(q);
+    }
+
+    final sampled = <Map<String, dynamic>>[];
+    final clusterList = clusters.values.toList();
+    final perCluster = (maxSample / clusterList.length).ceil().clamp(1, maxSample);
+
+    for (final bucket in clusterList) {
+      final take = bucket.length.clamp(0, perCluster);
+      sampled.addAll(bucket.sublist(0, take));
+      if (sampled.length >= maxSample) break;
+    }
+
+    AppLogger.info(
+      '📄 [Context] _sampleQuestionsForSchema: ${all.length} → ${sampled.length} (${clusters.length} clusters)',
+    );
+    return sampled.sublist(0, sampled.length.clamp(0, maxSample));
+  }
+
+  /// T2-2: Derive topic hint from filename (strip ext, split camelCase/separators).
+  String _filenameToTopic(String filename) {
+    var name = filename.replaceAll(RegExp(r'\.\w{1,5}$'), '');
+    // Split camelCase: "QuizFlutter" → "Quiz Flutter"
+    name = name.replaceAllMapped(
+      RegExp(r'([a-z])([A-Z])'),
+      (m) => '${m[1]} ${m[2]}',
+    );
+    name = name.replaceAll(RegExp(r'[_\-.]'), ' ').trim().toLowerCase();
+    // Strip trailing digits e.g. "so tay 01" → keep as-is (still meaningful)
+    return name;
   }
 
   /// Sanitize tags trước khi đưa vào schema-only context.

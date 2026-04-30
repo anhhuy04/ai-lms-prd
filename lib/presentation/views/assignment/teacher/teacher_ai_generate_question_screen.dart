@@ -638,14 +638,50 @@ class _TeacherAiGenerateQuestionScreenState
                   t == QuestionType.trueFalse ||
                   t == QuestionType.math;
             });
+
+        // T2-3: Pre-detect biến số — sameForm vô nghĩa nếu câu không có số liệu.
+        // Nếu < 50% câu có đơn vị/số liệu → auto-downgrade sameForm→styleOnly.
+        bool numericDowngrade = false;
+        if (templateMode == TemplateMode.sameForm &&
+            allMcq &&
+            templateQuestionsForCheck.isNotEmpty) {
+          final numericPattern = RegExp(
+            r'\d+\s*(cm|m\b|km|kg|g\b|L\b|ml|s\b|giây|phút|°|%|đồng|VND)',
+            caseSensitive: false,
+          );
+          final numericCount = templateQuestionsForCheck.where((q) {
+            final text = (q['text'] as String? ?? '') +
+                ((q['content'] as Map?)?['text'] as String? ?? '');
+            return numericPattern.hasMatch(text);
+          }).length;
+          final ratio = numericCount / templateQuestionsForCheck.length;
+          numericDowngrade = ratio < 0.5;
+          AppLogger.info(
+            '[Mode3] T2-3 numeric ratio=${ratio.toStringAsFixed(2)} '
+            '($numericCount/${templateQuestionsForCheck.length}) → numericDowngrade=$numericDowngrade',
+          );
+        }
+
         final effectiveTemplateMode =
-            (templateMode == TemplateMode.sameForm && !allMcq)
+            (templateMode == TemplateMode.sameForm && (!allMcq || numericDowngrade))
                 ? TemplateMode.styleOnly
                 : templateMode;
         if (effectiveTemplateMode != templateMode) {
           AppLogger.info(
-            '[Mode3] Auto-downgrade sameForm → styleOnly: template không phải toàn MCQ',
+            '[Mode3] Auto-downgrade sameForm → styleOnly: '
+            'allMcq=$allMcq numericDowngrade=$numericDowngrade',
           );
+          if (numericDowngrade && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Template ít câu có số liệu — chuyển sang chế độ "Tạo mới" để đảm bảo chất lượng.',
+                ),
+                backgroundColor: DesignColors.warning,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
         }
         // Lưu state để dùng ở các call site sau (similarity verify, regenerate).
         _effectiveTemplateMode = _useAsStyleTemplate ? effectiveTemplateMode : null;
