@@ -39,11 +39,21 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
         if (templateQuestions != null) parsedQuestions = templateQuestions;
       } else if (mimeType.contains('wordprocessingml') || filename.toLowerCase().endsWith('.docx')) {
         extracted = _extractFromDocx(bytes);
+        // T3-2: thử parse docx như template (câu hỏi có cấu trúc "Câu N:")
+        if (extracted.isNotEmpty) {
+          final templateQuestions = _parseDocxAsTemplate(extracted);
+          if (templateQuestions != null) parsedQuestions = templateQuestions;
+        }
       } else if (mimeType.contains('pdf') || filename.toLowerCase().endsWith('.pdf')) {
         extracted = await _extractFromPdf(bytes);
+        // T3-2: thử parse pdf như template
+        if (extracted != null && extracted.isNotEmpty) {
+          final templateQuestions = _parseDocxAsTemplate(extracted);
+          if (templateQuestions != null) parsedQuestions = templateQuestions;
+        }
       }
       if (parsedQuestions != null) {
-        AppLogger.info('[LocalTempFile] Template Excel: ${parsedQuestions.length} câu hỏi + ${extracted?.length ?? 0} chars text từ $filename');
+        AppLogger.info('[LocalTempFile] Template parsed: ${parsedQuestions.length} câu hỏi + ${extracted?.length ?? 0} chars text từ $filename');
       } else {
         AppLogger.info('[LocalTempFile] Text extracted: ${extracted?.length ?? 0} chars từ $filename');
       }
@@ -83,6 +93,11 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
   /// Xóa tất cả files.
   void clearAll() => state = [];
 
+  /// T3-3: Đặt vai trò cho file (template / knowledgeSource).
+  void updateFileRole(String id, FileRole role) {
+    state = state.map((f) => f.id == id ? f.copyWith(fileRole: role) : f).toList();
+  }
+
   /// Lấy knowledge context cho Mode 3 (Sinh từ tài liệu).
   ///
   /// Với Excel template: builder phụ thuộc [templateMode]:
@@ -100,16 +115,20 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
     AppLogger.info('📄 [Context] getKnowledgeContextForIds: mode=${templateMode.name}, ids=${ids.length}');
     final parts = <String>[];
     for (final f in state.where((f) => ids.contains(f.id))) {
-      if (f.parsedQuestions != null && f.parsedQuestions!.isNotEmpty) {
+      final hasQuestions = f.parsedQuestions != null && f.parsedQuestions!.isNotEmpty;
+      // T3-3: fileRole=null → auto-detect (template nếu có parsedQ, knowledge nếu không).
+      final role = f.fileRole ?? (hasQuestions ? FileRole.template : FileRole.knowledgeSource);
+
+      if (role == FileRole.template && hasQuestions) {
         final branch = templateMode == TemplateMode.styleOnly ? 'schema-only' : 'sameForm-full';
-        AppLogger.info('📄 [Context] ${f.filename}: parsedQ=${f.parsedQuestions!.length} → $branch');
+        AppLogger.info('📄 [Context] ${f.filename}: parsedQ=${f.parsedQuestions!.length} → $branch [role=template]');
         final body = templateMode == TemplateMode.styleOnly
             ? _buildSchemaOnlyContext(f)
             : _buildTemplateStyleContext(f);
         AppLogger.info('📄 [Context] ${f.filename} output (${body.length} chars):\n${body.substring(0, body.length.clamp(0, 300))}…');
         parts.add('=== ${f.filename} ===\n$body');
       } else if (f.extractedText?.isNotEmpty == true) {
-        AppLogger.info('📄 [Context] ${f.filename}: no parsedQ → raw text (${f.extractedText!.length} chars)');
+        AppLogger.info('📄 [Context] ${f.filename}: → raw text (${f.extractedText!.length} chars) [role=${role.name}]');
         parts.add('=== ${f.filename} ===\n${f.extractedText}');
       }
     }
@@ -294,10 +313,15 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
     return type?.toString() ?? 'MCQ 4 lựa chọn';
   }
 
-  /// Lấy questions đã parse từ Excel template cho các file IDs đã chọn.
+  /// Lấy questions đã parse từ template cho các file IDs đã chọn.
+  /// T3-3: Chỉ lấy file có role=template (hoặc auto-detect là template).
   List<Map<String, dynamic>> getTemplateQuestionsForIds(List<String> ids) {
     return state
-        .where((f) => ids.contains(f.id) && f.parsedQuestions != null)
+        .where((f) {
+          if (!ids.contains(f.id) || f.parsedQuestions == null) return false;
+          final role = f.fileRole ?? FileRole.template; // default: template
+          return role == FileRole.template;
+        })
         .expand((f) => f.parsedQuestions!)
         .toList();
   }
@@ -464,6 +488,137 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
       AppLogger.warning('[LocalTempFile] Excel template parse failed: $e');
       return null;
     }
+  }
+
+  // ── T3-2: Docx/PDF inline parser ─────────────────────────────────────────────
+
+  /// Parse flat text (từ docx/pdf) thành danh sách câu hỏi theo format mẫu.
+  ///
+  /// Nhận diện cấu trúc "Câu N:" / "Câu N." / "Câu N)" để tách block.
+  /// Mỗi block → MCQ (nếu có options A./B./C./D.) | Đúng/Sai | Tự luận.
+  /// Trả về null nếu không tìm thấy cấu trúc câu hỏi.
+  List<Map<String, dynamic>>? _parseDocxAsTemplate(String text) {
+    // Normalize: collapse mọi whitespace (bao gồm newline từ PDF) thành 1 space
+    final flat = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final markerRe = RegExp(r'Câu\s+\d+\s*[:.)]', caseSensitive: false);
+    final markers = markerRe.allMatches(flat).toList();
+    if (markers.isEmpty) return null;
+
+    final questions = <Map<String, dynamic>>[];
+    for (int i = 0; i < markers.length; i++) {
+      final blockStart = markers[i].end;
+      final blockEnd = i + 1 < markers.length ? markers[i + 1].start : flat.length;
+      final block = flat.substring(blockStart, blockEnd).trim();
+      if (block.isEmpty) continue;
+      final q = _parseQuestionBlock(block);
+      if (q != null) questions.add(q);
+    }
+
+    if (questions.isEmpty) return null;
+    AppLogger.info('[LocalTempFile] Parsed ${questions.length} questions from docx/pdf template');
+    return questions;
+  }
+
+  /// Parse một block câu hỏi từ flat text.
+  Map<String, dynamic>? _parseQuestionBlock(String block) {
+    // Tìm option markers theo thứ tự A, B, C, D trong block
+    final optRe = RegExp(r'\s+([A-D])[.)]\s+');
+    final allOpts = optRe.allMatches(block).toList();
+
+    // Thu thập options đúng thứ tự A→B→C→D
+    final ordered = <RegExpMatch>[];
+    final seq = ['A', 'B', 'C', 'D'];
+    for (final m in allOpts) {
+      final letter = m.group(1)!.toUpperCase();
+      if (ordered.isEmpty && letter == 'A') {
+        ordered.add(m);
+      } else if (ordered.isNotEmpty && ordered.length < 4 && letter == seq[ordered.length]) {
+        ordered.add(m);
+      }
+    }
+
+    final answerRe = RegExp(r'Đáp án\s*[:.]\s*([A-D])', caseSensitive: false);
+
+    // ── MCQ: tìm thấy ít nhất 2 options liên tiếp ──────────────────────────
+    if (ordered.length >= 2) {
+      final qText = block.substring(0, ordered.first.start).trim();
+      if (qText.isEmpty) return null;
+
+      // Tách text từng option (từ sau marker đến trước marker tiếp / cuối block)
+      final optTexts = <String>[];
+      for (int i = 0; i < ordered.length; i++) {
+        final start = ordered[i].end;
+        final end = i + 1 < ordered.length ? ordered[i + 1].start : block.length;
+        var raw = block.substring(start, end).trim();
+        // Strip "Đáp án: X" khỏi text option cuối
+        raw = raw.replaceAll(RegExp(r'\s*Đáp án\s*[:.]\s*[A-D].*', caseSensitive: false), '').trim();
+        optTexts.add(raw);
+      }
+      while (optTexts.length < 4) optTexts.add('');
+
+      final answerMatch = answerRe.firstMatch(block);
+      final correctLetter = answerMatch?.group(1)?.toUpperCase() ?? 'A';
+      final correctIndex = const {'A': 0, 'B': 1, 'C': 2, 'D': 3}[correctLetter] ?? 0;
+
+      return {
+        'type': QuestionType.multipleChoice,
+        'text': qText,
+        'content': {'text': qText, 'images': <dynamic>[]},
+        'choices': List.generate(4, (i) => {
+          'id': i,
+          'content': {'text': optTexts[i]},
+          'is_correct': i == correctIndex,
+        }),
+        'options': List.generate(4, (i) => {
+          'text': optTexts[i],
+          'isCorrect': i == correctIndex,
+        }),
+        'answer': {'correct_choice_ids': [correctIndex]},
+        'difficulty': 3,
+        'tags': <String>[],
+      };
+    }
+
+    // ── Đúng/Sai: có đáp án "Đáp án: Đúng" hoặc "Đáp án: Sai" ─────────────
+    final tfAnsRe = RegExp(r'Đáp án\s*[:.]\s*(Đúng|Sai)', caseSensitive: false);
+    final tfAns = tfAnsRe.firstMatch(block);
+    if (tfAns != null) {
+      final qText = block.substring(0, tfAns.start).trim();
+      final isTrue = tfAns.group(1)!.toLowerCase() == 'đúng';
+
+      return {
+        'type': QuestionType.trueFalse,
+        'text': qText.isNotEmpty ? qText : block.trim(),
+        'content': {'text': qText.isNotEmpty ? qText : block.trim(), 'images': <dynamic>[]},
+        'choices': [
+          {'id': 0, 'content': {'text': 'Đúng'}, 'is_correct': isTrue},
+          {'id': 1, 'content': {'text': 'Sai'}, 'is_correct': !isTrue},
+        ],
+        'options': [
+          {'text': 'Đúng', 'isCorrect': isTrue},
+          {'text': 'Sai', 'isCorrect': !isTrue},
+        ],
+        'answer': {'correct_choice_ids': [isTrue ? 0 : 1]},
+        'difficulty': 3,
+        'tags': <String>[],
+      };
+    }
+
+    // ── Tự luận / Trả lời ngắn ──────────────────────────────────────────────
+    final saAnsRe = RegExp(r'\s*Đáp án\s*[:.]\s*(.*)', caseSensitive: false, dotAll: true);
+    final saAns = saAnsRe.firstMatch(block);
+    final qText = saAns != null ? block.substring(0, saAns.start).trim() : block.trim();
+    final expectedAnswer = saAns?.group(1)?.trim() ?? '';
+
+    if (qText.isEmpty) return null;
+    return {
+      'type': QuestionType.shortAnswer,
+      'text': qText,
+      'content': {'text': qText, 'images': <dynamic>[]},
+      'answer': expectedAnswer.isNotEmpty ? {'expected_answer': expectedAnswer} : <String, dynamic>{},
+      'difficulty': 3,
+      'tags': <String>[],
+    };
   }
 
   String _cellStr(List<ex.Data?> row, int col) {
