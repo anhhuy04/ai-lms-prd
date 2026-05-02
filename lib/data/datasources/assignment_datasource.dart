@@ -1301,7 +1301,7 @@ class AssignmentDataSource {
         .single();
     final assignmentId = dist['assignment_id'] as String;
     final settings = dist['settings'] as Map<String, dynamic>? ?? {};
-    final maxAttempts = settings['max_attempts'] as int?;
+    final maxAttempts = (settings['max_attempts'] as num?)?.toInt();
 
     // Đếm số lần đã nộp (submitted/graded) cho distribution này
     final completedSessions = await _client

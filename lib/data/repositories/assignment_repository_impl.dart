@@ -621,11 +621,22 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
     required String distributionId,
     required String studentId,
   }) async {
-    // RedoBlockedException propagates as-is — UI must handle it
-    return _ds.startRedoSession(
-      distributionId: distributionId,
-      studentId: studentId,
-    );
+    try {
+      // RedoBlockedException propagates as-is — UI must handle it
+      return await _ds.startRedoSession(
+        distributionId: distributionId,
+        studentId: studentId,
+      );
+    } catch (e, stackTrace) {
+      if (e is! RedoBlockedException) {
+        AppLogger.error(
+          '🔴 [REPO ERROR] startRedoSession: $e',
+          error: e,
+          stackTrace: stackTrace,
+        );
+      }
+      rethrow;
+    }
   }
 
   @override
