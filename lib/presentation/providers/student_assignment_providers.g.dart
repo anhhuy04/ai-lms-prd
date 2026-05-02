@@ -806,7 +806,7 @@ class _StudentSubmissionReviewProviderElement
 String _$studentSubmissionHistoryHash() =>
     r'a41d7a70745d1eae710fa3fb322e48a3b30844b0';
 
-/// Lịch sử nộp bài của học sinh
+/// Lịch sử nộp bài của học sinh (Tất cả các bài tập)
 ///
 /// Copied from [studentSubmissionHistory].
 @ProviderFor(studentSubmissionHistory)
@@ -825,5 +825,319 @@ final studentSubmissionHistoryProvider =
 // ignore: unused_element
 typedef StudentSubmissionHistoryRef =
     AutoDisposeFutureProviderRef<List<Map<String, dynamic>>>;
+String _$studentDistributionAttemptsHash() =>
+    r'6703dc0beaef06a722abffba7994732d6b87e1a8';
+
+/// Lịch sử các lần làm bài (attempts) cho 1 bài tập cụ thể
+///
+/// Copied from [studentDistributionAttempts].
+@ProviderFor(studentDistributionAttempts)
+const studentDistributionAttemptsProvider = StudentDistributionAttemptsFamily();
+
+/// Lịch sử các lần làm bài (attempts) cho 1 bài tập cụ thể
+///
+/// Copied from [studentDistributionAttempts].
+class StudentDistributionAttemptsFamily
+    extends Family<AsyncValue<List<Map<String, dynamic>>>> {
+  /// Lịch sử các lần làm bài (attempts) cho 1 bài tập cụ thể
+  ///
+  /// Copied from [studentDistributionAttempts].
+  const StudentDistributionAttemptsFamily();
+
+  /// Lịch sử các lần làm bài (attempts) cho 1 bài tập cụ thể
+  ///
+  /// Copied from [studentDistributionAttempts].
+  StudentDistributionAttemptsProvider call(String distributionId) {
+    return StudentDistributionAttemptsProvider(distributionId);
+  }
+
+  @override
+  StudentDistributionAttemptsProvider getProviderOverride(
+    covariant StudentDistributionAttemptsProvider provider,
+  ) {
+    return call(provider.distributionId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'studentDistributionAttemptsProvider';
+}
+
+/// Lịch sử các lần làm bài (attempts) cho 1 bài tập cụ thể
+///
+/// Copied from [studentDistributionAttempts].
+class StudentDistributionAttemptsProvider
+    extends AutoDisposeFutureProvider<List<Map<String, dynamic>>> {
+  /// Lịch sử các lần làm bài (attempts) cho 1 bài tập cụ thể
+  ///
+  /// Copied from [studentDistributionAttempts].
+  StudentDistributionAttemptsProvider(String distributionId)
+    : this._internal(
+        (ref) => studentDistributionAttempts(
+          ref as StudentDistributionAttemptsRef,
+          distributionId,
+        ),
+        from: studentDistributionAttemptsProvider,
+        name: r'studentDistributionAttemptsProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$studentDistributionAttemptsHash,
+        dependencies: StudentDistributionAttemptsFamily._dependencies,
+        allTransitiveDependencies:
+            StudentDistributionAttemptsFamily._allTransitiveDependencies,
+        distributionId: distributionId,
+      );
+
+  StudentDistributionAttemptsProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.distributionId,
+  }) : super.internal();
+
+  final String distributionId;
+
+  @override
+  Override overrideWith(
+    FutureOr<List<Map<String, dynamic>>> Function(
+      StudentDistributionAttemptsRef provider,
+    )
+    create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: StudentDistributionAttemptsProvider._internal(
+        (ref) => create(ref as StudentDistributionAttemptsRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        distributionId: distributionId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<List<Map<String, dynamic>>> createElement() {
+    return _StudentDistributionAttemptsProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is StudentDistributionAttemptsProvider &&
+        other.distributionId == distributionId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, distributionId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin StudentDistributionAttemptsRef
+    on AutoDisposeFutureProviderRef<List<Map<String, dynamic>>> {
+  /// The parameter `distributionId` of this provider.
+  String get distributionId;
+}
+
+class _StudentDistributionAttemptsProviderElement
+    extends AutoDisposeFutureProviderElement<List<Map<String, dynamic>>>
+    with StudentDistributionAttemptsRef {
+  _StudentDistributionAttemptsProviderElement(super.provider);
+
+  @override
+  String get distributionId =>
+      (origin as StudentDistributionAttemptsProvider).distributionId;
+}
+
+String _$redoSessionHash() => r'0894f65b6e3ce4fe92ab42c75d05662ef9c7e1b2';
+
+abstract class _$RedoSession
+    extends BuildlessAutoDisposeNotifier<AsyncValue<RedoSessionResult?>> {
+  late final String distributionId;
+
+  AsyncValue<RedoSessionResult?> build(String distributionId);
+}
+
+/// Notifier cho tính năng làm lại bài tập.
+/// Gọi [start()] để tạo redo session mới qua RPC.
+/// Throws [RedoBlockedException] nếu không được phép (closed/pastDue/notAllowed/maxReached).
+///
+/// Copied from [RedoSession].
+@ProviderFor(RedoSession)
+const redoSessionProvider = RedoSessionFamily();
+
+/// Notifier cho tính năng làm lại bài tập.
+/// Gọi [start()] để tạo redo session mới qua RPC.
+/// Throws [RedoBlockedException] nếu không được phép (closed/pastDue/notAllowed/maxReached).
+///
+/// Copied from [RedoSession].
+class RedoSessionFamily extends Family<AsyncValue<RedoSessionResult?>> {
+  /// Notifier cho tính năng làm lại bài tập.
+  /// Gọi [start()] để tạo redo session mới qua RPC.
+  /// Throws [RedoBlockedException] nếu không được phép (closed/pastDue/notAllowed/maxReached).
+  ///
+  /// Copied from [RedoSession].
+  const RedoSessionFamily();
+
+  /// Notifier cho tính năng làm lại bài tập.
+  /// Gọi [start()] để tạo redo session mới qua RPC.
+  /// Throws [RedoBlockedException] nếu không được phép (closed/pastDue/notAllowed/maxReached).
+  ///
+  /// Copied from [RedoSession].
+  RedoSessionProvider call(String distributionId) {
+    return RedoSessionProvider(distributionId);
+  }
+
+  @override
+  RedoSessionProvider getProviderOverride(
+    covariant RedoSessionProvider provider,
+  ) {
+    return call(provider.distributionId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'redoSessionProvider';
+}
+
+/// Notifier cho tính năng làm lại bài tập.
+/// Gọi [start()] để tạo redo session mới qua RPC.
+/// Throws [RedoBlockedException] nếu không được phép (closed/pastDue/notAllowed/maxReached).
+///
+/// Copied from [RedoSession].
+class RedoSessionProvider
+    extends
+        AutoDisposeNotifierProviderImpl<
+          RedoSession,
+          AsyncValue<RedoSessionResult?>
+        > {
+  /// Notifier cho tính năng làm lại bài tập.
+  /// Gọi [start()] để tạo redo session mới qua RPC.
+  /// Throws [RedoBlockedException] nếu không được phép (closed/pastDue/notAllowed/maxReached).
+  ///
+  /// Copied from [RedoSession].
+  RedoSessionProvider(String distributionId)
+    : this._internal(
+        () => RedoSession()..distributionId = distributionId,
+        from: redoSessionProvider,
+        name: r'redoSessionProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$redoSessionHash,
+        dependencies: RedoSessionFamily._dependencies,
+        allTransitiveDependencies: RedoSessionFamily._allTransitiveDependencies,
+        distributionId: distributionId,
+      );
+
+  RedoSessionProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.distributionId,
+  }) : super.internal();
+
+  final String distributionId;
+
+  @override
+  AsyncValue<RedoSessionResult?> runNotifierBuild(
+    covariant RedoSession notifier,
+  ) {
+    return notifier.build(distributionId);
+  }
+
+  @override
+  Override overrideWith(RedoSession Function() create) {
+    return ProviderOverride(
+      origin: this,
+      override: RedoSessionProvider._internal(
+        () => create()..distributionId = distributionId,
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        distributionId: distributionId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeNotifierProviderElement<
+    RedoSession,
+    AsyncValue<RedoSessionResult?>
+  >
+  createElement() {
+    return _RedoSessionProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is RedoSessionProvider &&
+        other.distributionId == distributionId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, distributionId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin RedoSessionRef
+    on AutoDisposeNotifierProviderRef<AsyncValue<RedoSessionResult?>> {
+  /// The parameter `distributionId` of this provider.
+  String get distributionId;
+}
+
+class _RedoSessionProviderElement
+    extends
+        AutoDisposeNotifierProviderElement<
+          RedoSession,
+          AsyncValue<RedoSessionResult?>
+        >
+    with RedoSessionRef {
+  _RedoSessionProviderElement(super.provider);
+
+  @override
+  String get distributionId => (origin as RedoSessionProvider).distributionId;
+}
+
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

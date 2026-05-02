@@ -35,6 +35,10 @@ class DistributeAssignmentState with _$DistributeAssignmentState {
     @Default(true) bool sendNotification, // Gửi thông báo cho học sinh
     @Default(false) bool shuffleQuestions, // Đảo câu hỏi
     @Default(false) bool shuffleAnswers, // Đảo đáp án
+    // --- Redo settings ---
+    @Default(false) bool allowRetake, // Cho phép làm lại
+    // 'latest' | 'max' | 'average'
+    @Default('latest') String scoreAggregationRule,
     // --- AI Analysis settings (D-11) ---
     @Default(false) bool aiEnabled, // AI phân tích bài làm (default: tắt)
     @Default(true) bool requireReview, // Chờ giáo viên duyệt trước khi công bố (default: bật)
@@ -219,6 +223,14 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
     state = state.copyWith(sendNotification: value);
   }
 
+  void setAllowRetake(bool value) {
+    state = state.copyWith(allowRetake: value);
+  }
+
+  void setScoreAggregationRule(String rule) {
+    state = state.copyWith(scoreAggregationRule: rule);
+  }
+
   void setShuffleQuestions(bool value) {
     state = state.copyWith(shuffleQuestions: value);
   }
@@ -305,7 +317,9 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
         'student_review_mode': state.studentReviewMode,
         'ai_feedback_enabled': state.aiEnabled,
         if (state.aiEnabled) 'ai_require_review': state.requireReview,
+        'allow_retake': state.allowRetake,
         if (state.maxAttempts != null) 'max_attempts': state.maxAttempts,
+        'score_aggregation_rule': state.scoreAggregationRule,
       };
 
       // Loop qua từng assignment (hỗ trợ multi-assignment)
@@ -421,6 +435,9 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
       maxAttempts: settings['max_attempts'] as int?,
       aiEnabled: settings['ai_feedback_enabled'] as bool? ?? false,
       requireReview: settings['ai_require_review'] as bool? ?? true,
+      allowRetake: settings['allow_retake'] as bool? ?? false,
+      scoreAggregationRule:
+          settings['score_aggregation_rule'] as String? ?? 'latest',
     );
   }
 
@@ -447,7 +464,9 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
         'student_review_mode': state.studentReviewMode,
         'ai_feedback_enabled': state.aiEnabled,
         if (state.aiEnabled) 'ai_require_review': state.requireReview,
+        'allow_retake': state.allowRetake,
         if (state.maxAttempts != null) 'max_attempts': state.maxAttempts,
+        'score_aggregation_rule': state.scoreAggregationRule,
       };
 
       final patch = <String, dynamic>{

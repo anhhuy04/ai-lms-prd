@@ -1,3 +1,4 @@
+import 'package:ai_mls/data/datasources/assignment_datasource.dart';
 import 'package:ai_mls/domain/entities/assignment.dart';
 import 'package:ai_mls/domain/entities/assignment_distribution.dart';
 import 'package:ai_mls/domain/entities/assignment_question.dart';
@@ -147,6 +148,12 @@ abstract class AssignmentRepository {
     String studentId,
   );
 
+  /// Lấy danh sách các lần làm bài (attempts) của 1 học sinh cho 1 bài tập cụ thể
+  Future<List<Map<String, dynamic>>> getDistributionAttempts(
+    String distributionId,
+    String studentId,
+  );
+
   /// Deep Clone: tạo bản sao bất biến của assignment.
   /// Returns new_assignment_id.
   Future<String> deepCloneAssignment(String srcAssignmentId, String clonedBy);
@@ -162,7 +169,23 @@ abstract class AssignmentRepository {
   /// Returns số bài đã chấm lại.
   Future<int> batchRegradeAssignment(String assignmentId, String gradedBy);
 
+  /// Đếm nhanh số bài nộp chờ chấm của giáo viên (2 queries, không N+1).
+  Future<int> getPendingSubmissionsCount(String teacherId);
+
   /// Kiểm tra có work_sessions nào đã tạo cho assignment này chưa.
   /// Dùng để UI lock: nếu true → disable thêm/xóa choice.
   Future<bool> hasActiveWorkSessions(String assignmentId);
+
+  /// Tạo redo session mới qua RPC start_redo_session.
+  /// Throws [RedoBlockedException] nếu không được phép.
+  Future<RedoSessionResult> startRedoSession({
+    required String distributionId,
+    required String studentId,
+  });
+
+  /// Lấy điểm gộp theo rule (latest/max/average). Teacher-only.
+  Future<List<AggregatedScore>> getAggregatedScores({
+    required String distributionId,
+    String? overrideRule,
+  });
 }

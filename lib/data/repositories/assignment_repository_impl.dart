@@ -526,6 +526,23 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> getDistributionAttempts(
+    String distributionId,
+    String studentId,
+  ) async {
+    try {
+      return await _ds.getDistributionAttempts(distributionId, studentId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getDistributionAttempts: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(e, 'Lấy danh sách làm lại');
+    }
+  }
+
+  @override
   Future<String> deepCloneAssignment(
     String srcAssignmentId,
     String clonedBy,
@@ -577,11 +594,57 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
   }
 
   @override
+  Future<int> getPendingSubmissionsCount(String teacherId) async {
+    try {
+      return await _ds.getPendingSubmissionsCount(teacherId);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getPendingSubmissionsCount: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return 0;
+    }
+  }
+
+  @override
   Future<bool> hasActiveWorkSessions(String assignmentId) async {
     try {
       return await _ds.hasActiveWorkSessions(assignmentId);
     } catch (e) {
       return false;
+    }
+  }
+
+  @override
+  Future<RedoSessionResult> startRedoSession({
+    required String distributionId,
+    required String studentId,
+  }) async {
+    // RedoBlockedException propagates as-is — UI must handle it
+    return _ds.startRedoSession(
+      distributionId: distributionId,
+      studentId: studentId,
+    );
+  }
+
+  @override
+  Future<List<AggregatedScore>> getAggregatedScores({
+    required String distributionId,
+    String? overrideRule,
+  }) async {
+    try {
+      return await _ds.getAggregatedScores(
+        distributionId: distributionId,
+        overrideRule: overrideRule,
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getAggregatedScores: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
     }
   }
 }

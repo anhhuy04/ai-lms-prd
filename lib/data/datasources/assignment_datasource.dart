@@ -6,6 +6,61 @@ import 'package:ai_mls/data/datasources/supabase_datasource.dart';
 import 'package:dio/dio.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Redo Assignment — DTOs & Exceptions
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum RedoBlockReason {
+  closed,
+  pastDue,
+  notAllowed,
+  maxReached,
+  permission,
+  sessionInProgress,
+}
+
+class RedoBlockedException implements Exception {
+  const RedoBlockedException({required this.reason});
+  final RedoBlockReason reason;
+
+  @override
+  String toString() => 'RedoBlockedException(reason: $reason)';
+}
+
+class RedoSessionResult {
+  const RedoSessionResult({
+    required this.sessionId,
+    required this.attempt,
+    required this.variantId,
+  });
+  final String sessionId;
+  final int attempt;
+  final String variantId;
+}
+
+class AggregatedScore {
+  const AggregatedScore({
+    required this.studentId,
+    required this.finalScore,
+    required this.attemptsCount,
+    this.finalSubmissionId,
+    this.finalSessionId,
+  });
+  final String studentId;
+  final double? finalScore;
+  final int attemptsCount;
+  final String? finalSubmissionId;
+  final String? finalSessionId;
+
+  factory AggregatedScore.fromMap(Map<String, dynamic> m) => AggregatedScore(
+        studentId: m['student_id'] as String,
+        finalScore: (m['final_score'] as num?)?.toDouble(),
+        attemptsCount: (m['attempts_count'] as num?)?.toInt() ?? 1,
+        finalSubmissionId: m['final_submission_id'] as String?,
+        finalSessionId: m['final_session_id'] as String?,
+      );
+}
+
 /// DataSource cho Assignments (assignments, assignment_questions, variants, distributions).
 class AssignmentDataSource {
   final SupabaseClient _client;
@@ -60,36 +115,90 @@ class AssignmentDataSource {
   }
 
   /// Lấy danh sách bài tập đã distribute cho 1 lớp (teacher view).
-  /// Join assignments + assignment_distributions để có cả distribution info.
-  /// Chỉ lấy assignments đã published.
+  /// Join assignments + groups + classes để có đầy đủ thông tin.
+  /// Batch fetch work_sessions để inject submission_count / graded_count.
   Future<List<Map<String, dynamic>>> getDistributedAssignmentsByClass(
     String classId,
   ) async {
-    // Query distributions cho class này
     final distRes = await _client
         .from('assignment_distributions')
-        .select('*, assignments!inner(*)')
+        .select('*, assignments!inner(*), groups(id, name)')
         .eq('class_id', classId)
         .eq('assignments.is_published', true)
         .order('created_at', ascending: false);
 
     final distributions = List<Map<String, dynamic>>.from(distRes);
+    if (distributions.isEmpty) return [];
 
-    // Flatten: mỗi distribution trả về 1 item chứa cả assignment + distribution info
+    // Đếm học sinh qua RPC SECURITY DEFINER (bypass RLS — query trực tiếp class_members bị chặn)
+    int classStudentCount = 0;
+    try {
+      final countResult = await _client.rpc(
+        'get_class_member_counts',
+        params: {'p_class_ids': [classId]},
+      ) as List<dynamic>;
+      if (countResult.isNotEmpty) {
+        final row = countResult.first as Map<String, dynamic>;
+        final count = row['member_count'];
+        classStudentCount = count is int ? count : int.tryParse(count.toString()) ?? 0;
+      }
+    } catch (_) {}
+
+    // Batch fetch work_sessions để đếm số đã nộp / đã chấm theo từng distribution
+    final distIds = distributions.map((d) => d['id'] as String).toList();
+    final sessionsRes = await _client
+        .from('work_sessions')
+        .select('assignment_distribution_id, status')
+        .inFilter('assignment_distribution_id', distIds);
+
+    final sessions = List<Map<String, dynamic>>.from(sessionsRes);
+    final submissionCountMap = <String, int>{};
+    final gradedCountMap = <String, int>{};
+    const submittedStatuses = {'submitted', 'pending_review', 'ai_processing', 'graded'};
+
+    for (final s in sessions) {
+      final distId = s['assignment_distribution_id'] as String?;
+      if (distId == null) continue;
+      final status = s['status'] as String?;
+      if (status != null && submittedStatuses.contains(status)) {
+        submissionCountMap[distId] = (submissionCountMap[distId] ?? 0) + 1;
+      }
+      if (status == 'graded') {
+        gradedCountMap[distId] = (gradedCountMap[distId] ?? 0) + 1;
+      }
+    }
+
     return distributions.map((dist) {
       final assignment = Map<String, dynamic>.from(dist['assignments'] as Map);
+      final groupData = dist['groups'] as Map<String, dynamic>?;
+      final distId = dist['id'] as String;
+      final distType = dist['distribution_type'] as String?;
+      final studentIds = dist['student_ids'];
+
+      // individual: dùng student_ids.length; class/group: dùng class member count
+      final int? totalStudents;
+      if (distType == 'individual' && studentIds is List) {
+        totalStudents = studentIds.length;
+      } else {
+        totalStudents = classStudentCount > 0 ? classStudentCount : null;
+      }
+
       return <String, dynamic>{
         ...assignment,
-        'assignment_distribution_id': dist['id'],
-        'distribution_type': dist['distribution_type'],
+        'assignment_distribution_id': distId,
+        'distribution_type': distType,
         'distribution_class_id': dist['class_id'],
         'distribution_group_id': dist['group_id'],
-        'distribution_student_ids': dist['student_ids'],
+        'distribution_group_name': groupData?['name'] as String?,
+        'distribution_student_ids': studentIds,
         'distribution_due_at': dist['due_at'],
         'distribution_available_from': dist['available_from'],
         'distribution_time_limit_minutes': dist['time_limit_minutes'],
         'distribution_allow_late': dist['allow_late'],
         'distribution_settings': dist['settings'],
+        'submission_count': submissionCountMap[distId],
+        'graded_count': gradedCountMap[distId],
+        'total_students': totalStudents,
       };
     }).toList();
   }
@@ -244,18 +353,33 @@ class AssignmentDataSource {
           class:classes(name)
         ''')
         .eq('assignments.teacher_id', teacherId)
+        .eq('assignments.is_published', true)
         .order('created_at', ascending: false);
 
-    final distributions = List<Map<String, dynamic>>.from(res);
+    final rawList = List<Map<String, dynamic>>.from(res);
 
-    // Post-process: map 'class.name' → 'className' (Freezed uses camelCase)
-    // Note: Supabase alias 'class:classes(name)' returns key 'class', not 'classes'
-    for (final dist in distributions) {
+    // Flatten alias fields + filter unpublished (PostgREST alias filter không đáng tin cậy)
+    final distributions = <Map<String, dynamic>>[];
+    for (final dist in rawList) {
       final classData = dist['class'];
       if (classData != null && classData is Map) {
-        dist['className'] = (classData as Map<String, dynamic>)['name'] ?? 'Lớp học';
+        dist['className'] =
+            (classData as Map<String, dynamic>)['name'] ?? 'Lớp học';
       }
       dist.remove('class');
+
+      final assignmentData = dist['assignment'];
+      bool isPublished = false;
+      if (assignmentData != null && assignmentData is Map) {
+        final aMap = assignmentData as Map<String, dynamic>;
+        dist['assignmentTitle'] = aMap['title'];
+        isPublished = aMap['is_published'] == true;
+      }
+      dist.remove('assignment');
+
+      // Bỏ qua bài nháp — chỉ đưa vào danh sách bài đã published
+      if (!isPublished) continue;
+      distributions.add(dist);
     }
 
     // Fetch counts per distribution from work_sessions
@@ -293,6 +417,33 @@ class AssignmentDataSource {
     }
 
     return distributions;
+  }
+
+  /// Đếm nhanh số bài nộp chờ chấm: 2 queries thay vì N+1 loop trên work_sessions.
+  Future<int> getPendingSubmissionsCount(String teacherId) async {
+    try {
+      final distsRes = await _client
+          .from('assignment_distributions')
+          .select('id, assignments!inner(teacher_id)')
+          .eq('assignments.teacher_id', teacherId);
+      final distIds =
+          (distsRes as List).map((d) => d['id'] as String).toList();
+      if (distIds.isEmpty) return 0;
+      final wsRes = await _client
+          .from('work_sessions')
+          .select('id')
+          .inFilter('assignment_distribution_id', distIds)
+          .not('submitted_at', 'is', null)
+          .neq('status', 'graded');
+      return (wsRes as List).length;
+    } catch (e, s) {
+      AppLogger.error(
+        '🔴 getPendingSubmissionsCount: $e',
+        error: e,
+        stackTrace: s,
+      );
+      return 0;
+    }
   }
 
   Future<List<Map<String, dynamic>>> getVariants(String assignmentId) async {
@@ -1102,21 +1253,15 @@ class AssignmentDataSource {
     String distributionId,
     String studentId,
   ) async {
-    // Lấy distribution để biết assignment_id
+    // Lấy distribution để biết assignment_id và settings (để kiểm tra maxAttempts)
     final dist = await _client
         .from('assignment_distributions')
-        .select('assignment_id')
+        .select('assignment_id, settings')
         .eq('id', distributionId)
         .single();
     final assignmentId = dist['assignment_id'] as String;
-
-    // Kiểm tra đã có submission chưa
-    final existingRes = await _client
-        .from('work_sessions')
-        .select()
-        .eq('assignment_distribution_id', distributionId)
-        .eq('student_id', studentId)
-        .maybeSingle();
+    final settings = dist['settings'] as Map<String, dynamic>? ?? {};
+    final maxAttempts = settings['max_attempts'] as int?;
 
     // Đếm số lần đã nộp (submitted/graded) cho distribution này
     final completedSessions = await _client
@@ -1127,6 +1272,16 @@ class AssignmentDataSource {
         .inFilter('status', ['submitted', 'graded', 'ai_processing']);
     final attemptCount = (completedSessions as List).length;
 
+    // Lấy session mới nhất
+    final existingRes = await _client
+        .from('work_sessions')
+        .select()
+        .eq('assignment_distribution_id', distributionId)
+        .eq('student_id', studentId)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
     if (existingRes != null) {
       final sessionId = existingRes['id'] as String;
       final sessionStatus = existingRes['status'] as String? ?? 'in_progress';
@@ -1134,95 +1289,99 @@ class AssignmentDataSource {
           sessionStatus == 'graded' ||
           sessionStatus == 'ai_processing';
 
-      final Map<String, dynamic> answersMap = {};
-      int correctCount = 0;
-      int wrongCount = 0;
+      // Nếu session hiện tại đang làm dở, hoặc đã hết số lần làm lại -> trả về session hiện tại
+      // Nếu session đã nộp và còn số lần làm lại -> bỏ qua if này để tạo session mới bên dưới
+      if (!isSubmitted || (maxAttempts != null && attemptCount >= maxAttempts)) {
+        final Map<String, dynamic> answersMap = {};
+        int correctCount = 0;
+        int wrongCount = 0;
 
-      if (isSubmitted) {
-        // Bài đã nộp: autosave_answers bị xóa sau khi submit
-        // → load từ submission_answers để xem lại đáp án
-        final submissionAnswers = await _client
-            .from('submission_answers')
-            .select('assignment_question_id, answer, final_score, ai_score')
-            .eq('session_id', sessionId);
+        if (isSubmitted) {
+          // Bài đã nộp: autosave_answers bị xóa sau khi submit
+          // → load từ submission_answers để xem lại đáp án
+          final submissionAnswers = await _client
+              .from('submission_answers')
+              .select('assignment_question_id, answer, final_score, ai_score')
+              .eq('session_id', sessionId);
 
-        for (final sa in submissionAnswers) {
-          final qId = sa['assignment_question_id'] as String?;
-          if (qId != null) {
-            answersMap[qId] = sa['answer'];
+          for (final sa in submissionAnswers) {
+            final qId = sa['assignment_question_id'] as String?;
+            if (qId != null) {
+              answersMap[qId] = sa['answer'];
+            }
+            // Tính đúng/sai từ final_score hoặc ai_score
+            final score = (sa['final_score'] as num?) ?? (sa['ai_score'] as num?);
+            if (score != null) {
+              if (score > 0) {
+                correctCount++;
+              } else {
+                wrongCount++;
+              }
+            }
           }
-          // Tính đúng/sai từ final_score hoặc ai_score
-          final score = (sa['final_score'] as num?) ?? (sa['ai_score'] as num?);
-          if (score != null) {
-            if (score > 0) {
-              correctCount++;
-            } else {
-              wrongCount++;
+        } else {
+          // Đang làm: load từ autosave_answers
+          final autosaveAnswers = await _client
+              .from('autosave_answers')
+              .select()
+              .eq('session_id', sessionId);
+
+          for (final aa in autosaveAnswers) {
+            final qId = aa['assignment_question_id'] as String?;
+            if (qId != null) {
+              answersMap[qId] = aa['answer_content'];
             }
           }
         }
-      } else {
-        // Đang làm: load từ autosave_answers
-        final autosaveAnswers = await _client
-            .from('autosave_answers')
-            .select()
-            .eq('session_id', sessionId);
 
-        for (final aa in autosaveAnswers) {
-          final qId = aa['assignment_question_id'] as String?;
-          if (qId != null) {
-            answersMap[qId] = aa['answer_content'];
+        final result = Map<String, dynamic>.from(existingRes);
+        result['answers'] = answersMap;
+        result['uploaded_files'] = <String>[];
+        result['attempt_count'] = attemptCount;
+        result['time_taken_seconds'] = existingRes['time_spent_seconds'];
+        if (isSubmitted) {
+          result['correct_count'] = correctCount;
+          result['wrong_count'] = wrongCount;
+        }
+
+        // Lấy total_score, submitted_at từ submissions (nếu đã nộp)
+        if (isSubmitted) {
+          try {
+            final submissionRow = await _client
+                .from('submissions')
+                .select('total_score, submitted_at')
+                .eq('assignment_distribution_id', distributionId)
+                .eq('student_id', studentId)
+                .not('is_voided', 'eq', true)
+                .order('created_at', ascending: false)
+                .maybeSingle();
+            if (submissionRow != null) {
+              result['score'] = submissionRow['total_score'];
+              result['submitted_at'] ??= submissionRow['submitted_at'];
+            }
+          } catch (e) {
+            AppLogger.warning('[AssignmentDS] Cannot fetch submission score: $e');
           }
         }
-      }
 
-      final result = Map<String, dynamic>.from(existingRes);
-      result['answers'] = answersMap;
-      result['uploaded_files'] = <String>[];
-      result['attempt_count'] = attemptCount;
-      result['time_taken_seconds'] = existingRes['time_spent_seconds'];
-      if (isSubmitted) {
-        result['correct_count'] = correctCount;
-        result['wrong_count'] = wrongCount;
-      }
-
-      // Lấy total_score, submitted_at từ submissions (nếu đã nộp)
-      if (isSubmitted) {
-        try {
-          final submissionRow = await _client
-              .from('submissions')
-              .select('total_score, submitted_at')
-              .eq('assignment_distribution_id', distributionId)
-              .eq('student_id', studentId)
-              .not('is_voided', 'eq', true)
-              .order('created_at', ascending: false)
-              .maybeSingle();
-          if (submissionRow != null) {
-            result['score'] = submissionRow['total_score'];
-            result['submitted_at'] ??= submissionRow['submitted_at'];
+        // ensure_student_variant cũng cần gọi khi session đã tồn tại
+        // vì lần đầu tạo session có thể đã fail (thiếu SECURITY DEFINER cũ)
+        // RPC idempotent — gọi nhiều lần an toàn
+        if (!isSubmitted) {
+          try {
+            await _client.rpc('ensure_student_variant', params: {
+              'p_assignment_id': assignmentId,
+              'p_student_id': studentId,
+            });
+          } catch (e) {
+            AppLogger.warning(
+              '[AssignmentDS] ensure_student_variant (existing session) failed: $e',
+            );
           }
-        } catch (e) {
-          AppLogger.warning('[AssignmentDS] Cannot fetch submission score: $e');
         }
-      }
 
-      // ensure_student_variant cũng cần gọi khi session đã tồn tại
-      // vì lần đầu tạo session có thể đã fail (thiếu SECURITY DEFINER cũ)
-      // RPC idempotent — gọi nhiều lần an toàn
-      if (!isSubmitted) {
-        try {
-          await _client.rpc('ensure_student_variant', params: {
-            'p_assignment_id': assignmentId,
-            'p_student_id': studentId,
-          });
-        } catch (e) {
-          AppLogger.warning(
-            '[AssignmentDS] ensure_student_variant (existing session) failed: $e',
-          );
-        }
+        return result;
       }
-
-      return result;
     }
 
     // Tạo mới submission draft
@@ -1234,6 +1393,7 @@ class AssignmentDataSource {
           'assignment_id': assignmentId,
           'student_id': studentId,
           'status': 'in_progress',
+          'attempt': 1,
         })
         .select()
         .single();
@@ -1262,12 +1422,14 @@ class AssignmentDataSource {
     Map<String, dynamic> answers,
     List<String> uploadedFiles,
   ) async {
-    // Get session ID first
+    // Get session ID first (lấy session mới nhất)
     final session = await _client
         .from('work_sessions')
         .select('id')
         .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
+        .order('created_at', ascending: false)
+        .limit(1)
         .maybeSingle();
 
     if (session == null) {
@@ -1320,12 +1482,14 @@ class AssignmentDataSource {
     String studentId, {
     Map<String, int>? timeLog,
   }) async {
-    // Get session
+    // Get session (lấy session mới nhất)
     final session = await _client
         .from('work_sessions')
         .select()
         .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)
+        .order('created_at', ascending: false)
+        .limit(1)
         .maybeSingle();
 
     if (session == null) {
@@ -2023,6 +2187,24 @@ class AssignmentDataSource {
     return List<Map<String, dynamic>>.from(submissionsRes);
   }
 
+  /// Lấy danh sách các lần làm bài (attempts) của 1 học sinh cho 1 bài tập cụ thể
+  Future<List<Map<String, dynamic>>> getDistributionAttempts(
+    String distributionId,
+    String studentId,
+  ) async {
+    final res = await _client
+        .from('work_sessions')
+        .select('''
+          id, status, created_at, submitted_at, time_spent_seconds, attempt,
+          submissions(total_score, is_late, ai_graded, id)
+        ''')
+        .eq('assignment_distribution_id', distributionId)
+        .eq('student_id', studentId)
+        .order('attempt', ascending: true);
+
+    return List<Map<String, dynamic>>.from(res);
+  }
+
   /// Trigger Edge Function process-ai-queue — fire & forget, không block submit flow.
   /// Edge Function chạy server-side, dùng API key của GIÁO VIÊN (từ profiles.metadata).
   /// Học sinh không cần cấu hình bất kỳ API key nào.
@@ -2124,5 +2306,69 @@ class AssignmentDataSource {
         .inFilter('status', ['in_progress', 'ai_processing', 'pending_review'])
         .limit(1);
     return (res as List).isNotEmpty;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Redo Assignment
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /// Gọi RPC start_redo_session — tạo work_session + variant mới cho redo.
+  /// Throws [RedoBlockedException] với lý do cụ thể nếu không được phép.
+  Future<RedoSessionResult> startRedoSession({
+    required String distributionId,
+    required String studentId,
+  }) async {
+    try {
+      final result = await _client.rpc('start_redo_session', params: {
+        'p_distribution_id': distributionId,
+        'p_student_id': studentId,
+      });
+      final data = Map<String, dynamic>.from(result as Map);
+      return RedoSessionResult(
+        sessionId: data['session_id'] as String,
+        attempt: (data['attempt'] as num).toInt(),
+        variantId: data['variant_id'] as String,
+      );
+    } on PostgrestException catch (e) {
+      throw _mapRedoException(e);
+    }
+  }
+
+  /// Lấy điểm gộp cho toàn bộ distribution theo rule (latest/max/average).
+  /// [overrideRule] ghi đè rule từ distribution.settings.
+  Future<List<AggregatedScore>> getAggregatedScores({
+    required String distributionId,
+    String? overrideRule,
+  }) async {
+    final params = <String, dynamic>{
+      'p_distribution_id': distributionId,
+      if (overrideRule != null) 'p_rule': overrideRule,
+    };
+    final result = await _client.rpc(
+      'get_aggregated_scores_for_distribution',
+      params: params,
+    );
+    return (result as List)
+        .map((e) => AggregatedScore.fromMap(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
+
+  /// Map PostgrestException message → RedoBlockedException với reason code.
+  Exception _mapRedoException(PostgrestException e) {
+    final msg = e.message;
+    if (msg.contains('distribution_closed')) {
+      return const RedoBlockedException(reason: RedoBlockReason.closed);
+    } else if (msg.contains('past_due')) {
+      return const RedoBlockedException(reason: RedoBlockReason.pastDue);
+    } else if (msg.contains('retake_not_allowed')) {
+      return const RedoBlockedException(reason: RedoBlockReason.notAllowed);
+    } else if (msg.contains('max_attempts_reached')) {
+      return const RedoBlockedException(reason: RedoBlockReason.maxReached);
+    } else if (msg.contains('permission_denied')) {
+      return const RedoBlockedException(reason: RedoBlockReason.permission);
+    } else if (msg.contains('session_in_progress')) {
+      return const RedoBlockedException(reason: RedoBlockReason.sessionInProgress);
+    }
+    return e;
   }
 }

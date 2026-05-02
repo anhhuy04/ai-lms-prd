@@ -145,10 +145,16 @@ class _StudentAssignmentWorkspaceScreenState
             Text(
               widget.isReadOnly
                   ? 'Chế độ xem lại bài làm'
-                  : 'Câu ${workspace.answeredCount}/${workspace.totalQuestions} đã trả lời',
+                  : workspace.attempt > 1
+                      ? 'Lần làm thứ ${workspace.attempt} · ${workspace.answeredCount}/${workspace.totalQuestions} câu'
+                      : 'Câu ${workspace.answeredCount}/${workspace.totalQuestions} đã trả lời',
               style: TextStyle(
                 fontSize: DesignTypography.captionSize,
-                color: widget.isReadOnly ? DesignColors.warning : DesignColors.textSecondary,
+                color: widget.isReadOnly
+                    ? DesignColors.warning
+                    : workspace.attempt > 1
+                        ? DesignColors.primary
+                        : DesignColors.textSecondary,
               ),
             ),
           ],

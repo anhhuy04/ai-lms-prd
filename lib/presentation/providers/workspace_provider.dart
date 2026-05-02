@@ -111,6 +111,7 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
       if (startedAtRaw != null) {
         sessionStartedAt = DateTime.tryParse(startedAtRaw);
       }
+      final currentAttempt = (submission?['attempt'] as num?)?.toInt() ?? 1;
 
       final wsState = WorkspaceState(
         distributionId: distributionId,
@@ -121,6 +122,7 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
             : null,
         timeLimitMinutes: timeLimitMinutes,
         sessionStartedAt: sessionStartedAt,
+        attempt: currentAttempt,
         questions: questions.map((q) => QuestionState.fromJson(q as Map<String, dynamic>)).toList(),
         answers: Map<String, dynamic>.from(existingAnswers),
         uploadedFiles: List<String>.from(uploadedFiles),
@@ -459,6 +461,8 @@ class WorkspaceState {
   final List<String> uploadedFiles;
   final WorkspaceSubmissionStatus submissionStatus;
   final SavingStatus savingStatus;
+  /// Attempt hiện tại (lần làm thứ mấy — 1-based). Dùng cho badge "Lần thứ N/M".
+  final int attempt;
 
   const WorkspaceState({
     required this.distributionId,
@@ -472,6 +476,7 @@ class WorkspaceState {
     required this.uploadedFiles,
     required this.submissionStatus,
     required this.savingStatus,
+    this.attempt = 1,
   });
 
   WorkspaceState copyWith({
@@ -486,6 +491,7 @@ class WorkspaceState {
     List<String>? uploadedFiles,
     WorkspaceSubmissionStatus? submissionStatus,
     SavingStatus? savingStatus,
+    int? attempt,
   }) {
     return WorkspaceState(
       distributionId: distributionId ?? this.distributionId,
@@ -499,6 +505,7 @@ class WorkspaceState {
       uploadedFiles: uploadedFiles ?? this.uploadedFiles,
       submissionStatus: submissionStatus ?? this.submissionStatus,
       savingStatus: savingStatus ?? this.savingStatus,
+      attempt: attempt ?? this.attempt,
     );
   }
 
