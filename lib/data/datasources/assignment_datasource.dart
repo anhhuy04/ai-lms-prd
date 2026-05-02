@@ -61,6 +61,46 @@ class AggregatedScore {
       );
 }
 
+class StudentAttemptSummary {
+  const StudentAttemptSummary({
+    required this.sessionId,
+    required this.attempt,
+    required this.sessionStatus,
+    this.startedAt,
+    this.submittedAt,
+    this.submissionId,
+    this.totalScore,
+    required this.isLate,
+    required this.isVoided,
+  });
+  final String sessionId;
+  final int attempt;
+  final String sessionStatus;
+  final DateTime? startedAt;
+  final DateTime? submittedAt;
+  final String? submissionId;
+  final double? totalScore;
+  final bool isLate;
+  final bool isVoided;
+
+  factory StudentAttemptSummary.fromMap(Map<String, dynamic> m) =>
+      StudentAttemptSummary(
+        sessionId: m['session_id'] as String,
+        attempt: (m['attempt'] as num).toInt(),
+        sessionStatus: m['session_status'] as String? ?? 'unknown',
+        startedAt: m['started_at'] != null
+            ? DateTime.parse(m['started_at'] as String)
+            : null,
+        submittedAt: m['submitted_at'] != null
+            ? DateTime.parse(m['submitted_at'] as String)
+            : null,
+        submissionId: m['submission_id'] as String?,
+        totalScore: (m['total_score'] as num?)?.toDouble(),
+        isLate: m['is_late'] as bool? ?? false,
+        isVoided: m['is_voided'] as bool? ?? false,
+      );
+}
+
 /// DataSource cho Assignments (assignments, assignment_questions, variants, distributions).
 class AssignmentDataSource {
   final SupabaseClient _client;
@@ -2350,6 +2390,23 @@ class AssignmentDataSource {
     );
     return (result as List)
         .map((e) => AggregatedScore.fromMap(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
+
+  /// Lấy lịch sử các lần làm của 1 student cho 1 distribution.
+  /// Dùng view v_student_attempts_summary.
+  Future<List<StudentAttemptSummary>> getStudentAttempts({
+    required String distributionId,
+    required String studentId,
+  }) async {
+    final result = await _client
+        .from('v_student_attempts_summary')
+        .select()
+        .eq('assignment_distribution_id', distributionId)
+        .eq('student_id', studentId)
+        .order('attempt');
+    return (result as List)
+        .map((e) => StudentAttemptSummary.fromMap(Map<String, dynamic>.from(e as Map)))
         .toList();
   }
 

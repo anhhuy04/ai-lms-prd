@@ -1,4 +1,6 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/data/datasources/assignment_datasource.dart';
+import 'package:ai_mls/presentation/providers/teacher_assignment_providers.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/presentation/providers/teacher_submission_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/submission_filter_chips.dart';
@@ -53,6 +55,8 @@ class _TeacherSubmissionListScreenState
       ),
       body: Column(
         children: [
+          // Bảng điểm cuối (aggregated scores — chỉ hiện khi có dữ liệu)
+          _AggregatedScoreSection(distributionId: widget.distributionId),
           // Filter chips
           SubmissionFilterChips(
             currentFilter: _currentFilter,
@@ -60,8 +64,6 @@ class _TeacherSubmissionListScreenState
               setState(() => _currentFilter = filter);
             },
           ),
-
-
 
           // Submission list
           Expanded(
@@ -205,6 +207,356 @@ class _TeacherSubmissionListScreenState
             child: const Text('Xuất bản'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bảng điểm cuối — hiển thị aggregated score + expand để xem từng attempt
+// ---------------------------------------------------------------------------
+
+class _AggregatedScoreSection extends ConsumerStatefulWidget {
+  final String distributionId;
+  const _AggregatedScoreSection({required this.distributionId});
+
+  @override
+  ConsumerState<_AggregatedScoreSection> createState() =>
+      _AggregatedScoreSectionState();
+}
+
+class _AggregatedScoreSectionState
+    extends ConsumerState<_AggregatedScoreSection> {
+  String? _expandedStudentId;
+  bool _collapsed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final aggregatedAsync =
+        ref.watch(aggregatedScoresProvider(widget.distributionId));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return aggregatedAsync.when(
+      data: (scores) {
+        if (scores.isEmpty) return const SizedBox.shrink();
+        // Chỉ hiện khi có ít nhất 1 student làm > 1 lần
+        final hasMultiple = scores.any((s) => s.attemptsCount > 1);
+        if (!hasMultiple) return const SizedBox.shrink();
+        return _buildCard(scores, isDark);
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildCard(List<AggregatedScore> scores, bool isDark) {
+    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? Colors.white10 : Colors.grey.shade200;
+    final tMain = isDark ? Colors.white : DesignColors.textPrimary;
+    final tSec = isDark ? Colors.white54 : DesignColors.textSecondary;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        children: [
+          // Header row
+          InkWell(
+            onTap: () => setState(() => _collapsed = !_collapsed),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(Icons.calculate_outlined,
+                      color: DesignColors.primary, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Điểm cuối',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: tMain,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: DesignColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      '${scores.where((s) => s.attemptsCount > 1).length} HS nhiều lần',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: DesignColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _collapsed ? Icons.expand_more : Icons.expand_less,
+                    color: tSec,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (!_collapsed) ...[
+            Divider(height: 1, color: borderColor),
+            // Student rows — chỉ show học sinh làm > 1 lần
+            ...scores
+                .where((s) => s.attemptsCount > 1)
+                .map((score) {
+              final isExpanded = _expandedStudentId == score.studentId;
+              return _StudentScoreRow(
+                score: score,
+                distributionId: widget.distributionId,
+                isExpanded: isExpanded,
+                isDark: isDark,
+                tMain: tMain,
+                tSec: tSec,
+                onToggle: () {
+                  setState(() {
+                    _expandedStudentId =
+                        isExpanded ? null : score.studentId;
+                  });
+                },
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StudentScoreRow extends ConsumerWidget {
+  final AggregatedScore score;
+  final String distributionId;
+  final bool isExpanded;
+  final bool isDark;
+  final Color tMain;
+  final Color tSec;
+  final VoidCallback onToggle;
+
+  const _StudentScoreRow({
+    required this.score,
+    required this.distributionId,
+    required this.isExpanded,
+    required this.isDark,
+    required this.tMain,
+    required this.tSec,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final borderColor = isDark ? Colors.white10 : Colors.grey.shade100;
+    final shortId = score.studentId.length >= 8
+        ? score.studentId.substring(0, 8)
+        : score.studentId;
+    final scoreText = score.finalScore != null
+        ? score.finalScore!.toStringAsFixed(1)
+        : '--';
+
+    return Column(
+      children: [
+        InkWell(
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                // Avatar placeholder
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor:
+                      DesignColors.primary.withValues(alpha: 0.15),
+                  child: Text(
+                    shortId[0].toUpperCase(),
+                    style: TextStyle(
+                      color: DesignColors.primary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    shortId,
+                    style: TextStyle(fontSize: 13, color: tMain),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                // Attempts badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white10 : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    '${score.attemptsCount} lần',
+                    style: TextStyle(fontSize: 11, color: tSec),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Score
+                Text(
+                  '$scoreText đ',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: DesignColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: tSec,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (isExpanded) ...[
+          Divider(height: 1, color: borderColor),
+          _StudentAttemptsDetail(
+            distributionId: distributionId,
+            studentId: score.studentId,
+            isDark: isDark,
+            tSec: tSec,
+          ),
+        ],
+        Divider(height: 1, color: borderColor),
+      ],
+    );
+  }
+}
+
+class _StudentAttemptsDetail extends ConsumerWidget {
+  final String distributionId;
+  final String studentId;
+  final bool isDark;
+  final Color tSec;
+
+  const _StudentAttemptsDetail({
+    required this.distributionId,
+    required this.studentId,
+    required this.isDark,
+    required this.tSec,
+  });
+
+  String _formatDt(DateTime dt) {
+    return '${dt.day.toString().padLeft(2, '0')}/'
+        '${dt.month.toString().padLeft(2, '0')} '
+        '${dt.hour.toString().padLeft(2, '0')}:'
+        '${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final attemptsAsync =
+        ref.watch(studentAttemptsProvider((distributionId, studentId)));
+
+    return attemptsAsync.when(
+      data: (attempts) {
+        if (attempts.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text('Không có dữ liệu',
+                style: TextStyle(fontSize: 12, color: tSec)),
+          );
+        }
+        return Column(
+          children: attempts.map((a) {
+            final isVoided = a.isVoided;
+            final scoreText =
+                a.totalScore != null ? a.totalScore!.toStringAsFixed(1) : '--';
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundColor: isVoided
+                        ? Colors.grey.shade300
+                        : DesignColors.primary.withValues(alpha: 0.12),
+                    child: Text(
+                      '${a.attempt}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isVoided ? Colors.grey : DesignColors.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Lần ${a.attempt}${isVoided ? ' (đã hủy)' : ''}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isVoided ? tSec : null,
+                            decoration: isVoided
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
+                        ),
+                        if (a.submittedAt != null)
+                          Text(
+                            'Nộp: ${_formatDt(a.submittedAt!)}${a.isLate ? ' · muộn' : ''}',
+                            style: TextStyle(fontSize: 11, color: tSec),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '$scoreText đ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isVoided
+                          ? tSec
+                          : DesignColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      },
+      loading: () => const Padding(
+        padding: EdgeInsets.all(12),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          'Lỗi tải lịch sử: $e',
+          style: const TextStyle(fontSize: 12, color: DesignColors.error),
+        ),
       ),
     );
   }

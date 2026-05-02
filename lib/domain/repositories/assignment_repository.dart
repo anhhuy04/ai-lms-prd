@@ -188,4 +188,10 @@ abstract class AssignmentRepository {
     required String distributionId,
     String? overrideRule,
   });
+
+  /// Lấy lịch sử tất cả các lần làm của 1 student trong 1 distribution.
+  Future<List<StudentAttemptSummary>> getStudentAttempts({
+    required String distributionId,
+    required String studentId,
+  });
 }

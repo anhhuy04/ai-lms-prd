@@ -968,27 +968,173 @@ class _TeacherDistributeAssignmentScreenState
             ),
           ),
           Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
-          // Max Attempts
+          // Cho phép làm lại
+          _buildToggleRow(
+            icon: Icons.replay_rounded,
+            title: 'Cho phép làm lại',
+            subtitle: 'Học sinh có thể làm lại bài sau khi đã nộp',
+            value: state.allowRetake,
+            onChanged: (v) {
+              notifier.setAllowRetake(v);
+              if (v) {
+                if ((state.maxAttempts ?? 0) < 2) notifier.setMaxAttempts(2);
+              } else {
+                notifier.setMaxAttempts(null);
+              }
+            },
+            tMain: tMain,
+            tSec: tSec,
+            isDark: isDark,
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: state.allowRetake
+                ? Container(
+                    margin: const EdgeInsets.only(left: 44, top: 4, bottom: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? DesignColors.primary.withValues(alpha: 0.08)
+                          : DesignColors.primary.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark
+                            ? DesignColors.primary.withValues(alpha: 0.2)
+                            : DesignColors.primary.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.format_list_numbered, size: 18, color: DesignColors.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Số lần làm tối đa',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: tMain,
+                            ),
+                          ),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildCounterBtn(
+                              icon: Icons.remove,
+                              onPressed: (state.maxAttempts ?? 2) > 2
+                                  ? () => notifier.setMaxAttempts(
+                                        ((state.maxAttempts ?? 2) - 1).clamp(2, 10),
+                                      )
+                                  : null,
+                              isDark: isDark,
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 28,
+                              child: Text(
+                                '${state.maxAttempts ?? 2}',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: DesignColors.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _buildCounterBtn(
+                              icon: Icons.add,
+                              onPressed: (state.maxAttempts ?? 2) < 10
+                                  ? () => notifier.setMaxAttempts(
+                                        ((state.maxAttempts ?? 2) + 1).clamp(2, 10),
+                                      )
+                                  : null,
+                              isDark: isDark,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+          Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
+          // Quy tắc tính điểm cuối
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(children: [
-              Icon(Icons.repeat, size: 22, color: tSec),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Số lần làm tối đa', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: tMain)),
-                Text('null = không giới hạn', style: TextStyle(fontSize: 12, color: tSec)),
-              ])),
-              DropdownButton<int?>(
-                value: state.maxAttempts,
-                underline: const SizedBox(),
-                isDense: true,
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('Không giới hạn')),
-                  ...List.generate(5, (i) => DropdownMenuItem(value: i + 1, child: Text('${i + 1} lần'))),
-                ],
-                onChanged: notifier.setMaxAttempts,
-              ),
-            ]),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? DesignColors.primary.withValues(alpha: 0.15)
+                            : Colors.blue[50],
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.calculate_outlined, color: DesignColors.primary, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Quy tắc tính điểm cuối',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: tMain,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Điểm nào được tính khi làm nhiều lần',
+                            style: TextStyle(fontSize: 12, color: tSec),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // TODO 5.2.3: warn if editMode + existing submissions before changing rule
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'latest',
+                        icon: Icon(Icons.update, size: 15),
+                        label: Text('Mới nhất', style: TextStyle(fontSize: 11)),
+                      ),
+                      ButtonSegment(
+                        value: 'max',
+                        icon: Icon(Icons.trending_up, size: 15),
+                        label: Text('Cao nhất', style: TextStyle(fontSize: 11)),
+                      ),
+                      ButtonSegment(
+                        value: 'average',
+                        icon: Icon(Icons.bar_chart, size: 15),
+                        label: Text('Trung bình', style: TextStyle(fontSize: 11)),
+                      ),
+                    ],
+                    selected: {state.scoreAggregationRule},
+                    onSelectionChanged: (s) =>
+                        notifier.setScoreAggregationRule(s.first),
+                    style: const ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
           _buildToggleRow(
@@ -1291,6 +1437,35 @@ class _TeacherDistributeAssignmentScreenState
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCounterBtn({
+    required IconData icon,
+    required VoidCallback? onPressed,
+    required bool isDark,
+  }) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: onPressed == null
+              ? (isDark ? Colors.white10 : Colors.grey[100])
+              : (isDark
+                    ? DesignColors.primary.withValues(alpha: 0.2)
+                    : DesignColors.primary.withValues(alpha: 0.12)),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: onPressed == null
+              ? (isDark ? Colors.white24 : Colors.grey[400])
+              : DesignColors.primary,
+        ),
       ),
     );
   }

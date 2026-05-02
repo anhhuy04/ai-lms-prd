@@ -647,4 +647,24 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
       rethrow;
     }
   }
+
+  @override
+  Future<List<StudentAttemptSummary>> getStudentAttempts({
+    required String distributionId,
+    required String studentId,
+  }) async {
+    try {
+      return await _ds.getStudentAttempts(
+        distributionId: distributionId,
+        studentId: studentId,
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getStudentAttempts: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
 }
