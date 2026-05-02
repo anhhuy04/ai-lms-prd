@@ -1104,7 +1104,6 @@ class _TeacherDistributeAssignmentScreenState
                   ],
                 ),
                 const SizedBox(height: 10),
-                // TODO 5.2.3: warn if editMode + existing submissions before changing rule
                 SizedBox(
                   width: double.infinity,
                   child: SegmentedButton<String>(
@@ -1126,8 +1125,15 @@ class _TeacherDistributeAssignmentScreenState
                       ),
                     ],
                     selected: {state.scoreAggregationRule},
-                    onSelectionChanged: (s) =>
-                        notifier.setScoreAggregationRule(s.first),
+                    onSelectionChanged: (s) {
+                      final newRule = s.first;
+                      if (widget.isEditMode &&
+                          newRule != state.scoreAggregationRule) {
+                        _confirmRuleChange(context, newRule, notifier);
+                      } else {
+                        notifier.setScoreAggregationRule(newRule);
+                      }
+                    },
                     style: const ButtonStyle(
                       visualDensity: VisualDensity.compact,
                     ),
@@ -1440,6 +1446,43 @@ class _TeacherDistributeAssignmentScreenState
       ),
     );
   }
+
+  void _confirmRuleChange(
+    BuildContext context,
+    String newRule,
+    DistributeAssignmentNotifier notifier,
+  ) {
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Đổi quy tắc tính điểm?'),
+        content: Text(
+          'Chuyển sang "${_ruleLabel(newRule)}" sẽ thay đổi điểm cuối '
+          'hiển thị cho tất cả học sinh đã nộp bài. Tiếp tục?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Tiếp tục'),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true && mounted) {
+        notifier.setScoreAggregationRule(newRule);
+      }
+    });
+  }
+
+  String _ruleLabel(String rule) => switch (rule) {
+        'max' => 'Cao nhất',
+        'average' => 'Trung bình',
+        _ => 'Mới nhất',
+      };
 
   Widget _buildCounterBtn({
     required IconData icon,
