@@ -1,23 +1,19 @@
-import 'dart:convert';
-import 'dart:io' show File, FileMode, Platform;
-
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
-import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/responsive_utils.dart';
 import 'package:ai_mls/presentation/providers/analytics_providers.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/recommendation_providers.dart';
 import 'package:ai_mls/presentation/providers/student_dashboard_notifier.dart';
+import 'package:ai_mls/presentation/providers/student_dashboard_providers.dart';
 import 'package:ai_mls/presentation/views/recommendation/widgets/peer_comparison_badge.dart';
+import 'package:ai_mls/presentation/views/recommendation/widgets/recommendation_card.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/responsive/responsive_card.dart';
 import 'package:ai_mls/widgets/responsive/responsive_row.dart';
 import 'package:ai_mls/widgets/responsive/responsive_text.dart';
 import 'package:ai_mls/widgets/text/smart_marquee_text.dart';
-import 'package:ai_mls/presentation/views/recommendation/widgets/recommendation_card.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -25,93 +21,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class StudentHomeContentScreen extends ConsumerWidget {
   const StudentHomeContentScreen({super.key});
 
-  // #region agent log
-  static dynamic _sanitizeData(dynamic data) {
-    if (data is Map) {
-      return Map<String, dynamic>.fromEntries(
-        data.entries.map(
-          (e) => MapEntry(e.key.toString(), _sanitizeData(e.value)),
-        ),
-      );
-    } else if (data is List) {
-      return data.map((e) => _sanitizeData(e)).toList();
-    } else if (data is double) {
-      if (data.isInfinite) return 'Infinity';
-      if (data.isNaN) return 'NaN';
-      return data;
-    } else if (data is num && !data.isFinite) {
-      return 'Infinity';
-    }
-    return data;
-  }
-
-  static void _log(
-    String location,
-    String message,
-    Map<String, dynamic> data,
-    String hypothesisId,
-  ) {
-    // Widget này rebuild khá thường xuyên; logging sync sẽ gây jank.
-    if (!kDebugMode) return;
-    // On web, dart:io Platform APIs throw, so skip host file logging.
-    if (kIsWeb) return;
-    try {
-      // Chỉ ghi log ra file trên Windows host để tránh I/O + jank trên mobile.
-      if (!Platform.isWindows) return;
-      final logPath = r'd:\code\Flutter_Android\AI_LMS_PRD\.cursor\debug.log';
-      final logFile = File(logPath);
-
-      try {
-        // Tránh I/O sync trong runtime UI loop
-        // ignore: discarded_futures
-        logFile.parent.create(recursive: true);
-      } catch (_) {
-        AppLogger.debug('Log: $location - $message - ${_sanitizeData(data)}');
-        return;
-      }
-
-      final sanitizedData = _sanitizeData(data);
-      final logEntry = {
-        'sessionId': 'debug-session',
-        'runId': 'run1',
-        'hypothesisId': hypothesisId,
-        'location': location,
-        'message': message,
-        'data': sanitizedData,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-      };
-      final jsonString = jsonEncode(logEntry);
-      // Append async, không đọc/ghi sync.
-      // ignore: discarded_futures
-      logFile
-          .writeAsString('$jsonString\n', mode: FileMode.append, flush: false)
-          .catchError((_) => logFile);
-    } catch (e) {
-      AppLogger.debug('Log: $location - $message - ${_sanitizeData(data)}');
-      AppLogger.error('Logging error: $e', error: e);
-    }
-  }
-  // #endregion
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // #region agent log
-    _log(
-      'student_home_content_screen.dart:15',
-      'StudentHomeContentScreen build called',
-      {},
-      'G',
-    );
-    // #endregion
     final dashboardState = ref.watch(studentDashboardNotifierProvider);
     final config = ResponsiveUtils.getLayoutConfig(context);
-    // #region agent log
-    _log('student_home_content_screen.dart:22', 'Layout config retrieved', {
-      'screenPadding': config.screenPadding,
-      'sectionSpacing': config.sectionSpacing,
-      'itemSpacing': config.itemSpacing,
-    }, 'E');
-    // #endregion
 
     return dashboardState.when(
       loading: () => const ShimmerDashboardLoading(),
@@ -132,33 +45,33 @@ class StudentHomeContentScreen extends ConsumerWidget {
             children: [
               _buildHeader(context, ref),
               SizedBox(height: config.sectionSpacing),
-              _buildProgressCard(context),
+              _buildProgressCard(context, ref),
               SizedBox(height: config.sectionSpacing),
               _buildPeerComparisonBadge(context, ref),
               SizedBox(height: config.sectionSpacing),
               _buildRecommendationsSection(context, ref),
               SizedBox(height: config.sectionSpacing),
-              _buildStatsRow(context),
+              _buildStatsRow(context, ref),
               SizedBox(height: config.sectionSpacing),
               _buildSectionHeader(
                 context,
                 'Sắp đến hạn',
                 actionLabel: 'Xem tất cả',
+                onAction: () =>
+                    context.pushNamed(AppRoute.studentAssignmentList),
               ),
               SizedBox(height: config.itemSpacing),
-              _buildDueList(context),
+              _buildDueList(context, ref),
               SizedBox(height: config.sectionSpacing),
               _buildSectionHeader(context, 'Điểm số mới nhất'),
               SizedBox(height: config.itemSpacing),
-              _buildScoresList(context),
+              _buildScoresList(context, ref),
             ],
           ),
         );
       },
     );
   }
-
-  // --- Các hàm build giao diện con cho nội dung ---
 
   Widget _buildHeader(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authNotifierProvider);
@@ -219,8 +132,37 @@ class StudentHomeContentScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildProgressCard(BuildContext context) {
+  Widget _buildProgressCard(BuildContext context, WidgetRef ref) {
     final config = ResponsiveUtils.getLayoutConfig(context);
+    final progressAsync = ref.watch(studentDashboardProgressProvider);
+
+    final progress = progressAsync.valueOrNull?.progress ?? 0.0;
+    final remaining = progressAsync.valueOrNull?.remainingCount ?? 0;
+    final safeProgress =
+        (progress.isFinite ? progress : 0.0).clamp(0.0, 1.0);
+
+    final motivationText = progressAsync.isLoading
+        ? '...'
+        : safeProgress >= 1.0
+            ? 'Xuất sắc! 🎉'
+            : safeProgress >= 0.7
+                ? 'Rất tốt! 🚀'
+                : safeProgress >= 0.4
+                    ? 'Tiếp tục nào! 💪'
+                    : 'Hãy cố gắng! 📚';
+
+    final percentText = progressAsync.isLoading
+        ? '...'
+        : '${(safeProgress * 100).round()}%';
+
+    final footerText = progressAsync.isLoading
+        ? 'Đang tải...'
+        : safeProgress >= 1.0
+            ? 'Đã hoàn thành tất cả bài tập! 🎉'
+            : remaining > 0
+                ? 'Còn $remaining bài tập để hoàn thành mục tiêu'
+                : 'Không có bài tập nào';
+
     return ResponsiveCard(
       padding: EdgeInsets.all(config.cardPadding + 4),
       decoration: BoxDecoration(
@@ -242,7 +184,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ResponsiveText(
-            'Tiến độ tuần này',
+            'Tiến độ tổng quan',
             style: const TextStyle(color: Colors.white70),
             fontSize: DesignTypography.bodySmallSize,
           ),
@@ -251,14 +193,14 @@ class StudentHomeContentScreen extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               ResponsiveText(
-                'Rất tốt! 🚀',
+                motivationText,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               ResponsiveText(
-                '85%',
+                percentText,
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -270,19 +212,19 @@ class StudentHomeContentScreen extends ConsumerWidget {
           SizedBox(height: DesignSpacing.md),
           ClipRRect(
             borderRadius: const BorderRadius.all(Radius.circular(10)),
-            child: const LinearProgressIndicator(
-              value: 0.85,
+            child: LinearProgressIndicator(
+              value: safeProgress,
               minHeight: 12,
               backgroundColor: Colors.white24,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ),
           SizedBox(height: DesignSpacing.md),
-          const Align(
+          Align(
             alignment: Alignment.centerRight,
             child: ResponsiveText(
-              'Còn 3 bài tập để hoàn thành mục tiêu',
-              style: TextStyle(color: Colors.white),
+              footerText,
+              style: const TextStyle(color: Colors.white),
               fontSize: DesignTypography.bodySmallSize,
             ),
           ),
@@ -331,19 +273,22 @@ class StudentHomeContentScreen extends ConsumerWidget {
           children: [
             _buildSectionHeader(
               context,
-              'Hoc tap',
-              actionLabel: 'Xem tat ca',
-              onAction: () => context.pushNamed(AppRoute.studentRecommendationsTab),
+              'Học tập',
+              actionLabel: 'Xem tất cả',
+              onAction: () =>
+                  context.pushNamed(AppRoute.studentRecommendationsTab),
             ),
             SizedBox(height: config.itemSpacing),
-            ...recs.take(3).map((rec) => Padding(
-              padding: EdgeInsets.only(bottom: DesignSpacing.sm),
-              child: RecommendationCard(
-                recommendation: rec,
-                compact: true,
-                onDismiss: null, // No dismiss on home screen - use full tab
+            ...recs.take(3).map(
+              (rec) => Padding(
+                padding: EdgeInsets.only(bottom: DesignSpacing.sm),
+                child: RecommendationCard(
+                  recommendation: rec,
+                  compact: true,
+                  onDismiss: null,
+                ),
               ),
-            )),
+            ),
           ],
         );
       },
@@ -352,8 +297,12 @@ class StudentHomeContentScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatsRow(BuildContext context) {
+  Widget _buildStatsRow(BuildContext context, WidgetRef ref) {
     final config = ResponsiveUtils.getLayoutConfig(context);
+    final statsAsync = ref.watch(studentDashboardStatsProvider);
+    final submitted = statsAsync.valueOrNull?.submitted ?? 0;
+    final pending = statsAsync.valueOrNull?.pendingGrading ?? 0;
+
     return ResponsiveRow(
       children: [
         Expanded(
@@ -361,7 +310,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
             context,
             Icons.check_circle_outline,
             'Đã nộp',
-            '12',
+            '$submitted',
             DesignColors.success,
           ),
         ),
@@ -371,7 +320,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
             context,
             Icons.hourglass_top_outlined,
             'Chờ chấm',
-            '3',
+            '$pending',
             DesignColors.warning,
           ),
         ),
@@ -459,57 +408,123 @@ class StudentHomeContentScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDueList(BuildContext context) {
+  Widget _buildDueList(BuildContext context, WidgetRef ref) {
     final config = ResponsiveUtils.getLayoutConfig(context);
-    // Responsive height: mobile 150, tablet 180, desktop 200
     final cardHeight = ResponsiveUtils.responsiveValue(
       context,
       mobile: 150.0,
       tablet: 180.0,
       desktop: 200.0,
     );
-    return SizedBox(
-      height: cardHeight,
-      child: ListView(
-        clipBehavior: Clip.none,
-        scrollDirection: Axis.horizontal,
-        children: [
-          _buildDueCard(
-            context,
-            'Đại số Chương 3',
-            'Toán học • Cô Lan',
-            'Còn 2 giờ',
-            const Color(0xFFE3F2FD),
+    final dueAsync = ref.watch(studentDueAssignmentsProvider);
+
+    return dueAsync.when(
+      loading: () => ShimmerHorizontalCardsLoading(height: cardHeight),
+      error: (_, __) => SizedBox(
+        height: cardHeight,
+        child: Center(
+          child: ResponsiveText(
+            'Không thể tải dữ liệu',
+            style: TextStyle(color: DesignColors.textSecondary),
           ),
-          SizedBox(width: config.itemSpacing),
-          _buildDueCard(
-            context,
-            'Phân tích bài thơ',
-            'Văn học • Thầy Hùng',
-            'Hôm nay, 20:00',
-            const Color(0xFFFFF3E0),
-          ),
-          SizedBox(width: config.itemSpacing),
-          _buildDueCard(
-            context,
-            'Thí nghiệm quang hợp',
-            'Sinh học • Cô Mai',
-            'Ngày mai',
-            const Color(0xFFE8F5E9),
-          ),
-        ],
+        ),
       ),
+      data: (assignments) {
+        if (assignments.isEmpty) {
+          return SizedBox(
+            height: cardHeight,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.check_circle_outline,
+                    color: DesignColors.success,
+                    size: 32,
+                  ),
+                  const SizedBox(height: 8),
+                  ResponsiveText(
+                    'Không có bài tập nào sắp hết hạn',
+                    style: TextStyle(color: DesignColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return SizedBox(
+          height: cardHeight,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            itemCount: assignments.length,
+            separatorBuilder: (_, __) =>
+                SizedBox(width: config.itemSpacing),
+            itemBuilder: (context, index) {
+              final a = assignments[index];
+              final title = a['title'] as String? ?? 'Bài tập';
+              final dueAtStr = a['distribution_due_at'] as String?;
+              final dueAt =
+                  dueAtStr != null ? DateTime.tryParse(dueAtStr) : null;
+              final status =
+                  a['submission_status'] as String? ?? 'not_submitted';
+              return _buildDueCard(
+                  context, title, status, dueAt, index);
+            },
+          ),
+        );
+      },
     );
   }
 
   Widget _buildDueCard(
     BuildContext context,
     String title,
-    String subtitle,
-    String time,
-    Color color,
+    String status,
+    DateTime? dueAt,
+    int index,
   ) {
     final config = ResponsiveUtils.getLayoutConfig(context);
+
+    const cardColors = [
+      Color(0xFFE3F2FD),
+      Color(0xFFFFF3E0),
+      Color(0xFFE8F5E9),
+      Color(0xFFF3E5F5),
+      Color(0xFFE0F2F1),
+    ];
+    final color = cardColors[index % cardColors.length];
+
+    String timeText;
+    if (dueAt == null) {
+      timeText = 'Không có hạn';
+    } else {
+      final diff = dueAt.difference(DateTime.now());
+      if (diff.isNegative) {
+        timeText = 'Đã quá hạn';
+      } else if (diff.inHours < 1) {
+        timeText = 'Còn ${diff.inMinutes} phút';
+      } else if (diff.inHours < 24) {
+        timeText = 'Còn ${diff.inHours} giờ';
+      } else if (diff.inDays == 1) {
+        timeText = 'Ngày mai';
+      } else {
+        timeText = 'Còn ${diff.inDays} ngày';
+      }
+    }
+
+    String statusLabel;
+    switch (status) {
+      case 'submitted':
+        statusLabel = 'Đã nộp';
+        break;
+      case 'in_progress':
+        statusLabel = 'Đang làm';
+        break;
+      default:
+        statusLabel = 'Chưa làm';
+    }
+
     return ResponsiveCard(
       padding: EdgeInsets.all(config.cardPadding),
       decoration: BoxDecoration(
@@ -517,7 +532,6 @@ class StudentHomeContentScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(DesignRadius.lg),
       ),
       child: SizedBox(
-        // Responsive width: mobile 240, tablet 280, desktop 320
         width: ResponsiveUtils.responsiveValue(
           context,
           mobile: 240.0,
@@ -547,7 +561,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             ResponsiveText(
-              subtitle,
+              statusLabel,
               style: TextStyle(color: DesignColors.textPrimary),
               fontSize: DesignTypography.bodySmallSize,
               maxLines: 1,
@@ -564,7 +578,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(30),
               ),
               child: ResponsiveText(
-                time,
+                timeText,
                 style: const TextStyle(
                   color: DesignColors.primary,
                   fontWeight: FontWeight.bold,
@@ -578,37 +592,57 @@ class StudentHomeContentScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildScoresList(BuildContext context) {
+  Widget _buildScoresList(BuildContext context, WidgetRef ref) {
     final config = ResponsiveUtils.getLayoutConfig(context);
-    return Column(
-      children: [
-        _buildScoreTile(
-          context,
-          Icons.history_edu_outlined,
-          'Lịch sử Thế giới',
-          'Kiểm tra 15 phút',
-          '9.5',
-        ),
-        SizedBox(height: config.itemSpacing),
-        _buildScoreTile(
-          context,
-          Icons.translate_outlined,
-          'Tiếng Anh',
-          'Bài tập Reading',
-          '8.0',
-        ),
-      ],
+    final scoresAsync = ref.watch(studentRecentScoresProvider);
+
+    return scoresAsync.when(
+      loading: () => const ShimmerListTileLoading(itemCount: 3),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (scores) {
+        if (scores.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: EdgeInsets.all(config.cardPadding),
+              child: ResponsiveText(
+                'Chưa có điểm nào',
+                style: TextStyle(color: DesignColors.textSecondary),
+              ),
+            ),
+          );
+        }
+        return Column(
+          children: [
+            for (int i = 0; i < scores.length; i++) ...[
+              if (i > 0) SizedBox(height: config.itemSpacing),
+              _buildScoreTile(context, scores[i]),
+            ],
+          ],
+        );
+      },
     );
   }
 
   Widget _buildScoreTile(
     BuildContext context,
-    IconData icon,
-    String title,
-    String subtitle,
-    String score,
+    Map<String, dynamic> score,
   ) {
     final config = ResponsiveUtils.getLayoutConfig(context);
+
+    // Nested: work_sessions → assignment_distributions → assignments
+    final distData =
+        score['assignment_distributions'] as Map<String, dynamic>?;
+    final assignmentData =
+        distData?['assignments'] as Map<String, dynamic>?;
+    final title = assignmentData?['title'] as String? ?? 'Bài tập';
+    final totalPoints = (assignmentData?['total_points'] as num?)?.toInt();
+
+    final totalScore = score['total_score'] as num?;
+    final scoreText =
+        totalScore != null ? totalScore.toStringAsFixed(1) : '-';
+    final pointsText =
+        totalPoints != null ? '/$totalPoints' : '/10';
+
     return ResponsiveCard(
       padding: EdgeInsets.symmetric(
         horizontal: config.itemSpacing,
@@ -623,7 +657,10 @@ class StudentHomeContentScreen extends ConsumerWidget {
         children: [
           CircleAvatar(
             backgroundColor: DesignColors.warning.withValues(alpha: 0.1),
-            child: Icon(icon, color: DesignColors.warning),
+            child: const Icon(
+              Icons.assignment_outlined,
+              color: DesignColors.warning,
+            ),
           ),
           SizedBox(width: config.itemSpacing),
           Expanded(
@@ -634,10 +671,12 @@ class StudentHomeContentScreen extends ConsumerWidget {
                   title,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                   fontSize: DesignTypography.bodyLargeSize,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 ResponsiveText(
-                  subtitle,
+                  'Đã chấm',
                   style: TextStyle(color: Colors.grey[600]),
                   fontSize: DesignTypography.bodySmallSize,
                 ),
@@ -648,7 +687,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               ResponsiveText(
-                score,
+                scoreText,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: DesignColors.success,
@@ -656,7 +695,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
                 fontSize: DesignTypography.headlineMediumSize,
               ),
               ResponsiveText(
-                '/10',
+                pointsText,
                 style: TextStyle(color: DesignColors.textSecondary),
                 fontSize: DesignTypography.labelSmallSize,
               ),

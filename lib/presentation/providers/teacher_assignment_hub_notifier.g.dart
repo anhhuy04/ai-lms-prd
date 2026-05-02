@@ -43,7 +43,7 @@ Map<String, dynamic> _$$TeacherAssignmentHubStateImplToJson(
 // **************************************************************************
 
 String _$teacherAssignmentHubNotifierHash() =>
-    r'eeba0c82399d9a07e59118dd49e0cb8357b33591';
+    r'709a9c03c563c9dc9016f7e3ee6fc5b1687ec5a0';
 
 /// Notifier cho Teacher Assignment Hub Screen
 ///

@@ -393,10 +393,11 @@ class _TeacherAnalyticsScreenState
             // Class Overview Card
             ClassOverviewCard(
               classAverage: analytics.classAverage,
-              highestScore: analytics.highestScore,
-              lowestScore: analytics.lowestScore,
               totalStudents: analytics.totalStudents,
               totalSubmissions: analytics.totalSubmissions,
+              totalExpectedSubmissions: analytics.totalExpectedSubmissions,
+              highestScore: analytics.highestScore,
+              lowestScore: analytics.lowestScore,
               submissionRate: analytics.submissionRate,
               lateSubmissionRate: analytics.lateSubmissionRate,
               lateSubmissionCount: analytics.lateSubmissionCount,

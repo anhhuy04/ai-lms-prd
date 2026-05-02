@@ -215,6 +215,32 @@ class _ClassSettingsDrawerState extends ConsumerState<ClassSettingsDrawer> {
                       iconColor: DesignColors.drawerIcon,
                     ),
                   ),
+                  Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    indent: spacing.xxxxxl,
+                    endIndent: spacing.md,
+                    color: DesignColors.dividerLight,
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: spacing.md,
+                      vertical: spacing.xs,
+                    ),
+                    child: DrawerActionTile(
+                      icon: Icons.groups_rounded,
+                      title: 'Quản lý nhóm',
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.pushNamed(
+                          AppRoute.teacherGroupManagement,
+                          pathParameters: {'classId': widget.classItem.id},
+                          extra: {'className': widget.classItem.name},
+                        );
+                      },
+                      iconColor: DesignColors.drawerIcon,
+                    ),
+                  ),
                 ],
               ),
             ),

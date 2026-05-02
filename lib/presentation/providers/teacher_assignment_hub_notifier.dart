@@ -69,26 +69,27 @@ class TeacherAssignmentHubNotifier extends _$TeacherAssignmentHubNotifier {
     }
   }
 
-  /// Refresh data
+  /// Refresh data — giữ dữ liệu cũ trong lúc load, tránh "Future already completed".
   Future<void> refresh() async {
-    state = const AsyncValue.loading();
-    try {
-      final auth = ref.read(authNotifierProvider);
-      final profile = auth.value;
-
-      if (profile == null) {
-        throw Exception('Người dùng chưa đăng nhập');
-      }
-
-      final newState = await _loadData(profile.id);
-      state = AsyncValue.data(newState);
-    } catch (e, stackTrace) {
-      AppLogger.error(
-        '🔴 [TEACHER_ASSIGNMENT_HUB] Error refreshing: $e',
-        error: e,
-        stackTrace: stackTrace,
+    // copyWithPrevious: hiển thị spinner trên dữ liệu cũ thay vì xóa trắng màn hình
+    state = const AsyncLoading<TeacherAssignmentHubState>().copyWithPrevious(state);
+    final auth = ref.read(authNotifierProvider);
+    final profile = auth.value;
+    if (profile == null) {
+      state = AsyncError<TeacherAssignmentHubState>(
+        Exception('Người dùng chưa đăng nhập'),
+        StackTrace.current,
       );
-      state = AsyncValue.error(e, stackTrace);
+      return;
+    }
+    // AsyncValue.guard bắt exception và trả về AsyncError thay vì crash
+    state = await AsyncValue.guard(() => _loadData(profile.id));
+    if (state.hasError) {
+      AppLogger.error(
+        '🔴 [TEACHER_ASSIGNMENT_HUB] Error refreshing: ${state.error}',
+        error: state.error,
+        stackTrace: state.stackTrace,
+      );
     }
   }
 }

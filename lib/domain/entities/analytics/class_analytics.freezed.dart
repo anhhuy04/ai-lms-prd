@@ -37,6 +37,8 @@ mixin _$ClassAnalytics {
   double get lateSubmissionRate => throw _privateConstructorUsedError;
   @JsonKey(name: 'late_submission_count')
   int get lateSubmissionCount => throw _privateConstructorUsedError;
+  @JsonKey(name: 'total_expected_submissions')
+  int get totalExpectedSubmissions => throw _privateConstructorUsedError;
   WorstOffender? get worstOffender => throw _privateConstructorUsedError;
   double? get highestScore => throw _privateConstructorUsedError;
   double? get lowestScore => throw _privateConstructorUsedError;
@@ -77,6 +79,7 @@ abstract class $ClassAnalyticsCopyWith<$Res> {
     @JsonKey(name: 'submission_rate') double submissionRate,
     @JsonKey(name: 'late_submission_rate') double lateSubmissionRate,
     @JsonKey(name: 'late_submission_count') int lateSubmissionCount,
+    @JsonKey(name: 'total_expected_submissions') int totalExpectedSubmissions,
     WorstOffender? worstOffender,
     double? highestScore,
     double? lowestScore,
@@ -113,6 +116,7 @@ class _$ClassAnalyticsCopyWithImpl<$Res, $Val extends ClassAnalytics>
     Object? submissionRate = null,
     Object? lateSubmissionRate = null,
     Object? lateSubmissionCount = null,
+    Object? totalExpectedSubmissions = null,
     Object? worstOffender = freezed,
     Object? highestScore = freezed,
     Object? lowestScore = freezed,
@@ -154,6 +158,10 @@ class _$ClassAnalyticsCopyWithImpl<$Res, $Val extends ClassAnalytics>
             lateSubmissionCount: null == lateSubmissionCount
                 ? _value.lateSubmissionCount
                 : lateSubmissionCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalExpectedSubmissions: null == totalExpectedSubmissions
+                ? _value.totalExpectedSubmissions
+                : totalExpectedSubmissions // ignore: cast_nullable_to_non_nullable
                       as int,
             worstOffender: freezed == worstOffender
                 ? _value.worstOffender
@@ -221,6 +229,7 @@ abstract class _$$ClassAnalyticsImplCopyWith<$Res>
     @JsonKey(name: 'submission_rate') double submissionRate,
     @JsonKey(name: 'late_submission_rate') double lateSubmissionRate,
     @JsonKey(name: 'late_submission_count') int lateSubmissionCount,
+    @JsonKey(name: 'total_expected_submissions') int totalExpectedSubmissions,
     WorstOffender? worstOffender,
     double? highestScore,
     double? lowestScore,
@@ -257,6 +266,7 @@ class __$$ClassAnalyticsImplCopyWithImpl<$Res>
     Object? submissionRate = null,
     Object? lateSubmissionRate = null,
     Object? lateSubmissionCount = null,
+    Object? totalExpectedSubmissions = null,
     Object? worstOffender = freezed,
     Object? highestScore = freezed,
     Object? lowestScore = freezed,
@@ -298,6 +308,10 @@ class __$$ClassAnalyticsImplCopyWithImpl<$Res>
         lateSubmissionCount: null == lateSubmissionCount
             ? _value.lateSubmissionCount
             : lateSubmissionCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalExpectedSubmissions: null == totalExpectedSubmissions
+            ? _value.totalExpectedSubmissions
+            : totalExpectedSubmissions // ignore: cast_nullable_to_non_nullable
                   as int,
         worstOffender: freezed == worstOffender
             ? _value.worstOffender
@@ -344,6 +358,8 @@ class _$ClassAnalyticsImpl implements _ClassAnalytics {
     @JsonKey(name: 'submission_rate') this.submissionRate = 0.0,
     @JsonKey(name: 'late_submission_rate') this.lateSubmissionRate = 0.0,
     @JsonKey(name: 'late_submission_count') this.lateSubmissionCount = 0,
+    @JsonKey(name: 'total_expected_submissions')
+    this.totalExpectedSubmissions = 0,
     this.worstOffender,
     this.highestScore,
     this.lowestScore,
@@ -385,6 +401,9 @@ class _$ClassAnalyticsImpl implements _ClassAnalytics {
   @override
   @JsonKey(name: 'late_submission_count')
   final int lateSubmissionCount;
+  @override
+  @JsonKey(name: 'total_expected_submissions')
+  final int totalExpectedSubmissions;
   @override
   final WorstOffender? worstOffender;
   @override
@@ -431,7 +450,7 @@ class _$ClassAnalyticsImpl implements _ClassAnalytics {
 
   @override
   String toString() {
-    return 'ClassAnalytics(classId: $classId, className: $className, classAverage: $classAverage, totalStudents: $totalStudents, totalSubmissions: $totalSubmissions, submissionRate: $submissionRate, lateSubmissionRate: $lateSubmissionRate, lateSubmissionCount: $lateSubmissionCount, worstOffender: $worstOffender, highestScore: $highestScore, lowestScore: $lowestScore, distribution: $distribution, subjectDistributions: $subjectDistributions, topPerformers: $topPerformers, bottomPerformers: $bottomPerformers)';
+    return 'ClassAnalytics(classId: $classId, className: $className, classAverage: $classAverage, totalStudents: $totalStudents, totalSubmissions: $totalSubmissions, submissionRate: $submissionRate, lateSubmissionRate: $lateSubmissionRate, lateSubmissionCount: $lateSubmissionCount, totalExpectedSubmissions: $totalExpectedSubmissions, worstOffender: $worstOffender, highestScore: $highestScore, lowestScore: $lowestScore, distribution: $distribution, subjectDistributions: $subjectDistributions, topPerformers: $topPerformers, bottomPerformers: $bottomPerformers)';
   }
 
   @override
@@ -454,6 +473,11 @@ class _$ClassAnalyticsImpl implements _ClassAnalytics {
                 other.lateSubmissionRate == lateSubmissionRate) &&
             (identical(other.lateSubmissionCount, lateSubmissionCount) ||
                 other.lateSubmissionCount == lateSubmissionCount) &&
+            (identical(
+                  other.totalExpectedSubmissions,
+                  totalExpectedSubmissions,
+                ) ||
+                other.totalExpectedSubmissions == totalExpectedSubmissions) &&
             (identical(other.worstOffender, worstOffender) ||
                 other.worstOffender == worstOffender) &&
             (identical(other.highestScore, highestScore) ||
@@ -490,6 +514,7 @@ class _$ClassAnalyticsImpl implements _ClassAnalytics {
     submissionRate,
     lateSubmissionRate,
     lateSubmissionCount,
+    totalExpectedSubmissions,
     worstOffender,
     highestScore,
     lowestScore,
@@ -526,6 +551,8 @@ abstract class _ClassAnalytics implements ClassAnalytics {
     @JsonKey(name: 'submission_rate') final double submissionRate,
     @JsonKey(name: 'late_submission_rate') final double lateSubmissionRate,
     @JsonKey(name: 'late_submission_count') final int lateSubmissionCount,
+    @JsonKey(name: 'total_expected_submissions')
+    final int totalExpectedSubmissions,
     final WorstOffender? worstOffender,
     final double? highestScore,
     final double? lowestScore,
@@ -564,6 +591,9 @@ abstract class _ClassAnalytics implements ClassAnalytics {
   @override
   @JsonKey(name: 'late_submission_count')
   int get lateSubmissionCount;
+  @override
+  @JsonKey(name: 'total_expected_submissions')
+  int get totalExpectedSubmissions;
   @override
   WorstOffender? get worstOffender;
   @override

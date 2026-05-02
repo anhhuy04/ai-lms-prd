@@ -1,8 +1,10 @@
 // lib/presentation/views/assignment/teacher/widgets/ai_settings_drawer.dart
+import 'dart:typed_data';
+
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
-import 'package:ai_mls/data/models/teacher_file_model.dart';
-import 'package:ai_mls/presentation/providers/teacher_file_notifier.dart';
+import 'package:ai_mls/data/models/local_temp_file.dart';
+import 'package:ai_mls/presentation/providers/local_temp_file_notifier.dart';
 import 'package:ai_mls/presentation/views/settings/widgets/export_template_bottom_sheet.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -111,31 +113,35 @@ class _DocumentLibrarySection extends ConsumerWidget {
 
   final bool isDark;
 
-  Future<void> _pickAndUploadFile(WidgetRef ref) async {
+  Future<void> _pickAndAddLocalFile(WidgetRef ref) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx', 'docx'],
+      allowedExtensions: ['xlsx', 'docx', 'pdf'],
       withData: true,
+      allowMultiple: true,
     );
     if (result == null || result.files.isEmpty) return;
-    final file = result.files.single;
-    final bytes = file.bytes;
-    if (bytes == null) return;
-    final ext = file.extension?.toLowerCase();
-    final String mimeType;
-    if (ext == 'docx') {
-      mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    } else if (ext == 'xlsx') {
-      mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    } else {
-      throw StateError('Unexpected file extension: $ext — only docx/xlsx supported');
+    for (final file in result.files) {
+      final Uint8List? bytes = file.bytes;
+      if (bytes == null) continue;
+      final ext = file.extension?.toLowerCase();
+      final String mimeType;
+      if (ext == 'docx') {
+        mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      } else if (ext == 'xlsx') {
+        mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      } else if (ext == 'pdf') {
+        mimeType = 'application/pdf';
+      } else {
+        continue;
+      }
+      await ref.read(localTempFilesProvider.notifier).addFile(bytes, file.name, mimeType);
     }
-    await ref.read(teacherFilesProvider.notifier).uploadFile(bytes, file.name, mimeType);
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final filesAsync = ref.watch(teacherFilesProvider);
+    final files = ref.watch(localTempFilesProvider);
 
     return _DrawerSectionCard(
       title: 'Thư viện tài liệu',
@@ -145,44 +151,34 @@ class _DocumentLibrarySection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'File tạm thời — tự xóa sau khi xử lý',
+            'File tạm thời — lưu trong phiên làm việc',
             style: DesignTypography.bodySmall.copyWith(
               color: DesignColors.textSecondary,
             ),
           ),
           SizedBox(height: DesignSpacing.sm),
-          filesAsync.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-            error: (e, _) => Text(
-              'Lỗi tải danh sách: $e',
-              style: DesignTypography.bodySmall.copyWith(color: DesignColors.error),
-            ),
-            data: (files) => files.isEmpty
-                ? Padding(
-                    padding: EdgeInsets.symmetric(vertical: DesignSpacing.sm),
-                    child: Text(
-                      'Chưa có tài liệu nào',
-                      style: DesignTypography.bodySmall.copyWith(
-                        color: DesignColors.textSecondary,
-                      ),
+          files.isEmpty
+              ? Padding(
+                  padding: EdgeInsets.symmetric(vertical: DesignSpacing.sm),
+                  child: Text(
+                    'Chưa có tài liệu nào',
+                    style: DesignTypography.bodySmall.copyWith(
+                      color: DesignColors.textSecondary,
                     ),
-                  )
-                : Column(
-                    children: files
-                        .map((f) => _FileListTile(file: f, isDark: isDark))
-                        .toList(),
                   ),
-          ),
+                )
+              : Column(
+                  children: files
+                      .map((f) => _FileListTile(file: f, isDark: isDark))
+                      .toList(),
+                ),
           SizedBox(height: DesignSpacing.sm),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () => _pickAndUploadFile(ref),
+              onPressed: () => _pickAndAddLocalFile(ref),
               icon: const Icon(Icons.upload_file_outlined, size: DesignIcons.xsSize),
-              label: const Text('Tải file lên'),
+              label: const Text('Thêm tài liệu'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: DesignColors.primary,
                 side: BorderSide(color: DesignColors.primary),
@@ -199,27 +195,38 @@ class _DocumentLibrarySection extends ConsumerWidget {
 class _FileListTile extends ConsumerWidget {
   const _FileListTile({required this.file, required this.isDark});
 
-  final TeacherFileModel file;
+  final LocalTempFile file;
   final bool isDark;
+
+  String _extractedLabel(LocalTempFile f) {
+    if (f.mimeType.contains('pdf') || f.filename.toLowerCase().endsWith('.pdf')) {
+      return 'Sẵn sàng (PDF → AI)';
+    }
+    if (f.mimeType.contains('spreadsheetml') || f.filename.toLowerCase().endsWith('.xlsx')) {
+      return 'Sẵn sàng (Excel → AI)';
+    }
+    return 'Sẵn sàng (Word → AI)';
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isProcessing =
-        file.processingStatus == 'pending' || file.processingStatus == 'processing';
-    final isDone = file.processingStatus == 'completed';
+    final isReady = (file.extractedText?.isNotEmpty == true) ||
+        (file.parsedQuestions?.isNotEmpty == true);
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
       dense: true,
-      leading: Icon(
-        Icons.insert_drive_file_outlined,
-        size: DesignIcons.smSize,
-        color: isProcessing
-            ? DesignColors.warning
-            : isDone
-                ? DesignColors.success
-                : DesignColors.textSecondary,
-      ),
+      leading: file.isExtracting
+          ? const SizedBox(
+              width: DesignIcons.smSize,
+              height: DesignIcons.smSize,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              Icons.insert_drive_file_outlined,
+              size: DesignIcons.smSize,
+              color: isReady ? DesignColors.success : DesignColors.textSecondary,
+            ),
       title: Text(
         file.filename,
         style: DesignTypography.bodySmall.copyWith(
@@ -229,11 +236,17 @@ class _FileListTile extends ConsumerWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        isProcessing ? 'Đang xử lý...' : isDone ? 'Sẵn sàng' : 'Đang xếp hàng',
+        file.isExtracting
+            ? 'Đang đọc nội dung...'
+            : file.parsedQuestions?.isNotEmpty == true
+                ? '${file.parsedQuestions!.length} câu hỏi — tải trực tiếp'
+                : file.extractedText?.isNotEmpty == true
+                    ? _extractedLabel(file)
+                    : 'Không đọc được nội dung',
         style: DesignTypography.bodySmall.copyWith(
-          color: isProcessing
+          color: file.isExtracting
               ? DesignColors.warning
-              : isDone
+              : isReady
                   ? DesignColors.success
                   : DesignColors.textSecondary,
         ),
@@ -241,7 +254,7 @@ class _FileListTile extends ConsumerWidget {
       trailing: IconButton(
         icon: Icon(Icons.delete_outline_rounded, size: DesignIcons.smSize, color: DesignColors.error),
         tooltip: 'Xóa',
-        onPressed: () => ref.read(teacherFilesProvider.notifier).deleteFile(file.id),
+        onPressed: () => ref.read(localTempFilesProvider.notifier).removeFile(file.id),
       ),
     );
   }
@@ -261,11 +274,15 @@ class _ToolsSection extends StatelessWidget {
         contentPadding: EdgeInsets.zero,
         leading: Icon(Icons.download_outlined, color: DesignColors.drawerIcon, size: DesignIcons.mdSize),
         title: Text(
-          'Xuất file mẫu Excel',
+          'Tải file mẫu',
           style: DesignTypography.bodyMedium.copyWith(
             fontWeight: FontWeight.w500,
             color: isDark ? DesignColors.white : DesignColors.textPrimary,
           ),
+        ),
+        subtitle: Text(
+          'Excel câu hỏi · Word câu hỏi · Word kiến thức',
+          style: DesignTypography.bodySmall.copyWith(color: DesignColors.textSecondary),
         ),
         trailing: Icon(Icons.chevron_right, color: DesignColors.textSecondary, size: DesignIcons.mdSize),
         onTap: () {

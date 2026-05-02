@@ -17,6 +17,8 @@ _$ClassAnalyticsImpl _$$ClassAnalyticsImplFromJson(
   submissionRate: (json['submission_rate'] as num?)?.toDouble() ?? 0.0,
   lateSubmissionRate: (json['late_submission_rate'] as num?)?.toDouble() ?? 0.0,
   lateSubmissionCount: (json['late_submission_count'] as num?)?.toInt() ?? 0,
+  totalExpectedSubmissions:
+      (json['total_expected_submissions'] as num?)?.toInt() ?? 0,
   worstOffender: json['worstOffender'] == null
       ? null
       : WorstOffender.fromJson(json['worstOffender'] as Map<String, dynamic>),
@@ -55,6 +57,7 @@ Map<String, dynamic> _$$ClassAnalyticsImplToJson(
   'submission_rate': instance.submissionRate,
   'late_submission_rate': instance.lateSubmissionRate,
   'late_submission_count': instance.lateSubmissionCount,
+  'total_expected_submissions': instance.totalExpectedSubmissions,
   'worstOffender': instance.worstOffender,
   'highestScore': instance.highestScore,
   'lowestScore': instance.lowestScore,

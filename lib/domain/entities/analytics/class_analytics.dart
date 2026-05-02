@@ -17,6 +17,7 @@ class ClassAnalytics with _$ClassAnalytics {
     @Default(0.0) @JsonKey(name: 'submission_rate') double submissionRate,
     @Default(0.0) @JsonKey(name: 'late_submission_rate') double lateSubmissionRate,
     @Default(0) @JsonKey(name: 'late_submission_count') int lateSubmissionCount,
+    @Default(0) @JsonKey(name: 'total_expected_submissions') int totalExpectedSubmissions,
     WorstOffender? worstOffender,
     double? highestScore,
     double? lowestScore,

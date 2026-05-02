@@ -108,7 +108,10 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
     TemplateMode templateMode = TemplateMode.styleOnly,
   }) {
     AppLogger.info('📄 [Context] getKnowledgeContextForIds: mode=${templateMode.name}, ids=${ids.length}');
-    final parts = <String>[];
+    // GAP-5: template schema TRƯỚC, KT raw text SAU — smartTruncate cắt từ cuối
+    // nên chỉ KT bị cắt, schema mẫu luôn được giữ nguyên.
+    final templateParts = <String>[];
+    final ktParts = <String>[];
     for (final f in state.where((f) => ids.contains(f.id))) {
       // T3-3: dùng effectiveRole (single source of truth từ LocalTempFile.effectiveRole getter).
       final role = f.effectiveRole;
@@ -121,14 +124,14 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
             ? _buildSchemaOnlyContext(f)
             : _buildTemplateStyleContext(f);
         AppLogger.info('📄 [Context] ${f.filename} output (${body.length} chars):\n${body.substring(0, body.length.clamp(0, 300))}…');
-        parts.add('=== ${f.filename} ===\n$body');
+        templateParts.add('=== ${f.filename} ===\n$body');
       } else if (f.extractedText?.isNotEmpty == true) {
         AppLogger.info('📄 [Context] ${f.filename}: → raw text (${f.extractedText!.length} chars) [role=${role.name}]');
-        parts.add('=== ${f.filename} ===\n${f.extractedText}');
+        ktParts.add('=== ${f.filename} ===\n${f.extractedText}');
       }
     }
-    final result = parts.join('\n\n---\n\n');
-    AppLogger.info('📄 [Context] Total context: ${result.length} chars');
+    final result = [...templateParts, ...ktParts].join('\n\n---\n\n');
+    AppLogger.info('📄 [Context] Total context: ${result.length} chars (${templateParts.length} template, ${ktParts.length} KT parts)');
     return result;
   }
 
@@ -197,7 +200,7 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
       final rawTags = (q['tags'] as List<dynamic>?)?.cast<String>() ?? const [];
       final tags = _sanitizeTagsForSchema(rawTags).join(', ');
 
-      sb.write('Câu ${i + 1}: $typeStr độ khó $difficulty/5');
+      sb.write('[Slot ${i + 1}] $typeStr độ khó $difficulty/5');
       if (tags.isNotEmpty) {
         sb.write(' — Tags: $tags');
       } else if (filenameTopic.isNotEmpty) {

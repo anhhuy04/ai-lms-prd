@@ -223,26 +223,16 @@ class AiRepositoryImpl implements AiRepository {
       for (var i = 0; i < questionsList.length && i < expectedQuantity; i++) {
         final q = questionsList[i];
         if (q is Map<String, dynamic>) {
-          questions.add(_mapAiQuestionToStandardFormat(q, i + 1));
+          final mapped = _mapAiQuestionToStandardFormat(q, i + 1);
+          if (mapped != null) questions.add(mapped);
         } else {
-          // Nếu không phải Map, tạo question mặc định
-          questions.add({
-            'type': QuestionType.multipleChoice,
-            'text': 'Câu hỏi ${i + 1} (cần chỉnh sửa)',
-            'options': [
-              {'text': 'Lựa chọn A', 'isCorrect': false},
-              {'text': 'Lựa chọn B', 'isCorrect': false},
-              {'text': 'Lựa chọn C', 'isCorrect': false},
-              {'text': 'Lựa chọn D', 'isCorrect': false},
-            ],
-          });
+          AppLogger.warning('[AI REPO] Question ${i + 1}: format không phải Map, bỏ qua.');
         }
       }
 
-      // Nếu không đủ số lượng, tạo thêm fallback questions
-      if (questions.length < expectedQuantity) {
-        final remaining = expectedQuantity - questions.length;
-        questions.addAll(_generateFallbackQuestions(remaining));
+      if (questions.isEmpty) {
+        AppLogger.warning('[AI REPO] Không parse được câu hỏi nào từ response.');
+        return _generateFallbackQuestions(expectedQuantity);
       }
 
       return questions;
@@ -265,7 +255,7 @@ class AiRepositoryImpl implements AiRepository {
   /// - answer: {text, correct_choices, explanation}
   /// - learning_objectives: [{description, subject_code, code}]
   /// - grading_rubric: {criteria: [{name, max_points, description}], total_points}
-  Map<String, dynamic> _mapAiQuestionToStandardFormat(
+  Map<String, dynamic>? _mapAiQuestionToStandardFormat(
     Map<String, dynamic> aiQuestion,
     int index,
   ) {
@@ -450,13 +440,11 @@ class AiRepositoryImpl implements AiRepository {
     // Note: grading_rubric không cần thiết vì giáo viên sẽ tự tạo ở UI sau
     // Không parse grading_rubric từ AI response - giáo viên sẽ tự tạo khi lưu vào assignment
 
-    // VALIDATION: question text không được rỗng
+    // VALIDATION: question text không được rỗng — bỏ qua thay vì dùng placeholder
     final contentText = content['text'] as String? ?? '';
     if (contentText.trim().isEmpty) {
-      AppLogger.warning(
-        '⚠️ [AI REPO] Question $index: content.text rỗng. Dùng fallback.',
-      );
-      content = {'text': 'Câu hỏi $index (cần chỉnh sửa)', 'images': []};
+      AppLogger.warning('⚠️ [AI REPO] Question $index: content.text rỗng, bỏ qua.');
+      return null;
     }
 
     // VALIDATION STEP 1: Dedup + count fix phải chạy TRƯỚC correct-count check

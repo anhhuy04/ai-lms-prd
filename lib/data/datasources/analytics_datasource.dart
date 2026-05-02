@@ -461,11 +461,42 @@ class AnalyticsDatasource {
       // so we only get submissions for assignments that belong to this class
       final distributions = await _client
           .from('assignment_distributions')
-          .select('id')
+          .select('id, distribution_type, group_id, student_ids')
           .eq('class_id', classId);
       final distributionIds = distributions
           .map((d) => d['id'] as String)
           .toList();
+
+      // Tính tổng bài cần nộp theo distribution_type
+      // class → totalStudents mỗi dist; group → count group_members; student → student_ids.length
+      final groupIds = distributions
+          .where((d) => d['distribution_type'] == 'group' && d['group_id'] != null)
+          .map((d) => d['group_id'] as String)
+          .toSet()
+          .toList();
+      final Map<String, int> groupMemberCount = {};
+      if (groupIds.isNotEmpty) {
+        final groupMembersResult = await _client
+            .from('group_members')
+            .select('group_id')
+            .inFilter('group_id', groupIds);
+        for (final row in groupMembersResult) {
+          final gid = row['group_id'] as String;
+          groupMemberCount[gid] = (groupMemberCount[gid] ?? 0) + 1;
+        }
+      }
+      final totalExpectedSubmissions = distributions.fold<int>(0, (sum, d) {
+        final type = d['distribution_type'] as String? ?? 'class';
+        if (type == 'group') {
+          final gid = d['group_id'] as String?;
+          return sum + (gid != null ? (groupMemberCount[gid] ?? 0) : 0);
+        } else if (type == 'student') {
+          final ids = d['student_ids'] as List<dynamic>?;
+          return sum + (ids?.length ?? 0);
+        } else {
+          return sum + totalStudents;
+        }
+      });
 
       final submissions = studentIds.isEmpty || distributionIds.isEmpty
           ? <Map<String, dynamic>>[]
@@ -587,13 +618,14 @@ class AnalyticsDatasource {
         classAverage: classAverage,
         totalStudents: totalStudents,
         totalSubmissions: totalSubmissions,
-        submissionRate: totalStudents > 0
-            ? submittedStudentIds.length / totalStudents
+        submissionRate: totalSubmissions > 0
+            ? (totalSubmissions - lateSubmissions) / totalSubmissions
             : 0.0,
         lateSubmissionRate: totalSubmissions > 0
             ? lateSubmissions / totalSubmissions
             : 0.0,
         lateSubmissionCount: lateSubmissions,
+        totalExpectedSubmissions: totalExpectedSubmissions,
         worstOffender: worstOffender,
         highestScore: avgScores.isNotEmpty ? avgScores.first.avg : null,
         lowestScore: avgScores.isNotEmpty ? avgScores.last.avg : null,

@@ -286,6 +286,7 @@ class _TeacherAssignmentSelectionScreenState
     required Widget body,
   }) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: isDark ? DesignColors.moonDark : DesignColors.moonLight,
       appBar: AppBar(
         title: Text(

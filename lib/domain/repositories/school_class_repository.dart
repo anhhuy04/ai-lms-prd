@@ -152,6 +152,9 @@ abstract class SchoolClassRepository {
   /// Trả về Class đã được cập nhật.
   Future<Class> updateClassSetting(String classId, String path, dynamic value);
 
+  /// Đếm số học sinh duy nhất (distinct student_id) trên nhiều lớp.
+  Future<int> getUniqueStudentCount(List<String> classIds);
+
   /// Kiểm tra xem join code đã tồn tại trong database chưa.
   /// [joinCode] - Mã join cần kiểm tra.
   /// [excludeClassId] - Class ID cần loại trừ khỏi việc kiểm tra (class hiện tại).

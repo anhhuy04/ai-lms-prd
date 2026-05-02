@@ -12,13 +12,17 @@ class ShimmerLoading extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
-      child: ListView.builder(
-        physics: const NeverScrollableScrollPhysics(),
+      child: Padding(
         padding: EdgeInsets.symmetric(vertical: 8.h),
-        itemCount: 5,
-        itemBuilder: (context, index) => Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12.w),
-          child: const _ClassItemShimmer(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(
+            5,
+            (index) => Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12.w),
+              child: const _ClassItemShimmer(),
+            ),
+          ),
         ),
       ),
     );
@@ -927,6 +931,272 @@ class ShimmerStudentAnalyticsLoading extends StatelessWidget {
             ),
             SizedBox(height: DesignSpacing.xxl),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer loading toàn màn hình trang chủ Giáo viên
+/// Layout: header → quick stats chips → priority card → intervention badge → class list → upcoming assignments
+class ShimmerTeacherHomeLoading extends StatelessWidget {
+  const ShimmerTeacherHomeLoading({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.symmetric(horizontal: DesignSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: avatar + tên + notification
+            Row(
+              children: [
+                Container(
+                  width: DesignComponents.avatarMedium,
+                  height: DesignComponents.avatarMedium,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                SizedBox(width: DesignSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 12,
+                        width: 90,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(DesignRadius.sm),
+                        ),
+                      ),
+                      SizedBox(height: DesignSpacing.xs),
+                      Container(
+                        height: 18,
+                        width: 160,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(DesignRadius.sm),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: DesignSpacing.md),
+                Container(
+                  width: DesignComponents.avatarMedium,
+                  height: DesignComponents.avatarMedium,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(DesignRadius.md),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: DesignSpacing.lg),
+            // Quick stats: 3 chips (Expanded để tránh overflow trên màn hình nhỏ)
+            Row(
+              children: List.generate(
+                3,
+                (i) => Expanded(
+                  child: Container(
+                    height: 36,
+                    margin: EdgeInsets.only(
+                        right: i < 2 ? DesignSpacing.sm : 0),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: DesignSpacing.lg),
+            // Priority card
+            Container(
+              height: 160,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(DesignRadius.lg),
+              ),
+            ),
+            SizedBox(height: DesignSpacing.lg),
+            // Intervention badge
+            Container(
+              height: 56,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(DesignRadius.md),
+              ),
+            ),
+            SizedBox(height: DesignSpacing.xxl),
+            // Section header: Lớp học
+            Container(
+              height: 18,
+              width: 140,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(DesignRadius.sm),
+              ),
+            ),
+            SizedBox(height: DesignSpacing.md),
+            // Class list: 3 tiles
+            ...List.generate(
+              3,
+              (_) => Container(
+                height: 96,
+                margin: EdgeInsets.only(bottom: DesignSpacing.md),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(DesignRadius.md),
+                ),
+              ),
+            ),
+            SizedBox(height: DesignSpacing.lg),
+            // Section header: Bài tập sắp hết hạn
+            Container(
+              height: 18,
+              width: 180,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(DesignRadius.sm),
+              ),
+            ),
+            SizedBox(height: DesignSpacing.md),
+            // Upcoming assignments: 3 tiles
+            ...List.generate(
+              3,
+              (_) => Container(
+                height: 80,
+                margin: EdgeInsets.only(bottom: DesignSpacing.md),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(DesignRadius.md),
+                ),
+              ),
+            ),
+            const SizedBox(height: 80),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer 1 dòng text — dùng inline thay cho text đang chờ dữ liệu
+class ShimmerTextLine extends StatelessWidget {
+  final double width;
+  final double height;
+  const ShimmerTextLine({super.key, this.width = 150, this.height = 14});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Container(
+        height: height,
+        width: width,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(4),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer 3 chips ngang — dùng cho quick stats trên home
+class ShimmerQuickStatsChips extends StatelessWidget {
+  const ShimmerQuickStatsChips({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey[300]!,
+        highlightColor: Colors.grey[100]!,
+        child: Row(
+          children: List.generate(3, (i) => Expanded(
+            child: Container(
+              height: 36,
+              margin: EdgeInsets.only(right: i < 2 ? 12 : 0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+          )),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer 2 chips nhỏ inline — dùng cho chips bài tập / chờ chấm trong class card
+class ShimmerInlineChips extends StatelessWidget {
+  final int count;
+  const ShimmerInlineChips({super.key, this.count = 2});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Row(
+        children: List.generate(count, (i) => Container(
+          height: 24,
+          width: 80,
+          margin: EdgeInsets.only(right: i < count - 1 ? 6 : 0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+        )),
+      ),
+    );
+  }
+}
+
+/// Shimmer loading cho danh sách thẻ nằm ngang (horizontal cards)
+/// Dùng cho: danh sách bài tập sắp hết hạn trên trang chủ sinh viên
+class ShimmerHorizontalCardsLoading extends StatelessWidget {
+  final double height;
+  final int itemCount;
+
+  const ShimmerHorizontalCardsLoading({
+    super.key,
+    this.height = 150,
+    this.itemCount = 3,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey[300]!,
+        highlightColor: Colors.grey[100]!,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: itemCount,
+          separatorBuilder: (_, __) => SizedBox(width: DesignSpacing.md),
+          itemBuilder: (_, __) => Container(
+            width: 240,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(DesignRadius.lg),
+            ),
+          ),
         ),
       ),
     );

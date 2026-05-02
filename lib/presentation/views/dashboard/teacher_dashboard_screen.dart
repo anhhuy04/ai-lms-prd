@@ -167,25 +167,29 @@ class _TeacherDashboardScreenState
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildBottomBarItem(
-                  icon: Icons.home,
+                  activeIcon: Icons.home,
+                  inactiveIcon: Icons.home_outlined,
                   label: 'Trang chủ',
                   index: 0,
                   currentSelectedIndex: currentSelectedIndex,
                 ),
                 _buildBottomBarItem(
-                  icon: Icons.assignment_turned_in_outlined,
+                  activeIcon: Icons.assignment_turned_in,
+                  inactiveIcon: Icons.assignment_turned_in_outlined,
                   label: 'Bài tập',
                   index: 1,
                   currentSelectedIndex: currentSelectedIndex,
                 ),
                 _buildBottomBarItem(
-                  icon: Icons.school_outlined,
+                  activeIcon: Icons.school,
+                  inactiveIcon: Icons.school_outlined,
                   label: 'Lớp học',
                   index: 2,
                   currentSelectedIndex: currentSelectedIndex,
                 ),
                 _buildBottomBarItem(
-                  icon: Icons.person_outline,
+                  activeIcon: Icons.person,
+                  inactiveIcon: Icons.person_outline,
                   label: 'Cá nhân',
                   index: 3,
                   currentSelectedIndex: currentSelectedIndex,
@@ -199,33 +203,51 @@ class _TeacherDashboardScreenState
   }
 
   Widget _buildBottomBarItem({
-    required IconData icon,
+    required IconData activeIcon,
+    required IconData inactiveIcon,
     required String label,
     required int index,
     required int currentSelectedIndex,
   }) {
     final isActive = currentSelectedIndex == index;
     final color = isActive ? DesignColors.primary : Colors.grey;
+
     return InkWell(
       onTap: () => _onItemTapped(index),
-      borderRadius: BorderRadius.circular(16),
-      splashColor: DesignColors.primary.withAlpha((0.1 * 255).round()),
-      highlightColor: DesignColors.primary.withAlpha((0.05 * 255).round()),
+      borderRadius: BorderRadius.circular(DesignRadius.lg),
+      splashColor: DesignColors.primary.withValues(alpha: 0.1),
+      highlightColor: Colors.transparent,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
+        padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 4),
-            Text(
-              label,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              decoration: BoxDecoration(
+                color: isActive
+                    ? DesignColors.primary.withValues(alpha: 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                isActive ? activeIcon : inactiveIcon,
+                color: color,
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: 2),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
               style: TextStyle(
                 color: color,
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
               ),
+              child: Text(label),
             ),
           ],
         ),

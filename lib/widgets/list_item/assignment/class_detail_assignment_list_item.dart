@@ -48,6 +48,14 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
   String get _distributionType =>
       (assignment['distribution_type'] as String?) ?? 'class';
 
+  String? get _groupName => assignment['distribution_group_name'] as String?;
+
+  List<dynamic>? get _studentIds =>
+      assignment['distribution_student_ids'] as List<dynamic>?;
+
+  int? get _timeLimitMinutes =>
+      assignment['distribution_time_limit_minutes'] as int?;
+
   DateTime? get _dueAt {
     final raw = assignment['distribution_due_at'] as String?;
     if (raw == null) return null;
@@ -66,20 +74,6 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
 
   // ── Computed labels ───────────────────────────────────────────────────────
 
-  String get _distTypeLabel {
-    switch (_distributionType) {
-      case 'group':
-        return 'Theo nhóm';
-      case 'individual':
-        return 'Cá nhân';
-      default:
-        return 'Cả lớp';
-    }
-  }
-
-  // Icon is no longer used since we use text on left and custom assignment icon
-  // in the header. Removed _distTypeIcon.
-
   IconData get _distTypeIcon {
     switch (_distributionType) {
       case 'group':
@@ -88,6 +82,30 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
         return Icons.person_outline;
       default:
         return Icons.groups_outlined;
+    }
+  }
+
+  /// Label rõ ràng "giao cho ai": tên nhóm / số HS / cả lớp
+  String get _recipientLabel {
+    switch (_distributionType) {
+      case 'group':
+        return _groupName != null ? 'Nhóm: $_groupName' : 'Theo nhóm';
+      case 'individual':
+        final count = _studentIds?.length ?? 0;
+        return count > 0 ? '$count học sinh' : 'Cá nhân';
+      default:
+        return 'Cả lớp';
+    }
+  }
+
+  Color get _recipientColor {
+    switch (_distributionType) {
+      case 'group':
+        return const Color(0xFFE65100); // orange
+      case 'individual':
+        return const Color(0xFF00695C); // teal
+      default:
+        return const Color(0xFF1565C0); // blue
     }
   }
 
@@ -182,6 +200,11 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
                 ],
               ),
 
+              const SizedBox(height: DesignSpacing.xs),
+
+              // ── Recipient chip: giao cho ai ──
+              _buildRecipientChip(),
+
               // ── Description (optional) ──
               if (_description != null && _description!.isNotEmpty) ...[
                 const SizedBox(height: DesignSpacing.sm),
@@ -240,28 +263,76 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
     );
   }
 
-  /// Row metadata: chỉ hạn nộp (điểm đưa xuống footer)
+  /// Chip hiển thị "giao cho ai": Cả lớp / Nhóm: X / N học sinh
+  Widget _buildRecipientChip() {
+    final color = _recipientColor;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(DesignRadius.full),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_distTypeIcon, size: 12, color: color),
+              const SizedBox(width: 4),
+              Text(
+                _recipientLabel,
+                style: DesignTypography.caption.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Row metadata: hạn nộp (trái) + thời gian làm bài (phải)
   Widget _buildMetadataRow(bool isDark) {
     final metaColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
-    return Row(children: [
-      Icon(
-        _isExpired ? Icons.event_busy_outlined : Icons.access_time_outlined,
-        size: 13,
-        color: _isExpired ? Colors.red[400] : metaColor,
-      ),
-      const SizedBox(width: 4),
-      Flexible(
-        child: Text(
-          _dueAt != null
-            ? 'Hạn: ${_dueAt!.day.toString().padLeft(2, '0')}/${_dueAt!.month.toString().padLeft(2, '0')}/${_dueAt!.year} ${_dueAt!.hour.toString().padLeft(2, '0')}:${_dueAt!.minute.toString().padLeft(2, '0')}'
-            : 'Không có hạn nộp',
-          style: DesignTypography.bodySmall.copyWith(
-            color: _isExpired ? Colors.red[400] : metaColor,
-          ),
-          overflow: TextOverflow.ellipsis,
+    final timeLimitText = _timeLimitMinutes != null
+        ? (_timeLimitMinutes! >= 60
+            ? '${_timeLimitMinutes! ~/ 60}g${_timeLimitMinutes! % 60 > 0 ? ' ${_timeLimitMinutes! % 60}p' : ''}'
+            : '$_timeLimitMinutes phút')
+        : 'Không giới hạn';
+
+    return Row(
+      children: [
+        // Hạn nộp — căn trái
+        Icon(
+          _isExpired ? Icons.event_busy_outlined : Icons.access_time_outlined,
+          size: 13,
+          color: _isExpired ? Colors.red[400] : metaColor,
         ),
-      ),
-    ]);
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            _dueAt != null
+                ? 'Hạn: ${_dueAt!.day.toString().padLeft(2, '0')}/${_dueAt!.month.toString().padLeft(2, '0')}/${_dueAt!.year} ${_dueAt!.hour.toString().padLeft(2, '0')}:${_dueAt!.minute.toString().padLeft(2, '0')}'
+                : 'Không có hạn nộp',
+            style: DesignTypography.bodySmall.copyWith(
+              color: _isExpired ? Colors.red[400] : metaColor,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        // Thời gian làm bài — căn phải (luôn hiển thị)
+        const SizedBox(width: 8),
+        Icon(Icons.timer_outlined, size: 13, color: metaColor),
+        const SizedBox(width: 4),
+        Text(
+          timeLimitText,
+          style: DesignTypography.bodySmall.copyWith(color: metaColor),
+        ),
+      ],
+    );
   }
 
   /// Teacher footer: Số học sinh đã mộp / Chấm bài & Badge Trạng thái
@@ -271,33 +342,16 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
 
     return Row(
       children: [
-        // Bên trái: Thống kê nộp bài & phân phối
-        Icon(_distTypeIcon, size: 16, color: metaColor),
+        // Bên trái: Thống kê nộp bài (recipient đã hiển thị ở chip phía trên)
+        Icon(Icons.how_to_reg_outlined, size: 16, color: metaColor),
         const SizedBox(width: 4),
-        if (_submissionCount == null) ...[
-          Text(
-            _totalStudents != null
-                ? '$_distTypeLabel - $_totalStudents học sinh'
-                : _distTypeLabel,
-            style: DesignTypography.bodySmall.copyWith(color: metaColor),
+        Text(
+          '${_submissionCount ?? 0}/${_totalStudents ?? 0} đã nộp • ${_gradedCount ?? 0} đã chấm',
+          style: DesignTypography.bodySmall.copyWith(
+            color: metaColor,
+            fontWeight: FontWeight.bold,
           ),
-        ] else ...[
-          Text(
-            _totalStudents != null
-                ? '$_distTypeLabel - $_submissionCount/$_totalStudents nộp'
-                : '$_distTypeLabel - $_submissionCount đã nộp',
-            style: DesignTypography.bodySmall.copyWith(
-              color: metaColor,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          if (_gradedCount != null && _gradedCount! > 0) ...[
-            Text(
-              ' • $_gradedCount đã chấm',
-              style: DesignTypography.bodySmall.copyWith(color: metaColor),
-            ),
-          ],
-        ],
+        ),
 
         const Spacer(),
 

@@ -637,6 +637,175 @@ class _SubmissionAnswersProviderElement
   String get submissionId => (origin as SubmissionAnswersProvider).submissionId;
 }
 
+String _$teacherStudentDistributionAttemptsHash() =>
+    r'19ce707bb52585a03902ca870d2828912f5b1963';
+
+/// Provider lấy lịch sử các lần làm bài (attempts) của 1 học sinh cho 1 bài tập (Teacher view)
+///
+/// Copied from [teacherStudentDistributionAttempts].
+@ProviderFor(teacherStudentDistributionAttempts)
+const teacherStudentDistributionAttemptsProvider =
+    TeacherStudentDistributionAttemptsFamily();
+
+/// Provider lấy lịch sử các lần làm bài (attempts) của 1 học sinh cho 1 bài tập (Teacher view)
+///
+/// Copied from [teacherStudentDistributionAttempts].
+class TeacherStudentDistributionAttemptsFamily
+    extends Family<AsyncValue<List<Map<String, dynamic>>>> {
+  /// Provider lấy lịch sử các lần làm bài (attempts) của 1 học sinh cho 1 bài tập (Teacher view)
+  ///
+  /// Copied from [teacherStudentDistributionAttempts].
+  const TeacherStudentDistributionAttemptsFamily();
+
+  /// Provider lấy lịch sử các lần làm bài (attempts) của 1 học sinh cho 1 bài tập (Teacher view)
+  ///
+  /// Copied from [teacherStudentDistributionAttempts].
+  TeacherStudentDistributionAttemptsProvider call({
+    required String distributionId,
+    required String studentId,
+  }) {
+    return TeacherStudentDistributionAttemptsProvider(
+      distributionId: distributionId,
+      studentId: studentId,
+    );
+  }
+
+  @override
+  TeacherStudentDistributionAttemptsProvider getProviderOverride(
+    covariant TeacherStudentDistributionAttemptsProvider provider,
+  ) {
+    return call(
+      distributionId: provider.distributionId,
+      studentId: provider.studentId,
+    );
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'teacherStudentDistributionAttemptsProvider';
+}
+
+/// Provider lấy lịch sử các lần làm bài (attempts) của 1 học sinh cho 1 bài tập (Teacher view)
+///
+/// Copied from [teacherStudentDistributionAttempts].
+class TeacherStudentDistributionAttemptsProvider
+    extends AutoDisposeFutureProvider<List<Map<String, dynamic>>> {
+  /// Provider lấy lịch sử các lần làm bài (attempts) của 1 học sinh cho 1 bài tập (Teacher view)
+  ///
+  /// Copied from [teacherStudentDistributionAttempts].
+  TeacherStudentDistributionAttemptsProvider({
+    required String distributionId,
+    required String studentId,
+  }) : this._internal(
+         (ref) => teacherStudentDistributionAttempts(
+           ref as TeacherStudentDistributionAttemptsRef,
+           distributionId: distributionId,
+           studentId: studentId,
+         ),
+         from: teacherStudentDistributionAttemptsProvider,
+         name: r'teacherStudentDistributionAttemptsProvider',
+         debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+             ? null
+             : _$teacherStudentDistributionAttemptsHash,
+         dependencies: TeacherStudentDistributionAttemptsFamily._dependencies,
+         allTransitiveDependencies: TeacherStudentDistributionAttemptsFamily
+             ._allTransitiveDependencies,
+         distributionId: distributionId,
+         studentId: studentId,
+       );
+
+  TeacherStudentDistributionAttemptsProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.distributionId,
+    required this.studentId,
+  }) : super.internal();
+
+  final String distributionId;
+  final String studentId;
+
+  @override
+  Override overrideWith(
+    FutureOr<List<Map<String, dynamic>>> Function(
+      TeacherStudentDistributionAttemptsRef provider,
+    )
+    create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: TeacherStudentDistributionAttemptsProvider._internal(
+        (ref) => create(ref as TeacherStudentDistributionAttemptsRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        distributionId: distributionId,
+        studentId: studentId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<List<Map<String, dynamic>>> createElement() {
+    return _TeacherStudentDistributionAttemptsProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TeacherStudentDistributionAttemptsProvider &&
+        other.distributionId == distributionId &&
+        other.studentId == studentId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, distributionId.hashCode);
+    hash = _SystemHash.combine(hash, studentId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin TeacherStudentDistributionAttemptsRef
+    on AutoDisposeFutureProviderRef<List<Map<String, dynamic>>> {
+  /// The parameter `distributionId` of this provider.
+  String get distributionId;
+
+  /// The parameter `studentId` of this provider.
+  String get studentId;
+}
+
+class _TeacherStudentDistributionAttemptsProviderElement
+    extends AutoDisposeFutureProviderElement<List<Map<String, dynamic>>>
+    with TeacherStudentDistributionAttemptsRef {
+  _TeacherStudentDistributionAttemptsProviderElement(super.provider);
+
+  @override
+  String get distributionId =>
+      (origin as TeacherStudentDistributionAttemptsProvider).distributionId;
+  @override
+  String get studentId =>
+      (origin as TeacherStudentDistributionAttemptsProvider).studentId;
+}
+
 String _$submissionFilterNotifierHash() =>
     r'8425d25bb792f25b2f8006efa2a70a5a37029e28';
 

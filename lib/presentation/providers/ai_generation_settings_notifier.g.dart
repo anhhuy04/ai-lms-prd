@@ -7,7 +7,7 @@ part of 'ai_generation_settings_notifier.dart';
 // **************************************************************************
 
 String _$aiGenerationSettingsNotifierHash() =>
-    r'cfca140bfbdb6a8a647ecda68248421905b20484';
+    r'a1021a135f95ae7ad05dd370f6197c37f04fa6de';
 
 /// Session-scoped AI generation settings (keepAlive = persists until app restart).
 /// Shared between AiQuestionSettingsScreen and TeacherAiGenerateQuestionScreen.

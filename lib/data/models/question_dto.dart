@@ -61,5 +61,14 @@ extension QuestionDTODbExtension on QuestionDTO {
         'difficulty': difficulty,
         'tags': tags,
         'is_public': false,
+        // Gửi choices để RPC lưu vào question_choices (format: {id, content:{text}, is_correct})
+        if (choices.isNotEmpty)
+          'choices': choices
+              .map((c) => {
+                    'id': c.id,
+                    'content': {'text': c.text},
+                    'is_correct': c.isCorrect,
+                  })
+              .toList(),
       };
 }

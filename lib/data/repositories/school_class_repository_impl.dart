@@ -615,6 +615,20 @@ class SchoolClassRepositoryImpl implements SchoolClassRepository {
   }
 
   @override
+  Future<int> getUniqueStudentCount(List<String> classIds) async {
+    try {
+      return await _dataSource.getUniqueStudentCount(classIds);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getUniqueStudentCount: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return 0;
+    }
+  }
+
+  @override
   Future<bool> checkJoinCodeExists(
     String joinCode, {
     String? excludeClassId,

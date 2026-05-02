@@ -29,7 +29,7 @@ final teacherFileRepositoryProvider =
 // ignore: unused_element
 typedef TeacherFileRepositoryRef =
     AutoDisposeProviderRef<ITeacherFileRepository>;
-String _$teacherFilesHash() => r'889372459b9fdea562e4bc6c23870e910f2aa833';
+String _$teacherFilesHash() => r'fe57f54fa76eeb8806ebb5058a8d8f6c75d4a24a';
 
 /// Async notifier for teacher's file library.
 /// Class name `TeacherFiles` → generator produces `teacherFilesProvider`.

@@ -8,6 +8,7 @@ import 'package:ai_mls/domain/repositories/submission_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'assignment_providers.dart';
 import 'datasource_providers.dart';
 
 part 'teacher_submission_providers.g.dart';
@@ -476,6 +477,17 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
       _isUpdating = false;
     }
   }
+}
+
+/// Provider lấy lịch sử các lần làm bài (attempts) của 1 học sinh cho 1 bài tập (Teacher view)
+@riverpod
+Future<List<Map<String, dynamic>>> teacherStudentDistributionAttempts(
+  Ref ref, {
+  required String distributionId,
+  required String studentId,
+}) async {
+  final repo = ref.watch(assignmentRepositoryProvider);
+  return repo.getDistributionAttempts(distributionId, studentId);
 }
 
 /// Parse Supabase numeric an toàn: có thể là num, String "10.00", hoặc null

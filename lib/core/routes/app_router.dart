@@ -37,6 +37,7 @@ import 'package:ai_mls/presentation/views/class/teacher/teacher_class_list_scree
 import 'package:ai_mls/presentation/views/class/teacher/teacher_group_management_screen.dart';
 import 'package:ai_mls/presentation/views/class/teacher/teacher_group_detail_screen.dart';
 import 'package:ai_mls/presentation/views/class/student/student_group_screen.dart';
+import 'package:ai_mls/presentation/views/class/student/student_group_detail_screen.dart';
 import 'package:ai_mls/presentation/views/class/teacher/widgets/search/teacher_class_search_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/admin_dashboard_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/home/student_home_content_screen.dart';
@@ -812,6 +813,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final extra = state.extra as Map<String, dynamic>?;
           return StudentGroupScreen(
             classId: classId,
+            className: extra?['className'] as String? ?? '',
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoute.studentGroupDetailPath(':classId', ':groupId'),
+        name: AppRoute.studentGroupDetail,
+        builder: (context, state) {
+          final classId = state.pathParameters['classId']!;
+          final groupId = state.pathParameters['groupId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          return StudentGroupDetailScreen(
+            classId: classId,
+            groupId: groupId,
+            groupName: extra?['groupName'] as String? ?? '',
             className: extra?['className'] as String? ?? '',
           );
         },

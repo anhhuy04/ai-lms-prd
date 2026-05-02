@@ -17,9 +17,6 @@ class GradeDistributionHeatmap extends StatelessWidget {
     this.height = 300,
   });
 
-  /// Fixed height for the header row — used to constrain ListView properly.
-  double get _headerHeight => 36.0;
-
   @override
   Widget build(BuildContext context) {
     final data = subjects ?? [];
@@ -65,11 +62,8 @@ class GradeDistributionHeatmap extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Header — always visible at top (fixed height)
-          SizedBox(
-            height: _headerHeight,
-            child: _buildHeader(),
-          ),
+          // Header — always visible at top (auto height)
+          _buildHeader(),
           // Data rows (tối đa 5 hàng hiển thị, quá thì scroll)
           _buildDataRows(data),
         ],
@@ -328,10 +322,14 @@ class GradeDistributionHeatmap extends StatelessWidget {
     List<StudentScoreItem> students,
   ) {
     final color = _getBucketColor(bucketIndex);
+    
     final bgColor = count > 0
-        ? color.withValues(alpha: 0.2 + (count.clamp(1, 5) * 0.15).clamp(0.2, 0.9))
+        ? color.withValues(alpha: 0.75)
         : DesignColors.moonLight.withValues(alpha: 0.3);
-    final textColor = count > 0 ? color : DesignColors.textSecondary;
+        
+    final textColor = count > 0
+        ? Colors.white
+        : DesignColors.textSecondary;
 
     return Expanded(
       child: Padding(

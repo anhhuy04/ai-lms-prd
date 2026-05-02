@@ -120,6 +120,7 @@ class _EditClassScreenState extends ConsumerState<EditClassScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: DesignColors.moonLight,
       appBar: AppBar(
         leading: IconButton(

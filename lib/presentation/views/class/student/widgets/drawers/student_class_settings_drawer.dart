@@ -29,6 +29,7 @@ class StudentClassSettingsDrawer extends StatelessWidget {
   final VoidCallback? onChangeTheme;
   final VoidCallback? onChangeLanguage;
 
+  final VoidCallback? onViewGroup;
   final VoidCallback? onContactTeacher;
   final VoidCallback? onReportIssue;
   final VoidCallback? onOpenHelpCenter;
@@ -54,6 +55,7 @@ class StudentClassSettingsDrawer extends StatelessWidget {
     this.onChangeTextSize,
     this.onChangeTheme,
     this.onChangeLanguage,
+    this.onViewGroup,
     this.onContactTeacher,
     this.onReportIssue,
     this.onOpenHelpCenter,
@@ -149,6 +151,16 @@ class StudentClassSettingsDrawer extends StatelessWidget {
               : 'Xem thông tin giáo viên phụ trách',
           onTap: () {
             _handleAction(context, onViewTeacherInfo);
+          },
+          iconColor: colorScheme.primary,
+        ),
+
+        DrawerActionTile(
+          icon: Icons.groups_rounded,
+          title: 'Nhóm của tôi',
+          subtitle: 'Xem nhóm và bài tập nhóm',
+          onTap: () {
+            _handleAction(context, onViewGroup);
           },
           iconColor: colorScheme.primary,
         ),

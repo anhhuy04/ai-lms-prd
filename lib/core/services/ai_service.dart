@@ -282,6 +282,7 @@ class AiService {
             topicLine: topicLine,
             documentContext: documentContext,
             formatExample: formatExample,
+            typeRule: typeRule,
           );
         case TemplateMode.sameForm:
           prompt = _buildSameFormPrompt(
@@ -380,20 +381,20 @@ RÀNG BUỘC FORMAT:
       case 'true_false':
         return '''VÍ DỤ OUTPUT (2 câu):
 [
-  {"type":"true_false","override_text":"Câu hỏi đúng/sai ở đây?","choices":[{"id":0,"text":"Đúng","isCorrect":true},{"id":1,"text":"Sai","isCorrect":false}],"tags":["tag1"]},
-  {"type":"true_false","override_text":"Câu hỏi thứ 2?","choices":[{"id":0,"text":"Đúng","isCorrect":false},{"id":1,"text":"Sai","isCorrect":true}],"tags":["tag1"]}
+  {"type":"true_false","override_text":"Trái Đất quay quanh Mặt Trời theo quỹ đạo hình elip.","choices":[{"id":0,"text":"Đúng","isCorrect":true},{"id":1,"text":"Sai","isCorrect":false}],"tags":["thiên văn"]},
+  {"type":"true_false","override_text":"Nước sôi ở 90°C dưới áp suất khí quyển tiêu chuẩn.","choices":[{"id":0,"text":"Đúng","isCorrect":false},{"id":1,"text":"Sai","isCorrect":true}],"tags":["vật lý"]}
 ]''';
 
       case 'essay':
         return '''VÍ DỤ OUTPUT (1 câu):
 [
-  {"type":"essay","override_text":"Câu hỏi tự luận ở đây?","expected_answer":"Đáp án mẫu đầy đủ.","ai_grading_keywords":[{"id":0,"keyword":"từ khóa 1","weight":0.5},{"id":1,"keyword":"từ khóa 2","weight":0.5}],"tags":["tag1"]}
+  {"type":"essay","override_text":"Hãy phân tích tác động của biến đổi khí hậu đối với nông nghiệp Việt Nam.","expected_answer":"Biến đổi khí hậu gây ra lũ lụt, hạn hán, xâm nhập mặn ảnh hưởng đến năng suất lúa và cây trồng.","ai_grading_keywords":[{"id":0,"keyword":"lũ lụt","weight":0.3},{"id":1,"keyword":"hạn hán","weight":0.3},{"id":2,"keyword":"xâm nhập mặn","weight":0.4}],"tags":["môi trường","nông nghiệp"]}
 ]''';
 
       case 'short_answer':
         return '''VÍ DỤ OUTPUT (1 câu):
 [
-  {"type":"short_answer","override_text":"Câu hỏi trả lời ngắn?","expected_answer":"Đáp án ngắn gọn.","tags":["tag1"]}
+  {"type":"short_answer","override_text":"Thủ đô của Nhật Bản là thành phố nào?","expected_answer":"Tokyo","tags":["địa lý","châu Á"]}
 ]''';
 
       case 'fill_blank':
@@ -411,8 +412,8 @@ RÀNG BUỘC FORMAT:
       default: // multiple_choice
         return '''VÍ DỤ OUTPUT (2 câu):
 [
-  {"type":"multiple_choice","override_text":"Câu hỏi trắc nghiệm 1?","choices":[{"id":0,"text":"Đáp án A","isCorrect":true},{"id":1,"text":"Đáp án B","isCorrect":false},{"id":2,"text":"Đáp án C","isCorrect":false},{"id":3,"text":"Đáp án D","isCorrect":false}],"tags":["tag1","tag2"]},
-  {"type":"multiple_choice","override_text":"Câu hỏi trắc nghiệm 2?","choices":[{"id":0,"text":"Đáp án A","isCorrect":false},{"id":1,"text":"Đáp án B","isCorrect":false},{"id":2,"text":"Đáp án C","isCorrect":true},{"id":3,"text":"Đáp án D","isCorrect":false}],"tags":["tag1"]}
+  {"type":"multiple_choice","override_text":"Nguyên tố hóa học có ký hiệu 'O' là gì?","choices":[{"id":0,"text":"Oxi","isCorrect":true},{"id":1,"text":"Vàng","isCorrect":false},{"id":2,"text":"Sắt","isCorrect":false},{"id":3,"text":"Nitơ","isCorrect":false}],"tags":["hóa học","nguyên tố"]},
+  {"type":"multiple_choice","override_text":"Sông nào dài nhất châu Phi?","choices":[{"id":0,"text":"Congo","isCorrect":false},{"id":1,"text":"Mekong","isCorrect":false},{"id":2,"text":"Nile","isCorrect":true},{"id":3,"text":"Amazon","isCorrect":false}],"tags":["địa lý","châu Phi"]}
 ]''';
     }
   }
@@ -433,12 +434,12 @@ RÀNG BUỘC FORMAT:
     required String topicLine,
     required String documentContext,
     required String formatExample,
+    required String typeRule,
   }) {
     return '''OUTPUT: JSON ARRAY thuần túy. KHÔNG text giải thích, KHÔNG markdown fence, KHÔNG ký tự nào trước dấu "[" đầu tiên.
 
-CẤM TUYỆT ĐỐI: KHÔNG sao chép, paraphrase, hay tạo biến thể của bất cứ câu nào trong schema dưới đây. Schema CHỈ có metadata, không có nội dung gốc — bạn KHÔNG biết câu mẫu nói gì, KHÔNG được đoán.
-
-NHIỆM VỤ: Tạo $quantity câu hỏi MỚI HOÀN TOÀN, kế thừa CHỈ phong cách từ schema mẫu (loại câu, độ khó, tỉ lệ type, chủ đề gợi ý qua tags).
+NHIỆM VỤ: Tạo $quantity câu hỏi MỚI HOÀN TOÀN, kế thừa CHỈ phong cách từ schema mẫu (loại câu, độ khó, chủ đề).
+Schema CHỈ có metadata — bạn KHÔNG biết câu mẫu nói gì, KHÔNG sao chép/đoán nội dung.
 
 --- SCHEMA BÀI MẪU ---
 $documentContext
@@ -446,29 +447,27 @@ $documentContext
 
 $difficultyLine
 Chủ đề: $topicLine.
+Loại câu: $typeRule
 
 QUY TẮC:
-1. Mỗi câu mới = chủ đề CON khác nhau trong cùng lĩnh vực với tags. Không lặp lại đúng key concept của bất cứ câu nào.
-2. Giữ ĐÚNG: loại câu (type), số lựa chọn, độ khó tương ứng từng câu trong schema.
-3. MCQ: đúng 1 isCorrect=true, 3 cái false. Phân bố đáp án đúng đều ở id 0,1,2,3 qua $quantity câu.
-4. Distractor (đáp án sai) phải HỢP LÝ — sai vì lý do giáo dục được, không sai trắng trợn.
-5. Output JSON ARRAY thuần. KHÔNG markdown code fence, KHÔNG giải thích, KHÔNG ký tự thừa trước/sau JSON.
-
---- VÍ DỤ NGƯỠNG (schema 1 câu MCQ độ khó 3, tags: "flutter, cơ bản") ---
-[{"type":"multiple_choice","override_text":"Widget nào dùng để hiển thị danh sách cuộn được trong Flutter?","choices":[{"id":0,"text":"Container","isCorrect":false},{"id":1,"text":"ListView","isCorrect":true},{"id":2,"text":"Row","isCorrect":false},{"id":3,"text":"Stack","isCorrect":false}],"tags":["flutter","widget"]}]
+1. Mỗi câu = chủ đề CON khác nhau trong cùng lĩnh vực. Không lặp key concept.
+2. Giữ ĐÚNG: loại câu, số lựa chọn, độ khó tương ứng từng slot trong schema.
+3. MCQ: đúng 1 isCorrect=true, 3 false. Phân bố đáp án đúng đều id 0,1,2,3 qua $quantity câu.
+4. KIỂM TRA trước khi xuất: xác nhận isCorrect=true là đúng kiến thức. Distractor phải sai có lý do.
+5. override_text = câu hỏi thực sự (VD đúng: "Thủ đô Pháp là thành phố nào?" — VD sai: "câu hỏi địa lý" hay "câu hỏi 1").
 
 $formatExample
 
 RÀNG BUỘC FORMAT:
-- MỌI loại câu: LUÔN có "override_text" chứa nội dung câu hỏi đầy đủ.
+- MỌI loại câu: LUÔN có "override_text" = câu hỏi thực đầy đủ, KHÔNG phải nhãn hay placeholder.
 - multiple_choice: override_text + 4 choices (id 0,1,2,3), đúng 1 isCorrect=true.
 - true_false: override_text + 2 choices id 0/1 với text "Đúng"/"Sai".
 - essay/short_answer: override_text + expected_answer.
 - fill_blank: override_text dùng [___1], [___2]…; blanks liệt kê đáp án.
-- tags: 1-3 từ khóa.
+- tags: 1-3 từ khóa chủ đề.
 - KHÔNG tạo field "explanation".
 
-NHẮC LẠI LẦN CUỐI: CẤM sao chép/đoán nội dung câu mẫu (bạn không thấy chúng). Trả về đúng JSON ARRAY $quantity object.''';
+NHẮC LẠI: Trả về JSON ARRAY $quantity object. override_text = câu hỏi thực, không phải nhãn.''';
   }
 
   /// Prompt cho TemplateMode.sameForm — math drill / structure clone.
@@ -779,6 +778,7 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
         // Force pure JSON output — tránh Gemini bọc JSON trong markdown/text thừa
         'generationConfig': {
           'responseMimeType': 'application/json',
+          'temperature': 0.2,
         },
       };
 
@@ -986,10 +986,10 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
     ).firstMatch(prompt);
     final qty = int.tryParse(m?.group(1) ?? '') ?? 10;
     // MCQ đầy đủ (override_text + 4 choices + tags): ~200-250 tokens mỗi câu.
-    // Cap cũ 1400 quá thấp — JSON bị truncate giữa chừng → parse fail → fallback.
+    // Cap 6000 để tránh truncate khi qty lớn (Groq free tier giới hạn ≈ 8k).
     final estimated = 400 + (qty * 220);
     if (estimated < 800) return 800;
-    if (estimated > 4000) return 4000;
+    if (estimated > 6000) return 6000;
     return estimated;
   }
 

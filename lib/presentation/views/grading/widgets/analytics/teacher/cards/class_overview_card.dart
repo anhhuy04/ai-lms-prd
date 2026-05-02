@@ -6,6 +6,7 @@ class ClassOverviewCard extends StatelessWidget {
   final double classAverage;
   final int totalStudents;
   final int totalSubmissions;
+  final int totalExpectedSubmissions;
   final double? highestScore;
   final double? lowestScore;
   final double? submissionRate;
@@ -20,6 +21,7 @@ class ClassOverviewCard extends StatelessWidget {
     required this.classAverage,
     required this.totalStudents,
     required this.totalSubmissions,
+    required this.totalExpectedSubmissions,
     this.highestScore,
     this.lowestScore,
     this.submissionRate,
@@ -57,22 +59,27 @@ class ClassOverviewCard extends StatelessWidget {
           ),
           SizedBox(height: DesignSpacing.md),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _MetricTile(
-                icon: Icons.analytics,
-                value: '${classAverage.toStringAsFixed(1)}/10',
-                label: 'Điểm TB',
+              Expanded(
+                child: _MetricTile(
+                  icon: Icons.analytics,
+                  value: '${classAverage.toStringAsFixed(1)}/10',
+                  label: 'Điểm TB',
+                ),
               ),
-              _MetricTile(
-                icon: Icons.people_outline,
-                value: '$totalStudents',
-                label: 'Học sinh',
+              Expanded(
+                child: _MetricTile(
+                  icon: Icons.people_outline,
+                  value: '$totalStudents',
+                  label: 'Học sinh',
+                ),
               ),
-              _MetricTile(
-                icon: Icons.assignment_turned_in_outlined,
-                value: '$totalSubmissions',
-                label: 'Bài nộp',
+              Expanded(
+                child: _MetricTile(
+                  icon: Icons.assignment_turned_in_outlined,
+                  value: '$totalSubmissions',
+                  label: 'Bài nộp',
+                ),
               ),
             ],
           ),
@@ -86,52 +93,89 @@ class ClassOverviewCard extends StatelessWidget {
   }
 
   Widget _buildDetails() {
-    final chips = <Widget>[];
+    final onTimeStr = submissionRate != null
+        ? '${(submissionRate! * 100).toStringAsFixed(0)}%'
+        : '-';
+    final lateStr = lateSubmissionRate != null
+        ? '${(lateSubmissionRate! * 100).toStringAsFixed(0)}%'
+        : '-';
 
-    chips.add(_DetailChip(
-      icon: Icons.check_circle_outline,
-      label: 'Đúng hạn',
-      value: submissionRate != null
-          ? '${(submissionRate! * 100).toStringAsFixed(0)}%'
-          : '-',
-    ));
-
-    chips.add(_DetailChip(
-      icon: Icons.schedule,
-      label: 'Nộp muộn',
-      value: lateSubmissionRate != null
-          ? '${(lateSubmissionRate! * 100).toStringAsFixed(0)}%'
-          : '-',
-    ));
-
-    if (highestScore != null) {
-      chips.add(_DetailChip(
-        icon: Icons.trending_up,
-        label: 'Cao nhất',
-        value: '${highestScore!.toStringAsFixed(1)}/10',
-      ));
-    }
-    if (lowestScore != null) {
-      chips.add(_DetailChip(
-        icon: Icons.trending_down,
-        label: 'Thấp nhất',
-        value: '${lowestScore!.toStringAsFixed(1)}/10',
-      ));
-    }
-    if (worstOffenderName != null && worstOffenderCount != null && worstOffenderCount! > 0) {
-      chips.add(_DetailChip(
-        icon: Icons.warning_amber,
-        label: worstOffenderName!.length > 8
-            ? '${worstOffenderName!.substring(0, 8)}...'
-            : worstOffenderName!,
-        value: '$worstOffenderCount bài muộn',
-      ));
-    }
-
-    return Wrap(
-      spacing: DesignSpacing.sm,
-      runSpacing: DesignSpacing.sm,
-      children: chips,
+    return Column(
+      children: [
+        // Row 1: Đã nộp | Đúng hạn
+        Row(
+          children: [
+            Expanded(
+              child: _DetailChip(
+                icon: Icons.assignment_turned_in_outlined,
+                label: 'Đã nộp',
+                value: '$totalSubmissions/$totalExpectedSubmissions',
+              ),
+            ),
+            SizedBox(width: DesignSpacing.sm),
+            Expanded(
+              child: _DetailChip(
+                icon: Icons.check_circle_outline,
+                label: 'Đúng hạn',
+                value: onTimeStr,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: DesignSpacing.sm),
+        // Row 2: Cao nhất | Thấp nhất
+        Row(
+          children: [
+            Expanded(
+              child: _DetailChip(
+                icon: Icons.trending_up,
+                label: 'Cao nhất',
+                value: highestScore != null
+                    ? '${highestScore!.toStringAsFixed(1)}/10'
+                    : '-',
+              ),
+            ),
+            SizedBox(width: DesignSpacing.sm),
+            Expanded(
+              child: _DetailChip(
+                icon: Icons.trending_down,
+                label: 'Thấp nhất',
+                value: lowestScore != null
+                    ? '${lowestScore!.toStringAsFixed(1)}/10'
+                    : '-',
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: DesignSpacing.sm),
+        // Row 3: Nộp muộn | Worst offender
+        Row(
+          children: [
+            Expanded(
+              child: _DetailChip(
+                icon: Icons.schedule,
+                label: 'Nộp muộn',
+                value: lateStr,
+              ),
+            ),
+            SizedBox(width: DesignSpacing.sm),
+            if (worstOffenderName != null &&
+                worstOffenderCount != null &&
+                worstOffenderCount! > 0)
+              Expanded(
+                child: _DetailChip(
+                  icon: Icons.warning_amber,
+                  label: worstOffenderName!.length > 10
+                      ? '${worstOffenderName!.substring(0, 10)}...'
+                      : worstOffenderName!,
+                  value: '$worstOffenderCount muộn',
+                ),
+              )
+            else
+              const Expanded(child: SizedBox()),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -185,7 +229,8 @@ class _DetailChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 5.h),
       decoration: BoxDecoration(
         color: DesignColors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(DesignRadius.sm),

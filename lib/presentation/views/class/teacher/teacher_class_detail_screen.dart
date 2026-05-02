@@ -22,6 +22,18 @@ enum AssignmentDistributionFilter {
   const AssignmentDistributionFilter(this.label, this.icon);
 }
 
+/// Sắp xếp danh sách bài tập
+enum AssignmentSortOption {
+  newest('Mới nhất', Icons.access_time),
+  oldest('Cũ nhất', Icons.history),
+  deadlineSoonest('Deadline gần nhất', Icons.event_available),
+  titleAZ('Tên A→Z', Icons.sort_by_alpha);
+
+  final String label;
+  final IconData icon;
+  const AssignmentSortOption(this.label, this.icon);
+}
+
 /// Màn hình chi tiết lớp học dành cho giáo viên
 /// Thiết kế theo chuẩn Design System với đầy đủ thông tin lớp học
 class TeacherClassDetailScreen extends ConsumerStatefulWidget {
@@ -43,9 +55,10 @@ class TeacherClassDetailScreen extends ConsumerStatefulWidget {
 
 class _TeacherClassDetailScreenState
     extends ConsumerState<TeacherClassDetailScreen> {
-  // State cho filter bài tập
+  // State cho filter và sort bài tập
   AssignmentDistributionFilter _selectedFilter =
       AssignmentDistributionFilter.all;
+  AssignmentSortOption _selectedSort = AssignmentSortOption.newest;
 
   @override
   void initState() {
@@ -313,26 +326,49 @@ class _TeacherClassDetailScreenState
 
   /// Hàng thống kê nhanh
   Widget _buildQuickStatsRow(BuildContext context) {
-    // Watch assignments provider để tính stats
     final assignmentsAsync = ref.watch(
       classDistributedAssignmentsProvider(widget.classId),
     );
-    final approvedCount = 0; // TODO: từ getClassMembers
+    final isLoading = assignmentsAsync.isLoading;
+    final assignments = assignmentsAsync.valueOrNull ?? [];
 
-    // Tính số bài tập đang mở từ real data
-    final openCount =
-        assignmentsAsync.whenOrNull(
-          data: (assignments) {
-            final now = DateTime.now();
-            return assignments.where((a) {
-              final dueAt = a['distribution_due_at'] as String?;
-              if (dueAt == null) return true; // Không có hạn → đang mở
-              final due = DateTime.tryParse(dueAt);
-              return due == null || due.isAfter(now);
-            }).length;
-          },
-        ) ??
-        0;
+    // Số bài đang mở
+    final now = DateTime.now();
+    final openCount = assignments.where((a) {
+      final dueAt = a['distribution_due_at'] as String?;
+      if (dueAt == null) return true;
+      final due = DateTime.tryParse(dueAt);
+      return due == null || due.isAfter(now);
+    }).length;
+
+    // Số học sinh: lấy total_students từ distribution đầu tiên type 'class'
+    int studentCount = 0;
+    for (final a in assignments) {
+      if ((a['distribution_type'] as String?) == 'class') {
+        final n = a['total_students'] as int?;
+        if (n != null && n > 0) { studentCount = n; break; }
+      }
+    }
+    // Fallback: lấy max total_students nếu không có class-type
+    if (studentCount == 0) {
+      for (final a in assignments) {
+        final n = a['total_students'] as int? ?? 0;
+        if (n > studentCount) studentCount = n;
+      }
+    }
+
+    // Tỷ lệ nộp bài: tổng submission / tổng có thể nộp
+    int totalPossible = 0;
+    int totalSubmitted = 0;
+    for (final a in assignments) {
+      totalPossible += a['total_students'] as int? ?? 0;
+      totalSubmitted += a['submission_count'] as int? ?? 0;
+    }
+    final rateStr = isLoading
+        ? '-'
+        : totalPossible > 0
+            ? '${(totalSubmitted / totalPossible * 100).toStringAsFixed(0)}%'
+            : '0%';
 
     return Row(
       children: [
@@ -341,7 +377,7 @@ class _TeacherClassDetailScreenState
             context: context,
             icon: Icons.groups,
             iconColor: Theme.of(context).colorScheme.primary,
-            value: '$approvedCount',
+            value: isLoading ? '-' : '$studentCount',
             label: 'Học sinh',
             onTap: () {
               context.goNamed(
@@ -358,7 +394,7 @@ class _TeacherClassDetailScreenState
             context: context,
             icon: Icons.assignment,
             iconColor: Colors.orange,
-            value: '$openCount',
+            value: isLoading ? '-' : '$openCount',
             label: 'Bài tập đang mở',
             onTap: () {
               context.go(AppRoute.teacherAssignmentListPath);
@@ -371,17 +407,9 @@ class _TeacherClassDetailScreenState
             context: context,
             icon: Icons.check_circle,
             iconColor: Colors.green,
-            value: '0%',
+            value: rateStr,
             label: 'Tỷ lệ nộp bài',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Chức năng thống kê nộp bài đang được phát triển',
-                  ),
-                ),
-              );
-            },
+            onTap: () {},
           ),
         ),
       ],
@@ -540,8 +568,8 @@ class _TeacherClassDetailScreenState
           // Header danh sách
           _buildAssignmentListHeader(),
           const SizedBox(height: 8),
-          // Filter chips
-          _buildFilterChipBar(),
+          // Filter & sort bar
+          _buildFilterSortBar(),
           const SizedBox(height: 12),
           // Danh sách bài tập
           _buildAssignmentList(context),
@@ -574,59 +602,189 @@ class _TeacherClassDetailScreenState
     );
   }
 
-  /// Filter chip bar cho loại phân phối bài tập
-  Widget _buildFilterChipBar() {
+  /// Hàng 2 nút filter + sort mở bottom sheet
+  Widget _buildFilterSortBar() {
     final colorScheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: 36,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: AssignmentDistributionFilter.values.map((filter) {
-          final isSelected = _selectedFilter == filter;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              selected: isSelected,
-              label: Row(
+    final filterIsActive = _selectedFilter != AssignmentDistributionFilter.all;
+    final sortIsActive = _selectedSort != AssignmentSortOption.newest;
+    return Row(
+      children: [
+        OutlinedButton.icon(
+          onPressed: () => _showFilterSheet(context),
+          icon: Icon(
+            Icons.filter_list,
+            size: 16,
+            color: filterIsActive ? colorScheme.primary : null,
+          ),
+          label: Text(
+            filterIsActive ? _selectedFilter.label : 'Phân loại',
+            style: TextStyle(
+              fontSize: 13,
+              color: filterIsActive ? colorScheme.primary : null,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(
+              color: filterIsActive
+                  ? colorScheme.primary
+                  : colorScheme.outline.withValues(alpha: 0.5),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        const SizedBox(width: 8),
+        OutlinedButton.icon(
+          onPressed: () => _showSortSheet(context),
+          icon: Icon(
+            Icons.sort,
+            size: 16,
+            color: sortIsActive ? colorScheme.primary : null,
+          ),
+          label: Text(
+            sortIsActive ? _selectedSort.label : 'Sắp xếp',
+            style: TextStyle(
+              fontSize: 13,
+              color: sortIsActive ? colorScheme.primary : null,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(
+              color: sortIsActive
+                  ? colorScheme.primary
+                  : colorScheme.outline.withValues(alpha: 0.5),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Bottom sheet chọn phân loại
+  void _showFilterSheet(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    filter.icon,
-                    size: 16,
-                    color: isSelected
-                        ? colorScheme.onPrimary
-                        : colorScheme.onSurface.withValues(alpha: 0.7),
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colorScheme.outline.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                  const SizedBox(width: 4),
-                  Text(filter.label),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Phân loại bài tập',
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  ...AssignmentDistributionFilter.values.map((f) {
+                    final selected = _selectedFilter == f;
+                    return ListTile(
+                      leading: Icon(f.icon,
+                          color: selected ? colorScheme.primary : null),
+                      title: Text(f.label),
+                      trailing: selected
+                          ? Icon(Icons.check, color: colorScheme.primary)
+                          : null,
+                      onTap: () {
+                        setState(() => _selectedFilter = f);
+                        Navigator.of(ctx).pop();
+                      },
+                    );
+                  }),
                 ],
               ),
-              labelStyle: TextStyle(
-                fontSize: 12,
-                color: isSelected
-                    ? colorScheme.onPrimary
-                    : colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-              selectedColor: colorScheme.primary,
-              checkmarkColor: colorScheme.onPrimary,
-              backgroundColor: colorScheme.surface,
-              side: BorderSide(
-                color: isSelected
-                    ? colorScheme.primary
-                    : colorScheme.outline.withValues(alpha: 0.3),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              showCheckmark: false,
-              onSelected: (_) {
-                setState(() => _selectedFilter = filter);
-              },
-            ),
-          );
-        }).toList(),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Bottom sheet chọn sắp xếp
+  void _showSortSheet(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colorScheme.outline.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Sắp xếp bài tập',
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  ...AssignmentSortOption.values.map((s) {
+                    final selected = _selectedSort == s;
+                    return ListTile(
+                      leading: Icon(s.icon,
+                          color: selected ? colorScheme.primary : null),
+                      title: Text(s.label),
+                      trailing: selected
+                          ? Icon(Icons.check, color: colorScheme.primary)
+                          : null,
+                      onTap: () {
+                        setState(() => _selectedSort = s);
+                        Navigator.of(ctx).pop();
+                      },
+                    );
+                  }),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -641,7 +799,7 @@ class _TeacherClassDetailScreenState
       error: (error, _) => _buildAssignmentErrorState(context, error),
       data: (rawAssignments) {
         // Apply filter
-        final assignments = _applyDistributionFilter(rawAssignments);
+        final assignments = _applyFilterAndSort(rawAssignments);
 
         return ClassDetailAssignmentList(
           assignments: assignments,
@@ -666,22 +824,61 @@ class _TeacherClassDetailScreenState
     );
   }
 
-  /// Filter assignments theo distribution_type
-  List<Map<String, dynamic>> _applyDistributionFilter(
+  /// Filter + sort assignments
+  List<Map<String, dynamic>> _applyFilterAndSort(
     List<Map<String, dynamic>> assignments,
   ) {
+    // Filter theo distribution_type
+    List<Map<String, dynamic>> result;
     if (_selectedFilter == AssignmentDistributionFilter.all) {
-      return assignments;
+      result = List.of(assignments);
+    } else {
+      const typeMap = {
+        AssignmentDistributionFilter.byClass: 'class',
+        AssignmentDistributionFilter.byGroup: 'group',
+        AssignmentDistributionFilter.byIndividual: 'individual',
+      };
+      final targetType = typeMap[_selectedFilter];
+      result = assignments
+          .where((a) => a['distribution_type'] == targetType)
+          .toList();
     }
-    final typeMap = {
-      AssignmentDistributionFilter.byClass: 'class',
-      AssignmentDistributionFilter.byGroup: 'group',
-      AssignmentDistributionFilter.byIndividual: 'individual',
-    };
-    final targetType = typeMap[_selectedFilter];
-    return assignments
-        .where((a) => a['distribution_type'] == targetType)
-        .toList();
+
+    // Sort
+    switch (_selectedSort) {
+      case AssignmentSortOption.newest:
+        result.sort((a, b) {
+          final da = DateTime.tryParse(a['created_at'] as String? ?? '') ??
+              DateTime(2000);
+          final db = DateTime.tryParse(b['created_at'] as String? ?? '') ??
+              DateTime(2000);
+          return db.compareTo(da);
+        });
+      case AssignmentSortOption.oldest:
+        result.sort((a, b) {
+          final da = DateTime.tryParse(a['created_at'] as String? ?? '') ??
+              DateTime(2000);
+          final db = DateTime.tryParse(b['created_at'] as String? ?? '') ??
+              DateTime(2000);
+          return da.compareTo(db);
+        });
+      case AssignmentSortOption.deadlineSoonest:
+        result.sort((a, b) {
+          final da = DateTime.tryParse(a['due_date'] as String? ?? '') ??
+              DateTime(9999);
+          final db = DateTime.tryParse(b['due_date'] as String? ?? '') ??
+              DateTime(9999);
+          return da.compareTo(db);
+        });
+      case AssignmentSortOption.titleAZ:
+        result.sort((a, b) {
+          final ta = (a['title'] as String? ?? '').toLowerCase();
+          final tb = (b['title'] as String? ?? '').toLowerCase();
+          return ta.compareTo(tb);
+        });
+    }
+
+    return result;
   }
 
   /// Error state cho danh sách bài tập

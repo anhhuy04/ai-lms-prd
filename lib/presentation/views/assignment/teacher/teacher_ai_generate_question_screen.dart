@@ -5,6 +5,7 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/services/ai_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
+import 'package:ai_mls/data/models/local_temp_file.dart' show FileRole;
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/domain/entities/template_mode.dart';
@@ -76,9 +77,6 @@ class _TeacherAiGenerateQuestionScreenState
 
   // Câu mẫu gốc dùng cho similarity verification post-hoc.
   List<Map<String, dynamic>>? _templateQuestionsForVerify;
-
-  // Template chỉ chứa MCQ → cho phép sameForm. Dùng để render UI chip.
-  bool _templateAllMcq = false;
 
   // Index đang regenerate đơn lẻ
   int? _regeneratingIndex;
@@ -605,20 +603,28 @@ class _TeacherAiGenerateQuestionScreenState
           return;
         }
 
-        // Detect loại tài liệu (luôn dùng rawText vì regex cần marker tường minh).
-        // Excel template: extractedText là tab-separated rows không có "Câu N:" →
-        // regex fail; check parsedQuestions != null là fix authoritative.
+        // Detect file mẫu: phải có parsedQuestions VÀ effectiveRole = template.
+        // Trước đây bỏ qua role → file bị đổi sang KT vẫn kích hoạt template mode.
         final hasExcelTemplate = allFiles.any(
           (f) =>
               selectedIds.contains(f.id) &&
               f.parsedQuestions != null &&
-              f.parsedQuestions!.isNotEmpty,
+              f.parsedQuestions!.isNotEmpty &&
+              f.effectiveRole == FileRole.template,
         );
-        _useAsStyleTemplate =
-            hasExcelTemplate || AiService.isTemplateStyleDoc(rawText);
+        // isTemplateStyleDoc chỉ dùng rawText của file KT (không có parsedQ) →
+        // chỉ kích hoạt khi file Word có cấu trúc "Câu N:" và role là template.
+        final hasDocxTemplate = AiService.isTemplateStyleDoc(rawText) &&
+            allFiles.any(
+              (f) =>
+                  selectedIds.contains(f.id) &&
+                  f.effectiveRole == FileRole.template &&
+                  f.parsedQuestions == null,
+            );
+        _useAsStyleTemplate = hasExcelTemplate || hasDocxTemplate;
         AppLogger.info(
           '[Mode3] hasExcelTemplate=$hasExcelTemplate, '
-          'isTemplateStyleDoc=${AiService.isTemplateStyleDoc(rawText)} → '
+          'hasDocxTemplate=$hasDocxTemplate → '
           'useAsStyleTemplate=$_useAsStyleTemplate',
         );
 
@@ -675,6 +681,10 @@ class _TeacherAiGenerateQuestionScreenState
             '[Mode3] Auto-downgrade sameForm → styleOnly: '
             'allMcq=$allMcq numericDowngrade=$numericDowngrade',
           );
+          // Sync lại provider để chip hiển thị đúng mode đã dùng thực tế
+          ref
+              .read(aiGenerationSettingsNotifierProvider.notifier)
+              .setTemplateMode(effectiveTemplateMode);
           if (numericDowngrade && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -693,7 +703,6 @@ class _TeacherAiGenerateQuestionScreenState
             _useAsStyleTemplate && templateQuestionsForCheck.isNotEmpty
                 ? templateQuestionsForCheck
                 : null;
-        _templateAllMcq = allMcq;
         // Build aiText: template-style dùng knowledge context (anti-leak), còn lại raw.
         final aiText = _useAsStyleTemplate
             ? notifier.getKnowledgeContextForIds(
@@ -1090,32 +1099,35 @@ class _TeacherAiGenerateQuestionScreenState
   }
 
   Future<void> _handleRegenerateSingle(int index) async {
-    final currentMode = ref
-        .read(aiGenerationSettingsNotifierProvider)
-        .processingMode;
+    final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
+    final currentMode = aiSettings.processingMode;
 
     String topic;
     String? documentContext;
-    // Tái dùng kết quả detect đã lưu state từ _handleGenerate gốc thay vì
-    // re-detect — tránh inconsistency khi regex đứng sát ngưỡng và đảm bảo
-    // câu regen ra cùng "loại" với câu gốc giáo viên đã thấy.
-    final useAsStyleTemplate = _useAsStyleTemplate;
+    bool regenUseAsStyleTemplate = false;
+    TemplateMode? regenTemplateMode;
 
     if (currentMode == ProcessingMode.ragGeneration) {
-      // Mode 3: lấy topic từ focus hint + tái dùng document context
+      // Mode 3: re-detect template state tại thời điểm regen (GAP-3 fix)
       final focusHint = _focusHintController.text.trim();
       topic = focusHint.isNotEmpty ? focusHint : 'Câu hỏi từ tài liệu';
-      final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
       final selectedIds = aiSettings.selectedFileIds;
       if (selectedIds.isNotEmpty) {
-        // Khớp với _handleGenerate Mode 3: template-style dùng knowledge
-        // context (shuffle options, ẩn đáp án), còn lại dùng raw text.
+        final allFiles = ref.read(localTempFilesProvider);
         final notifier = ref.read(localTempFilesProvider.notifier);
-        final docText = useAsStyleTemplate
+        // Re-detect live từ role hiện tại của file (không dùng cached state)
+        regenUseAsStyleTemplate = allFiles.any(
+          (f) =>
+              selectedIds.contains(f.id) &&
+              f.parsedQuestions != null &&
+              f.parsedQuestions!.isNotEmpty &&
+              f.effectiveRole == FileRole.template,
+        );
+        regenTemplateMode = regenUseAsStyleTemplate ? aiSettings.templateMode : null;
+        final docText = regenUseAsStyleTemplate
             ? notifier.getKnowledgeContextForIds(
                 selectedIds,
-                templateMode:
-                    _effectiveTemplateMode ?? TemplateMode.styleOnly,
+                templateMode: aiSettings.templateMode,
               )
             : notifier.getExtractedTextForIds(selectedIds);
         if (docText.isNotEmpty) {
@@ -1123,8 +1135,7 @@ class _TeacherAiGenerateQuestionScreenState
         }
       }
     } else if (currentMode == ProcessingMode.extraction) {
-      // Mode 2: tái dùng document context (loại tài liệu lấy từ state)
-      final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
+      // Mode 2: lấy raw text từ tài liệu
       final selectedIds = aiSettings.selectedFileIds;
       if (selectedIds.isEmpty) return;
       final docText = ref
@@ -1148,9 +1159,9 @@ class _TeacherAiGenerateQuestionScreenState
         difficulty: _difficulty,
         questionType: _typeKeyForIndex(index),
         documentContext: documentContext,
-        useAsStyleTemplate: useAsStyleTemplate,
-        templateMode: _effectiveTemplateMode,
-        templateQuestions: _templateQuestionsForVerify,
+        useAsStyleTemplate: regenUseAsStyleTemplate,
+        templateMode: regenTemplateMode,
+        templateQuestions: regenUseAsStyleTemplate ? _templateQuestionsForVerify : null,
       );
       if (result.isNotEmpty && mounted) {
         setState(() {
@@ -1272,7 +1283,8 @@ class _TeacherAiGenerateQuestionScreenState
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final mode = ref.watch(aiGenerationSettingsNotifierProvider).processingMode;
+    final aiSettings = ref.watch(aiGenerationSettingsNotifierProvider);
+    final mode = aiSettings.processingMode;
     final statusBarHeight = MediaQuery.of(context).padding.top;
 
     return Scaffold(
@@ -1355,7 +1367,13 @@ class _TeacherAiGenerateQuestionScreenState
                 child: Form(
                   key: _formKey,
                   child: SingleChildScrollView(
-                    padding: EdgeInsets.all(DesignSpacing.lg),
+                    padding: EdgeInsets.fromLTRB(
+                      DesignSpacing.lg,
+                      DesignSpacing.lg,
+                      DesignSpacing.lg,
+                      // Đủ chỗ cho bottom action bar (tối đa 2 hàng nút ~102px) + safe area
+                      MediaQuery.of(context).padding.bottom + 112,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1369,6 +1387,8 @@ class _TeacherAiGenerateQuestionScreenState
                                   aiGenerationSettingsNotifierProvider.notifier,
                                 )
                                 .setSelectedFileIds(ids),
+                            // Badge Mẫu/Kiến thức chỉ có nghĩa ở Mode 3
+                            showRoleBadge: mode == ProcessingMode.ragGeneration,
                           ),
                           SizedBox(height: DesignSpacing.lg),
                         ],
@@ -1418,11 +1438,6 @@ class _TeacherAiGenerateQuestionScreenState
                               ),
                             ),
                           ),
-                          // Chips chọn sub-mode chỉ hiện sau khi detect Excel mẫu
-                          if (_useAsStyleTemplate) ...[
-                            SizedBox(height: DesignSpacing.md),
-                            _buildTemplateModeChips(context, isDark),
-                          ],
                           SizedBox(height: DesignSpacing.xl),
                         ],
 
@@ -3058,119 +3073,6 @@ class _TeacherAiGenerateQuestionScreenState
 
   /// Chip chọn sub-mode template: "Tạo mới" (styleOnly) / "Cùng dạng" (sameForm).
   /// Chỉ hiển thị sau khi detect được file Excel mẫu (_useAsStyleTemplate=true).
-  Widget _buildTemplateModeChips(BuildContext context, bool isDark) {
-    final current = _effectiveTemplateMode ?? TemplateMode.styleOnly;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Kiểu tạo câu từ mẫu',
-          style: DesignTypography.bodySmall.copyWith(
-            fontWeight: FontWeight.w600,
-            color: isDark ? Colors.white : DesignColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            _buildModeChip(
-              label: 'Tạo mới',
-              icon: Icons.auto_awesome_outlined,
-              selected: current == TemplateMode.styleOnly,
-              disabled: false,
-              tooltip: 'AI tạo câu hoàn toàn mới, chỉ học văn phong từ mẫu',
-              isDark: isDark,
-              onTap: () => setState(
-                () => _effectiveTemplateMode = TemplateMode.styleOnly,
-              ),
-            ),
-            const SizedBox(width: 8),
-            _buildModeChip(
-              label: 'Cùng dạng',
-              icon: Icons.content_copy_outlined,
-              selected: current == TemplateMode.sameForm,
-              disabled: !_templateAllMcq,
-              tooltip: _templateAllMcq
-                  ? 'Giữ cấu trúc câu mẫu, đổi số liệu/tình huống (tốt nhất cho toán)'
-                  : 'Chỉ dùng được khi tất cả câu mẫu là Trắc nghiệm',
-              isDark: isDark,
-              onTap: _templateAllMcq
-                  ? () => setState(
-                      () => _effectiveTemplateMode = TemplateMode.sameForm,
-                    )
-                  : null,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildModeChip({
-    required String label,
-    required IconData icon,
-    required bool selected,
-    required bool disabled,
-    required String tooltip,
-    required bool isDark,
-    VoidCallback? onTap,
-  }) {
-    final activeColor = DesignColors.primary;
-    final bg = selected
-        ? activeColor.withValues(alpha: 0.12)
-        : (isDark ? Colors.grey[850]! : Colors.grey[100]!);
-    final border = selected
-        ? activeColor.withValues(alpha: 0.5)
-        : (isDark ? Colors.grey[700]! : Colors.grey[300]!);
-    final textColor = disabled
-        ? (isDark ? Colors.grey[600]! : Colors.grey[400]!)
-        : selected
-        ? activeColor
-        : (isDark ? Colors.grey[300]! : DesignColors.textSecondary);
-
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: disabled ? null : onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: disabled
-                ? (isDark ? Colors.grey[900]! : Colors.grey[200]!)
-                : bg,
-            borderRadius: BorderRadius.circular(DesignRadius.md),
-            border: Border.all(color: border),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 15, color: textColor),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight:
-                      selected ? FontWeight.w600 : FontWeight.w400,
-                  color: textColor,
-                ),
-              ),
-              if (disabled) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.lock_outline,
-                  size: 12,
-                  color: isDark ? Colors.grey[600]! : Colors.grey[400]!,
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildQuestionPreviewCard(
     BuildContext context,
     bool isDark, {

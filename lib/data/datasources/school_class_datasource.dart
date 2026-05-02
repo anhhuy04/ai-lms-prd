@@ -871,6 +871,28 @@ class SchoolClassDataSource {
     }
   }
 
+  /// Đếm số học sinh duy nhất (distinct student_id) trong danh sách lớp.
+  Future<int> getUniqueStudentCount(List<String> classIds) async {
+    if (classIds.isEmpty) return 0;
+    try {
+      final filterString = classIds.map((id) => 'class_id.eq.$id').join(',');
+      final rows = await _client
+          .from('class_members')
+          .select('student_id')
+          .eq('status', 'approved')
+          .or(filterString);
+      final ids = (rows as List).map((r) => r['student_id'] as String).toSet();
+      return ids.length;
+    } catch (e, s) {
+      AppLogger.error(
+        '🔴 getUniqueStudentCount: $e',
+        error: e,
+        stackTrace: s,
+      );
+      return 0;
+    }
+  }
+
   // ==================== Join Code Validation ====================
 
   /// Kiểm tra xem join code đã tồn tại trong database chưa.

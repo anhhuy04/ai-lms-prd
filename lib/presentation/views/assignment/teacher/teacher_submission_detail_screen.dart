@@ -38,6 +38,7 @@ class _TeacherSubmissionDetailScreenState
     ));
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         backgroundColor: Colors.white.withValues(alpha: 0.95),
         elevation: 0,
@@ -152,7 +153,18 @@ class _TeacherSubmissionDetailScreenState
                     itemCount: answers.length + 1,
                     itemBuilder: (context, index) {
                       if (index == 0) {
-                        return _buildAssignmentInfoHeader(student, distribution, assignment, submittedAt);
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildAssignmentInfoHeader(student, distribution, assignment, submittedAt),
+                            if (distribution?['id'] != null && student?['id'] != null)
+                              _TeacherAttemptsHistoryList(
+                                distributionId: distribution!['id'] as String,
+                                studentId: student!['id'] as String,
+                                currentSessionId: workSession?['id'] as String?,
+                              ),
+                          ],
+                        );
                       }
                       return _buildQuestionCard(answers[index - 1], index - 1, aiEnabled: aiEnabled);
                     },
@@ -1625,6 +1637,184 @@ class _CommentTextFieldState extends ConsumerState<_CommentTextField> {
           _saveFeedback(_controller.text);
         },
       ),
+    );
+  }
+}
+
+class _TeacherAttemptsHistoryList extends ConsumerWidget {
+  final String distributionId;
+  final String studentId;
+  final String? currentSessionId;
+
+  const _TeacherAttemptsHistoryList({
+    required this.distributionId,
+    required this.studentId,
+    this.currentSessionId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final attemptsAsync = ref.watch(teacherStudentDistributionAttemptsProvider(
+      distributionId: distributionId,
+      studentId: studentId,
+    ));
+
+    return attemptsAsync.when(
+      data: (attempts) {
+        final validAttempts = attempts.where((a) => a['status'] != 'in_progress').toList();
+        
+        if (validAttempts.isEmpty || validAttempts.length == 1) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: DesignSpacing.lg),
+          padding: const EdgeInsets.all(DesignSpacing.md),
+          decoration: BoxDecoration(
+            color: DesignColors.white,
+            borderRadius: BorderRadius.circular(DesignRadius.md),
+            border: Border.all(color: DesignColors.dividerLight),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0D000000),
+                blurRadius: 3,
+                offset: Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'LỊCH SỬ LÀM BÀI CỦA HỌC SINH',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: DesignColors.textTertiary,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: DesignSpacing.md),
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: validAttempts.length,
+                separatorBuilder: (context, index) => const Divider(
+                  height: 1,
+                  color: DesignColors.dividerLight,
+                ),
+                itemBuilder: (context, index) {
+                  final attemptData = validAttempts[index];
+                  final attemptNum = attemptData['attempt'] as int? ?? (validAttempts.length - index);
+                  final submittedAtRaw = attemptData['submitted_at'] as String?;
+                  final submittedAt = submittedAtRaw != null ? DateTime.tryParse(submittedAtRaw) : null;
+                  
+                  final submissions = attemptData['submissions'];
+                  final score = (submissions is List && submissions.isNotEmpty) 
+                      ? (submissions[0]['total_score'] ?? submissions[0]['score'] as num?) 
+                      : (submissions is Map ? (submissions['total_score'] ?? submissions['score'] as num?) : null);
+
+                  final isCurrent = attemptData['id'] == currentSessionId;
+                  final attemptSubmissionId = (submissions is List && submissions.isNotEmpty) 
+                      ? submissions[0]['id'] as String?
+                      : (submissions is Map ? submissions['id'] as String? : null);
+
+                  return InkWell(
+                    onTap: isCurrent || attemptSubmissionId == null ? null : () {
+                      // Navigate to this attempt's detail using attemptSubmissionId
+                      // Cho phép GV chuyển đổi qua lại giữa các phiên bản chấm bài
+                      context.pushReplacementNamed(
+                        'teacher_submission_detail', // AppRoutes.teacherSubmissionDetail.name
+                        pathParameters: {'id': attemptSubmissionId},
+                        extra: {'distributionId': distributionId},
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(DesignRadius.md),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      decoration: BoxDecoration(
+                        color: isCurrent ? DesignColors.primaryLight.withValues(alpha: 0.05) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(DesignRadius.md),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: isCurrent ? DesignColors.primaryLight : DesignColors.dividerLight,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                '$attemptNum',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isCurrent ? DesignColors.primary : DesignColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: DesignSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Lần $attemptNum ${isCurrent ? " (Đang xem)" : ""}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: isCurrent ? FontWeight.bold : FontWeight.w600,
+                                    color: isCurrent ? DesignColors.primary : DesignColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  submittedAt != null 
+                                      ? 'Nộp lúc: ${submittedAt.toLocal().toString().substring(0, 16).replaceFirst('T', ' ')}'
+                                      : 'Đang làm...',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: DesignColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (score != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: DesignColors.success.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '$score đ',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: DesignColors.success,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(DesignSpacing.md),
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 }

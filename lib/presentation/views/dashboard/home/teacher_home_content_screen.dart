@@ -1,42 +1,61 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/domain/entities/assignment_distribution.dart';
+import 'package:ai_mls/domain/entities/class.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
+import 'package:ai_mls/presentation/providers/teacher_assignment_hub_notifier.dart';
 import 'package:ai_mls/presentation/providers/teacher_dashboard_notifier.dart';
+import 'package:ai_mls/presentation/providers/teacher_dashboard_providers.dart';
 import 'package:ai_mls/presentation/views/recommendation/widgets/intervention_badge.dart';
+import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/text/smart_marquee_text.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Widget này chỉ chứa phần nội dung có thể cuộn của trang chủ giáo viên.
 class TeacherHomeContentScreen extends ConsumerWidget {
   const TeacherHomeContentScreen({super.key});
 
+  static String _classBadge(String name) {
+    final trimmed = name.replaceFirst(RegExp(r'^Lớp\s+'), '');
+    final first = trimmed.split(' ').first;
+    return first.length > 4 ? first.substring(0, 4) : first;
+  }
+
+  static int _pendingForClass(
+      List<AssignmentDistribution> dists, String classId) {
+    int total = 0;
+    for (final d in dists) {
+      if (d.classId == classId) {
+        final p = (d.submittedCount ?? 0) - (d.gradedCount ?? 0);
+        if (p > 0) total += p;
+      }
+    }
+    return total;
+  }
+
+  static int _totalAssignmentsForClass(
+      List<AssignmentDistribution> dists, String classId) {
+    // Đếm distributions — mỗi lần giao (cả lớp / nhóm / cá nhân) tính riêng
+    return dists.where((d) => d.classId == classId).length;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final classesAsync = ref.watch(teacherDashboardClassesProvider);
 
-    // Dữ liệu mẫu - sau này sẽ được thay thế bằng ViewModel
-    final quickStats = [
-      {
-        'icon': Icons.assignment_turned_in,
-        'label': 'Bài tập đang mở: 3',
-        'color': colorScheme.primary,
-      },
-      {
-        'icon': Icons.groups,
-        'label': 'Tổng học sinh: 120',
-        'color': colorScheme.secondary,
-      },
-      {
-        'icon': Icons.school,
-        'label': 'Lớp chủ nhiệm: 10A',
-        'color': colorScheme.tertiary,
-      },
-    ];
+    // Shimmer toàn màn hình chỉ khi chưa có dữ liệu lần đầu
+    // TeacherHomeContentScreen đã nằm trong body của TeacherDashboardScreen
+    // nên không cần bọc thêm Scaffold
+    if (classesAsync.isLoading && !classesAsync.hasValue) {
+      return const ShimmerTeacherHomeLoading();
+    }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: RefreshIndicator(
-        onRefresh: () => ref.read(teacherDashboardNotifierProvider.notifier).refresh(),
+        onRefresh: () =>
+            ref.read(teacherDashboardNotifierProvider.notifier).refresh(),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.symmetric(horizontal: DesignSpacing.lg),
@@ -45,28 +64,27 @@ class TeacherHomeContentScreen extends ConsumerWidget {
             children: [
               _buildHeader(context, ref),
               SizedBox(height: DesignSpacing.lg),
-              _buildQuickStats(quickStats),
+              _buildQuickStats(context, ref),
               SizedBox(height: DesignSpacing.lg),
-              _buildPriorityCard(context),
+              _buildPriorityCard(context, ref),
               SizedBox(height: DesignSpacing.lg),
-              // Recommendation badge (REC-01: intervention count)
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: DesignSpacing.lg),
                 child: const Row(
-                  children: [
-                    Expanded(child: InterventionBadge()),
-                  ],
-                ),
+                    children: [Expanded(child: InterventionBadge())]),
               ),
               SizedBox(height: DesignSpacing.xxl),
-              _buildSectionHeader(context, 'Lớp học của tôi', 'Xem tất cả'),
+              _buildSectionHeader(context, 'Lớp học của tôi', 'Xem tất cả',
+                  onAction: () =>
+                      context.goNamed(AppRoute.teacherClassList)),
               SizedBox(height: DesignSpacing.md),
-              _buildClassList(),
+              _buildClassList(context, ref),
               SizedBox(height: DesignSpacing.xxl),
-              _buildSectionHeader(context, 'Bài tập sắp hết hạn', 'Xem lịch'),
+              _buildSectionHeader(
+                  context, 'Bài tập sắp hết hạn', 'Xem lịch'),
               SizedBox(height: DesignSpacing.md),
-              _buildUpcomingAssignments(),
-              const SizedBox(height: 80), // Đệm dưới cùng
+              _buildUpcomingAssignments(context, ref),
+              const SizedBox(height: 80),
             ],
           ),
         ),
@@ -74,12 +92,9 @@ class TeacherHomeContentScreen extends ConsumerWidget {
     );
   }
 
-  // --- Các hàm build giao diện con cho nội dung ---
-
+  // ---------------------------------------------------------------------------
   Widget _buildHeader(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authNotifierProvider);
-    final profile = authState.value;
-
+    final profile = ref.watch(authNotifierProvider).value;
     return Row(
       children: [
         CircleAvatar(
@@ -90,10 +105,9 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                 ? profile!.fullName![0].toUpperCase()
                 : '?',
             style: const TextStyle(
-              fontSize: 22,
-              color: DesignColors.primary,
-              fontWeight: FontWeight.bold,
-            ),
+                fontSize: 22,
+                color: DesignColors.primary,
+                fontWeight: FontWeight.bold),
           ),
         ),
         SizedBox(width: DesignSpacing.md),
@@ -102,15 +116,13 @@ class TeacherHomeContentScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text(
-                'Chào giáo viên,',
-                style: TextStyle(color: DesignColors.textSecondary, fontSize: 14),
-              ),
+              const Text('Chào giáo viên,',
+                  style: TextStyle(
+                      color: DesignColors.textSecondary, fontSize: 14)),
               SizedBox(height: DesignSpacing.xs),
               SmartMarqueeText(
-                text: profile?.fullName ?? 'Giáo viên',
-                style: DesignTypography.titleLarge,
-              ),
+                  text: profile?.fullName ?? 'Giáo viên',
+                  style: DesignTypography.titleLarge),
             ],
           ),
         ),
@@ -133,39 +145,63 @@ class TeacherHomeContentScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildQuickStats(List<Map<String, dynamic>> stats) {
+  // ---------------------------------------------------------------------------
+  Widget _buildQuickStats(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final classesAsync = ref.watch(teacherDashboardClassesProvider);
+    final hubAsync = ref.watch(teacherAssignmentHubNotifierProvider);
+    final pendingAsync = ref.watch(teacherPendingCountProvider);
+    final uniqueAsync = ref.watch(teacherUniqueStudentCountProvider);
+
+    // Hub loading → pending/unique đều return 0 ngay, không qua trạng thái loading
+    if (hubAsync.isLoading || pendingAsync.isLoading || uniqueAsync.isLoading) {
+      return const ShimmerQuickStatsChips();
+    }
+
+    final classes = classesAsync.valueOrNull ?? [];
+    final classCount = classes.length;
+    final totalFromClasses =
+        classes.fold<int>(0, (sum, c) => sum + (c.studentCount ?? 0));
+    final pendingLabel = 'Chờ chấm: ${pendingAsync.valueOrNull?.toString() ?? '_'}';
+    final uniqueLabel = 'tổng/hs thực: $totalFromClasses/${uniqueAsync.valueOrNull?.toString() ?? '_'}';
+
+    Widget chip({required IconData icon, required Color color, required String label}) {
+      return Chip(
+        avatar: Icon(icon, color: color, size: 18),
+        label: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: DesignColors.dividerLight),
+        ),
+        padding: EdgeInsets.symmetric(horizontal: DesignSpacing.sm),
+      );
+    }
+
     return SizedBox(
       height: 36,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        clipBehavior: Clip.none, // Để shadow không bị cắt
-        itemCount: stats.length,
+        clipBehavior: Clip.none,
+        itemCount: 3,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final stat = stats[index];
-          return Chip(
-            avatar: Icon(
-              stat['icon'] as IconData,
-              color: stat['color'] as Color,
-              size: 18,
-            ),
-            label: Text(
-              stat['label'] as String,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-              side: BorderSide(color: DesignColors.dividerLight),
-            ),
-            padding: EdgeInsets.symmetric(horizontal: DesignSpacing.sm),
-          );
+        itemBuilder: (_, i) => switch (i) {
+          0 => chip(icon: Icons.assignment_late_outlined, color: colorScheme.primary, label: pendingLabel),
+          1 => chip(icon: Icons.groups_outlined, color: colorScheme.secondary, label: uniqueLabel),
+          _ => chip(icon: Icons.school_outlined, color: colorScheme.tertiary, label: 'Số lớp: $classCount'),
         },
       ),
     );
   }
 
-  Widget _buildPriorityCard(BuildContext context) {
+  // ---------------------------------------------------------------------------
+  Widget _buildPriorityCard(BuildContext context, WidgetRef ref) {
+    final hubAsync = ref.watch(teacherAssignmentHubNotifierProvider);
+    final pendingAsync = ref.watch(teacherPendingCountProvider);
+    final pendingValue = pendingAsync.valueOrNull?.toString() ?? '_';
+    // Hub loading → pendingAsync trả 0 ngay, cần check hub trực tiếp
+    final isPendingLoading = hubAsync.isLoading || pendingAsync.isLoading;
+
     return Container(
       padding: EdgeInsets.all(DesignSpacing.xl),
       decoration: BoxDecoration(
@@ -173,10 +209,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(DesignRadius.lg),
         border: Border.all(color: DesignColors.dividerLight),
         boxShadow: [
-          BoxShadow(
-            color: DesignColors.shadowLight,
-            blurRadius: 10,
-          ),
+          BoxShadow(color: DesignColors.shadowLight, blurRadius: 10),
         ],
       ),
       child: Row(
@@ -191,69 +224,65 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                       width: 8,
                       height: 8,
                       decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: DesignColors.error,
-                      ),
+                          shape: BoxShape.circle, color: DesignColors.error),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'ƯU TIÊN',
-                      style: TextStyle(
-                        color: DesignColors.error,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
+                    const Text('ƯU TIÊN',
+                        style: TextStyle(
+                            color: DesignColors.error,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5)),
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Bài tập cần chấm',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                RichText(
-                  text: TextSpan(
+                const Text('Bài tập cần chấm',
                     style: TextStyle(
-                      color: DesignColors.textSecondary,
-                      fontSize: 14,
-                      fontFamily: 'Lexend',
-                    ),
-                    children: [
-                      const TextSpan(text: 'Bạn có '),
-                      TextSpan(
-                        text: '12',
-                        style: TextStyle(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary, // giữ màu theo theme
-                          fontWeight: FontWeight.bold,
+                        fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                if (isPendingLoading)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: ShimmerTextLine(width: 200, height: 16),
+                  )
+                else
+                  RichText(
+                    text: TextSpan(
+                      style: const TextStyle(
+                          color: DesignColors.textSecondary,
+                          fontSize: 14,
+                          fontFamily: 'Lexend'),
+                      children: [
+                        const TextSpan(text: 'Bạn có '),
+                        TextSpan(
+                          text: pendingValue,
+                          style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.bold),
                         ),
-                      ),
-                      const TextSpan(text: ' bài nộp đang chờ duyệt.'),
-                    ],
+                        const TextSpan(text: ' bài nộp đang chờ duyệt.'),
+                      ],
+                    ),
                   ),
-                ),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.check_circle, size: 20),
                   label: const Text('Chấm ngay'),
-                  onPressed: () {},
+                  // goNamed để switch tab trong ShellRoute (không push stack)
+                  onPressed: () =>
+                      context.goNamed(AppRoute.teacherAssignmentHub),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
+                        horizontal: 20, vertical: 12),
                     elevation: 5,
-                    shadowColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.3),
+                    shadowColor: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.3),
                   ),
                 ),
               ],
@@ -278,65 +307,96 @@ class TeacherHomeContentScreen extends ConsumerWidget {
     );
   }
 
+  // ---------------------------------------------------------------------------
   Widget _buildSectionHeader(
     BuildContext context,
     String title,
-    String actionText,
-  ) {
+    String actionText, {
+    VoidCallback? onAction,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
+        Text(title,
+            style: const TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold)),
         TextButton(
-          onPressed: () {},
-          child: Text(
-            actionText,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
+          onPressed: onAction,
+          child: Text(actionText,
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14)),
         ),
       ],
     );
   }
 
-  Widget _buildClassList() {
-    return Column(
-      children: [
-        _buildClassTile(
-          '10A',
-          'Toán Học 10A',
-          '35 Học sinh • Phòng B201',
-          '5 bài chưa chấm',
-          DesignColors.warning,
-          const LinearGradient(colors: [Colors.orange, Colors.pink]),
-        ),
-        const SizedBox(height: 12),
-        _buildClassTile(
-          '11B',
-          'Toán Học 11B',
-          '32 Học sinh • Phòng A105',
-          '2 bài chưa chấm',
-          DesignColors.primary,
-          const LinearGradient(colors: [Colors.blue, Colors.cyan]),
-        ),
-      ],
+  // ---------------------------------------------------------------------------
+  Widget _buildClassList(BuildContext context, WidgetRef ref) {
+    final classesAsync = ref.watch(teacherDashboardClassesProvider);
+    final hubAsync = ref.watch(teacherAssignmentHubNotifierProvider);
+    final isHubLoading = hubAsync.isLoading;
+    final dists = hubAsync.valueOrNull?.distributions ?? const [];
+
+    return classesAsync.when(
+      loading: () => const ShimmerAssignmentListLoading(itemCount: 3),
+      error: (_, __) => Center(
+          child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Không thể tải danh sách lớp',
+                  style:
+                      TextStyle(color: DesignColors.textSecondary)))),
+      data: (all) {
+        if (all.isEmpty) {
+          return Center(
+              child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('Chưa có lớp học nào',
+                      style: TextStyle(
+                          color: DesignColors.textSecondary))));
+        }
+        // Chỉ hiển thị 5 lớp mới nhất
+        final display = all.take(5).toList();
+        return Column(
+          children: [
+            for (int i = 0; i < display.length; i++) ...[
+              if (i > 0) const SizedBox(height: 12),
+              _buildClassTile(context, display[i], dists, i, isHubLoading),
+            ],
+          ],
+        );
+      },
     );
   }
 
   Widget _buildClassTile(
-    String grade,
-    String name,
-    String details,
-    String status,
-    Color statusColor,
-    Gradient gradient,
+    BuildContext context,
+    Class cls,
+    List<AssignmentDistribution> dists,
+    int index,
+    bool isHubLoading,
   ) {
+    const gradients = [
+      LinearGradient(colors: [Colors.orange, Colors.pink]),
+      LinearGradient(colors: [Colors.blue, Colors.cyan]),
+      LinearGradient(colors: [Colors.green, Colors.teal]),
+      LinearGradient(colors: [Colors.purple, Colors.deepPurple]),
+      LinearGradient(colors: [Colors.red, Colors.orangeAccent]),
+    ];
+    final gradient = gradients[index % gradients.length];
+    final badge = _classBadge(cls.name);
+
+    final studentCount = cls.studentCount ?? 0;
+    final totalAssignments = _totalAssignmentsForClass(dists, cls.id);
+    final pendingCount = _pendingForClass(dists, cls.id);
+
+    // Dòng phụ: môn học • năm học
+    final infoLine = [
+      if (cls.subject?.isNotEmpty == true) cls.subject!,
+      if (cls.academicYear?.isNotEmpty == true) cls.academicYear!,
+    ].join(' • ');
+
     return Container(
       padding: EdgeInsets.all(DesignSpacing.lg),
       decoration: BoxDecoration(
@@ -345,13 +405,13 @@ class TeacherHomeContentScreen extends ConsumerWidget {
         border: Border.all(color: DesignColors.dividerLight),
         boxShadow: [
           BoxShadow(
-            color: DesignColors.shadowLight,
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
+              color: DesignColors.shadowLight,
+              blurRadius: 5,
+              offset: const Offset(0, 2)),
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 48,
@@ -361,21 +421,17 @@ class TeacherHomeContentScreen extends ConsumerWidget {
               borderRadius: BorderRadius.circular(DesignRadius.sm),
               boxShadow: [
                 BoxShadow(
-                  color: gradient.colors.first.withValues(alpha: 0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
+                    color: gradient.colors.first.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4)),
               ],
             ),
             child: Center(
-              child: Text(
-                grade,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: Text(badge,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold)),
             ),
           ),
           const SizedBox(width: 16),
@@ -383,35 +439,40 @@ class TeacherHomeContentScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
+                Text(cls.name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16),
+                    overflow: TextOverflow.ellipsis),
+                if (infoLine.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(infoLine,
+                      style: TextStyle(
+                          color: DesignColors.textSecondary,
+                          fontSize: 13),
+                      overflow: TextOverflow.ellipsis),
+                ],
                 const SizedBox(height: 4),
                 Text(
-                  details,
-                  style: TextStyle(color: DesignColors.textSecondary, fontSize: 14),
+                  '$studentCount học sinh',
+                  style: TextStyle(
+                      color: DesignColors.textSecondary, fontSize: 14),
                 ),
                 const SizedBox(height: 8),
-                Chip(
-                  label: Text(
-                    status,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  backgroundColor: statusColor.withValues(alpha: 0.1),
-                  side: BorderSide(color: statusColor.withValues(alpha: 0.2)),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 0,
-                  ),
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    if (isHubLoading)
+                      const ShimmerInlineChips()
+                    else ...[
+                      if (totalAssignments > 0)
+                        _chip('$totalAssignments bài tập', DesignColors.primary),
+                      if (pendingCount > 0)
+                        _chip('$pendingCount chờ chấm', DesignColors.warning)
+                      else
+                        _chip('Không có bài chờ', DesignColors.success),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -422,41 +483,92 @@ class TeacherHomeContentScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildUpcomingAssignments() {
-    return Column(
-      children: [
-        _buildAssignmentTile(
-          'T6',
-          '24',
-          'Kiểm tra 15 phút - Đại số',
-          'Lớp 10A',
-          '30/35 đã nộp',
-          'Còn 2h',
-          DesignColors.error,
-        ),
-        const SizedBox(height: 12),
-        _buildAssignmentTile(
-          'T7',
-          '25',
-          'Bài tập về nhà - Hình học',
-          'Lớp 11B',
-          '12/32 đã nộp',
-          'Ngày mai',
-          DesignColors.warning,
-        ),
-      ],
+  Widget _chip(String label, Color color) {
+    return Chip(
+      label: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+      backgroundColor: color.withValues(alpha: 0.1),
+      side: BorderSide(color: color.withValues(alpha: 0.2)),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  Widget _buildUpcomingAssignments(BuildContext context, WidgetRef ref) {
+    final hubAsync = ref.watch(teacherAssignmentHubNotifierProvider);
+    final upcomingAsync = ref.watch(teacherUpcomingDistributionsProvider);
+    // Hub loading → upcomingAsync trả [] ngay; check hub để hiện shimmer đúng lúc
+    if (hubAsync.isLoading || upcomingAsync.isLoading) {
+      return const ShimmerAssignmentListLoading(itemCount: 3);
+    }
+    return upcomingAsync.when(
+      loading: () => const ShimmerAssignmentListLoading(itemCount: 3),
+      error: (_, __) => Center(
+          child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Không thể tải dữ liệu',
+                  style:
+                      TextStyle(color: DesignColors.textSecondary)))),
+      data: (distributions) {
+        if (distributions.isEmpty) {
+          return Center(
+              child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('Không có bài tập nào sắp hết hạn',
+                      style: TextStyle(
+                          color: DesignColors.textSecondary))));
+        }
+        return Column(
+          children: [
+            for (int i = 0; i < distributions.length; i++) ...[
+              if (i > 0) const SizedBox(height: 12),
+              _buildAssignmentTile(context, distributions[i]),
+            ],
+          ],
+        );
+      },
     );
   }
 
   Widget _buildAssignmentTile(
-    String dayOfWeek,
-    String day,
-    String title,
-    String className,
-    String submissionStatus,
-    String time,
-    Color timeColor,
-  ) {
+      BuildContext context, AssignmentDistribution dist) {
+    final dueAt = dist.dueAt;
+    final now = DateTime.now();
+    final diff = dueAt != null ? dueAt.difference(now) : null;
+
+    Color timeColor;
+    String timeText;
+    if (diff == null) {
+      timeColor = DesignColors.textSecondary;
+      timeText = 'Không có hạn';
+    } else if (diff.inHours < 24) {
+      timeColor = DesignColors.error;
+      timeText = 'Còn ${diff.inHours}h';
+    } else if (diff.inDays <= 3) {
+      timeColor = DesignColors.warning;
+      timeText = 'Còn ${diff.inDays} ngày';
+    } else {
+      timeColor = DesignColors.primary;
+      timeText = 'Còn ${diff.inDays} ngày';
+    }
+
+    String dayOfWeek = '';
+    String dayNum = '';
+    if (dueAt != null) {
+      const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+      dayOfWeek = weekdays[dueAt.weekday % 7];
+      dayNum = '${dueAt.day}';
+    }
+
+    final title = dist.assignmentTitle ?? 'Bài tập';
+    final className = dist.className ?? 'Lớp học';
+    final submitted = dist.submittedCount ?? 0;
+    final total = dist.recipientCount ?? 0;
+    final submissionStatus =
+        total > 0 ? '$submitted/$total đã nộp' : 'Chưa có bài nộp';
+
     return Container(
       padding: EdgeInsets.all(DesignSpacing.md),
       decoration: BoxDecoration(
@@ -465,10 +577,9 @@ class TeacherHomeContentScreen extends ConsumerWidget {
         border: Border.all(color: DesignColors.dividerLight),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 5,
-            offset: Offset(0, 2),
-          ),
+              color: Color(0x08000000),
+              blurRadius: 5,
+              offset: Offset(0, 2)),
         ],
       ),
       child: Row(
@@ -484,24 +595,18 @@ class TeacherHomeContentScreen extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  dayOfWeek,
-                  style: TextStyle(
-                    color: timeColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                Text(
-                  day,
-                  style: TextStyle(
-                    color: timeColor,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    height: 1.2,
-                  ),
-                ),
+                Text(dayOfWeek,
+                    style: TextStyle(
+                        color: timeColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5)),
+                Text(dayNum,
+                    style: TextStyle(
+                        color: timeColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2)),
               ],
             ),
           ),
@@ -514,27 +619,21 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      child: Text(title,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
+                          overflow: TextOverflow.ellipsis),
                     ),
                     Chip(
-                      label: Text(
-                        time,
-                        style: TextStyle(
-                          color: timeColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      label: Text(timeText,
+                          style: TextStyle(
+                              color: timeColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold)),
                       backgroundColor: timeColor.withValues(alpha: 0.1),
                       padding: EdgeInsets.zero,
-                      labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      labelPadding:
+                          const EdgeInsets.symmetric(horizontal: 8),
                     ),
                   ],
                 ),
@@ -542,29 +641,26 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                 Row(
                   children: [
                     Chip(
-                      label: Text(
-                        className,
-                        style: TextStyle(
-                          color: DesignColors.textPrimary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      label: Text(className,
+                          style: TextStyle(
+                              color: DesignColors.textPrimary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold)),
                       backgroundColor: DesignColors.moonLight,
                       side: BorderSide.none,
                       padding: EdgeInsets.zero,
-                      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+                      labelPadding:
+                          const EdgeInsets.symmetric(horizontal: 6),
                     ),
                     const SizedBox(width: 4),
-                    Text('•', style: TextStyle(color: DesignColors.textSecondary)),
+                    Text('•',
+                        style:
+                            TextStyle(color: DesignColors.textSecondary)),
                     const SizedBox(width: 4),
-                    Text(
-                      submissionStatus,
-                      style: TextStyle(
-                        color: DesignColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
+                    Text(submissionStatus,
+                        style: TextStyle(
+                            color: DesignColors.textSecondary,
+                            fontSize: 12)),
                   ],
                 ),
               ],

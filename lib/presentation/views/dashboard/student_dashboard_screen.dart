@@ -5,12 +5,12 @@ import 'package:ai_mls/presentation/views/dashboard/home/student_home_content_sc
 import 'package:ai_mls/presentation/views/grading/scores_screen.dart';
 import 'package:ai_mls/presentation/views/profile/profile_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/design_tokens.dart';
 import '../../../core/routes/route_constants.dart';
-import '../../../widgets/responsive/responsive_text.dart';
 
 class StudentDashboardScreen extends ConsumerStatefulWidget {
   final Profile userProfile;
@@ -30,6 +30,20 @@ class StudentDashboardScreen extends ConsumerStatefulWidget {
 class _StudentDashboardScreenState
     extends ConsumerState<StudentDashboardScreen> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+    );
+  }
 
   // Cache pages list
   static final List<Widget> _pages = [
@@ -88,13 +102,29 @@ class _StudentDashboardScreenState
   Widget build(BuildContext context) {
     final currentSelectedIndex = _getSelectedIndexFromRoute(context);
     final isShellRoute = widget.child != null;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: isShellRoute
-          ? widget.child!
-          : IndexedStack(index: _selectedIndex, children: _pages),
-      bottomNavigationBar: _buildBottomBar(currentSelectedIndex),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        extendBody: true,
+        body: SafeArea(
+          top: true,
+          bottom: false,
+          minimum: EdgeInsets.zero,
+          child: isShellRoute
+              ? widget.child!
+              : IndexedStack(index: _selectedIndex, children: _pages),
+        ),
+        bottomNavigationBar: _buildBottomBar(currentSelectedIndex),
+      ),
     );
   }
 
@@ -129,31 +159,36 @@ class _StudentDashboardScreenState
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildBottomBarItem(
-                  icon: Icons.home,
+                  activeIcon: Icons.home,
+                  inactiveIcon: Icons.home_outlined,
                   label: 'Trang chủ',
                   index: 0,
                   currentSelectedIndex: currentSelectedIndex,
                 ),
                 _buildBottomBarItem(
-                  icon: Icons.class_outlined,
+                  activeIcon: Icons.class_,
+                  inactiveIcon: Icons.class_outlined,
                   label: 'Lớp học',
                   index: 1,
                   currentSelectedIndex: currentSelectedIndex,
                 ),
                 _buildBottomBarItem(
-                  icon: Icons.assignment_outlined,
+                  activeIcon: Icons.assignment,
+                  inactiveIcon: Icons.assignment_outlined,
                   label: 'Bài tập',
                   index: 2,
                   currentSelectedIndex: currentSelectedIndex,
                 ),
                 _buildBottomBarItem(
-                  icon: Icons.leaderboard_outlined,
+                  activeIcon: Icons.leaderboard,
+                  inactiveIcon: Icons.leaderboard_outlined,
                   label: 'Điểm số',
                   index: 3,
                   currentSelectedIndex: currentSelectedIndex,
                 ),
                 _buildBottomBarItem(
-                  icon: Icons.person_outline,
+                  activeIcon: Icons.person,
+                  inactiveIcon: Icons.person_outline,
                   label: 'Cá nhân',
                   index: 4,
                   currentSelectedIndex: currentSelectedIndex,
@@ -167,33 +202,51 @@ class _StudentDashboardScreenState
   }
 
   Widget _buildBottomBarItem({
-    required IconData icon,
+    required IconData activeIcon,
+    required IconData inactiveIcon,
     required String label,
     required int index,
     required int currentSelectedIndex,
   }) {
     final isActive = currentSelectedIndex == index;
     final color = isActive ? DesignColors.primary : Colors.grey;
+
     return InkWell(
       onTap: () => _onItemTapped(index),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(DesignRadius.lg),
       splashColor: DesignColors.primary.withValues(alpha: 0.1),
-      highlightColor: DesignColors.primary.withValues(alpha: 0.05),
+      highlightColor: Colors.transparent,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
+        padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 4),
-            ResponsiveText(
-              label,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              decoration: BoxDecoration(
+                color: isActive
+                    ? DesignColors.primary.withValues(alpha: 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                isActive ? activeIcon : inactiveIcon,
+                color: color,
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: 2),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
               style: TextStyle(
                 color: color,
+                fontSize: 10,
                 fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
               ),
-              fontSize: DesignTypography.labelSmallSize,
+              child: Text(label),
             ),
           ],
         ),

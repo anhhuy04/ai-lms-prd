@@ -50,6 +50,11 @@ class _StudentClassDetailScreenState
           unreadNotifications: 2,
           pendingAssignments: 3,
           onLeaveClass: () => _handleLeaveClass(context),
+          onViewGroup: () => context.pushNamed(
+            AppRoute.studentGroupView,
+            pathParameters: {'classId': widget.classId},
+            extra: {'className': widget.className},
+          ),
         ),
       ),
       body: SafeArea(
