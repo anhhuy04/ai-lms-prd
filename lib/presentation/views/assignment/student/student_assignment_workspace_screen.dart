@@ -146,7 +146,7 @@ class _StudentAssignmentWorkspaceScreenState
               widget.isReadOnly
                   ? 'Chế độ xem lại bài làm'
                   : workspace.attempt > 1
-                      ? 'Lần làm thứ ${workspace.attempt} · ${workspace.answeredCount}/${workspace.totalQuestions} câu'
+                      ? 'Lần làm thứ ${workspace.attempt}${workspace.maxAttempts != null ? '/${workspace.maxAttempts}' : ''} · ${workspace.answeredCount}/${workspace.totalQuestions} câu'
                       : 'Câu ${workspace.answeredCount}/${workspace.totalQuestions} đã trả lời',
               style: TextStyle(
                 fontSize: DesignTypography.captionSize,

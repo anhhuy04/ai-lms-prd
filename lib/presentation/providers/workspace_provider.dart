@@ -105,7 +105,10 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
       }
 
       // Parse server-side timing data
+      final distSettings =
+          distribution['settings'] as Map<String, dynamic>? ?? {};
       final timeLimitMinutes = distribution['time_limit_minutes'] as int?;
+      final maxAttempts = (distSettings['max_attempts'] as num?)?.toInt();
       DateTime? sessionStartedAt;
       final startedAtRaw = submission?['started_at'] as String?;
       if (startedAtRaw != null) {
@@ -123,6 +126,7 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
         timeLimitMinutes: timeLimitMinutes,
         sessionStartedAt: sessionStartedAt,
         attempt: currentAttempt,
+        maxAttempts: maxAttempts,
         questions: questions.map((q) => QuestionState.fromJson(q as Map<String, dynamic>)).toList(),
         answers: Map<String, dynamic>.from(existingAnswers),
         uploadedFiles: List<String>.from(uploadedFiles),
@@ -463,6 +467,8 @@ class WorkspaceState {
   final SavingStatus savingStatus;
   /// Attempt hiện tại (lần làm thứ mấy — 1-based). Dùng cho badge "Lần thứ N/M".
   final int attempt;
+  /// Số lần tối đa được phép làm bài, null = không giới hạn.
+  final int? maxAttempts;
 
   const WorkspaceState({
     required this.distributionId,
@@ -477,6 +483,7 @@ class WorkspaceState {
     required this.submissionStatus,
     required this.savingStatus,
     this.attempt = 1,
+    this.maxAttempts,
   });
 
   WorkspaceState copyWith({
@@ -492,6 +499,7 @@ class WorkspaceState {
     WorkspaceSubmissionStatus? submissionStatus,
     SavingStatus? savingStatus,
     int? attempt,
+    int? maxAttempts,
   }) {
     return WorkspaceState(
       distributionId: distributionId ?? this.distributionId,
@@ -506,6 +514,7 @@ class WorkspaceState {
       submissionStatus: submissionStatus ?? this.submissionStatus,
       savingStatus: savingStatus ?? this.savingStatus,
       attempt: attempt ?? this.attempt,
+      maxAttempts: maxAttempts ?? this.maxAttempts,
     );
   }
 

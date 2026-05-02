@@ -8,7 +8,7 @@ part 'teacher_assignment_providers.g.dart';
 /// Lịch sử các lần làm của 1 student trong 1 distribution.
 /// Params: (distributionId, studentId).
 /// Auto-dispose, không cần invalidation thủ công — fetch lại khi widget rebuild.
-final studentAttemptsProvider = FutureProvider.autoDispose
+final studentAttemptsProvider = FutureProvider
     .family<List<StudentAttemptSummary>, (String, String)>(
   (ref, params) {
     final (distributionId, studentId) = params;

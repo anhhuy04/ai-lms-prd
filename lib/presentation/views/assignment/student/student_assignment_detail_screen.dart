@@ -89,7 +89,7 @@ class _StudentAssignmentDetailScreenState
     final reviewMode =
         settings['student_review_mode'] as String? ?? 'full_review';
     final aiEnabled = settings['ai_feedback_enabled'] as bool? ?? false;
-    final maxAttempts = settings['max_attempts'] as int?;
+    final maxAttempts = (settings['max_attempts'] as num?)?.toInt();
 
     final submission = submissionAsync.value;
     final status = submission?['status'] as String? ?? 'not_started';
@@ -1631,7 +1631,9 @@ class _SubmittedFooterState extends ConsumerState<_SubmittedFooter> {
                       ? 'Đang xử lý...'
                       : canRetry
                           ? 'Làm lại'
-                          : 'Hết số lần làm',
+                          : !widget.allowRetake
+                              ? 'Không được làm lại'
+                              : 'Hết số lần làm',
                   style: TextStyle(
                     fontSize: DesignTypography.bodySmallSize,
                     fontWeight: DesignTypography.bold,

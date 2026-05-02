@@ -432,7 +432,7 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
       shuffleAnswers: settings['shuffle_choices'] as bool? ?? false,
       studentReviewMode: settings['student_review_mode'] as String? ?? 'full_review',
       sendNotification: settings['send_notification'] as bool? ?? true,
-      maxAttempts: settings['max_attempts'] as int?,
+      maxAttempts: (settings['max_attempts'] as num?)?.toInt(),
       aiEnabled: settings['ai_feedback_enabled'] as bool? ?? false,
       requireReview: settings['ai_require_review'] as bool? ?? true,
       allowRetake: settings['allow_retake'] as bool? ?? false,

@@ -234,7 +234,20 @@ class _AggregatedScoreSectionState
   Widget build(BuildContext context) {
     final aggregatedAsync =
         ref.watch(aggregatedScoresProvider(widget.distributionId));
+    // Watch submission list để lấy tên học sinh (filter=all để không bỏ sót)
+    final submissionsAsync = ref.watch(teacherSubmissionListProvider(
+      distributionId: widget.distributionId,
+      filter: SubmissionFilter.all,
+    ));
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Build name map từ submissions — dùng kể cả khi submissionsAsync đang load
+    final Map<String, String> nameMap = submissionsAsync.valueOrNull?.submissions
+            .fold<Map<String, String>>({}, (map, item) {
+          map[item.studentId] = item.studentName;
+          return map;
+        }) ??
+        {};
 
     return aggregatedAsync.when(
       data: (scores) {
@@ -242,14 +255,18 @@ class _AggregatedScoreSectionState
         // Chỉ hiện khi có ít nhất 1 student làm > 1 lần
         final hasMultiple = scores.any((s) => s.attemptsCount > 1);
         if (!hasMultiple) return const SizedBox.shrink();
-        return _buildCard(scores, isDark);
+        return _buildCard(scores, isDark, nameMap);
       },
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
     );
   }
 
-  Widget _buildCard(List<AggregatedScore> scores, bool isDark) {
+  Widget _buildCard(
+    List<AggregatedScore> scores,
+    bool isDark,
+    Map<String, String> nameMap,
+  ) {
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
     final borderColor = isDark ? Colors.white10 : Colors.grey.shade200;
     final tMain = isDark ? Colors.white : DesignColors.textPrimary;
@@ -320,6 +337,7 @@ class _AggregatedScoreSectionState
               return _StudentScoreRow(
                 score: score,
                 distributionId: widget.distributionId,
+                studentName: nameMap[score.studentId],
                 isExpanded: isExpanded,
                 isDark: isDark,
                 tMain: tMain,
@@ -342,6 +360,7 @@ class _AggregatedScoreSectionState
 class _StudentScoreRow extends ConsumerWidget {
   final AggregatedScore score;
   final String distributionId;
+  final String? studentName;
   final bool isExpanded;
   final bool isDark;
   final Color tMain;
@@ -351,6 +370,7 @@ class _StudentScoreRow extends ConsumerWidget {
   const _StudentScoreRow({
     required this.score,
     required this.distributionId,
+    this.studentName,
     required this.isExpanded,
     required this.isDark,
     required this.tMain,
@@ -361,9 +381,8 @@ class _StudentScoreRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final borderColor = isDark ? Colors.white10 : Colors.grey.shade100;
-    final shortId = score.studentId.length >= 8
-        ? score.studentId.substring(0, 8)
-        : score.studentId;
+    final displayName = studentName ?? 'Học sinh';
+    final avatarChar = displayName[0].toUpperCase();
     final scoreText = score.finalScore != null
         ? score.finalScore!.toStringAsFixed(1)
         : '--';
@@ -382,7 +401,7 @@ class _StudentScoreRow extends ConsumerWidget {
                   backgroundColor:
                       DesignColors.primary.withValues(alpha: 0.15),
                   child: Text(
-                    shortId[0].toUpperCase(),
+                    avatarChar,
                     style: TextStyle(
                       color: DesignColors.primary,
                       fontSize: 13,
@@ -393,7 +412,7 @@ class _StudentScoreRow extends ConsumerWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    shortId,
+                    displayName,
                     style: TextStyle(fontSize: 13, color: tMain),
                     overflow: TextOverflow.ellipsis,
                   ),
