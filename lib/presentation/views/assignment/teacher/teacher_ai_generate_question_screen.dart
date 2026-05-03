@@ -2914,120 +2914,126 @@ class _TeacherAiGenerateQuestionScreenState
             widgets.add(
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Stack(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildQuestionPreviewCard(
-                      context,
-                      isDark,
-                      questionNumber: sectionNum,
-                      questionType: type,
-                      questionText: text,
-                      options: castedOptions,
-                      answer: answer,
-                      explanation: explanation,
-                      isExplanationExpanded: isExplExpanded,
-                      onToggleExplanation: _explanationFeatureEnabled
-                          ? () {
-                              final willAutoGenerate =
-                                  !isExplExpanded &&
-                                  explanation == null &&
-                                  !_regeneratingExplanationSet.contains(index);
-                              setState(() {
-                                if (isExplExpanded) {
-                                  _expandedExplanations.remove(index);
-                                } else {
-                                  _expandedExplanations.add(index);
-                                  // Mark loading ngay để tránh flash "Chưa có gợi ý"
+                    // Card + action buttons overlay
+                    Stack(
+                      children: [
+                        _buildQuestionPreviewCard(
+                          context,
+                          isDark,
+                          questionNumber: sectionNum,
+                          questionType: type,
+                          questionText: text,
+                          options: castedOptions,
+                          answer: answer,
+                          explanation: explanation,
+                          isExplanationExpanded: isExplExpanded,
+                          onToggleExplanation: _explanationFeatureEnabled
+                              ? () {
+                                  final willAutoGenerate =
+                                      !isExplExpanded &&
+                                      explanation == null &&
+                                      !_regeneratingExplanationSet.contains(
+                                        index,
+                                      );
+                                  setState(() {
+                                    if (isExplExpanded) {
+                                      _expandedExplanations.remove(index);
+                                    } else {
+                                      _expandedExplanations.add(index);
+                                      if (willAutoGenerate) {
+                                        _regeneratingExplanationSet.add(index);
+                                      }
+                                    }
+                                  });
                                   if (willAutoGenerate) {
-                                    _regeneratingExplanationSet.add(index);
+                                    _handleRegenerateExplanation(index);
                                   }
                                 }
-                              });
-                              if (willAutoGenerate) {
-                                _handleRegenerateExplanation(index);
-                              }
-                            }
-                          : null,
-                      onRefreshExplanation: _explanationFeatureEnabled
-                          ? () => _handleRegenerateExplanation(index)
-                          : null,
-                      isRefreshingExplanation: isRegeneratingExpl,
+                              : null,
+                          onRefreshExplanation: _explanationFeatureEnabled
+                              ? () => _handleRegenerateExplanation(index)
+                              : null,
+                          isRefreshingExplanation: isRegeneratingExpl,
+                        ),
+                        // Action buttons overlay (top-right)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: isRegenerating
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildCardActionBtn(
+                                      icon: Icons.refresh_rounded,
+                                      color: DesignColors.primary,
+                                      tooltip: 'Tạo lại câu này',
+                                      onTap: () =>
+                                          _handleRegenerateSingle(index),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    _buildCardActionBtn(
+                                      icon: Icons.edit_outlined,
+                                      color: DesignColors.textSecondary,
+                                      tooltip: 'Chỉnh sửa',
+                                      onTap: () => _handleEditQuestion(index),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    _buildCardActionBtn(
+                                      icon: Icons.close_rounded,
+                                      color: DesignColors.error,
+                                      tooltip: 'Xóa câu này',
+                                      onTap: () =>
+                                          _handleRemoveQuestion(index),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ],
                     ),
-                    // Badge cảnh báo similarity (bottom-left)
+                    // Badge cảnh báo similarity — bên dưới card, không chèn lên nội dung
                     if (q['_similarityWarning'] is Map) ...() {
                       final sw =
                           q['_similarityWarning'] as Map<String, dynamic>;
-                      final score =
-                          ((sw['score'] as num?) ?? 0) * 100;
+                      final score = ((sw['score'] as num?) ?? 0) * 100;
                       final tplIdx =
                           (sw['matchedTemplateIdx'] as int? ?? -1) + 1;
                       return [
-                        Positioned(
-                          bottom: 8,
-                          left: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: DesignColors.warning.withValues(alpha: 0.15),
+                            borderRadius:
+                                BorderRadius.circular(DesignRadius.md),
+                            border: Border.all(
+                              color: DesignColors.warning.withValues(alpha: 0.4),
                             ),
-                            decoration: BoxDecoration(
-                              color: DesignColors.warning
-                                  .withValues(alpha: 0.15),
-                              borderRadius:
-                                  BorderRadius.circular(DesignRadius.md),
-                              border: Border.all(
-                                color: DesignColors.warning
-                                    .withValues(alpha: 0.4),
-                              ),
-                            ),
-                            child: Text(
-                              '⚠ Tương tự mẫu #$tplIdx (${score.toStringAsFixed(0)}%)',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: DesignColors.warning,
-                                fontWeight: FontWeight.w500,
-                              ),
+                          ),
+                          child: Text(
+                            '⚠ Tương tự mẫu #$tplIdx (${score.toStringAsFixed(0)}%)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: DesignColors.warning,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
                       ];
                     }(),
-                    // Action buttons overlay (top-right)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: isRegenerating
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildCardActionBtn(
-                                  icon: Icons.refresh_rounded,
-                                  color: DesignColors.primary,
-                                  tooltip: 'Tạo lại câu này',
-                                  onTap: () => _handleRegenerateSingle(index),
-                                ),
-                                const SizedBox(width: 4),
-                                _buildCardActionBtn(
-                                  icon: Icons.edit_outlined,
-                                  color: DesignColors.textSecondary,
-                                  tooltip: 'Chỉnh sửa',
-                                  onTap: () => _handleEditQuestion(index),
-                                ),
-                                const SizedBox(width: 4),
-                                _buildCardActionBtn(
-                                  icon: Icons.close_rounded,
-                                  color: DesignColors.error,
-                                  tooltip: 'Xóa câu này',
-                                  onTap: () => _handleRemoveQuestion(index),
-                                ),
-                              ],
-                            ),
-                    ),
                   ],
                 ),
               ),
