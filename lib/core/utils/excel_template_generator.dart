@@ -165,6 +165,36 @@ class ExcelTemplateGenerator {
         ]);
         added++;
       }
+      // Example 4 — Vật lý
+      if (config.sampleCount >= 4) {
+        sheet.appendRow([
+          IntCellValue(4),
+          TextCellValue('Đơn vị đo lực trong hệ thống đo lường quốc tế (SI) là gì?'),
+          TextCellValue('Joule (J)'),
+          TextCellValue('Newton (N)'),
+          TextCellValue('Pascal (Pa)'),
+          TextCellValue('Watt (W)'),
+          TextCellValue('B'),
+          IntCellValue(2),
+          TextCellValue('vật lý, đơn vị, lực'),
+        ]);
+        added++;
+      }
+      // Example 5 — Sinh học
+      if (config.sampleCount >= 5) {
+        sheet.appendRow([
+          IntCellValue(5),
+          TextCellValue('Bào quan nào trong tế bào thực vật thực hiện chức năng quang hợp?'),
+          TextCellValue('Ty thể'),
+          TextCellValue('Không bào'),
+          TextCellValue('Lục lạp'),
+          TextCellValue('Nhân tế bào'),
+          TextCellValue('C'),
+          IntCellValue(2),
+          TextCellValue('sinh học, tế bào, quang hợp, lục lạp'),
+        ]);
+        added++;
+      }
     }
 
     for (int i = added + 1; i <= config.sampleCount; i++) {
@@ -210,6 +240,44 @@ class ExcelTemplateGenerator {
               'Kinh tế kế hoạch hóa: Nhà nước kiểm soát giá và phân bổ nguồn lực theo kế hoạch.'),
           IntCellValue(4),
           TextCellValue('GDCD, kinh tế, thị trường'),
+        ]);
+        added++;
+      }
+      // Example 3 — Vật lý
+      if (config.sampleCount >= 3) {
+        sheet.appendRow([
+          IntCellValue(3),
+          TextCellValue('Phát biểu định luật Ôm. Viết công thức và nêu ý nghĩa của các đại lượng.'),
+          TextCellValue('Cường độ dòng điện I trong một đoạn mạch tỉ lệ thuận với hiệu điện thế U hai đầu đoạn mạch '
+              'và tỉ lệ nghịch với điện trở R: I = U/R. '
+              'Trong đó I (A), U (V), R (Ω).'),
+          IntCellValue(3),
+          TextCellValue('vật lý, điện học, định luật Ôm'),
+        ]);
+        added++;
+      }
+      // Example 4 — Hóa học
+      if (config.sampleCount >= 4) {
+        sheet.appendRow([
+          IntCellValue(4),
+          TextCellValue('Nêu hai tính chất hóa học chung của axit và viết phương trình minh họa với HCl.'),
+          TextCellValue('Axit tác dụng với kim loại (Fe + 2HCl → FeCl₂ + H₂↑) '
+              'và với bazơ (HCl + NaOH → NaCl + H₂O). '
+              'Ngoài ra tác dụng được với oxit bazơ và muối.'),
+          IntCellValue(4),
+          TextCellValue('hóa học, axit, tính chất, HCl'),
+        ]);
+        added++;
+      }
+      // Example 5 — Toán học
+      if (config.sampleCount >= 5) {
+        sheet.appendRow([
+          IntCellValue(5),
+          TextCellValue('Giải và biện luận phương trình: 2x + m = 5 theo tham số m.'),
+          TextCellValue('Phương trình có nghiệm duy nhất x = (5 − m)/2 với mọi m ∈ ℝ (hệ số x = 2 ≠ 0). '
+              'Phương trình không vô nghiệm và không vô số nghiệm.'),
+          IntCellValue(5),
+          TextCellValue('toán, phương trình, tham số, biện luận'),
         ]);
         added++;
       }
@@ -270,6 +338,30 @@ class ExcelTemplateGenerator {
           TextCellValue('Vận tốc ánh sáng trong chân không ≈ 3×10⁸ m/s, trong nước ≈ 2,25×10⁸ m/s.'),
           IntCellValue(2),
           TextCellValue('vật lý, quang học, tốc độ ánh sáng'),
+        ]);
+        added++;
+      }
+      // Example 4 — Sinh học
+      if (config.sampleCount >= 4) {
+        sheet.appendRow([
+          IntCellValue(4),
+          TextCellValue('Quá trình quang hợp ở thực vật xảy ra trong lục lạp.'),
+          TextCellValue('Đúng'),
+          TextCellValue('Lục lạp chứa diệp lục và là bào quan thực hiện quang hợp, chuyển hóa năng lượng ánh sáng thành năng lượng hóa học.'),
+          IntCellValue(2),
+          TextCellValue('sinh học, quang hợp, lục lạp, tế bào thực vật'),
+        ]);
+        added++;
+      }
+      // Example 5 — Lịch sử
+      if (config.sampleCount >= 5) {
+        sheet.appendRow([
+          IntCellValue(5),
+          TextCellValue('Chiến dịch Điện Biên Phủ kết thúc vào ngày 7/5/1954, đánh dấu sự thất bại hoàn toàn của thực dân Pháp ở Đông Dương.'),
+          TextCellValue('Đúng'),
+          TextCellValue('Ngày 7/5/1954, quân Pháp tại Điện Biên Phủ đầu hàng, chấm dứt cuộc chiến tranh Đông Dương lần thứ nhất.'),
+          IntCellValue(3),
+          TextCellValue('lịch sử, điện biên phủ, kháng chiến, 1954'),
         ]);
         added++;
       }

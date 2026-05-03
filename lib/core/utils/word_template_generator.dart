@@ -198,6 +198,39 @@ class WordTemplateGenerator {
         nextQ++;
       }
 
+      // Additional MCQ examples — only for pure MCQ mode (fill all 5 slots)
+      if (isMcq && !isMixed) {
+        buf.write(_p('[ TRẮC NGHIỆM — Vật lý ]', italic: true));
+        buf.write(_p('Câu $nextQ: Đơn vị đo lực trong hệ đo lường quốc tế (SI) là:'));
+        buf.write(_p('A. Joule (J)'));
+        buf.write(_p('B. Newton (N)'));
+        buf.write(_p('C. Pascal (Pa)'));
+        buf.write(_p('D. Watt (W)'));
+        buf.write(_p('Đáp án: B', italic: true));
+        buf.write(_blank);
+        nextQ++;
+
+        buf.write(_p('[ TRẮC NGHIỆM — Hóa học ]', italic: true));
+        buf.write(_p('Câu $nextQ: Công thức hóa học của nước là:'));
+        buf.write(_p('A. H₂O₂'));
+        buf.write(_p('B. HO'));
+        buf.write(_p('C. H₂O'));
+        buf.write(_p('D. H₃O'));
+        buf.write(_p('Đáp án: C', italic: true));
+        buf.write(_blank);
+        nextQ++;
+
+        buf.write(_p('[ TRẮC NGHIỆM — Sinh học ]', italic: true));
+        buf.write(_p('Câu $nextQ: Bào quan nào trong tế bào thực vật thực hiện chức năng quang hợp?'));
+        buf.write(_p('A. Ty thể'));
+        buf.write(_p('B. Không bào'));
+        buf.write(_p('C. Lục lạp'));
+        buf.write(_p('D. Nhân tế bào'));
+        buf.write(_p('Đáp án: C', italic: true));
+        buf.write(_blank);
+        nextQ++;
+      }
+
       // True/False examples
       if (isTf || isMixed) {
         buf.write(_p('[ ĐÚNG / SAI — Địa lý ]', italic: true));
@@ -215,11 +248,59 @@ class WordTemplateGenerator {
         nextQ++;
       }
 
+      // Additional TF examples — only for pure TF mode (fill all 5 slots)
+      if (isTf && !isMixed) {
+        buf.write(_p('[ ĐÚNG / SAI — Vật lý ]', italic: true));
+        buf.write(_p('Câu $nextQ: Ánh sáng đi trong chân không nhanh hơn khi đi trong nước.'));
+        buf.write(_p('Đáp án: Đúng', italic: true));
+        buf.write(_blank);
+        nextQ++;
+
+        buf.write(_p('[ ĐÚNG / SAI — Sinh học ]', italic: true));
+        buf.write(_p('Câu $nextQ: Quá trình quang hợp ở thực vật xảy ra trong lục lạp.'));
+        buf.write(_p('Đáp án: Đúng', italic: true));
+        buf.write(_blank);
+        nextQ++;
+
+        buf.write(_p('[ ĐÚNG / SAI — Lịch sử ]', italic: true));
+        buf.write(_p('Câu $nextQ: Chiến dịch Điện Biên Phủ kết thúc vào ngày 7/5/1954, đánh dấu sự thất bại hoàn toàn của thực dân Pháp ở Đông Dương.'));
+        buf.write(_p('Đáp án: Đúng', italic: true));
+        buf.write(_blank);
+        nextQ++;
+      }
+
       // Essay examples
       if (isEssay || isMixed) {
         buf.write(_p('[ TỰ LUẬN / NGẮN — Sinh học ]', italic: true));
         buf.write(_p('Câu $nextQ: Quá trình quang hợp ở thực vật diễn ra chủ yếu ở bộ phận nào? Tại sao?'));
         buf.write(_p('Đáp án: Diễn ra chủ yếu ở lá cây, nơi có diệp lục (chlorophyll) trong lục lạp để hấp thụ ánh sáng.', italic: true));
+        buf.write(_blank);
+        nextQ++;
+      }
+
+      // Additional Essay examples — only for pure Essay mode (fill all 5 slots)
+      if (isEssay && !isMixed) {
+        buf.write(_p('[ TỰ LUẬN — Vật lý ]', italic: true));
+        buf.write(_p('Câu $nextQ: Phát biểu định luật Ôm. Viết công thức và giải thích ý nghĩa các đại lượng.'));
+        buf.write(_p('Đáp án: Cường độ dòng điện chạy qua dây dẫn tỉ lệ thuận với hiệu điện thế và tỉ lệ nghịch với điện trở: I = U/R (I: cường độ dòng điện A, U: hiệu điện thế V, R: điện trở Ω).', italic: true));
+        buf.write(_blank);
+        nextQ++;
+
+        buf.write(_p('[ TỰ LUẬN — Hóa học ]', italic: true));
+        buf.write(_p('Câu $nextQ: Giải thích tại sao dung dịch HCl có tính axit. Viết phương trình điện li.'));
+        buf.write(_p('Đáp án: HCl là axit mạnh, điện li hoàn toàn trong nước tạo ion H⁺ gây tính axit. PTHH: HCl → H⁺ + Cl⁻.', italic: true));
+        buf.write(_blank);
+        nextQ++;
+
+        buf.write(_p('[ TỰ LUẬN — Lịch sử ]', italic: true));
+        buf.write(_p('Câu $nextQ: Nêu ý nghĩa lịch sử của Chiến dịch Điện Biên Phủ (1954) đối với phong trào giải phóng dân tộc thế giới.'));
+        buf.write(_p('Đáp án: Đánh dấu sự sụp đổ của chủ nghĩa thực dân Pháp ở Đông Dương, cổ vũ phong trào giải phóng dân tộc ở châu Á, châu Phi, Mỹ La-tinh.', italic: true));
+        buf.write(_blank);
+        nextQ++;
+
+        buf.write(_p('[ TỰ LUẬN — Toán học ]', italic: true));
+        buf.write(_p('Câu $nextQ: Tìm giá trị của tham số m để phương trình x² − 2x + m = 0 có hai nghiệm phân biệt.'));
+        buf.write(_p('Đáp án: Phương trình có hai nghiệm phân biệt khi Δ > 0 ⟺ 4 − 4m > 0 ⟺ m < 1.', italic: true));
         buf.write(_blank);
         nextQ++;
       }

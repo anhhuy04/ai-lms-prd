@@ -130,6 +130,9 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
                     SizedBox(height: DesignSpacing.md),
 
                     _buildPreview(isDark),
+                    SizedBox(height: DesignSpacing.lg),
+
+                    _buildUsageGuide(isDark),
                     SizedBox(height: DesignSpacing.xl),
 
                     _buildGenerateButton(isDark),
@@ -374,8 +377,8 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
           _OptionTile(
             label: 'Điền sẵn câu ví dụ',
             subtitle: _format == SampleFileFormat.excelQuestions
-                ? 'Thêm câu hỏi mẫu đa môn học vào từng sheet'
-                : 'Thêm 3 câu ví dụ (Trắc nghiệm + Đúng/Sai + Tự luận)',
+                ? 'Điền 5 câu ví dụ đa môn học vào từng sheet'
+                : 'Điền 5 câu ví dụ thực tế — tải về là dùng test ngay',
             value: _includeExamples,
             onChanged: (v) => setState(() => _includeExamples = v),
             isDark: isDark,
@@ -476,6 +479,110 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
         ),
       ),
     );
+  }
+
+  // ── Usage guide ────────────────────────────────────────────────────────────
+
+  Widget _buildUsageGuide(bool isDark) {
+    final steps = _usageSteps();
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 180),
+      child: Container(
+        key: ValueKey(_format),
+        width: double.infinity,
+        padding: const EdgeInsets.all(DesignSpacing.md),
+        decoration: BoxDecoration(
+          color: _format.color.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(DesignRadius.md),
+          border: Border.all(color: _format.color.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.rocket_launch_outlined, size: DesignIcons.smSize, color: _format.color),
+                SizedBox(width: DesignSpacing.xs),
+                Text(
+                  'Dùng ngay sau khi tải',
+                  style: DesignTypography.bodySmall.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: _format.color,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: DesignSpacing.sm),
+            ...steps.asMap().entries.map(
+              (e) => Padding(
+                padding: EdgeInsets.only(
+                  bottom: e.key < steps.length - 1 ? DesignSpacing.sm : 0,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: _format.color.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${e.key + 1}',
+                          style: TextStyle(
+                            color: _format.color,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: DesignSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        e.value,
+                        style: DesignTypography.bodySmall.copyWith(
+                          color: isDark ? DesignColors.white : DesignColors.textPrimary,
+                          height: 1.45,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<String> _usageSteps() {
+    switch (_format) {
+      case SampleFileFormat.excelQuestions:
+        return [
+          'Mở file Excel → các sheet đã có 5 câu ví dụ thực, giữ nguyên hoặc thay bằng câu hỏi của bạn',
+          'Vào màn hình Tạo câu hỏi AI → chọn chế độ Tạo từ tài liệu (RAG)',
+          'Upload file Excel → bấm nút 📋 để đặt làm Mẫu',
+          'Bấm Tạo — AI học phong cách câu hỏi từ file mẫu và sinh câu mới',
+        ];
+      case SampleFileFormat.wordQuestions:
+        return [
+          'Mở file Word → đã có 5 câu ví dụ đầy đủ, giữ nguyên hoặc thay bằng câu hỏi thật rồi lưu lại',
+          'Vào màn hình Tạo câu hỏi AI → chọn chế độ Tạo từ tài liệu (RAG)',
+          'Upload file Word → bấm 📋 để đặt làm Mẫu',
+          'Bấm Tạo — AI học văn phong và sinh câu hỏi mới cùng định dạng',
+        ];
+      case SampleFileFormat.wordKnowledge:
+        return [
+          'Mở file Word → thay nội dung trong dấu [ ] bằng kiến thức thật của bạn, lưu lại',
+          'Vào màn hình Tạo câu hỏi AI → chọn chế độ Tạo từ tài liệu (RAG)',
+          'Upload file → để mặc định 📚 Kiến thức (hoặc kết hợp thêm file 📋 Mẫu)',
+          'Bấm Tạo — AI phân tích tài liệu và sinh câu hỏi bám sát nội dung',
+        ];
+    }
   }
 
   // ── Generate logic ─────────────────────────────────────────────────────────
