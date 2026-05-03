@@ -94,6 +94,52 @@ class _TeacherAiGenerateQuestionScreenState
     super.dispose();
   }
 
+  // ── Debug logging ─────────────────────────────────────────────────────────
+
+  void _logGeneratedQuestions(List<Map<String, dynamic>> questions) {
+    AppLogger.info('📝 [Result] ══ Generated ${questions.length} câu ══');
+    for (int i = 0; i < questions.length; i++) {
+      final q = questions[i];
+      final type = (q['type'] as QuestionType?)?.name ??
+          q['type']?.toString() ??
+          '?';
+      final rawText = (q['text'] as String?) ??
+          ((q['content'] as Map?)?['text'] as String?) ??
+          '';
+      final preview =
+          rawText.length > 90 ? '${rawText.substring(0, 90)}…' : rawText;
+      final answer = q['answer']?.toString() ?? '?';
+      final opts = q['options'] as List?;
+      String optStr = '';
+      if (opts != null && opts.isNotEmpty) {
+        optStr = opts
+            .take(4)
+            .map((o) {
+              if (o is Map) {
+                final lbl = o['label']?.toString() ?? '';
+                final txt = (o['text'] as String?) ??
+                    (o['content'] as String?) ??
+                    o.toString();
+                return '$lbl.$txt'.trim();
+              }
+              return o.toString();
+            })
+            .join(' | ');
+        if (optStr.length > 120) optStr = '${optStr.substring(0, 120)}…';
+      }
+      final sim = q['_similarityWarning'] is Map
+          ? ' ⚠sim=${(q['_similarityWarning'] as Map)['score']}% (tpl#${(q['_similarityWarning'] as Map)['templateIndex']})'
+          : '';
+      final tags = (q['tags'] as List?)?.join(',') ?? '';
+      AppLogger.info(
+        '  Q${i + 1}[$type|diff=${q['difficulty']}] $preview\n'
+        '       → ans=$answer${optStr.isNotEmpty ? ' | opts: $optStr' : ''}$sim\n'
+        '       → tags: $tags',
+      );
+    }
+    AppLogger.info('📝 [Result] ══ End ══');
+  }
+
   Future<void> _handleSaveToQuestionBank() async {
     final questions = _generatedQuestions;
     if (questions == null || questions.isEmpty) return;
@@ -867,6 +913,7 @@ class _TeacherAiGenerateQuestionScreenState
         _batchProgress = null;
       });
 
+      _logGeneratedQuestions(generatedQuestions);
       // KHÔNG pop tự động - để user có thể test nhiều lần
       // User sẽ click "Xác nhận" để pop và trả về questions
     } catch (e) {
@@ -1582,6 +1629,7 @@ class _TeacherAiGenerateQuestionScreenState
                           width: double.infinity,
                           height: 44,
                           child: ElevatedButton(
+                            key: const ValueKey('btn_generate'),
                             onPressed: (_isGenerating ||
                                     _isQtyMismatch ||
                                     allSelectedFilesEmpty)
@@ -1691,6 +1739,7 @@ class _TeacherAiGenerateQuestionScreenState
                                     child: SizedBox(
                                       height: 38,
                                       child: OutlinedButton.icon(
+                                        key: const ValueKey('btn_regenerate_all'),
                                         onPressed: (_isGenerating ||
                                                 _isQtyMismatch ||
                                                 allSelectedFilesEmpty)
@@ -2402,6 +2451,7 @@ class _TeacherAiGenerateQuestionScreenState
     final isSelected = mode == selected;
     return Expanded(
       child: GestureDetector(
+        key: ValueKey('tab_${mode.name}'),
         onTap: () => ref
             .read(aiGenerationSettingsNotifierProvider.notifier)
             .setMode(mode),

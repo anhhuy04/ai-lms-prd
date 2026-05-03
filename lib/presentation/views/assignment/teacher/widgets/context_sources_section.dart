@@ -282,6 +282,7 @@ class _ContextSourcesSectionState
             : null,
       ),
       child: InkWell(
+        key: ValueKey('file_card_${file.id}'),
         onTap: file.isExtracting ? null : () => _toggleFile(file.id),
         borderRadius: BorderRadius.circular(DesignRadius.md),
         child: Column(
@@ -579,6 +580,7 @@ class _ContextSourcesSectionState
     }
 
     return GestureDetector(
+      key: ValueKey('role_toggle_${file.id}'),
       onTap: () => _toggleFileRole(file),
       child: badge,
     );
@@ -616,6 +618,7 @@ class _ContextSourcesSectionState
 
           // Tạo mới
           _buildSubChip(
+            chipKey: const ValueKey('chip_style_only'),
             label: 'Tạo mới',
             icon: Icons.auto_awesome_outlined,
             selected: current == TemplateMode.styleOnly,
@@ -630,6 +633,7 @@ class _ContextSourcesSectionState
 
           // Cùng dạng
           _buildSubChip(
+            chipKey: const ValueKey('chip_same_form'),
             label: 'Cùng dạng',
             icon: Icons.content_copy_outlined,
             selected: current == TemplateMode.sameForm,
@@ -664,6 +668,7 @@ class _ContextSourcesSectionState
   }
 
   Widget _buildSubChip({
+    Key? chipKey,
     required String label,
     required IconData icon,
     required bool selected,
@@ -678,6 +683,7 @@ class _ContextSourcesSectionState
         : (selected ? activeColor : (isDark ? Colors.grey[400]! : Colors.grey[600]!));
 
     final chip = GestureDetector(
+      key: chipKey,
       onTap: disabled ? null : onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
@@ -720,6 +726,7 @@ class _ContextSourcesSectionState
 
   Widget _buildAddButton(bool isDark) {
     return InkWell(
+      key: const ValueKey('btn_add_file'),
       onTap: _pickAndAddLocalFile,
       borderRadius: BorderRadius.circular(DesignRadius.md),
       child: Container(
