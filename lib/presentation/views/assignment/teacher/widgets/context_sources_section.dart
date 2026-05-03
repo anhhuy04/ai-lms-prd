@@ -49,6 +49,29 @@ class _ContextSourcesSectionState
     final next = file.effectiveRole == FileRole.template
         ? FileRole.knowledgeSource
         : FileRole.template;
+
+    // GAP-2: khi chọn file mới làm Mẫu, tự hạ file Mẫu cũ xuống KT
+    if (next == FileRole.template) {
+      final allFiles = ref.read(localTempFilesProvider);
+      final oldTemplate = allFiles
+          .where((f) =>
+              f.id != file.id && f.effectiveRole == FileRole.template)
+          .toList();
+      if (oldTemplate.isNotEmpty) {
+        final old = oldTemplate.first;
+        ref
+            .read(localTempFilesProvider.notifier)
+            .updateFileRole(old.id, FileRole.knowledgeSource);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('"${old.filename}" đã chuyển sang 📚 Kiến thức'),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+
     ref.read(localTempFilesProvider.notifier).updateFileRole(file.id, next);
   }
 
@@ -113,7 +136,8 @@ class _ContextSourcesSectionState
               f.effectiveRole == FileRole.template)
           .expand((f) => f.parsedQuestions!)
           .toList();
-      allMcq = templateQs.isNotEmpty &&
+      // GAP-6: cần ít nhất 5 câu và toàn bộ là Trắc nghiệm
+      allMcq = templateQs.length >= 5 &&
           templateQs.every((q) {
             final t = q['type'];
             return t == QuestionType.multipleChoice ||
@@ -222,6 +246,10 @@ class _ContextSourcesSectionState
   Widget _buildFileCard(LocalTempFile file, bool isDark, bool allMcq) {
     final isSelected = _selectedFileIds.contains(file.id);
     final hasQuestions = file.parsedQuestions?.isNotEmpty == true;
+    // GAP-1: Excel có parsedQuestions → locked Mẫu, không cho toggle sang KT
+    final isXlsx = file.mimeType.contains('spreadsheetml') ||
+        file.filename.toLowerCase().endsWith('.xlsx');
+    final canToggle = hasQuestions && !isXlsx;
     final isTemplate =
         widget.showRoleBadge && hasQuestions && file.effectiveRole == FileRole.template;
     final showSubMode = isTemplate && isSelected;
@@ -308,7 +336,8 @@ class _ContextSourcesSectionState
                       // File có parsedQuestions: tap được để toggle Mẫu ↔ KT
                       // File chỉ có text: locked "📚 Kiến thức" (không thể làm Mẫu)
                       if (widget.showRoleBadge && !file.isExtracting)
-                        _buildRoleToggle(file, isDark, canToggle: hasQuestions),
+                        _buildRoleToggle(file, isDark,
+                            canToggle: canToggle, isXlsx: isXlsx),
 
                       // Delete button
                       if (!file.isExtracting) ...[
@@ -500,12 +529,17 @@ class _ContextSourcesSectionState
   // Role toggle pill (Tầng 1)
   // ─────────────────────────────────────────────────────────────────
 
-  /// [canToggle]: true khi file có parsedQuestions (Excel/Word mẫu) — cho phép
-  /// đổi giữa Mẫu ↔ Kiến thức. false khi chỉ có raw text — locked "Kiến thức".
-  Widget _buildRoleToggle(LocalTempFile file, bool isDark,
-      {required bool canToggle}) {
-    // File không có parsedQuestions luôn là Kiến thức, không thể làm Mẫu
-    final isTemplate = canToggle && file.effectiveRole == FileRole.template;
+  /// [canToggle]: true khi là Word/PDF có parsedQuestions — cho phép toggle
+  /// Mẫu ↔ KT. false khi: chỉ có raw text (luôn KT) HOẶC Excel (luôn Mẫu).
+  Widget _buildRoleToggle(
+    LocalTempFile file,
+    bool isDark, {
+    required bool canToggle,
+    bool isXlsx = false,
+  }) {
+    final hasQuestions = file.parsedQuestions?.isNotEmpty == true;
+    // Display dựa vào effectiveRole thực sự, không bị chặn bởi canToggle
+    final isTemplate = hasQuestions && file.effectiveRole == FileRole.template;
 
     final color = isTemplate
         ? DesignColors.success
@@ -532,7 +566,6 @@ class _ContextSourcesSectionState
             ),
           ),
           const SizedBox(width: 3),
-          // Icon swap nếu có thể toggle, lock nếu không
           Icon(
             canToggle ? Icons.swap_horiz_rounded : Icons.lock_outline_rounded,
             size: 11,
@@ -543,10 +576,10 @@ class _ContextSourcesSectionState
     );
 
     if (!canToggle) {
-      return Tooltip(
-        message: 'File text thuần — chỉ dùng làm nguồn Kiến thức',
-        child: badge,
-      );
+      final msg = (isXlsx && isTemplate)
+          ? 'Excel mẫu — luôn là 📋 Mẫu'
+          : 'File text thuần — chỉ dùng làm nguồn Kiến thức';
+      return Tooltip(message: msg, child: badge);
     }
 
     return GestureDetector(
@@ -609,7 +642,7 @@ class _ContextSourcesSectionState
             isDark: isDark,
             tooltip: allMcq
                 ? 'Giữ cấu trúc câu, đổi số liệu/tình huống'
-                : 'Cần toàn bộ câu là Trắc nghiệm',
+                : 'Cần ít nhất 5 câu Trắc nghiệm trong file mẫu',
             onTap: allMcq
                 ? () => ref
                     .read(aiGenerationSettingsNotifierProvider.notifier)
@@ -621,7 +654,7 @@ class _ContextSourcesSectionState
           if (!allMcq) ...[
             const SizedBox(width: 6),
             Tooltip(
-              message: 'File mẫu có câu tự luận → chỉ dùng được Tạo mới',
+              message: 'Cần ít nhất 5 câu Trắc nghiệm để dùng Cùng dạng',
               child: Icon(
                 Icons.info_outline_rounded,
                 size: 13,

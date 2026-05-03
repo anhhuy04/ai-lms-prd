@@ -703,6 +703,24 @@ class _TeacherAiGenerateQuestionScreenState
             _useAsStyleTemplate && templateQuestionsForCheck.isNotEmpty
                 ? templateQuestionsForCheck
                 : null;
+        // GAP-4: warn khi qty > templateSize * 3 trong sameForm
+        if (effectiveTemplateMode == TemplateMode.sameForm && mounted) {
+          final qty = _limitQty;
+          final templateSize = templateQuestionsForCheck.length;
+          if (templateSize > 0 && qty > templateSize * 3) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Yêu cầu $qty câu từ mẫu $templateSize câu '
+                  '— AI có thể bị lặp. Nên giảm xuống ≤ ${templateSize * 3} câu.',
+                ),
+                backgroundColor: DesignColors.warning,
+                duration: const Duration(seconds: 5),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
         // Build aiText: template-style dùng knowledge context (anti-leak), còn lại raw.
         final aiText = _useAsStyleTemplate
             ? notifier.getKnowledgeContextForIds(
@@ -1286,6 +1304,17 @@ class _TeacherAiGenerateQuestionScreenState
     final aiSettings = ref.watch(aiGenerationSettingsNotifierProvider);
     final mode = aiSettings.processingMode;
     final statusBarHeight = MediaQuery.of(context).padding.top;
+    // GAP-7: disable Generate khi tất cả file đã chọn không có nội dung
+    final allFiles = ref.watch(localTempFilesProvider);
+    final selectedFileIds = aiSettings.selectedFileIds.toSet();
+    final allSelectedFilesEmpty = mode == ProcessingMode.ragGeneration &&
+        selectedFileIds.isNotEmpty &&
+        allFiles
+            .where((f) => selectedFileIds.contains(f.id))
+            .every((f) =>
+                !f.isExtracting &&
+                (f.extractedText?.isEmpty ?? true) &&
+                (f.parsedQuestions?.isEmpty ?? true));
 
     return Scaffold(
       key: _scaffoldKey,
@@ -1553,7 +1582,9 @@ class _TeacherAiGenerateQuestionScreenState
                           width: double.infinity,
                           height: 44,
                           child: ElevatedButton(
-                            onPressed: (_isGenerating || _isQtyMismatch)
+                            onPressed: (_isGenerating ||
+                                    _isQtyMismatch ||
+                                    allSelectedFilesEmpty)
                                 ? null
                                 : _handleGenerate,
                             style: ElevatedButton.styleFrom(
@@ -1660,8 +1691,9 @@ class _TeacherAiGenerateQuestionScreenState
                                     child: SizedBox(
                                       height: 38,
                                       child: OutlinedButton.icon(
-                                        onPressed:
-                                            (_isGenerating || _isQtyMismatch)
+                                        onPressed: (_isGenerating ||
+                                                _isQtyMismatch ||
+                                                allSelectedFilesEmpty)
                                             ? null
                                             : _handleGenerate,
                                         icon: Icon(

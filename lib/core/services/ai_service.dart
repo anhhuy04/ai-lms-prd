@@ -270,7 +270,7 @@ class AiService {
       final hasFocusHint = topic.isNotEmpty && topic != 'Câu hỏi từ tài liệu';
       final topicLine = hasFocusHint
           ? 'BẮT BUỘC tập trung vào "$topic" (yêu cầu giáo viên)'
-          : 'mở rộng cùng chủ đề/lĩnh vực gợi ý qua tags trong schema';
+          : 'Tự suy từ tags trong schema — tạo câu đa dạng cùng lĩnh vực';
 
       String prompt;
       switch (resolvedMode) {
@@ -328,15 +328,14 @@ $documentContext
     return '''${contextSection}$openingLine
 $difficultyLine
 
-QUY TẮC (bắt buộc tuân thủ):
+${hasDoc ? 'CHỐNG SAO CHÉP (ưu tiên cao nhất): TUYỆT ĐỐI KHÔNG sao chép, diễn đạt lại, hay đảo vị trí đáp án của bất kỳ câu nào trong tài liệu. Dùng tài liệu làm nguồn kiến thức — câu hỏi PHẢI MỚI hoàn toàn về ngôn từ và cấu trúc.\n\n' : ''}QUY TẮC (bắt buộc tuân thủ):
 1. $topicRule
 2. $typeRule
 3. Trả về JSON ARRAY. Không có markdown, không giải thích, không ký tự thừa.
 4. Mỗi câu hỏi là 1 object trong array.
-5. ĐA DẠNG HÓA câu hỏi: kết hợp câu cơ bản, câu cần suy luận 2-3 bước, câu áp dụng thực tế, câu có dữ liệu thực (số, ngày, tên người). Không tạo toàn câu đơn giản tính trực tiếp.
+5. ${hasDoc ? 'ĐA DẠNG HÓA: lấy kiến thức từ nhiều ĐOẠN KHÁC NHAU trong tài liệu, đừng chỉ khai thác một đoạn. Kết hợp câu nhận biết, câu hiểu, câu vận dụng.' : 'ĐA DẠNG HÓA câu hỏi: kết hợp câu cơ bản, câu cần suy luận 2-3 bước, câu áp dụng thực tế. Không tạo toàn câu đơn giản.'}
 6. KIỂM TRA ĐÁP ÁN ĐÚNG: trước khi xuất JSON, xác nhận lại rằng choice có isCorrect=true là đúng về mặt kiến thức. Các choice sai phải là lựa chọn có vẻ hợp lý nhưng thực sự sai (nhiễu tốt).
-7. ĐA DẠNG VỊ TRÍ ĐÁP ÁN ĐÚNG: trong toàn bộ $quantity câu, phân bố đáp án đúng đều ở các id 0, 1, 2, 3. Tuyệt đối không để đáp án đúng ở cùng id cho mọi câu (ví dụ không được tất cả đều isCorrect ở id 2).
-${hasDoc ? '8. TUYỆT ĐỐI KHÔNG sao chép, diễn đạt lại, hay đảo vị trí đáp án của bất kỳ câu nào trong tài liệu. Dùng tài liệu làm nguồn kiến thức — tạo câu hỏi MỚI hoàn toàn về ngôn từ và cấu trúc.' : ''}
+7. ĐA DẠNG VỊ TRÍ ĐÁP ÁN ĐÚNG: trong toàn bộ $quantity câu, phân bố đáp án đúng đều ở các id 0, 1, 2, 3. Tuyệt đối không để đáp án đúng ở cùng id cho mọi câu.
 
 $formatExample
 
@@ -445,7 +444,7 @@ Schema CHỈ có metadata — bạn KHÔNG biết câu mẫu nói gì, KHÔNG sa
 $documentContext
 --- HẾT SCHEMA ---
 
-$difficultyLine
+${difficultyLine.isNotEmpty ? 'Gợi ý độ khó chung (ưu tiên độ khó từng slot trong schema): $difficultyLine' : ''}
 Chủ đề: $topicLine.
 Loại câu: $typeRule
 
@@ -497,7 +496,7 @@ BƯỚC 3 — TÍNH LẠI 4 OPTIONS: tự giải đáp án mới, sinh 3 distrac
 $documentContext
 --- HẾT MẪU ---
 
-$difficultyLine
+${difficultyLine.isNotEmpty ? 'Gợi ý độ khó chung (ưu tiên độ khó từng câu trong mẫu): $difficultyLine' : ''}
 Chủ đề: $topicLine.
 
 QUY TẮC CỨNG:
@@ -527,6 +526,14 @@ Phân tích: khung "ax+b=c, x=?", giải x=(c-b)/a. Biến a=2, b=3, c=11.
 Output: [{"type":"multiple_choice","override_text":"Giải phương trình 3x+5=20, x=?","choices":[{"id":0,"text":"6","isCorrect":false},{"id":1,"text":"15","isCorrect":false},{"id":2,"text":"5","isCorrect":true},{"id":3,"text":"25/3","isCorrect":false}],"tags":["đại số","phương trình"]}]
 
 $formatExample
+
+RÀNG BUỘC FORMAT:
+- MỌI câu: LUÔN có "override_text" = câu hỏi thực đầy đủ (không phải nhãn hay placeholder).
+- multiple_choice: override_text + 4 choices (id 0,1,2,3), đúng 1 isCorrect=true.
+- true_false: override_text + 2 choices id 0/1 với text "Đúng"/"Sai".
+- tags: 1-3 từ khóa chủ đề.
+- KHÔNG tạo field "explanation".
+- Output JSON ARRAY thuần, KHÔNG markdown, KHÔNG text trước "[".
 
 NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OPTIONS. Trả về JSON ARRAY $quantity object đúng format ví dụ.''';
   }

@@ -184,10 +184,21 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
     final questions = sampleQuestionsForSchema(allQuestions);
     final filenameTopic = filenameToTopic(f.filename);
 
+    // P2-2: tính phân phối type từ toàn bộ allQuestions
+    final typeCount = <String, int>{};
+    for (final q in allQuestions) {
+      final t = _formatTypeForSchema(q['type']);
+      typeCount[t] = (typeCount[t] ?? 0) + 1;
+    }
+    final distStr = typeCount.entries
+        .map((e) => '${e.value} ${e.key}')
+        .join(' · ');
+
     final sb = StringBuffer();
     sb.writeln(
       '[Schema bài mẫu — ${allQuestions.length} câu tổng'
       '${questions.length < allQuestions.length ? " (hiển thị ${questions.length} mẫu đại diện)" : ""}. '
+      'Phân phối: $distStr. '
       'AI CHỈ thấy metadata, KHÔNG có nội dung câu gốc. Hãy tạo câu MỚI hoàn toàn theo schema này.]',
     );
     sb.writeln();
