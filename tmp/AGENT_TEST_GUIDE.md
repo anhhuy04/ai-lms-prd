@@ -848,6 +848,10 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 | 2026-05-09 | **B-001 P0** | da9f8ce+b41cdcb | Live test Word "NGÂN HÀNG CÂU HỎI" Toán/Lý/Hóa, Mode 3 styleOnly → AI gen 5 câu Địa lý VN. Domain drift. Root cause: schema-only context không có subject (parser bỏ qua [TRẮC NGHIỆM — XXX]); topic placeholder; persona bias. **FIXED** in `2af9503`. | RESOLVED |
 | 2026-05-09 | **B-002 P1** | b41cdcb | Log `_logGeneratedQuestions` hiển thị `ans=?` — answer field không parse được. **FIXED** in `2af9503`: derive correct letter từ choice index. | RESOLVED |
 | 2026-05-09 | **B-003 P2** | b41cdcb | Log hiện `.Hà Nội | .Hồ Chí Minh` thiếu prefix A/B/C/D. **FIXED** in `2af9503`: derive label A/B/C/D từ choice index. | RESOLVED |
+| 2026-05-09 | **V-001 P0** | 2af9503 | Wave 2: AI gen `y = x^2` plain ASCII không LaTeX. **FIXED** in `c0679c4`: persona BẮT BUỘC LaTeX + format example LaTeX. | RESOLVED |
+| 2026-05-09 | **V-002 P0** | 2af9503 | Force toggle dư thừa + auto-downgrade sameForm→styleOnly. **FIXED** in `c0679c4`: bỏ Force, bỏ downgrade, role=Mẫu auto-imply. | RESOLVED |
+| 2026-05-09 | **V-003 P0** | 2af9503 | AI tự gen sai khi thiếu info → tốn token. **FIXED** in `c0679c4`: AiUncertaintyException + prompt rule AN TOÀN + UI snackbar. | RESOLVED |
+| 2026-05-09 | **V-004 P1** | 2af9503 | Tooltip chip chưa rõ. **FIXED** in `c0679c4`: tooltip dài giải thích anti-leak vs clone. | RESOLVED |
 
 ---
 
@@ -982,6 +986,10 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 | 2026-05-09 | **B-001 P0** | da9f8ce+b41cdcb | Live test Word "NGÂN HÀNG CÂU HỎI" Toán/Lý/Hóa, Mode 3 styleOnly → AI gen 5 câu Địa lý VN. Domain drift. Root cause: schema-only context không có subject (parser bỏ qua [TRẮC NGHIỆM — XXX]); topic placeholder; persona bias. **FIXED** in `2af9503`. | RESOLVED |
 | 2026-05-09 | **B-002 P1** | b41cdcb | Log `_logGeneratedQuestions` hiển thị `ans=?` — answer field không parse được. **FIXED** in `2af9503`: derive correct letter từ choice index. | RESOLVED |
 | 2026-05-09 | **B-003 P2** | b41cdcb | Log hiện `.Hà Nội | .Hồ Chí Minh` thiếu prefix A/B/C/D. **FIXED** in `2af9503`: derive label A/B/C/D từ choice index. | RESOLVED |
+| 2026-05-09 | **V-001 P0** | 2af9503 | Wave 2: AI gen `y = x^2` plain ASCII không LaTeX. **FIXED** in `c0679c4`: persona BẮT BUỘC LaTeX + format example LaTeX. | RESOLVED |
+| 2026-05-09 | **V-002 P0** | 2af9503 | Force toggle dư thừa + auto-downgrade sameForm→styleOnly. **FIXED** in `c0679c4`: bỏ Force, bỏ downgrade, role=Mẫu auto-imply. | RESOLVED |
+| 2026-05-09 | **V-003 P0** | 2af9503 | AI tự gen sai khi thiếu info → tốn token. **FIXED** in `c0679c4`: AiUncertaintyException + prompt rule AN TOÀN + UI snackbar. | RESOLVED |
+| 2026-05-09 | **V-004 P1** | 2af9503 | Tooltip chip chưa rõ. **FIXED** in `c0679c4`: tooltip dài giải thích anti-leak vs clone. | RESOLVED |
 
 ---
 
