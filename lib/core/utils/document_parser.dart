@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:ai_mls/core/utils/omml_to_latex.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:archive/archive.dart';
 import 'package:excel/excel.dart' as ex;
@@ -108,7 +109,9 @@ class DocumentParser {
     final archive = ZipDecoder().decodeBytes(bytes);
     final documentFile = archive.findFile('word/document.xml');
     if (documentFile == null) return '';
-    final xmlContent = utf8.decode(documentFile.content as List<int>);
+    var xmlContent = utf8.decode(documentFile.content as List<int>);
+    // ── Convert OMML (Word equations) → LaTeX TRƯỚC khi strip generic tags ──
+    xmlContent = OmmlToLatex.preprocessDocxXml(xmlContent);
     return xmlContent
         .replaceAll(RegExp(r'<[^>]*>'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
