@@ -667,7 +667,10 @@ class _ContextSourcesSectionState
             disabled: !enabled,
             activeColor: DesignColors.primary,
             isDark: isDark,
-            tooltip: enabled ? null : disabledTooltip,
+            tooltip: enabled
+                ? 'Tạo câu MỚI hoàn toàn cùng môn/cấp với mẫu. '
+                    'Phù hợp đa dạng đề. AI không thấy text câu mẫu.'
+                : disabledTooltip,
             onTap: enabled
                 ? () => ref
                     .read(aiGenerationSettingsNotifierProvider.notifier)
@@ -686,7 +689,8 @@ class _ContextSourcesSectionState
             tooltip: !enabled
                 ? disabledTooltip
                 : (allMcq
-                    ? 'Giữ cấu trúc câu, đổi số liệu/tình huống'
+                    ? 'Giữ nguyên cấu trúc câu mẫu, chỉ đổi số liệu/giá trị. '
+                        'Phù hợp toán drill. AI thấy text mẫu để clone.'
                     : 'Cần ít nhất 2 câu Trắc nghiệm trong file mẫu'),
             onTap: (enabled && allMcq)
                 ? () => ref

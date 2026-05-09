@@ -177,6 +177,9 @@ class AiRepositoryImpl implements AiRepository {
         topic: topic,
         enabled: highAccuracyMode,
       );
+    } on AiUncertaintyException {
+      // PROPAGATE TO UI — don't translate via generic error mapping.
+      rethrow;
     } catch (e, stackTrace) {
       AppLogger.error(
         '🔴 [AI REPO ERROR] generateQuestions: $e',
@@ -203,6 +206,8 @@ class AiRepositoryImpl implements AiRepository {
 
       // Handle different response formats
       if (response is Map<String, dynamic>) {
+        // Detect AI uncertainty error response (object with `error` key)
+        _checkAiErrorResponse(response);
         // Try common keys
         questionsList =
             response['questions'] as List<dynamic>? ??
@@ -214,6 +219,8 @@ class AiRepositoryImpl implements AiRepository {
         // Try to parse as JSON string
         final parsed = _tryParseJson(response);
         if (parsed is Map<String, dynamic>) {
+          // Detect AI uncertainty error response after parsing string
+          _checkAiErrorResponse(parsed);
           questionsList =
               parsed['questions'] as List<dynamic>? ??
               parsed['data'] as List<dynamic>? ??
@@ -252,6 +259,9 @@ class AiRepositoryImpl implements AiRepository {
       }
 
       return questions;
+    } on AiUncertaintyException {
+      // Don't swallow into fallback — let UI handle uncertainty error.
+      rethrow;
     } catch (e, stackTrace) {
       AppLogger.error(
         '🔴 [AI REPO] Error parsing response: $e',
@@ -261,6 +271,30 @@ class AiRepositoryImpl implements AiRepository {
       // Fallback: tạo questions mẫu
       return _generateFallbackQuestions(expectedQuantity);
     }
+  }
+
+  /// Detect AI uncertainty error response — AI trả `{error, message}` thay vì array.
+  /// Throws `AiUncertaintyException` để UI hiển thị reason cho user.
+  void _checkAiErrorResponse(Map<String, dynamic> decoded) {
+    if (!decoded.containsKey('error')) return;
+    // Skip if it looks like a wrapped envelope `{error: {message: ...}}` from API errors.
+    final errVal = decoded['error'];
+    final code = errVal is String
+        ? errVal
+        : (errVal is Map<String, dynamic>
+            ? (errVal['code']?.toString() ?? errVal['type']?.toString() ?? 'unknown')
+            : 'unknown');
+    // Only treat as uncertainty if code matches one of allowed AI codes
+    const allowedCodes = {
+      'missing_subject',
+      'ambiguous_schema',
+      'insufficient_context',
+    };
+    if (!allowedCodes.contains(code)) return;
+    final message = decoded['message']?.toString()
+        ?? 'AI không thể tạo câu hỏi với thông tin hiện tại.';
+    AppLogger.warning('[AI] Uncertainty error: $code — $message');
+    throw AiUncertaintyException(message, code: code);
   }
 
   /// Map AI question response sang format chuẩn của app

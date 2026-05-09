@@ -6,6 +6,18 @@ import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/domain/entities/template_mode.dart';
 import 'package:dio/dio.dart';
 
+/// AI báo lỗi không thể gen — thường khi không xác định được môn/cấu trúc.
+/// UI nên catch và hiển thị `reason` cho user thay vì silent fail.
+class AiUncertaintyException implements Exception {
+  final String reason;
+  final String code; // missing_subject | ambiguous_schema | insufficient_context | unknown
+
+  AiUncertaintyException(this.reason, {this.code = 'unknown'});
+
+  @override
+  String toString() => 'AiUncertaintyException [$code]: $reason';
+}
+
 /// AI Service tập trung để quản lý tất cả AI API calls và prompts
 ///
 /// Service này tuân theo pattern của SupabaseService và ErrorReportingService:
@@ -69,7 +81,13 @@ class AiService {
 - Dùng tiếng Việt sư phạm, văn phong rõ ràng, đúng cấp học (lớp 9-12).
 - BÁM CHẶT MÔN HỌC trong tài liệu mẫu — KHÔNG tự suy sang môn khác (vd có mẫu Toán → KHÔNG tạo Địa lý).
 - Distractor (đáp án sai) phải là lỗi sai HỢP LÝ học sinh thường mắc — không tạo distractor vô nghĩa.
-- KHÔNG dùng từ Hán Việt khó hiểu, KHÔNG copy từ tài liệu nước ngoài.''';
+- KHÔNG dùng từ Hán Việt khó hiểu, KHÔNG copy từ tài liệu nước ngoài.
+
+LATEX BẮT BUỘC cho công thức:
+- Mọi công thức toán/lý/hóa có biến/mũ/căn/phân số/sigma/tích phân: PHẢI kẹp `\$...\$` (inline) hoặc `\$\$...\$\$` (display).
+- Vd ĐÚNG: `\$y = x^2\$`, `\$F = ma\$`, `\$\\frac{a}{b}\$`, `\$\\sqrt{49}\$`, `\$H_2SO_4\$`, `\$x_1 + x_2 = -b/a\$`.
+- Vd SAI (KHÔNG được dùng): `y = x^2` (ASCII không LaTeX), `H2SO4` (không có chỉ số dưới), `x²` (Unicode không trong LaTeX wrap).
+- Plain text bình thường (không công thức): viết tiếng Việt, KHÔNG cần LaTeX.''';
 
   /// Initialize AI Service với Dio client
   ///
@@ -356,6 +374,15 @@ ${hasDoc ? 'CHỐNG SAO CHÉP (ưu tiên cao nhất): TUYỆT ĐỐI KHÔNG sao 
 6. KIỂM TRA ĐÁP ÁN ĐÚNG: trước khi xuất JSON, xác nhận lại rằng choice có isCorrect=true là đúng về mặt kiến thức. Các choice sai phải là lựa chọn có vẻ hợp lý nhưng thực sự sai (nhiễu tốt).
 7. ĐA DẠNG VỊ TRÍ ĐÁP ÁN ĐÚNG: trong toàn bộ $quantity câu, phân bố đáp án đúng đều ở các id 0, 1, 2, 3. Tuyệt đối không để đáp án đúng ở cùng id cho mọi câu.
 
+AN TOÀN — KHI BẠN KHÔNG CHẮC:
+Nếu bạn KHÔNG xác định được môn học, KHÔNG đủ thông tin từ tài liệu, HOẶC schema mơ hồ → KHÔNG được tự đoán và KHÔNG được tạo câu hỏi sai.
+Thay vào đó, trả về JSON object lỗi (KHÔNG phải array):
+{"error": "missing_subject", "message": "Tài liệu không nêu rõ môn học. Vui lòng thêm marker [TRẮC NGHIỆM — Toán học] hoặc nhập chủ đề trong ô gợi ý."}
+
+Mã lỗi cho phép: missing_subject | ambiguous_schema | insufficient_context
+
+Trả error tốt hơn nhiều so với gen 10 câu sai môn — tiết kiệm token người dùng.
+
 $formatExample
 
 RÀNG BUỘC FORMAT:
@@ -429,10 +456,10 @@ VÍ DỤ OUTPUT (1 câu):
 ]''';
 
       default: // multiple_choice
-        return '''VÍ DỤ OUTPUT (2 câu):
+        return '''VÍ DỤ OUTPUT (2 câu — lưu ý LaTeX trong override_text và choices):
 [
-  {"type":"multiple_choice","override_text":"Nguyên tố hóa học có ký hiệu 'O' là gì?","choices":[{"id":0,"text":"Oxi","isCorrect":true},{"id":1,"text":"Vàng","isCorrect":false},{"id":2,"text":"Sắt","isCorrect":false},{"id":3,"text":"Nitơ","isCorrect":false}],"tags":["hóa học","nguyên tố"]},
-  {"type":"multiple_choice","override_text":"Sông nào dài nhất châu Phi?","choices":[{"id":0,"text":"Congo","isCorrect":false},{"id":1,"text":"Mekong","isCorrect":false},{"id":2,"text":"Nile","isCorrect":true},{"id":3,"text":"Amazon","isCorrect":false}],"tags":["địa lý","châu Phi"]}
+  {"type":"multiple_choice","override_text":"Nghiệm phương trình \$x^2 - 5x + 6 = 0\$ là:","choices":[{"id":0,"text":"\$x = 2\$ hoặc \$x = 3\$","isCorrect":true},{"id":1,"text":"\$x = -2\$ hoặc \$x = -3\$","isCorrect":false},{"id":2,"text":"\$x = 1\$ hoặc \$x = 6\$","isCorrect":false},{"id":3,"text":"\$x = 5\$","isCorrect":false}],"tags":["toán học","phương trình"]},
+  {"type":"multiple_choice","override_text":"Công thức hóa học của axit sulfuric là:","choices":[{"id":0,"text":"\$HCl\$","isCorrect":false},{"id":1,"text":"\$HNO_3\$","isCorrect":false},{"id":2,"text":"\$H_2SO_4\$","isCorrect":true},{"id":3,"text":"\$NaOH\$","isCorrect":false}],"tags":["hóa học","axit"]}
 ]''';
     }
   }
@@ -481,6 +508,15 @@ QUY TẮC:
 3. MCQ: đúng 1 isCorrect=true, 3 false. Phân bố đáp án đúng đều id 0,1,2,3 qua $quantity câu.
 4. KIỂM TRA trước khi xuất: xác nhận isCorrect=true là đúng kiến thức. Distractor phải sai có lý do.
 5. override_text = câu hỏi thực sự (VD đúng: "Thủ đô Pháp là thành phố nào?" — VD sai: "câu hỏi địa lý" hay "câu hỏi 1").
+
+AN TOÀN — KHI BẠN KHÔNG CHẮC:
+Nếu bạn KHÔNG xác định được môn học, KHÔNG đủ thông tin từ tài liệu, HOẶC schema mơ hồ → KHÔNG được tự đoán và KHÔNG được tạo câu hỏi sai.
+Thay vào đó, trả về JSON object lỗi (KHÔNG phải array):
+{"error": "missing_subject", "message": "Tài liệu không nêu rõ môn học. Vui lòng thêm marker [TRẮC NGHIỆM — Toán học] hoặc nhập chủ đề trong ô gợi ý."}
+
+Mã lỗi cho phép: missing_subject | ambiguous_schema | insufficient_context
+
+Trả error tốt hơn nhiều so với gen 10 câu sai môn — tiết kiệm token người dùng.
 
 $formatExample
 
@@ -563,6 +599,15 @@ Mẫu: "Giải 2x+3=11, x=?"  Options: 4/5/3/8
 Phân tích: khung "ax+b=c, x=?", giải x=(c-b)/a. Biến a=2, b=3, c=11.
 Đổi: a=3, b=5, c=20. Tính: x=(20-5)/3=5. Distractors: 15 (quên chia), 6 (chia sai), 25/3 (cộng b thay vì trừ).
 Output: [{"type":"multiple_choice","override_text":"Giải phương trình 3x+5=20, x=?","choices":[{"id":0,"text":"6","isCorrect":false},{"id":1,"text":"15","isCorrect":false},{"id":2,"text":"5","isCorrect":true},{"id":3,"text":"25/3","isCorrect":false}],"tags":["đại số","phương trình"]}]
+
+AN TOÀN — KHI BẠN KHÔNG CHẮC:
+Nếu bạn KHÔNG xác định được môn học, KHÔNG đủ thông tin từ tài liệu, HOẶC schema mơ hồ → KHÔNG được tự đoán và KHÔNG được tạo câu hỏi sai.
+Thay vào đó, trả về JSON object lỗi (KHÔNG phải array):
+{"error": "missing_subject", "message": "Tài liệu không nêu rõ môn học. Vui lòng thêm marker [TRẮC NGHIỆM — Toán học] hoặc nhập chủ đề trong ô gợi ý."}
+
+Mã lỗi cho phép: missing_subject | ambiguous_schema | insufficient_context
+
+Trả error tốt hơn nhiều so với gen 10 câu sai môn — tiết kiệm token người dùng.
 
 $formatExample
 

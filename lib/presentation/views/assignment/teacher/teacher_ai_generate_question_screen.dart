@@ -74,9 +74,6 @@ class _TeacherAiGenerateQuestionScreenState
   // Style-template mode: tài liệu là khuôn mẫu về văn phong/cấu trúc
   bool _useAsStyleTemplate = false;
 
-  /// User-toggle: ép coi tài liệu là mẫu dù detection không bắt được.
-  bool _forceTemplateMode = false;
-
   // Sub-mode cuối cùng dùng khi gọi AI (đã apply auto-downgrade nếu cần).
   // Reset null mỗi lần generate; chỉ set khi Mode 3 + template detect.
   TemplateMode? _effectiveTemplateMode;
@@ -754,81 +751,36 @@ class _TeacherAiGenerateQuestionScreenState
           'useAsStyleTemplate=$_useAsStyleTemplate',
         );
 
-        // Force toggle override: GV ép cứng khi UX detection miss
-        if (_forceTemplateMode && !_useAsStyleTemplate) {
-          _useAsStyleTemplate = true;
-          AppLogger.info('[Mode3] Force template mode ON — bypass detection');
-        }
-
         // Lấy templateMode từ provider — quyết định schema-only vs full text.
         // Default styleOnly (an toàn) nếu user chưa tương tác.
         final templateMode = ref
             .read(aiGenerationSettingsNotifierProvider)
             .templateMode;
-        // Auto-disable sameForm nếu template không phải toàn MCQ
-        // (essay/fill_blank không có "giá trị" để đổi).
-        final templateQuestionsForCheck =
-            notifier.getTemplateQuestionsForIds(selectedIds);
-        final allMcq = templateQuestionsForCheck.isNotEmpty &&
-            templateQuestionsForCheck.every((q) {
-              final t = q['type'];
-              return t == QuestionType.multipleChoice ||
-                  t == QuestionType.trueFalse ||
-                  t == QuestionType.math;
-            });
 
-        // T2-3: Pre-detect biến số — sameForm vô nghĩa nếu câu không có số liệu.
-        // Nếu < 50% câu có đơn vị/số liệu → auto-downgrade sameForm→styleOnly.
-        bool numericDowngrade = false;
-        if (templateMode == TemplateMode.sameForm &&
-            allMcq &&
-            templateQuestionsForCheck.isNotEmpty) {
-          // BUG-FIX A2-BUG1: \b là ASCII-only → false positive với tiếng Việt.
-          // Dùng negative lookahead để đơn vị không bị nhận nhầm là ký tự đầu từ Việt.
-          // BUG-FIX A2-BUG2: thêm mm, mg vào danh sách đơn vị.
-          final numericPattern = RegExp(
-            r'\d+\s*(cm|mm|km|kg|mg|g(?![a-zA-ZÀ-ỹ])|L(?![a-zA-ZÀ-ỹ])|ml|m(?![a-zA-ZÀ-ỹ])|s(?![a-zA-ZÀ-ỹ])|giây|phút|°|%|đồng|VND)',
-            caseSensitive: false,
-            unicode: true,
+        // FIX-V3V2: Khi user đánh dấu file role = template (qua badge Mẫu)
+        // → ép template active dù file ngắn / không match isTemplateStyleDoc.
+        // Tránh hệ thống tự đẩy từ "Cùng dạng" sang "Tạo mới" khi tài liệu
+        // mẫu chỉ có 1-2 câu. Thay thế toggle "Coi tài liệu là MẪU" cũ.
+        if (!_useAsStyleTemplate) {
+          final hasAnyTemplateRoleFile = allFiles.any(
+            (f) =>
+                selectedIds.contains(f.id) &&
+                f.effectiveRole == FileRole.template,
           );
-          final numericCount = templateQuestionsForCheck.where((q) {
-            final text = (q['text'] as String? ?? '') +
-                ((q['content'] as Map?)?['text'] as String? ?? '');
-            return numericPattern.hasMatch(text);
-          }).length;
-          final ratio = numericCount / templateQuestionsForCheck.length;
-          numericDowngrade = ratio < 0.5;
-          AppLogger.info(
-            '[Mode3] T2-3 numeric ratio=${ratio.toStringAsFixed(2)} '
-            '($numericCount/${templateQuestionsForCheck.length}) → numericDowngrade=$numericDowngrade',
-          );
-        }
-
-        final effectiveTemplateMode =
-            (templateMode == TemplateMode.sameForm && (!allMcq || numericDowngrade))
-                ? TemplateMode.styleOnly
-                : templateMode;
-        if (effectiveTemplateMode != templateMode) {
-          AppLogger.info(
-            '[Mode3] Auto-downgrade sameForm → styleOnly: '
-            'allMcq=$allMcq numericDowngrade=$numericDowngrade',
-          );
-          // Sync lại provider để chip hiển thị đúng mode đã dùng thực tế
-          ref
-              .read(aiGenerationSettingsNotifierProvider.notifier)
-              .setTemplateMode(effectiveTemplateMode);
-          if (numericDowngrade && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Template ít câu có số liệu — chuyển sang chế độ "Tạo mới" để đảm bảo chất lượng.',
-                ),
-                backgroundColor: DesignColors.warning,
-                duration: Duration(seconds: 4),
-              ),
+          if (hasAnyTemplateRoleFile) {
+            _useAsStyleTemplate = true;
+            AppLogger.info(
+              '[Mode3] User-marked template role → useAsStyleTemplate=true '
+              '(submode=${templateMode.name})',
             );
           }
         }
+        // FIX-V3V2: BỎ auto-downgrade sameForm → styleOnly.
+        // User chọn sameForm hay styleOnly → tôn trọng, không tự chuyển
+        // (kể cả khi tài liệu mẫu ngắn hoặc không phải toàn MCQ).
+        final templateQuestionsForCheck =
+            notifier.getTemplateQuestionsForIds(selectedIds);
+        final effectiveTemplateMode = templateMode;
         // Lưu state để dùng ở các call site sau (similarity verify, regenerate).
         _effectiveTemplateMode = _useAsStyleTemplate ? effectiveTemplateMode : null;
         _templateQuestionsForVerify =
@@ -1007,6 +959,36 @@ class _TeacherAiGenerateQuestionScreenState
       _logGeneratedQuestions(generatedQuestions);
       // KHÔNG pop tự động - để user có thể test nhiều lần
       // User sẽ click "Xác nhận" để pop và trả về questions
+    } on AiUncertaintyException catch (e) {
+      AppLogger.warning(
+        '[Generate] AI uncertainty: ${e.code} — ${e.reason}',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '⚠ AI cần thêm thông tin',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  e.reason,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+            backgroundColor: DesignColors.warning,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
 
@@ -1335,6 +1317,18 @@ class _TeacherAiGenerateQuestionScreenState
           _generatedQuestions = updated;
         });
       }
+    } on AiUncertaintyException catch (e) {
+      AppLogger.warning(
+        '[RegenSingle] AI uncertainty: ${e.code} — ${e.reason}',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('⚠ AI cần thêm thông tin: ${e.reason}'),
+          backgroundColor: DesignColors.warning,
+          duration: const Duration(seconds: 6),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1565,8 +1559,7 @@ class _TeacherAiGenerateQuestionScreenState
                                 .setSelectedFileIds(ids),
                             // Badge Mẫu/Kiến thức chỉ có nghĩa ở Mode 3
                             showRoleBadge: mode == ProcessingMode.ragGeneration,
-                            isTemplateActive:
-                                _forceTemplateMode || _useAsStyleTemplate,
+                            isTemplateActive: _useAsStyleTemplate,
                           ),
                           SizedBox(height: DesignSpacing.lg),
                         ],
@@ -2705,36 +2698,8 @@ class _TeacherAiGenerateQuestionScreenState
               ),
             ],
           ),
-          // Mode 3 only — Force-template toggle (Phase 1.2)
-          if (mode == ProcessingMode.ragGeneration) ...[
-            SizedBox(height: DesignSpacing.sm),
-            Divider(
-              color: color.withValues(alpha: 0.2),
-              height: 1,
-            ),
-            SwitchListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              activeThumbColor: DesignColors.primary,
-              value: _forceTemplateMode,
-              onChanged: (v) => setState(() => _forceTemplateMode = v),
-              title: Text(
-                'Coi tài liệu là MẪU',
-                style: DesignTypography.bodySmall.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : DesignColors.textPrimary,
-                ),
-              ),
-              subtitle: Text(
-                'Bật khi muốn tạo câu cùng dạng dù tài liệu chỉ có 1 câu',
-                style: DesignTypography.labelSmall.copyWith(
-                  color: isDark
-                      ? Colors.grey[400]
-                      : DesignColors.textSecondary,
-                ),
-              ),
-            ),
-          ],
+          // FIX-V3V2: BỎ SwitchListTile "Coi tài liệu là MẪU" — redundant.
+          // User chọn chip "Cùng dạng"/"Tạo mới" sẽ tự động kích hoạt template mode.
         ],
       ),
     );
@@ -3303,11 +3268,6 @@ class _TeacherAiGenerateQuestionScreenState
       color = DesignColors.success;
       text =
           'Đã phát hiện ${_templateQuestionsForVerify!.length} câu mẫu — chế độ Cùng Dạng sẵn sàng';
-    } else if (_forceTemplateMode) {
-      icon = Icons.bolt;
-      color = DesignColors.warning;
-      text =
-          'Đã ép coi là tài liệu mẫu — AI sẽ tạo câu cùng dạng dựa trên nội dung file';
     } else {
       icon = Icons.info_outline;
       color = DesignColors.info;
