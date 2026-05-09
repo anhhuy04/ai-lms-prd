@@ -849,16 +849,155 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 ---
 
+---
+
+## S7. End-to-End Integration (test combo nhiều phase)
+
+> Chuỗi test golden path xuyên các phase. Đây là flagship — chạy đầu tiên trên thiết bị.
+
+### S7.1 Golden flow: Word OMML → AI gen → App render → Export Word
+- **Pre**: file `test_C_omml.docx` (Word có Equation Editor `1/2 + 1/4 = ?`)
+- [ ] **S7.1.1** Mở screen Tạo câu hỏi AI → tab Mode 3
+- [ ] **S7.1.2** Upload `test_C_omml.docx` → log `[LocalTempFile] Text extracted: N chars` với N > 0
+- [ ] **S7.1.3** Toggle role file = 📋 Mẫu
+- [ ] **S7.1.4** Set quantity = 10, click Generate
+- [ ] **S7.1.5** Banner trạng thái hiện "✓ Đã phát hiện X câu mẫu"
+- [ ] **S7.1.6** Log AI prompt có `$\frac{1}{2}+\frac{1}{4}$` (LaTeX, NOT `1 2 1 4`)
+- [ ] **S7.1.7** 10 câu gen ra hiển thị trong card với phân số render đẹp (qua MathText)
+- [ ] **S7.1.8** Click nút "Xuất ra Word" → save dialog
+- [ ] **S7.1.9** Save file → snackbar success
+- [ ] **S7.1.10** Mở file Word đã save → tất cả 10 câu hiện phân số THẬT (tử/mẫu có gạch ngang), KHÔNG phải `$\frac…$` literal
+
+### S7.2 Force toggle + non-template document
+- **Pre**: file `kienthuc.docx` thuần văn xuôi (không câu hỏi mẫu)
+- [ ] **S7.2.1** Mode 3 → upload kienthuc.docx → toggle role = Knowledge (default)
+- [ ] **S7.2.2** Bật Force "Coi tài liệu là MẪU" trong hint card
+- [ ] **S7.2.3** Generate 5 câu → log `[Mode3] Force template mode ON — bypass detection`
+- [ ] **S7.2.4** Câu gen ra theo style "cùng dạng" với một số câu trong tài liệu (verify thủ công)
+
+### S7.3 A5 self-critique + Export
+- **Pre**: gen 10 câu math với A5 toggle ON
+- [ ] **S7.3.1** Critique chạy, có ≥1 câu bị flag (bad case có thể tự dựng prompt yêu cầu sai)
+- [ ] **S7.3.2** Card preview hiện badge cảnh báo cam dưới câu fail
+- [ ] **S7.3.3** Click "Xuất ra Word" → file Word ĐƯỢC TẠO (không skip câu fail)
+- [ ] **S7.3.4** Word file bao gồm câu fail (badge chỉ là indicator app, không loại câu)
+
+### S7.4 Edit dialog + Export
+- [ ] **S7.4.1** Sau gen, click edit câu, switch tab "Sửa"
+- [ ] **S7.4.2** Toolbar: click `½` → insert `\frac{}{}` → gõ `1` `}` `{` `2` `}` thành `\frac{1}{2}`
+- [ ] **S7.4.3** Tab "Xem trước" hiện phân số render đẹp
+- [ ] **S7.4.4** Save dialog → card update với phân số mới
+- [ ] **S7.4.5** Export Word → file có phân số sửa thủ công đó
+
+### S7.5 Multi-file Mode 3 (Excel mẫu + Word kiến thức)
+- **Pre**: `mau_excel_mcq.xlsx` (template) + `kienthuc.docx` (knowledge)
+- [ ] **S7.5.1** Upload cả 2 file, role tự detect đúng (Excel=Mẫu, Word=KT)
+- [ ] **S7.5.2** Tick chỉ Excel → sub-mode strip hiện Tạo mới/Cùng dạng
+- [ ] **S7.5.3** Tick cả 2 → log `[Mode3] hasExcelTemplate=true` + có rawText từ Word
+- [ ] **S7.5.4** Generate → AI dùng Excel làm schema mẫu + Word làm context kiến thức
+
+### S7.6 Cache hit cross-feature
+- [ ] **S7.6.1** Upload `test_A_ascii.docx` lần 1 → parse 3-5s
+- [ ] **S7.6.2** Remove file, upload lại CÙNG file → log cache hit (hoặc parse <100ms)
+- [ ] **S7.6.3** Generate sau cache hit → kết quả tương đương lần đầu
+
+---
+
+## S8. Performance & Stress
+
+### S8.1 Quantity boundaries
+- [ ] **S8.1.1** Gen 1 câu → flow đầu cuối work
+- [ ] **S8.1.2** Gen 50 câu → AI có thể batch, không timeout, latency <30s
+- [ ] **S8.1.3** Gen 100 câu (nếu free tier cho phép) → batch progress hiện rõ
+- [ ] **S8.1.4** Export 50 câu ra Word → file <500KB, mở Word không lag
+
+### S8.2 File size limits
+- [ ] **S8.2.1** Upload Word 1MB → parse <10s, không OOM
+- [ ] **S8.2.2** Upload Excel 5MB → parse, có hiển thị progress hay không
+- [ ] **S8.2.3** Upload 5 file Word cùng lúc → cache đủ chỗ (LRU)
+
+### S8.3 Long context (Gemini 2.0 Flash 1M token)
+- [ ] **S8.3.1** Upload Word giáo trình 50K chars → AI nhận đầy đủ, không truncate sớm
+- [ ] **S8.3.2** Log `[Mode3] smartTruncate: total=50000, used=50000, wasTruncated=false`
+
+### S8.4 Concurrent operations
+- [ ] **S8.4.1** Gen đang chạy → click "Xuất ra Word" disabled (xám)
+- [ ] **S8.4.2** Lưu Bank đang chạy → Export disabled
+- [ ] **S8.4.3** 2 user khác nhau gen cùng lúc → không leak data (RLS verified)
+
+---
+
+## S9. Error scenarios + Resilience
+
+### S9.1 Network drop
+- [ ] **S9.1.1** Tắt wifi giữa lúc Generate → hiển thị error snackbar tiếng Việt
+- [ ] **S9.1.2** Bật lại wifi, click Generate again → work bình thường
+
+### S9.2 API errors
+- [ ] **S9.2.1** API key invalid → snackbar "API key không hợp lệ" (Việt)
+- [ ] **S9.2.2** Quota exceeded → fallback gracefully, không crash
+- [ ] **S9.2.3** Gemini timeout (>30s) → cancel + cho user retry
+
+### S9.3 Bad data resilience
+- [ ] **S9.3.1** AI trả về JSON malformed → parse fallback, hiển thị raw response để user thấy
+- [ ] **S9.3.2** AI trả về 0 câu → snackbar "AI không tạo được câu nào, thử lại"
+- [ ] **S9.3.3** Self-critique trả về thiếu entry → entry thiếu mark pass=true (đã có)
+- [ ] **S9.3.4** LaTeX trong câu malformed (vd `$\fra{1}{2}$`) → MathText fallback render literal đỏ, KHÔNG crash app
+
+### S9.4 Word export errors
+- [ ] **S9.4.1** Cancel save dialog (Android) → không có snackbar success
+- [ ] **S9.4.2** Disk full → error snackbar tiếng Việt
+- [ ] **S9.4.3** Tên file có ký tự đặc biệt VN → save vẫn OK (test với topic = "Toán lớp 9 — Phương trình")
+
+---
+
+## S10. Multi-platform smoke
+
+### S10.1 Android
+- [ ] **S10.1.1** APK debug install → cold start <5s
+- [ ] **S10.1.2** Light/Dark theme toggle → toolbar Edit dialog không bị artifact
+- [ ] **S10.1.3** Back button hardware → đóng Edit dialog đúng cách
+- [ ] **S10.1.4** Permission storage để save Word → granted/denied flow
+
+### S10.2 Web (Chrome)
+- [ ] **S10.2.1** Build web → app load <3s
+- [ ] **S10.2.2** Upload Word qua file picker browser
+- [ ] **S10.2.3** Export Word auto-download về Downloads folder
+- [ ] **S10.2.4** MathText render đẹp trong web
+
+### S10.3 iOS (nếu có thiết bị)
+- [ ] **S10.3.1** Build iOS → app launch
+- [ ] **S10.3.2** Save Word qua Files app
+
+---
+
+## Issue tracker — FAIL/Blocked items
+
+> Khi 1 test fail → ghi vào đây, link với commit hash.
+
+| Date | Test ID | Commit | Description | Status |
+|------|---------|--------|-------------|--------|
+| | | | | |
+
+---
+
 ## Ghi chú quan trọng cho phiên sau
 
-1. **G3 chưa làm** — cần dispatch agent team Export câu hỏi → Word (LaTeX → OMML reverse + integrate vào WordTemplateGenerator + nút UI)
+1. ~~G3 chưa làm~~ ✅ **G3 đã commit `94a3bec` + `27e5ae3`** — Export Word với OMML
 2. **B RAG pgvector** — defer, làm khi DB > 100 câu approved
 3. **Mode 3 fix bundle** include nhiều thứ pre-existing không liên quan AI (supabase migrations 008-018, redo eligibility, assignment bank widgets, hub stats) — cần regression test khi vào các flow khác
 4. **571 MB `.claude/worktrees/`** đã ignore — không xóa local vì có agent state có thể recovery, nhưng KHÔNG commit
 5. **Memory bank đã update** trong commit `ba521a8` — đọc `memory-bank/activeContext.md` đầu phiên sau
+6. **Sequence test đề xuất**: S7 (golden flow) → S1.1-1.6 (Mode 3 UX) → S3 (G1 Word OMML) → S5 (G3 Export) → S4 (A5) → S2 (Phase A) → S8-S10 (perf/error/multi-platform) → S6 (regression)
+7. **Khi test S7.1 fail** → đó là blocker P0, dừng test khác đến khi fix xong
+8. **File Word test** không có sẵn trong repo — phải tạo thủ công theo hướng dẫn "Setup chuẩn bị test"
+9. **MCP available cho test tự động**: marionette + dart MCP có thể launch app + tap UI tự động. Section TC-01 đến TC-13 ở đầu file dùng pattern này.
+10. **Memory bank cần update sau test**: nếu phát hiện bug lớn → ghi vào `memory-bank/activeContext.md` và issue tracker
 
 ## Log lịch sử test
 
 | Date | Tester | Phase | Result | Notes |
 |------|--------|-------|--------|-------|
-| 2026-05-09 | Agent QA (static) | S1+S2+S3+S4 (commits ba521a8, b41cdcb, da9f8ce, c421fdb) | static PASS toàn bộ | Build apk + flutter analyze pass; CHƯA test trên thiết bị |
+| 2026-05-09 | Agent QA (static) | S1+S2+S3+S4 (commits ba521a8, b41cdcb, da9f8ce, c421fdb) | static PASS | Build apk + flutter analyze pass; CHƯA test trên thiết bị |
+| 2026-05-09 | Agent G3-QA (static) | S5 G3 Export Word (commits 94a3bec, 27e5ae3) | static PASS | 16/16 unit test pass (G1+G3); build apk 16.7s; CHƯA test trên thiết bị |
+| 2026-05-09 | Test Guide author | S7+S8+S9+S10 added | written | Bổ sung 60+ test E2E + perf + error + multi-platform; chờ run trên thiết bị |
