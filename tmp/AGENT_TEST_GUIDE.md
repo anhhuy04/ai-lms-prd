@@ -784,7 +784,7 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 ---
 
-## S5. G3 — Export câu hỏi → Word (commit `<hash sẽ điền>`)
+## S5. G3 — Export câu hỏi → Word (commit `94a3bec`)
 
 ### S5.1 LaTeX → OMML conversion (unit test đã pass)
 - [x] **S5.1.1** 8/8 unit test `flutter test test/unit/core/latex_to_omml_test.dart` pass
