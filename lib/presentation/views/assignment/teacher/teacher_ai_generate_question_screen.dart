@@ -5,6 +5,8 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/services/ai_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
+import 'package:ai_mls/core/utils/file_exporter.dart';
+import 'package:ai_mls/core/utils/word_template_generator.dart';
 import 'package:ai_mls/data/models/local_temp_file.dart' show FileRole;
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
@@ -265,6 +267,59 @@ class _TeacherAiGenerateQuestionScreenState
       );
     } finally {
       if (mounted) setState(() => _isSavingToBank = false);
+    }
+  }
+
+  /// Xuất danh sách câu hỏi đã generate ra file Word .docx.
+  /// LaTeX inline (`$...$`) được convert sang OMML để Word render đúng phân số/mũ/căn.
+  Future<void> _handleExportToWord() async {
+    final questions = _generatedQuestions;
+    if (questions == null || questions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chưa có câu hỏi để xuất. Hãy tạo trước.'),
+          backgroundColor: DesignColors.warning,
+        ),
+      );
+      return;
+    }
+
+    try {
+      AppLogger.info('[ExportWord] Bắt đầu xuất ${questions.length} câu');
+      final topic = _topicController.text.trim();
+      final title = topic.isNotEmpty ? topic : 'Đề kiểm tra AI';
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'de_ai_$timestamp.docx';
+
+      final bytes = WordTemplateGenerator.generateFromQuestions(
+        questions,
+        title: title,
+        includeAnswerKey: true,
+      );
+
+      final saved = await exportFile(bytes, fileName);
+      if (!mounted) return;
+
+      if (saved) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã xuất $fileName (${questions.length} câu)'),
+            backgroundColor: DesignColors.success,
+          ),
+        );
+        AppLogger.info('[ExportWord] Saved: $fileName, ${bytes.length} bytes');
+      } else {
+        AppLogger.info('[ExportWord] User canceled save dialog');
+      }
+    } catch (e, st) {
+      AppLogger.error('[ExportWord] Failed: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi xuất Word: $e'),
+          backgroundColor: DesignColors.error,
+        ),
+      );
     }
   }
 
@@ -1880,6 +1935,51 @@ class _TeacherAiGenerateQuestionScreenState
                                     ),
                                   ),
                                 ],
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            // Hàng 3: Xuất ra Word
+                            SizedBox(
+                              height: 38,
+                              child: Tooltip(
+                                message:
+                                    'Xuất danh sách câu hỏi ra file Word .docx (math LaTeX hiện đúng)',
+                                child: Semantics(
+                                  label: 'Xuất ra Word',
+                                  button: true,
+                                  child: OutlinedButton.icon(
+                                    key: const ValueKey('btn_export_word'),
+                                    onPressed:
+                                        (_generatedQuestions == null ||
+                                            _generatedQuestions!.isEmpty ||
+                                            _isSavingToBank ||
+                                            _isGenerating)
+                                        ? null
+                                        : _handleExportToWord,
+                                    icon: Icon(
+                                      Icons.file_download_rounded,
+                                      size: DesignIcons.smSize,
+                                    ),
+                                    label: const Text(
+                                      'Xuất ra Word',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: DesignColors.primary,
+                                      side: BorderSide(
+                                        color: DesignColors.primary
+                                            .withValues(alpha: 0.4),
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ],

@@ -784,23 +784,46 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 ---
 
-## S5. G3 — Export câu hỏi → Word (TBD — commit chưa có)
+## S5. G3 — Export câu hỏi → Word (commit `<hash sẽ điền>`)
 
-> Sẽ điền checklist sau khi G3 commit. Stub để session sau biết section này tồn tại.
+### S5.1 LaTeX → OMML conversion (unit test đã pass)
+- [x] **S5.1.1** 8/8 unit test `flutter test test/unit/core/latex_to_omml_test.dart` pass
 
-### S5.1 LaTeX → OMML conversion
-- [ ] S5.1.x …
+### S5.2 UI button "Xuất ra Word"
+- **Pre**: gen 5 câu xong, scroll xuống thấy hàng nút action
+- [ ] **S5.2.1** Nút "Xuất ra Word" hiện ở hàng 3 (sau "Reset + Tạo lại" và "Lưu Bank + Xác nhận")
+- [ ] **S5.2.2** Style: OutlinedButton.icon, height 38, border primary, icon `file_download_rounded`
+- [ ] **S5.2.3** Tooltip "Xuất danh sách câu hỏi ra file Word .docx (math LaTeX hiện đúng)"
+- [ ] **S5.2.4** Disabled khi chưa có câu (đầu screen)
+- [ ] **S5.2.5** Disabled khi đang gen / đang lưu bank
 
-### S5.2 Generate Word file từ list questions
-- [ ] S5.2.x …
+### S5.3 Export flow happy path
+- **Pre**: gen 5 câu math có công thức `$\frac{1}{2}$`, `$x^2$`, `$\sqrt{x}$`
+- [ ] **S5.3.1** Click nút → mobile mở dialog "Lưu file Word", tên mặc định `de_ai_<timestamp>.docx`
+- [ ] **S5.3.2** Web: download tự động về Downloads
+- [ ] **S5.3.3** Snackbar success "Đã xuất de_ai_xxx.docx (5 câu)"
 
-### S5.3 UI nút "Xuất ra Word"
-- [ ] S5.3.x …
+### S5.4 Mở file Word output (verify rendering)
+- **Pre**: file đã save từ S5.3
+- [ ] **S5.4.1** Mở bằng Microsoft Word — không có lỗi corrupt
+- [ ] **S5.4.2** Title hiện đúng "ĐỀ KIỂM TRA — <topic>" bold center
+- [ ] **S5.4.3** Math `\frac{1}{2}` render thành phân số THẬT (tử trên, mẫu dưới, có gạch ngang) — KHÔNG phải literal `$\frac{1}{2}$`
+- [ ] **S5.4.4** `x^2` render mũ đẹp
+- [ ] **S5.4.5** `\sqrt{x}` render dấu căn bao quanh x
+- [ ] **S5.4.6** Plain text Việt giữ nguyên dấu (không bị mất `ê ô ă đ`)
+- [ ] **S5.4.7** Đáp án hiện italic "Đáp án: A" (cho MCQ) hoặc "Đáp án mẫu:" (cho essay)
+- [ ] **S5.4.8** Mỗi câu cách nhau 1 paragraph trống
 
-### S5.4 Mở Word file output
-- [ ] S5.4.1 Word render được tất cả câu, math hiện đúng dạng phân số / mũ / căn (không phải literal LaTeX)
-- [ ] S5.4.2 Format paragraph đẹp, có separator giữa các câu
-- [ ] S5.4.3 Đáp án (cho MCQ) hiện rõ ràng
+### S5.5 Edge cases
+- [ ] **S5.5.1** Câu fill_blank với `[___1]` placeholder → render thành ô trống `____`
+- [ ] **S5.5.2** Câu essay với expected_answer dài → wrap line đẹp
+- [ ] **S5.5.3** Cancel save dialog → snackbar không hiện success, không crash
+- [ ] **S5.5.4** Export 50 câu → file < 200KB, mở Word không lag
+
+### S5.6 Cross-platform
+- [ ] **S5.6.1** Android: lưu vào folder user chọn (Downloads / SD Card)
+- [ ] **S5.6.2** Web: download trigger thẳng
+- [ ] **S5.6.3** iOS (nếu có thiết bị): tương tự Android
 
 ---
 

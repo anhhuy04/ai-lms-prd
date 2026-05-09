@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:ai_mls/core/utils/excel_template_generator.dart';
+import 'package:ai_mls/core/utils/latex_to_omml.dart';
 import 'package:archive/archive.dart';
 
 enum WordDocType {
@@ -58,6 +59,164 @@ class WordTemplateGenerator {
         ? _buildQuestionsXml(config)
         : _buildKnowledgeXml(config);
     return _pack(xml);
+  }
+
+  /// Tạo file Word .docx từ danh sách câu hỏi đã được AI generate.
+  ///
+  /// Math LaTeX (`$...$`, `$$...$$`) trong question text + options + answer
+  /// sẽ được convert sang OMML để Word render đúng dạng phân số, mũ, căn.
+  ///
+  /// Format output:
+  /// - Title: "ĐỀ KIỂM TRA — {title}" (bold, center, size 14pt)
+  /// - Mỗi câu: `Câu N: [text]` + 4 lựa chọn A/B/C/D + dòng `Đáp án: X` italic
+  /// - Essay/short_answer: `Câu N: [text]` + `Đáp án mẫu: [expected]`
+  /// - Fill blank: `Câu N: [text]` + `Đáp án: ô 1: ...`
+  ///
+  /// [questions] danh sách câu hỏi từ AI (`Map<String, dynamic>`)
+  /// [title] tiêu đề đề kiểm tra (vd "Toán lớp 9 - Kiểm tra 15 phút")
+  /// [includeAnswerKey] có in đáp án không (default true)
+  static Uint8List generateFromQuestions(
+    List<Map<String, dynamic>> questions, {
+    String title = 'Đề kiểm tra',
+    bool includeAnswerKey = true,
+  }) {
+    final buf = StringBuffer();
+    buf.write(_docHead());
+
+    buf.write(_p('ĐỀ KIỂM TRA — $title',
+        bold: true, center: true, sizePt: 14, spaceAfter: true));
+    buf.write(_blank);
+
+    for (var i = 0; i < questions.length; i++) {
+      buf.write(_buildQuestionParagraph(
+        i + 1,
+        questions[i],
+        includeAnswerKey: includeAnswerKey,
+      ));
+    }
+
+    buf.write(_docTail());
+    return _pack(buf.toString());
+  }
+
+  // ── Question rendering (math-aware) ────────────────────────────────────────
+
+  /// Build w:p paragraph chứa text có lẫn LaTeX math.
+  /// Khác `_p()`: text được preprocess qua [LatexToOmml] (math → OMML),
+  /// không escape thẳng. Nếu bold/italic/sizePt → inject rPr vào mọi `<w:r>`.
+  static String _pMath(
+    String text, {
+    bool bold = false,
+    bool italic = false,
+    int? sizePt,
+    bool center = false,
+    bool spaceAfter = false,
+  }) {
+    final pPr = StringBuffer('<w:pPr>');
+    if (center) pPr.write('<w:jc w:val="center"/>');
+    if (spaceAfter) pPr.write('<w:spacing w:after="160"/>');
+    pPr.write('</w:pPr>');
+
+    final runs = LatexToOmml.convertParagraphContent(text);
+    String formatted = runs;
+    if (bold || italic || sizePt != null) {
+      final rpr = _rpr(bold: bold, italic: italic, sizePt: sizePt);
+      // Inject rPr ngay sau mỗi <w:r> (math `<m:r>` không bị ảnh hưởng).
+      formatted = formatted.replaceAll('<w:r>', '<w:r>$rpr');
+    }
+    return '<w:p>${pPr.toString()}$formatted</w:p>';
+  }
+
+  /// Build full XML body cho 1 câu hỏi.
+  static String _buildQuestionParagraph(
+    int qNum,
+    Map<String, dynamic> q, {
+    required bool includeAnswerKey,
+  }) {
+    final buf = StringBuffer();
+    final type = (q['type']?.toString() ?? '').toLowerCase();
+    final text = _extractQuestionText(q);
+
+    // Question text với "Câu N: " prefix.
+    buf.write(_pMath('Câu $qNum: $text'));
+
+    if (type == 'multiple_choice' || type == 'true_false' || type == 'math') {
+      buf.write(_renderChoices(q, includeAnswerKey: includeAnswerKey));
+    } else if (type == 'essay' || type == 'short_answer' || type == 'problem_solving') {
+      final answer = q['answer'];
+      if (includeAnswerKey && answer is Map && answer['expected_answer'] != null) {
+        buf.write(_pMath(
+          'Đáp án mẫu: ${answer['expected_answer']}',
+          italic: true,
+        ));
+      }
+    } else if (type == 'fill_blank') {
+      final answer = q['answer'];
+      if (includeAnswerKey && answer is Map && answer['blanks'] is List) {
+        final blanks = answer['blanks'] as List;
+        final lines = <String>[];
+        for (var i = 0; i < blanks.length; i++) {
+          final b = blanks[i];
+          if (b is! Map) continue;
+          final values = b['correct_values'];
+          final vStr = values is List ? values.join(' / ') : values.toString();
+          lines.add('Ô ${i + 1}: $vStr');
+        }
+        if (lines.isNotEmpty) {
+          buf.write(_pMath('Đáp án: ${lines.join(', ')}', italic: true));
+        }
+      }
+    }
+    // matching: render text only (TODO mở rộng sau).
+
+    buf.write(_blank);
+    return buf.toString();
+  }
+
+  /// Render choices A/B/C/D + dòng đáp án cho MCQ / true_false / math.
+  static String _renderChoices(
+    Map<String, dynamic> q, {
+    required bool includeAnswerKey,
+  }) {
+    final raw = (q['options'] as List?) ?? (q['choices'] as List?) ?? const [];
+    final buf = StringBuffer();
+    int correctIdx = -1;
+    for (var i = 0; i < raw.length; i++) {
+      final c = raw[i];
+      if (c is! Map) continue;
+      final cText = _extractChoiceText(c);
+      final letter = String.fromCharCode(65 + i); // A, B, C, D
+      buf.write(_pMath('$letter. $cText'));
+      if (c['isCorrect'] == true || c['is_correct'] == true) correctIdx = i;
+    }
+    if (includeAnswerKey && correctIdx >= 0) {
+      buf.write(_p(
+        'Đáp án: ${String.fromCharCode(65 + correctIdx)}',
+        italic: true,
+      ));
+    }
+    return buf.toString();
+  }
+
+  /// Helper extract text từ question map
+  /// (ưu tiên text > override_text > content.text).
+  static String _extractQuestionText(Map<String, dynamic> q) {
+    final t = q['text'];
+    if (t is String && t.trim().isNotEmpty) return t;
+    final ot = q['override_text'];
+    if (ot is String && ot.trim().isNotEmpty) return ot;
+    final c = q['content'];
+    if (c is Map && c['text'] is String) return c['text'] as String;
+    return '(câu hỏi không có nội dung)';
+  }
+
+  /// Helper extract text từ choice map (text > content.text).
+  static String _extractChoiceText(Map c) {
+    final t = c['text'];
+    if (t is String && t.trim().isNotEmpty) return t;
+    final ct = c['content'];
+    if (ct is Map && ct['text'] is String) return ct['text'] as String;
+    return '';
   }
 
   // ── ZIP packer ─────────────────────────────────────────────────────────────
@@ -121,7 +280,8 @@ class WordTemplateGenerator {
       _p(char * count, bold: false, spaceAfter: true);
 
   static String _docHead() => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-      '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+      '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+      ' xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">'
       '<w:body>';
 
   static String _docTail() => '<w:sectPr>'
