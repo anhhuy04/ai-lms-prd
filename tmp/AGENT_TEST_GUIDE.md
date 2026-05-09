@@ -587,3 +587,255 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 - [ ] TC-11 PASS: badge dưới card, không che content
 - [ ] TC-12 PASS: regenerate single — chỉ 1 câu thay đổi
 - [ ] TC-13 PASS: save to bank thành công
+
+---
+
+# ═══════════════════════════════════════════════════════════════
+# SESSION 2026-05-09 — Mode 3 Bug Fix + Phase A + G1 + A5
+# ═══════════════════════════════════════════════════════════════
+
+> Section bổ sung — bao gồm tất cả thay đổi của phiên 4-agent team (4 commit:
+> `ba521a8`, `b41cdcb`, `da9f8ce`, `c421fdb`). Static verify đã PASS toàn bộ;
+> **functional test trên thiết bị CHƯA THỰC HIỆN** — đây là việc của phiên sau.
+
+## Cách dùng section này
+1. Đi tuần tự từng test theo thứ tự (S1 → S2 → S3 → S4 → S5 → S6)
+2. Đánh dấu trạng thái:
+   - `[ ]` chưa test
+   - `[x]` PASS
+   - `[F]` FAIL — ghi `commit_hash: lý do` bên cạnh
+   - `[B]` Blocked — ghi nguyên nhân
+   - `[N]` N/A
+3. Test fail → tạo todo trong session đó để fix
+4. Khi commit mới ảnh hưởng đến area nào → re-run test area đó
+
+---
+
+## Setup chuẩn bị test (BẮT BUỘC làm trước)
+
+### Pre-requisites
+- Flutter SDK + Android device/emulator có Google Play Services (cho Gemini API)
+- Account giáo viên test, đã cấu hình API key Gemini trong Settings → API Keys
+- File Excel mẫu (theo template `WordTemplateGenerator.generate(WordDocType.questions)`)
+- 4 file Word `.docx` chuẩn bị trước (xem dưới)
+
+### Tạo 4 file Word test mẫu
+
+**Word A — ASCII math thuần (1 câu mẫu)**
+1. Mở Word
+2. Gõ thẳng: `Câu 1: Tính 15 + 27 = ?`
+3. Save as `test_A_ascii.docx`
+
+**Word B — LaTeX inline plain text (1 câu mẫu)**
+1. Mở Word
+2. Gõ thẳng (KHÔNG dùng equation editor): `Câu 1: Tính $\frac{1}{2} + \frac{1}{4} = ?$`
+3. Save as `test_B_latex.docx`
+
+**Word C — Equation Editor (Insert → Equation) (1 câu mẫu)**
+1. Mở Word
+2. Gõ: `Câu 1: Tính `
+3. Insert → Equation (hoặc Alt+=) → gõ phân số `1/2 + 1/4 = ?`
+4. Save as `test_C_omml.docx`
+
+**Word D — Hỗn hợp (3 câu mẫu MCQ)**
+1. Tạo 3 câu MCQ chuẩn:
+   ```
+   Câu 1: Phương trình 3x − 9 = 0 có nghiệm là?
+   A. x = −9
+   B. x = 9
+   C. x = 3
+   D. x = −3
+   Đáp án: C
+   ```
+   (Lặp 3 câu khác nhau)
+2. Save as `test_D_mcq.docx`
+
+---
+
+## S1. Mode 3 Template Detection + LaTeX Render (commit `ba521a8`)
+
+### S1.1 Force template toggle
+- **Vị trí**: Mode 3 hint card → SwitchListTile "Coi tài liệu là MẪU"
+- [ ] **S1.1.1** Toggle xuất hiện đúng vị trí, đúng style DesignTokens
+- [ ] **S1.1.2** Toggle OFF mặc định khi mở screen lần đầu
+- [ ] **S1.1.3** Bật toggle → state persist trong screen session
+
+### S1.2 Detection auto path C (math expression)
+- [ ] **S1.2.1** Upload `test_A_ascii.docx`, click Generate (Mode 3) → log có `[Mode3] hasDocxTemplate=true`
+- [ ] **S1.2.2** Banner trạng thái hiện "✓ Đã phát hiện 1 câu mẫu — chế độ Cùng Dạng sẵn sàng"
+
+### S1.3 Force toggle override
+- [ ] **S1.3.1** Upload tài liệu KHÔNG có math (vd file văn xuôi) → bật Force → Generate → log `[Mode3] Force template mode ON — bypass detection`
+- [ ] **S1.3.2** Banner hiện "⚡ Đã ép coi là tài liệu mẫu" với màu warning
+
+### S1.4 Chip sub-mode UX (file `context_sources_section.dart`)
+- [ ] **S1.4.1** Mode 3 không có file → chip "Tạo mới / Cùng dạng" hiện disabled với opacity 0.55
+- [ ] **S1.4.2** Long-press chip disabled → tooltip "Cần tài liệu mẫu… hoặc bật 'Coi tài liệu là MẪU'"
+- [ ] **S1.4.3** Khi `_useAsStyleTemplate=true` HOẶC `_forceTemplateMode=true` → chip enabled, click chuyển được giữa styleOnly/sameForm
+- [ ] **S1.4.4** Chip không xuất hiện 2 chỗ cùng lúc (đã guard `!hasTemplateSelected`)
+
+### S1.5 LaTeX render trong preview card (MathText widget)
+- **Pre**: gen 5 câu math có công thức (vd dùng Word B)
+- [ ] **S1.5.1** AI gen ra `$\frac{1}{2}$` → preview card render thành phân số đẹp (KHÔNG hiển thị literal)
+- [ ] **S1.5.2** Option text có `$x^2$` → render thành x mũ 2
+- [ ] **S1.5.3** Câu essay có `$\sqrt{x+1}$` trong expected_answer → render đẹp
+- [ ] **S1.5.4** Plain text không có `$` → render bình thường, không artifacts
+- [ ] **S1.5.5** LaTeX malformed (vd `$\fra{1}{2}$`) → fallback hiện literal màu đỏ, không crash
+
+### S1.6 Edit dialog Tab + Toolbar
+- **Pre**: gen xong, click icon edit (cây bút) trên 1 câu
+- [ ] **S1.6.1** Dialog mở có 2 tab: "Sửa" và "Xem trước"
+- [ ] **S1.6.2** Tab "Sửa" hiện toolbar 11 nút: `f(x)`, `√`, `x²`, `x_n`, `½`, `Σ`, `∫`, `≤`, `≥`, `±`, `[___N]` (nút cuối chỉ với fill_blank)
+- [ ] **S1.6.3** Click `f(x)` khi không có selection → insert `$  $` cursor giữa
+- [ ] **S1.6.4** Highlight selection rồi click `f(x)` → wrap thành `$selected$`
+- [ ] **S1.6.5** Click `½` → insert `\frac{}{}` cursor ở `{}` đầu
+- [ ] **S1.6.6** Click `√` → insert `\sqrt{}` cursor giữa
+- [ ] **S1.6.7** Switch sang tab "Xem trước" → render LaTeX live
+- [ ] **S1.6.8** Sửa text trong Tab "Sửa" → tab "Xem trước" cập nhật reactive (qua `Listenable.merge`)
+- [ ] **S1.6.9** Mỗi choice MCQ/math có nút "fx" mini bên phải → wrap selection trong `$...$`
+- [ ] **S1.6.10** Save → câu hỏi trong card cập nhật đúng
+- [ ] **S1.6.11** Câu fill_blank: nút `[___N]` auto-increment N theo số blank hiện có
+
+### S1.7 templateCount cascade (backend)
+- [ ] **S1.7.1** Upload 1 câu mẫu, gen 10 câu → log AI prompt có "Bạn có 1 câu mẫu nhưng cần tạo 10 câu — hãy biến tấu MỖI mẫu thành nhiều biến thể KHÁC NHAU…"
+- [ ] **S1.7.2** Upload 5 câu mẫu, gen 10 câu → log KHÔNG có instruction trên (templateCount=5, không thỏa `< quantity/2`)
+
+---
+
+## S2. Phase A — VN Persona + Multi-step + Gemini 2.0 + Cache (commit `b41cdcb`)
+
+### S2.1 VN sư phạm persona
+- **Pre**: gen câu hỏi bất kỳ (Mode 1, 2, 3)
+- [ ] **S2.1.1** Câu hỏi gen ra dùng tiếng Việt sư phạm rõ ràng (không Hán Việt khó hiểu)
+- [ ] **S2.1.2** Distractor (đáp án sai) hợp lý — kiểu lỗi học sinh thường mắc, không vô nghĩa
+- [ ] **S2.1.3** Nội dung gắn với chương trình SGK VN (lịch sử, địa lý, văn học VN nếu liên quan)
+
+### S2.2 Multi-step math reasoning (Mode 3 sameForm)
+- **Pre**: upload file Word có câu math mẫu, bật sameForm
+- [ ] **S2.2.1** Câu gen ra có đáp án đúng (verify thủ công 5/5 câu math)
+- [ ] **S2.2.2** Distractor là lỗi sai cụ thể (cộng thiếu, quên đơn vị, đảo dấu) — không bịa số ngẫu nhiên
+- [ ] **S2.2.3** Phù hợp cấp học (lớp 9 không tích phân, lớp 12 không quá đơn giản)
+
+### S2.3 Default model Gemini 2.0 Flash
+- [ ] **S2.3.1** Vào Settings → API Keys → confirm default model dropdown hiện `gemini-2.0-flash`
+- [ ] **S2.3.2** User chưa cấu hình → AI gọi dùng `gemini-2.0-flash` (xem log network/console)
+- [ ] **S2.3.3** Long context (>20K char document) không bị truncate quá sớm
+
+### S2.4 Document parse cache
+- **Pre**: kBuild debug, mở DevTools console
+- [ ] **S2.4.1** Upload file Word lần đầu → parse mất ~3-5s
+- [ ] **S2.4.2** Remove file rồi upload lại CÙNG file → parse tức thì (<100ms — cache hit)
+- [ ] **S2.4.3** Upload file Word khác → parse lại bình thường (cache miss)
+- [ ] **S2.4.4** Upload >20 file khác nhau → cache evict file cũ nhất (LRU 20 entries)
+
+---
+
+## S3. G1 — OMML → LaTeX Word Equation Parser (commit `da9f8ce`)
+
+### S3.1 Unit test (đã pass — re-verify nếu có sửa)
+- [x] **S3.1.1** 8/8 unit test pass — `flutter test test/unit/core/omml_to_latex_test.dart`
+
+### S3.2 Functional với file Word C (Equation Editor)
+- **Pre**: file `test_C_omml.docx` đã tạo với equation editor `1/2 + 1/4 = ?`
+- [ ] **S3.2.1** Upload file C, Mode 3, Generate → log AI prompt có nội dung `$\frac{1}{2} + \frac{1}{4} = ?$` (LaTeX, không phải `1 2 1 4`)
+- [ ] **S3.2.2** Câu gen ra cùng dạng phân số (10 câu khác phân số khác nhau)
+- [ ] **S3.2.3** Render preview card hiện phân số đẹp qua MathText
+
+### S3.3 Mix functional
+- **Pre**: file Word có cả equation editor + LaTeX inline + ASCII
+- [ ] **S3.3.1** Mỗi loại được convert đúng, không nhiễu lẫn nhau
+- [ ] **S3.3.2** Plain text Việt giữ nguyên, không bị strip ký tự đặc biệt
+
+### S3.4 Edge cases
+- [ ] **S3.4.1** Word có equation rỗng `<m:oMath></m:oMath>` → không output `$$` rỗng
+- [ ] **S3.4.2** Word có matrix (`m:m`) → fallback strip về text plain (không crash)
+- [ ] **S3.4.3** Word có equation lồng sâu (frac trong frac) → convert đúng `\frac{\frac{1}{2}}{3}`
+
+---
+
+## S4. A5 — Self-Critique Toggle (commit `c421fdb`)
+
+### S4.1 Toggle UI
+- **Pre**: mở screen tạo câu hỏi → AI Settings drawer
+- [ ] **S4.1.1** Section "Nâng cao" hiện cuối drawer
+- [ ] **S4.1.2** SwitchListTile "Chế độ chính xác cao" với icon `verified_outlined`
+- [ ] **S4.1.3** OFF mặc định, persist khi chuyển screen rồi quay lại
+- [ ] **S4.1.4** Subtitle giải thích "AI tự kiểm tra mỗi câu — chậm hơn ~10s, tốn 2x token AI"
+
+### S4.2 Toggle OFF (default — zero impact)
+- [ ] **S4.2.1** Gen 5 câu với toggle OFF → KHÔNG có AI call thứ 2 (xem log/network)
+- [ ] **S4.2.2** Latency tương đương gen trước khi có A5
+- [ ] **S4.2.3** Card preview KHÔNG có badge cảnh báo cam (mọi câu)
+
+### S4.3 Toggle ON — happy path
+- [ ] **S4.3.1** Bật toggle, gen 5 câu math → có thêm 1 AI call (log `[Critique] N=5, fails=X`)
+- [ ] **S4.3.2** Latency tăng ~5-10s sau khi gen xong (do critique pass)
+- [ ] **S4.3.3** Câu pass: KHÔNG có badge
+- [ ] **S4.3.4** Câu fail: badge cam dưới card với icon warning + lý do cụ thể
+
+### S4.4 Toggle ON — graceful fallback
+- [ ] **S4.4.1** AI lần 2 trả về JSON malformed → toàn bộ câu mark pass=true (không block)
+- [ ] **S4.4.2** AI lần 2 trả về thiếu entry (5 câu nhưng chỉ 3 review) → entry thiếu mark pass=true
+- [ ] **S4.4.3** AI lần 2 timeout/error → flow vẫn complete, không có badge
+
+### S4.5 Critique quality
+- [ ] **S4.5.1** Cố tạo prompt yêu cầu câu sai (vd "tính 2+2 nhưng đáp án 5") → critique phát hiện và mark fail
+- [ ] **S4.5.2** Câu phức tạp đúng → critique mark pass
+
+---
+
+## S5. G3 — Export câu hỏi → Word (TBD — commit chưa có)
+
+> Sẽ điền checklist sau khi G3 commit. Stub để session sau biết section này tồn tại.
+
+### S5.1 LaTeX → OMML conversion
+- [ ] S5.1.x …
+
+### S5.2 Generate Word file từ list questions
+- [ ] S5.2.x …
+
+### S5.3 UI nút "Xuất ra Word"
+- [ ] S5.3.x …
+
+### S5.4 Mở Word file output
+- [ ] S5.4.1 Word render được tất cả câu, math hiện đúng dạng phân số / mũ / căn (không phải literal LaTeX)
+- [ ] S5.4.2 Format paragraph đẹp, có separator giữa các câu
+- [ ] S5.4.3 Đáp án (cho MCQ) hiện rõ ràng
+
+---
+
+## S6. Regression sanity (chạy sau mỗi commit lớn)
+
+- [ ] **R1** Login flow vẫn work (admin/teacher/student)
+- [ ] **R2** Tạo class + add student vẫn work
+- [ ] **R3** Distribute assignment + student submit vẫn work
+- [ ] **R4** Grade submission (teacher hub) vẫn work
+- [ ] **R5** No new flutter analyze warnings
+- [ ] **R6** Build APK debug success <60s
+- [ ] **R7** Cold start app <3s
+
+---
+
+## Issue tracker — FAIL/Blocked items
+
+> Khi 1 test fail → ghi vào đây, link với commit hash.
+
+| Date | Test ID | Commit | Description | Status |
+|------|---------|--------|-------------|--------|
+| | | | | |
+
+---
+
+## Ghi chú quan trọng cho phiên sau
+
+1. **G3 chưa làm** — cần dispatch agent team Export câu hỏi → Word (LaTeX → OMML reverse + integrate vào WordTemplateGenerator + nút UI)
+2. **B RAG pgvector** — defer, làm khi DB > 100 câu approved
+3. **Mode 3 fix bundle** include nhiều thứ pre-existing không liên quan AI (supabase migrations 008-018, redo eligibility, assignment bank widgets, hub stats) — cần regression test khi vào các flow khác
+4. **571 MB `.claude/worktrees/`** đã ignore — không xóa local vì có agent state có thể recovery, nhưng KHÔNG commit
+5. **Memory bank đã update** trong commit `ba521a8` — đọc `memory-bank/activeContext.md` đầu phiên sau
+
+## Log lịch sử test
+
+| Date | Tester | Phase | Result | Notes |
+|------|--------|-------|--------|-------|
+| 2026-05-09 | Agent QA (static) | S1+S2+S3+S4 (commits ba521a8, b41cdcb, da9f8ce, c421fdb) | static PASS toàn bộ | Build apk + flutter analyze pass; CHƯA test trên thiết bị |
