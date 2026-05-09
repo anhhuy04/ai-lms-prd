@@ -61,6 +61,16 @@ class AiService {
   // Prompt templates — xem getGenerateQuestionsPrompt() để biết cách build
   static const Map<String, String> _promptTemplates = {};
 
+  /// Persona "giáo viên VN sư phạm" — prepend đầu mỗi prompt Mode 3 để định
+  /// hình văn phong + ràng buộc chất lượng distractor. Cùng số AI call,
+  /// chỉ tăng ~120 token/prompt nhưng nâng độ chính xác sư phạm.
+  static const String _vnTeacherPersona =
+      '''Bạn là giáo viên VN có 10+ năm kinh nghiệm soạn đề. Câu hỏi PHẢI:
+- Dùng tiếng Việt sư phạm, văn phong rõ ràng, đúng cấp học (lớp 9-12).
+- Dữ kiện thực tế gần với chương trình SGK Việt Nam.
+- Distractor (đáp án sai) phải là lỗi sai HỢP LÝ học sinh thường mắc — không tạo distractor vô nghĩa.
+- KHÔNG dùng từ Hán Việt khó hiểu, KHÔNG copy từ tài liệu nước ngoài.''';
+
   /// Initialize AI Service với Dio client
   ///
   /// Nên được gọi trong main.dart, nhưng sẽ auto-initialize nếu chưa được gọi
@@ -332,7 +342,9 @@ $documentContext
             : 'Tạo $quantity câu hỏi từ nội dung tài liệu.')
         : 'Tạo $quantity câu hỏi về: "$topic".';
 
-    return '''$contextSection$openingLine
+    return '''$_vnTeacherPersona
+
+$contextSection$openingLine
 $difficultyLine
 
 ${hasDoc ? 'CHỐNG SAO CHÉP (ưu tiên cao nhất): TUYỆT ĐỐI KHÔNG sao chép, diễn đạt lại, hay đảo vị trí đáp án của bất kỳ câu nào trong tài liệu. Dùng tài liệu làm nguồn kiến thức — câu hỏi PHẢI MỚI hoàn toàn về ngôn từ và cấu trúc.\n\n' : ''}QUY TẮC (bắt buộc tuân thủ):
@@ -443,7 +455,9 @@ VÍ DỤ OUTPUT (1 câu):
     required String formatExample,
     required String typeRule,
   }) {
-    return '''OUTPUT: JSON ARRAY thuần túy. KHÔNG text giải thích, KHÔNG markdown fence, KHÔNG ký tự nào trước dấu "[" đầu tiên.
+    return '''$_vnTeacherPersona
+
+OUTPUT: JSON ARRAY thuần túy. KHÔNG text giải thích, KHÔNG markdown fence, KHÔNG ký tự nào trước dấu "[" đầu tiên.
 
 NHIỆM VỤ: Tạo $quantity câu hỏi MỚI HOÀN TOÀN, kế thừa CHỈ phong cách từ schema mẫu (loại câu, độ khó, chủ đề).
 Schema CHỈ có metadata — bạn KHÔNG biết câu mẫu nói gì, KHÔNG sao chép/đoán nội dung.
@@ -497,7 +511,9 @@ NHẮC LẠI: Trả về JSON ARRAY $quantity object. override_text = câu hỏi
     final scarcityNote = (templateCount != null && templateCount < quantity / 2)
         ? '\n\nLƯU Ý: Bạn có $templateCount câu mẫu nhưng cần tạo $quantity câu — hãy biến tấu MỖI mẫu thành nhiều biến thể KHÁC NHAU rõ rệt về số liệu/dữ kiện cụ thể, KHÔNG lặp lại bộ số gần giống nhau, đa dạng phạm vi giá trị (vừa nhỏ, vừa lớn, vừa thập phân nếu phù hợp).'
         : '';
-    return '''NHIỆM VỤ: Bạn nhận các câu hỏi MẪU dưới đây. Tạo $quantity câu hỏi MỚI giữ NGUYÊN CẤU TRÚC nhưng ĐỔI GIÁ TRỊ CỤ THỂ rồi TÍNH LẠI 4 LỰA CHỌN.
+    return '''$_vnTeacherPersona
+
+NHIỆM VỤ: Bạn nhận các câu hỏi MẪU dưới đây. Tạo $quantity câu hỏi MỚI giữ NGUYÊN CẤU TRÚC nhưng ĐỔI GIÁ TRỊ CỤ THỂ rồi TÍNH LẠI 4 LỰA CHỌN.
 
 QUY TRÌNH BẮT BUỘC (làm đúng thứ tự cho TỪNG câu):
 BƯỚC 1 — PHÂN TÍCH STRUCTURE: tách câu mẫu thành (a) khung cố định = khái niệm/công thức/dạng đề; (b) biến thay đổi được = số/tên/đơn vị/dữ liệu cụ thể.
@@ -510,6 +526,12 @@ $documentContext
 
 ${difficultyLine.isNotEmpty ? 'Gợi ý độ khó chung (ưu tiên độ khó từng câu trong mẫu): $difficultyLine' : ''}
 Chủ đề: $topicLine.
+
+QUY TRÌNH BẮT BUỘC CHO MATH (làm cẩn thận từng câu, KHÔNG bỏ bước):
+BƯỚC 0 — XÁC ĐỊNH PHẠM VI: trả lời thầm "kiến thức này thuộc lớp mấy của VN?" — nếu lớp 9 không dùng tích phân, lớp 12 không dùng "x là số tự nhiên đơn giản".
+BƯỚC 1 — TÍNH TRƯỚC, VIẾT SAU: tự giải đáp án ĐÚNG bằng tính toán cẩn thận. KHÔNG ghi câu hỏi nếu chưa biết đáp án.
+BƯỚC 2 — KIỂM TRA LẠI: thay đáp án vào câu hỏi → có khớp không? Nếu không → tính lại.
+BƯỚC 3 — DISTRACTOR THỰC TẾ: 3 đáp án sai phải là lỗi cụ thể (cộng thiếu nhớ, quên đơn vị, đảo dấu, nhầm công thức tương tự). Không bịa số ngẫu nhiên.
 
 QUY TẮC CỨNG:
 1. GIỮ NGUYÊN: dạng đề, công thức, đơn vị tổng quát, độ dài câu hỏi.

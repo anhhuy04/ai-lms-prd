@@ -34,7 +34,7 @@ class ApiKeyService {
   static const String providerOpenRouter = 'openrouter';
 
   // Default models (fallback)
-  static const String defaultGeminiModel = 'gemini-1.5-flash';
+  static const String defaultGeminiModel = 'gemini-2.0-flash';
   static const String defaultGroqModel = 'llama-3.1-8b-instant';
   static const String defaultOllamaModel = 'mistral';
   static const String defaultOpenRouterModel = 'google/gemma-3-4b-it:free';

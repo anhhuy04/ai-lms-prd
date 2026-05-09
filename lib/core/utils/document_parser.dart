@@ -17,23 +17,77 @@ typedef DocxParseResult = ({String text, List<Map<String, dynamic>>? questions})
 /// An toàn để gọi từ background isolate qua Flutter's compute():
 ///   `await compute(DocumentParser.processXlsx, bytes)`
 ///   `await compute(DocumentParser.processDocx, bytes)`
+///
+/// ### In-memory parse cache
+/// Cả `processXlsx` và `processDocx` đều cache kết quả theo "fingerprint"
+/// (bytes.length + 8 byte head/middle/tail) — đủ unique để chống collision cho
+/// file Word/Excel thông thường mà KHÔNG cần thư viện crypto. Cache là static
+/// in-memory (mất khi app restart, không persist disk), giới hạn 20 entries
+/// với LRU eviction theo insertion order (Map của Dart giữ thứ tự insert →
+/// `keys.first` chính là entry cũ nhất). Gọi [clearCache] khi user logout
+/// hoặc gặp memory pressure.
 class DocumentParser {
   DocumentParser._();
+
+  // ── Cache ─────────────────────────────────────────────────────────────────
+
+  static final Map<String, XlsxParseResult> _xlsxCache = <String, XlsxParseResult>{};
+  static final Map<String, DocxParseResult> _docxCache = <String, DocxParseResult>{};
+  static const int _maxCacheEntries = 20;
+
+  /// Lightweight fingerprint: length + sample bytes (head/mid/tail).
+  /// KHÔNG phải hash crypto — chỉ đủ để phân biệt file thông thường.
+  static String _fingerprint(Uint8List bytes) {
+    if (bytes.length < 24) return 'len=${bytes.length}-data=$bytes';
+    final head = bytes.sublist(0, 8);
+    final midStart = bytes.length ~/ 2;
+    final mid = bytes.sublist(midStart, midStart + 8);
+    final tail = bytes.sublist(bytes.length - 8);
+    return '${bytes.length}-$head-$mid-$tail';
+  }
+
+  /// LRU put: evict oldest (first inserted) khi vượt giới hạn.
+  static void _putCache<T>(Map<String, T> cache, String key, T value) {
+    if (cache.length >= _maxCacheEntries) {
+      cache.remove(cache.keys.first);
+    }
+    cache[key] = value;
+  }
+
+  /// Xóa toàn bộ cache parse — gọi khi user logout hoặc memory pressure.
+  static void clearCache() {
+    _xlsxCache.clear();
+    _docxCache.clear();
+  }
 
   // ── Entry points dùng với compute() ──────────────────────────────────────
 
   /// Process xlsx: extract text + try parse template. Dùng với compute().
+  /// Cache theo fingerprint của bytes — lần thứ 2 cùng file trả về ngay.
   static XlsxParseResult processXlsx(Uint8List bytes) {
+    final key = _fingerprint(bytes);
+    final cached = _xlsxCache[key];
+    if (cached != null) return cached;
+
     final text = extractFromXlsx(bytes);
     final questions = parseXlsxAsTemplate(bytes);
-    return (text: text, questions: questions);
+    final result = (text: text, questions: questions);
+    _putCache(_xlsxCache, key, result);
+    return result;
   }
 
   /// Process docx: extract text + try parse template. Dùng với compute().
+  /// Cache theo fingerprint của bytes — lần thứ 2 cùng file trả về ngay.
   static DocxParseResult processDocx(Uint8List bytes) {
+    final key = _fingerprint(bytes);
+    final cached = _docxCache[key];
+    if (cached != null) return cached;
+
     final text = extractFromDocx(bytes);
     final questions = text.isNotEmpty ? parseDocxAsTemplate(text) : null;
-    return (text: text, questions: questions);
+    final result = (text: text, questions: questions);
+    _putCache(_docxCache, key, result);
+    return result;
   }
 
   // ── Extraction ────────────────────────────────────────────────────────────
