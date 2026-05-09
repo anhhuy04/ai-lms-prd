@@ -114,25 +114,46 @@ class _TeacherAiGenerateQuestionScreenState
           '';
       final preview =
           rawText.length > 90 ? '${rawText.substring(0, 90)}…' : rawText;
-      final answer = q['answer']?.toString() ?? '?';
-      final opts = q['options'] as List?;
+      // B-003: derive label A/B/C/D từ index, không phụ thuộc field 'label' (AI không gen field này).
+      final opts = (q['options'] as List?) ?? (q['choices'] as List?);
       String optStr = '';
+      int correctIdx = -1;
       if (opts != null && opts.isNotEmpty) {
         optStr = opts
             .take(4)
-            .map((o) {
+            .toList()
+            .asMap()
+            .entries
+            .map((e) {
+              final o = e.value;
+              final lbl = String.fromCharCode(65 + e.key); // A, B, C, D
               if (o is Map) {
-                final lbl = o['label']?.toString() ?? '';
                 final txt = (o['text'] as String?) ??
-                    (o['content'] as String?) ??
+                    ((o['content'] is Map ? (o['content'] as Map)['text'] : null)
+                        as String?) ??
                     o.toString();
+                if (o['isCorrect'] == true || o['is_correct'] == true) {
+                  correctIdx = e.key;
+                }
                 return '$lbl.$txt'.trim();
               }
-              return o.toString();
+              return '$lbl.${o.toString()}';
             })
             .join(' | ');
         if (optStr.length > 120) optStr = '${optStr.substring(0, 120)}…';
       }
+      // B-002: derive answer từ correct choice index thay vì q['answer'] (AI gen không có field này).
+      final answer = correctIdx >= 0
+          ? String.fromCharCode(65 + correctIdx)
+          : (q['answer'] is Map &&
+                  (q['answer'] as Map)['expected_answer'] != null
+              ? '"${((q['answer'] as Map)['expected_answer'] as String).substring(
+                  0,
+                  ((q['answer'] as Map)['expected_answer'] as String)
+                      .length
+                      .clamp(0, 40),
+                )}…"'
+              : '?');
       final sim = q['_similarityWarning'] is Map
           ? ' ⚠sim=${(q['_similarityWarning'] as Map)['score']}% (tpl#${(q['_similarityWarning'] as Map)['templateIndex']})'
           : '';

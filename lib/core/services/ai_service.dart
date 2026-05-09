@@ -67,7 +67,7 @@ class AiService {
   static const String _vnTeacherPersona =
       '''Bạn là giáo viên VN có 10+ năm kinh nghiệm soạn đề. Câu hỏi PHẢI:
 - Dùng tiếng Việt sư phạm, văn phong rõ ràng, đúng cấp học (lớp 9-12).
-- Dữ kiện thực tế gần với chương trình SGK Việt Nam.
+- BÁM CHẶT MÔN HỌC trong tài liệu mẫu — KHÔNG tự suy sang môn khác (vd có mẫu Toán → KHÔNG tạo Địa lý).
 - Distractor (đáp án sai) phải là lỗi sai HỢP LÝ học sinh thường mắc — không tạo distractor vô nghĩa.
 - KHÔNG dùng từ Hán Việt khó hiểu, KHÔNG copy từ tài liệu nước ngoài.''';
 
@@ -461,6 +461,11 @@ OUTPUT: JSON ARRAY thuần túy. KHÔNG text giải thích, KHÔNG markdown fenc
 
 NHIỆM VỤ: Tạo $quantity câu hỏi MỚI HOÀN TOÀN, kế thừa CHỈ phong cách từ schema mẫu (loại câu, độ khó, chủ đề).
 Schema CHỈ có metadata — bạn KHÔNG biết câu mẫu nói gì, KHÔNG sao chép/đoán nội dung.
+
+TỐI THƯỢNG — BÁM SÁT MÔN HỌC:
+Schema có ghi "CÁC MÔN HỌC TRONG MẪU" → bạn PHẢI tạo câu thuộc các môn đó.
+Nếu schema không ghi môn rõ → tự đoán môn từ Tags/Chủ đề. CẤM tự ý đổi sang môn khác.
+Lệch môn = câu sai 100%.
 
 --- SCHEMA BÀI MẪU ---
 $documentContext

@@ -845,7 +845,9 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 | Date | Test ID | Commit | Description | Status |
 |------|---------|--------|-------------|--------|
-| | | | | |
+| 2026-05-09 | **B-001 P0** | da9f8ce+b41cdcb | Live test Word "NGÂN HÀNG CÂU HỎI" Toán/Lý/Hóa, Mode 3 styleOnly → AI gen 5 câu Địa lý VN. Domain drift. Root cause: schema-only context không có subject (parser bỏ qua [TRẮC NGHIỆM — XXX]); topic placeholder; persona bias. Fix in progress. | OPEN |
+| 2026-05-09 | **B-002 P1** | b41cdcb | Log `_logGeneratedQuestions` hiển thị `ans=?` — answer field không parse được. | OPEN |
+| 2026-05-09 | **B-003 P2** | b41cdcb | Log hiện `.Hà Nội | .Hồ Chí Minh` thiếu prefix A/B/C/D — cosmetic log helper bug. | OPEN |
 
 ---
 
@@ -977,7 +979,9 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 | Date | Test ID | Commit | Description | Status |
 |------|---------|--------|-------------|--------|
-| | | | | |
+| 2026-05-09 | **B-001 P0** | da9f8ce+b41cdcb | Live test Word "NGÂN HÀNG CÂU HỎI" Toán/Lý/Hóa, Mode 3 styleOnly → AI gen 5 câu Địa lý VN. Domain drift. Root cause: schema-only context không có subject (parser bỏ qua [TRẮC NGHIỆM — XXX]); topic placeholder; persona bias. Fix in progress. | OPEN |
+| 2026-05-09 | **B-002 P1** | b41cdcb | Log `_logGeneratedQuestions` hiển thị `ans=?` — answer field không parse được. | OPEN |
+| 2026-05-09 | **B-003 P2** | b41cdcb | Log hiện `.Hà Nội | .Hồ Chí Minh` thiếu prefix A/B/C/D — cosmetic log helper bug. | OPEN |
 
 ---
 

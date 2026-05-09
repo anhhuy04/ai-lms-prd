@@ -201,6 +201,19 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
     );
     sb.writeln();
 
+    // FIX-B001: distinct subjects summary — chống AI domain drift.
+    final distinctSubjects = allQuestions
+        .map((q) => q['subject'] as String?)
+        .where((s) => s != null && s.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .join(', ');
+    if (distinctSubjects.isNotEmpty) {
+      sb.writeln('CÁC MÔN HỌC TRONG MẪU: $distinctSubjects');
+      sb.writeln('→ Tạo câu hỏi PHẢI thuộc các môn này, KHÔNG được lệch sang môn khác.');
+      sb.writeln();
+    }
+
     for (int i = 0; i < questions.length; i++) {
       final q = questions[i];
       final type = q['type'];
@@ -208,9 +221,13 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
       final difficulty = q['difficulty'] as int? ?? 3;
       final rawTags = (q['tags'] as List<dynamic>?)?.cast<String>() ?? const [];
       final tags = _sanitizeTagsForSchema(rawTags).join(', ');
+      final subject = q['subject'] as String?;
 
       sb.write('[Slot ${i + 1}] $typeStr độ khó $difficulty/5');
-      if (tags.isNotEmpty) {
+      // FIX-B001: ưu tiên subject (nguồn ground truth từ marker) trên tags/topic.
+      if (subject != null && subject.isNotEmpty) {
+        sb.write(' — Môn: $subject');
+      } else if (tags.isNotEmpty) {
         sb.write(' — Tags: $tags');
       } else if (filenameTopic.isNotEmpty) {
         sb.write(' — Chủ đề: $filenameTopic');

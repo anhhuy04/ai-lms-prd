@@ -240,8 +240,38 @@ class DocumentParser {
   /// Parse flat text (từ docx/pdf) thành câu hỏi. Trả về null nếu không có cấu trúc.
   ///
   /// BUG-FIX: normalize trước để handle cả docx (đã flat) và pdf (có newline).
+  /// FIX-B001: extract subject từ markers `[ TRẮC NGHIỆM — Toán học ]` và gán
+  /// vào field `subject` + tags của mỗi câu hỏi (lookup nearest marker before
+  /// question position) → chống AI domain drift trong Mode 3 styleOnly.
   static List<Map<String, dynamic>>? parseDocxAsTemplate(String text) {
     final flat = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    // FIX-B001: scan subject markers TRƯỚC khi match câu hỏi.
+    // Pattern: [ TRẮC NGHIỆM — Toán học ] / [TỰ LUẬN - Vật lý] / [ ĐÚNG/SAI – Hóa học ]
+    final subjectMarkerRe = RegExp(
+      r'\[\s*(?:TRẮC\s*NGHIỆM|TỰ\s*LUẬN|ĐÚNG[/\-]SAI|ĐIỀN\s*VÀO|HỖN\s*HỢP)\s*[—\-–]\s*([^\]]+?)\s*\]',
+      caseSensitive: false,
+    );
+    final subjectMarkers = subjectMarkerRe.allMatches(flat).toList();
+    // Map: position (int) → subject (String). Sorted ascending by position.
+    final subjectByPos = <int, String>{};
+    for (final m in subjectMarkers) {
+      final subject = (m.group(1) ?? '').trim();
+      if (subject.isNotEmpty) subjectByPos[m.start] = subject;
+    }
+
+    String? subjectAt(int pos) {
+      String? best;
+      int bestPos = -1;
+      for (final entry in subjectByPos.entries) {
+        if (entry.key <= pos && entry.key > bestPos) {
+          bestPos = entry.key;
+          best = entry.value;
+        }
+      }
+      return best;
+    }
+
     final markerRe = RegExp(r'Câu\s+\d+\s*[:.)]', caseSensitive: false);
     final markers = markerRe.allMatches(flat).toList();
     if (markers.isEmpty) return null;
@@ -253,7 +283,21 @@ class DocumentParser {
       final block = flat.substring(blockStart, blockEnd).trim();
       if (block.isEmpty) continue;
       final q = parseQuestionBlock(block);
-      if (q != null) questions.add(q);
+      if (q == null) continue;
+
+      // FIX-B001: gán subject từ marker NEAREST trước position câu hỏi.
+      final subject = subjectAt(markers[i].start);
+      if (subject != null && subject.isNotEmpty) {
+        q['subject'] = subject;
+        final existingTags = (q['tags'] as List<dynamic>?)?.cast<String>() ?? const <String>[];
+        if (!existingTags.contains(subject)) {
+          q['tags'] = <String>[...existingTags, subject];
+        }
+      } else {
+        q['subject'] = null;
+      }
+
+      questions.add(q);
     }
 
     if (questions.isEmpty) return null;
