@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/document_parser.dart';
 import 'package:ai_mls/data/models/local_temp_file.dart';
@@ -42,7 +40,7 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
       } else if (mimeType.contains('pdf') || filename.toLowerCase().endsWith('.pdf')) {
         // pdfrx đã async (native FFI) — không cần compute.
         extracted = await _extractFromPdf(bytes);
-        if (extracted != null && extracted.isNotEmpty) {
+        if (extracted.isNotEmpty) {
           // parseDocxAsTemplate là regex thuần — fast trên main isolate.
           parsedQuestions = DocumentParser.parseDocxAsTemplate(extracted);
         }
@@ -359,10 +357,6 @@ class LocalTempFilesNotifier extends StateNotifier<List<LocalTempFile>> {
   List<Map<String, dynamic>>? parseDocxAsTemplate(String text) =>
       DocumentParser.parseDocxAsTemplate(text);
 
-  /// @visibleForTesting wrapper — delegates sang DocumentParser.parseQuestionBlock.
-  @visibleForTesting
-  Map<String, dynamic>? parseQuestionBlock(String block) =>
-      DocumentParser.parseQuestionBlock(block);
 }
 
 /// Provider không autoDispose — giữ state xuyên suốt phiên làm việc.

@@ -417,6 +417,28 @@ class ProfileMetadataService {
     return url != null && url.isNotEmpty;
   }
 
+  /// Lấy OpenRouter API key từ metadata
+  static Future<String?> getOpenRouterApiKey() async {
+    return await get<String>('api_keys.openrouter');
+  }
+
+  /// Set OpenRouter API key vào metadata
+  static Future<bool> setOpenRouterApiKey(String apiKey) async {
+    if (apiKey.isEmpty) return false;
+    return await set('api_keys.openrouter', apiKey);
+  }
+
+  /// Xóa OpenRouter API key khỏi metadata
+  static Future<bool> removeOpenRouterApiKey() async {
+    return await remove('api_keys.openrouter');
+  }
+
+  /// Kiểm tra xem có OpenRouter API key không
+  static Future<bool> hasOpenRouterApiKey() async {
+    final key = await getOpenRouterApiKey();
+    return key != null && key.isNotEmpty;
+  }
+
   /// Lấy tất cả API keys
   static Future<Map<String, String>> getAllApiKeys() async {
     final apiKeys = await get<Map<String, dynamic>>('api_keys') ?? {};

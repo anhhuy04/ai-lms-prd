@@ -57,14 +57,15 @@ class RecommendationCard extends ConsumerWidget {
                 if (onDismiss != null)
                   IconButton(
                     icon: Icon(
-                      Icons.close,
+                      Icons.close_rounded,
                       size: DesignIcons.smSize,
-                      color: Colors.grey,
+                      color: DesignColors.textTertiary,
                     ),
                     onPressed: onDismiss,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
-                    tooltip: 'An goi y',
+                    tooltip: 'Ẩn gợi ý',
+                    splashRadius: 18,
                   ),
               ],
             ),
@@ -122,33 +123,10 @@ class RecommendationCard extends ConsumerWidget {
 
   Widget _buildPriorityBadge(RecommendationPriority priority) {
     final (label, color) = _getPriorityConfig(priority);
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: DesignSpacing.sm,
-        vertical: DesignSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(DesignRadius.full),
-      ),
-      child: Text(
-        label,
-        style: DesignTypography.labelSmall.copyWith(color: color),
-      ),
-    );
-  }
-
-  Widget _buildTypeBadge(RecommendationType type) {
-    final label = switch (type) {
-      RecommendationType.peerComparison => 'So sanh',
-      RecommendationType.skillGap => 'Ky nang yeu',
-      RecommendationType.intervention => 'Can thiep',
-      RecommendationType.lateSubmissionAlert => 'Nop muon',
-      RecommendationType.engagementAlert => 'Canh bao tham gia',
-      RecommendationType.atRiskWarning => 'Rui ro',
-      RecommendationType.assignmentSuggestion => 'Goi y bai tap',
-      RecommendationType.studyTip => 'Meo hoc tap',
-      RecommendationType.improvementOpportunity => 'Co hoi cai thien',
+    final icon = switch (priority) {
+      RecommendationPriority.high => Icons.priority_high_rounded,
+      RecommendationPriority.medium => Icons.flag_rounded,
+      RecommendationPriority.low => Icons.flag_outlined,
     };
     return Container(
       padding: EdgeInsets.symmetric(
@@ -156,14 +134,70 @@ class RecommendationCard extends ConsumerWidget {
         vertical: DesignSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: DesignColors.primary.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(DesignRadius.full),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          SizedBox(width: DesignSpacing.xs),
+          Text(
+            label,
+            style: DesignTypography.labelSmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypeBadge(RecommendationType type) {
+    final (icon, label) = switch (type) {
+      RecommendationType.peerComparison =>
+        (Icons.compare_arrows_rounded, 'So sánh'),
+      RecommendationType.skillGap =>
+        (Icons.psychology_outlined, 'Kỹ năng yếu'),
+      RecommendationType.intervention =>
+        (Icons.support_outlined, 'Can thiệp'),
+      RecommendationType.lateSubmissionAlert =>
+        (Icons.schedule_outlined, 'Nộp muộn'),
+      RecommendationType.engagementAlert =>
+        (Icons.notifications_active_outlined, 'Cảnh báo tham gia'),
+      RecommendationType.atRiskWarning =>
+        (Icons.warning_amber_rounded, 'Rủi ro'),
+      RecommendationType.assignmentSuggestion =>
+        (Icons.assignment_outlined, 'Gợi ý bài tập'),
+      RecommendationType.studyTip =>
+        (Icons.lightbulb_outline_rounded, 'Mẹo học tập'),
+      RecommendationType.improvementOpportunity =>
+        (Icons.trending_up_rounded, 'Cơ hội cải thiện'),
+    };
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: DesignSpacing.sm,
+        vertical: DesignSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: DesignColors.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(DesignRadius.full),
       ),
-      child: Text(
-        label,
-        style: DesignTypography.labelSmall.copyWith(
-          color: DesignColors.primary,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: DesignColors.primary),
+          SizedBox(width: DesignSpacing.xs),
+          Text(
+            label,
+            style: DesignTypography.labelSmall.copyWith(
+              color: DesignColors.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -173,15 +207,15 @@ class RecommendationCard extends ConsumerWidget {
 
     for (final assignmentId in rec.exercises.take(compact ? 1 : 3)) {
       chips.add(_buildResourceChip(
-        icon: Icons.edit_note,
-        label: 'On tap',
+        icon: Icons.edit_note_rounded,
+        label: 'Ôn tập',
         onTap: () => _navigateToExercise(context, assignmentId),
       ));
     }
 
     for (final videoUrl in rec.videos.take(compact ? 1 : 2)) {
       chips.add(_buildResourceChip(
-        icon: Icons.play_circle_outline,
+        icon: Icons.play_circle_outline_rounded,
         label: 'Video',
         onTap: () => _launchUrl(videoUrl),
       ));
@@ -190,7 +224,7 @@ class RecommendationCard extends ConsumerWidget {
     for (final docUrl in rec.documents.take(compact ? 1 : 2)) {
       chips.add(_buildResourceChip(
         icon: Icons.description_outlined,
-        label: 'Tai lieu',
+        label: 'Tài liệu',
         onTap: () => _launchUrl(docUrl),
       ));
     }
@@ -272,20 +306,20 @@ class RecommendationCard extends ConsumerWidget {
   (String label, Color color) _getPriorityConfig(RecommendationPriority priority) {
     switch (priority) {
       case RecommendationPriority.high:
-        return ('Khan cap', DesignColors.error);
+        return ('Khẩn cấp', DesignColors.error);
       case RecommendationPriority.medium:
         return ('Cao', DesignColors.warning);
       case RecommendationPriority.low:
-        return ('Thap', Colors.grey);
+        return ('Thấp', DesignColors.textSecondary);
     }
   }
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final diff = now.difference(date);
-    if (diff.inDays == 0) return 'Hom nay';
-    if (diff.inDays == 1) return 'Hom qua';
-    if (diff.inDays < 7) return '${diff.inDays} ngay truoc';
+    if (diff.inDays == 0) return 'Hôm nay';
+    if (diff.inDays == 1) return 'Hôm qua';
+    if (diff.inDays < 7) return '${diff.inDays} ngày trước';
     return '${date.day}/${date.month}';
   }
 }

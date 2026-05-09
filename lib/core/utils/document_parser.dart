@@ -244,7 +244,7 @@ class DocumentParser {
         raw = raw.replaceAll(RegExp(r'\s*Đáp án\s*[:.]\s*[A-D].*', caseSensitive: false), '').trim();
         optTexts.add(raw);
       }
-      while (optTexts.length < 4) optTexts.add('');
+      while (optTexts.length < 4) { optTexts.add(''); }
 
       final answerMatch = answerRe.firstMatch(block);
       final correctLetter = answerMatch?.group(1)?.toUpperCase() ?? 'A';

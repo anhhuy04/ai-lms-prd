@@ -11,6 +11,7 @@ class ActivityOverviewCard extends StatelessWidget {
   final Color textColor;
   final IconData icon;
   final bool isFullWidth;
+  final VoidCallback? onTap;
 
   const ActivityOverviewCard({
     super.key,
@@ -21,6 +22,7 @@ class ActivityOverviewCard extends StatelessWidget {
     required this.textColor,
     required this.icon,
     this.isFullWidth = false,
+    this.onTap,
   });
 
   @override
@@ -32,7 +34,7 @@ class ActivityOverviewCard extends StatelessWidget {
       iconColor: iconColor,
       textColor: textColor,
       icon: icon,
-      // ActivityOverviewCard không có onTap
+      onTap: onTap,
     );
   }
 }

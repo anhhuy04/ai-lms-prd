@@ -41,6 +41,7 @@ class AiService {
   static const String providerGemini = ApiKeyService.providerGemini;
   static const String providerGroq = ApiKeyService.providerGroq;
   static const String providerOllama = ApiKeyService.providerOllama;
+  static const String providerOpenRouter = ApiKeyService.providerOpenRouter;
 
   /// Gemini base URL
   static const String _geminiBaseUrl =
@@ -219,6 +220,10 @@ class AiService {
     ).allMatches(text).length;
     if (mcqMarkers >= 4 && answerMarkers >= 1) return true;
 
+    // (C) Math expression: bắt 1-câu math drill kiểu "1+1=2" / "15 + 27 = ?".
+    final mathExpr = RegExp(r'\d+\s*[+\-×÷*/=]\s*\d+');
+    if (mathExpr.hasMatch(text)) return true;
+
     return false;
   }
 
@@ -253,6 +258,7 @@ class AiService {
     // Sub-mode khi useAsStyleTemplate=true. null + useAsStyleTemplate=true
     // → backward-compat: rơi về `styleOnly` (an toàn).
     TemplateMode? templateMode,
+    int? templateCount,
   }) {
     final difficultyLine = _buildDifficultyLine(difficulty);
     final typeRule = _buildTypeRule(questionType);
@@ -292,6 +298,7 @@ class AiService {
             topicLine: topicLine,
             documentContext: documentContext,
             formatExample: formatExample,
+            templateCount: templateCount,
           );
       }
       AppLogger.info(
@@ -325,7 +332,7 @@ $documentContext
             : 'Tạo $quantity câu hỏi từ nội dung tài liệu.')
         : 'Tạo $quantity câu hỏi về: "$topic".';
 
-    return '''${contextSection}$openingLine
+    return '''$contextSection$openingLine
 $difficultyLine
 
 ${hasDoc ? 'CHỐNG SAO CHÉP (ưu tiên cao nhất): TUYỆT ĐỐI KHÔNG sao chép, diễn đạt lại, hay đảo vị trí đáp án của bất kỳ câu nào trong tài liệu. Dùng tài liệu làm nguồn kiến thức — câu hỏi PHẢI MỚI hoàn toàn về ngôn từ và cấu trúc.\n\n' : ''}QUY TẮC (bắt buộc tuân thủ):
@@ -403,7 +410,8 @@ RÀNG BUỘC FORMAT:
 ]''';
 
       case 'math':
-        return '''VÍ DỤ OUTPUT (1 câu):
+        return '''GỢI Ý: Nếu câu có công thức toán phức tạp (phân số, mũ, căn, sigma, integral...), dùng LaTeX inline kẹp `\$...\$` (vd `\$x^2+y^2=r^2\$`, `\$\\frac{a}{b}\$`, `\$\\sqrt{x}\$`). Câu số học đơn giản (cộng/trừ/nhân/chia hai số) viết thẳng không cần LaTeX.
+VÍ DỤ OUTPUT (1 câu):
 [
   {"type":"math","override_text":"Tính: 15 + 27 = ?","choices":[{"id":0,"text":"40","isCorrect":false},{"id":1,"text":"42","isCorrect":true},{"id":2,"text":"44","isCorrect":false},{"id":3,"text":"38","isCorrect":false}],"tags":["tag1"]}
 ]''';
@@ -484,7 +492,11 @@ NHẮC LẠI: Trả về JSON ARRAY $quantity object. override_text = câu hỏi
     required String topicLine,
     required String documentContext,
     required String formatExample,
+    int? templateCount,
   }) {
+    final scarcityNote = (templateCount != null && templateCount < quantity / 2)
+        ? '\n\nLƯU Ý: Bạn có $templateCount câu mẫu nhưng cần tạo $quantity câu — hãy biến tấu MỖI mẫu thành nhiều biến thể KHÁC NHAU rõ rệt về số liệu/dữ kiện cụ thể, KHÔNG lặp lại bộ số gần giống nhau, đa dạng phạm vi giá trị (vừa nhỏ, vừa lớn, vừa thập phân nếu phù hợp).'
+        : '';
     return '''NHIỆM VỤ: Bạn nhận các câu hỏi MẪU dưới đây. Tạo $quantity câu hỏi MỚI giữ NGUYÊN CẤU TRÚC nhưng ĐỔI GIÁ TRỊ CỤ THỂ rồi TÍNH LẠI 4 LỰA CHỌN.
 
 QUY TRÌNH BẮT BUỘC (làm đúng thứ tự cho TỪNG câu):
@@ -505,7 +517,7 @@ QUY TẮC CỨNG:
 3. PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OPTIONS — không bao giờ copy options từ mẫu.
 4. Đúng 1 isCorrect=true. Distractor phải khác đáp án đúng và khác nhau từng đôi một.
 5. Phân bố đáp án đúng đều id 0,1,2,3 qua $quantity câu.
-6. Output JSON ARRAY thuần. KHÔNG markdown, KHÔNG giải thích.
+6. Output JSON ARRAY thuần. KHÔNG markdown, KHÔNG giải thích.$scarcityNote
 
 --- VÍ DỤ 1 (Toán cộng) ---
 Mẫu: "Tính 12 + 8 = ?"  Options: 18/20/22/24
@@ -612,6 +624,7 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
     String? documentContext,
     bool useAsStyleTemplate = false,
     TemplateMode? templateMode,
+    int? templateCount,
   }) async {
     final prompt = getGenerateQuestionsPrompt(
       topic: topic,
@@ -621,6 +634,7 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
       documentContext: documentContext,
       useAsStyleTemplate: useAsStyleTemplate,
       templateMode: templateMode,
+      templateCount: templateCount,
     );
     return await callActiveAi(prompt);
   }
@@ -658,6 +672,11 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
       }
       throw Exception('Failed after $maxRetries retries');
     }
+
+    if (provider == providerOpenRouter) {
+      return await callOpenRouterChat(prompt, model: model);
+    }
+
     // Default: Gemini
     return await callGeminiApi(prompt, model: model, maxRetries: maxRetries);
   }
@@ -766,7 +785,7 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
       final dio = Dio();
       dio.options = BaseOptions(
         connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 120),
         headers: {
           'Content-Type': 'application/json',
           'X-goog-api-key': geminiApiKey,
@@ -930,7 +949,7 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
       final dio = Dio();
       dio.options = BaseOptions(
         connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 90),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $groqApiKey',
@@ -986,6 +1005,77 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
     }
   }
 
+  /// Call OpenRouter Chat Completions (OpenAI-compatible)
+  static Future<String> callOpenRouterChat(String prompt, {String? model}) async {
+    try {
+      final apiKey = await ApiKeyService.getOpenRouterApiKey();
+      if (apiKey.isEmpty) {
+        throw Exception(
+          'OpenRouter API key chưa được cấu hình. Vui lòng thêm API key trong Settings.',
+        );
+      }
+
+      final usedModel = (model != null && model.isNotEmpty)
+          ? model
+          : await ApiKeyService.getActiveModelFor(providerOpenRouter);
+
+      final dio = Dio();
+      dio.options = BaseOptions(
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 180),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $apiKey',
+          'HTTP-Referer': 'https://ai-lms.app',
+        },
+      );
+
+      final payload = {
+        'model': usedModel,
+        'temperature': 0.1,
+        'max_tokens': _openRouterMaxTokensFromPrompt(prompt),
+        'messages': [
+          {'role': 'user', 'content': prompt},
+        ],
+      };
+
+      AppLogger.info('🤖 [AI Service] Calling OpenRouter... model=$usedModel');
+      final response = await dio.post(
+        'https://openrouter.ai/api/v1/chat/completions',
+        data: payload,
+      );
+
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw Exception('OpenRouter API response không hợp lệ');
+      }
+      final choices = data['choices'] as List<dynamic>?;
+      final first = (choices != null && choices.isNotEmpty)
+          ? choices.first as Map<String, dynamic>
+          : null;
+      final message = first?['message'] as Map<String, dynamic>?;
+      final content = message?['content'] as String?;
+      if (content == null || content.trim().isEmpty) {
+        throw Exception('OpenRouter API response content rỗng');
+      }
+      return content;
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw Exception('Kết nối đến OpenRouter quá lâu. Vui lòng thử lại.');
+      }
+      if (e.type == DioExceptionType.connectionError) {
+        throw Exception('Không thể kết nối đến OpenRouter. Kiểm tra mạng.');
+      }
+      if (e.response != null) {
+        final status = e.response!.statusCode;
+        final body = e.response!.data;
+        throw Exception('Lỗi $status từ OpenRouter: ${body?.toString() ?? ''}');
+      }
+      throw Exception('Lỗi khi gọi OpenRouter: ${e.message}');
+    }
+  }
+
   static int _groqMaxTokensFromPrompt(String prompt) {
     final m = RegExp(
       r'tạo\s+(\d+)\s+câu\s+hỏi',
@@ -998,6 +1088,15 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
     if (estimated < 800) return 800;
     if (estimated > 6000) return 6000;
     return estimated;
+  }
+
+  /// Max tokens cho OpenRouter — cộng thêm 6000 thinking budget cho reasoning models
+  /// (DeepSeek-R1, QwQ, v.v. dùng `<think>` block trước JSON nên cần nhiều token hơn)
+  static int _openRouterMaxTokensFromPrompt(String prompt) {
+    final base = _groqMaxTokensFromPrompt(prompt);
+    // Thinking overhead ~ 4000-6000 tokens; cap tổng ở 16000 để đủ cho mọi model
+    final withThinking = base + 6000;
+    return withThinking.clamp(4000, 16000);
   }
 
   /// Extract retry delay từ error response (seconds)

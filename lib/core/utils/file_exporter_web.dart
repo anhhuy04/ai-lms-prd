@@ -1,4 +1,6 @@
-// ignore: avoid_web_libraries_in_flutter
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
+// dart:html sẽ được migrate sang package:web khi có thời gian test trên
+// web build. Hiện tại giữ nguyên vì migration cần kiểm thử thủ công.
 import 'dart:html' as html;
 import 'dart:typed_data';
 

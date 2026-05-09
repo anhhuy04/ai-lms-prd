@@ -804,3 +804,333 @@ ai_service.dart — getGenerateQuestionsPrompt():
 4. **GAP-3**: Toggle file role sau generate → click Tạo lại → dùng role mới, không phải role cũ
 5. **GAP-5**: File Excel Mẫu + Word KT → context xuất template schema trước, KT text sau
 
+---
+
+## PENDING — Submit Atomic RPC + pg_cron Auto-Finalize (2026-05-07)
+
+> Note để hôm khác bắt tay. Cả 2 task đều CHƯA triển khai. Đã có rollback client-side (`_rollbackSubmit` trong `assignment_datasource.dart`) + auto-submit watchdog client-side (workspace screen) đỡ tạm.
+
+### Bối cảnh đã làm xong (KHÔNG đụng lại)
+- BUG-1: `getDistributionDetail` filter variant theo `session_id` (fallback latest) — fixed.
+- BUG-2: `submitAssignment` lookup submission theo `session_id` — fixed (mỗi attempt 1 row).
+- BUG-3: bỏ dead-path hardcode `attempt:1` trong `getOrCreateSubmission` — fixed.
+- Past-due redo block: migration_22 + helper `canRedoNow`/`whyCannotRedo` + UI `_SubmittedFooter` disable nút "Làm lại" — fixed.
+- Past-due workspace: `WorkspaceState.allowLate` + `isPastDueClosed` getter + watchdog 5s + banner đỏ + disable nút "Nộp bài" — fixed.
+- Rollback client-side: `submitAssignment` wrapper try-catch gọi `_rollbackSubmit(sessionId)` cleanup partial state — fixed.
+
+### Mục 1 — RPC `submit_assignment_atomic` (CHƯA LÀM)
+
+**Vấn đề:** rollback client-side còn khe hở (mạng đứt giữa rollback). Cần atomic transaction server-side.
+
+**2 phương án — user cần chọn khi resume:**
+
+| Phương án | Mô tả | Ưu | Nhược |
+|---|---|---|---|
+| **(A) Lai** ⭐ recommended | Client vẫn grade MCQ (giữ logic Dart `_gradeObjectiveQuestion`). RPC chỉ DB-write atomic | Rủi ro thấp, không đụng grading logic | Vẫn cần payload format ổn định |
+| (B) Pure server | Port toàn bộ grading sang PL/pgSQL | Chuẩn enterprise | Phải port + test format mới `selected_choice_ids` vs cũ `selected_choices` + 3 cấp fallback `correct_choices` |
+
+**Phạm vi đụng (phương án A):**
+- New: `db/migration_23_submit_assignment_atomic.sql` — RPC `submit_assignment_atomic(p_session_id uuid, p_payload jsonb, p_ai_enabled bool)`
+- Edit: `lib/data/datasources/assignment_datasource.dart` `_doSubmitAssignment` thay 6 bước inline bằng 1 RPC call
+- Có thể bỏ hoặc thu hẹp `_rollbackSubmit` (RPC tự rollback)
+- Test: `test/integration/submission_flow_test.dart` đã có — verify không regression
+
+**Payload format đề xuất (A):**
+```json
+{
+  "session_id": "uuid",
+  "answers": [
+    {
+      "assignment_question_id": "uuid",
+      "answer": {"selected_choice_ids": [0]},
+      "final_score": 1.0,
+      "needs_ai_grading": false,
+      "needs_ai_feedback": true
+    }
+  ],
+  "total_mcq_score": 7.5,
+  "submit_status": "ai_processing"
+}
+```
+
+### Mục 2 — pg_cron auto-finalize quá hạn (CHƯA LÀM)
+
+**Vấn đề:** student không mở app sau due_at + `!allow_late` → `work_sessions` cứ `in_progress` mãi → GV bị chặn chấm/publish.
+
+**Pre-condition:** Extension `pg_cron` **CHƯA enable** trên project Supabase này (verified 2026-05-07: `SELECT extname FROM pg_extension WHERE extname='pg_cron'` → empty).
+
+**User cần quyết khi resume:**
+1. Enable pg_cron: Claude chạy `CREATE EXTENSION pg_cron` qua MCP, HOẶC user tự bật từ Supabase Dashboard → Database → Extensions?
+2. Cron behavior: chỉ flip `in_progress → submitted` (đơn giản, an toàn) HOẶC auto-grade MCQ luôn (giống flow submit thường)?
+
+**Logic đề xuất:**
+```sql
+-- Mỗi 5 phút
+SELECT cron.schedule(
+  'auto_finalize_overdue_sessions',
+  '*/5 * * * *',
+  $$ SELECT public.auto_finalize_overdue_sessions(); $$
+);
+```
+
+**RPC `auto_finalize_overdue_sessions()` SECURITY DEFINER (cần vì cron không có `auth.uid()`):**
+```sql
+-- Pseudocode
+FOR r IN
+  SELECT ws.id, ws.student_id, ws.assignment_distribution_id, ws.started_at
+  FROM work_sessions ws
+  JOIN assignment_distributions ad ON ad.id = ws.assignment_distribution_id
+  WHERE ws.status = 'in_progress'
+    AND ad.due_at IS NOT NULL
+    AND ad.due_at < now()
+    AND COALESCE(ad.allow_late, true) = false
+LOOP
+  -- KHÔNG gọi finalize_work_session (auth check) — inline logic.
+  UPDATE work_sessions SET
+    status = 'submitted',
+    submitted_at = LEAST(now(), ad.due_at),
+    time_spent_seconds = ...,
+    updated_at = now()
+  WHERE id = r.id;
+END LOOP;
+```
+
+**Cảnh báo:** Auto-flip `submitted` không có `submission_answers` cho câu chưa trả lời → submission có `total_score=0`. Nếu chọn nhánh "auto-grade luôn", phải simulate flow submit (bao gồm bước insert empty submission_answers cho câu blank, INSERT submissions, INSERT ai_queue analysis).
+
+**Phạm vi đụng:**
+- New: `db/migration_24_pg_cron_auto_finalize.sql`
+  - `CREATE EXTENSION IF NOT EXISTS pg_cron;`
+  - RPC `auto_finalize_overdue_sessions()`
+  - `cron.schedule(...)`
+- Optional: `db/migration_24_undo.sql` để `cron.unschedule()` rollback
+
+### 3 câu hỏi cần user trả lời khi resume
+1. **Mục 1**: chọn (A) lai hay (B) pure server?
+2. **Mục 2.a**: Claude tự `CREATE EXTENSION pg_cron`, hay user tự bật từ dashboard?
+3. **Mục 2.b**: cron chỉ flip status, hay auto-grade MCQ luôn?
+
+Đủ 3 câu trả lời là có thể bắt đầu thực thi không cần discuss thêm.
+
+---
+
+## PENDING — "Học sinh cần chú ý" / AI Recommendations cho Giáo viên (2026-05-07)
+
+> Plan tách riêng cho phần `InterventionBadge` + `TeacherRecommendationsScreen` + pipeline sinh recommendation.
+> CHƯA bắt đầu code. Cần user xác nhận scope trước khi thực thi.
+
+### Bối cảnh đã verify (qua đọc code, chưa chạy DB)
+
+**Files involved:**
+- `lib/presentation/views/recommendation/widgets/intervention_badge.dart` — pill đỏ "X học sinh cần chú ý" trên teacher home
+- `lib/presentation/views/recommendation/teacher/teacher_recommendations_screen.dart` — screen full list (UI scaffold, text mất dấu)
+- `lib/presentation/views/recommendation/widgets/recommendation_card.dart` — card chung cho cả teacher + student (text mất dấu cho type badges)
+- `lib/presentation/providers/recommendation_providers.dart` — `interventionCountProvider`, `teacherRecommendationNotifierProvider`, `top3RecommendationsProvider`
+- `lib/data/datasources/recommendation_datasource.dart` — query bảng `ai_recommendations`
+- `supabase/functions/process-ai-queue/index.ts` `handleAnalysis()` line 343-434 — generator hiện tại
+- Bảng `ai_recommendations` (Supabase): `student_id`, `teacher_id`, `class_id`, `type`, `priority` (1-5), `title`, `description`, `resources` (jsonb), `dismissed`, `created_at`
+
+**Luồng hiện tại:**
+```
+HS nộp bài → ai_queue (analysis) → Edge fn handleAnalysis()
+  → query student_skill_mastery WHERE mastery_level < 0.6 LIMIT 5
+  → INSERT ai_recommendations với CHỈ student_id (KHÔNG có teacher_id)
+  → priority = round((1 - mastery) * 5) ⇒ 1=khẩn cấp, 5=thấp
+
+Phía HS: top3RecommendationsProvider lấy 3 record student_id=me ⇒ HOẠT ĐỘNG
+Phía GV: interventionCountProvider count WHERE teacher_id=me AND priority≤1 ⇒ luôn 0 (vì edge fn không bao giờ insert teacher_id)
+```
+
+### 4 Vấn đề chính cần fix
+
+| ID | Vấn đề | Severity |
+|---|---|---|
+| REC-1 | Edge function không sinh `teacher_id` row → badge GV luôn ẩn (count=0) trên app thật. Chỉ thấy data từ seed `db/seed_05_recommendations_test_data.sql` | P0 — feature dead |
+| REC-2 | UI `teacher_recommendations_screen.dart` toàn bộ text mất dấu ("Goi y hoc tap", "Khan cap", "Tat ca", "An goi y", "Loi tai du lieu", "Thu lai", "Khong co goi y nao", "Hom nay", "Hom qua"…). Cũng có ở `recommendation_card.dart` (`_buildTypeBadge` 9 nhãn) và `intervention_badge.dart` đã đúng dấu | P1 — UX |
+| REC-3 | UI không JOIN `profiles` để hiển thị tên học sinh → GV không biết recommendation thuộc HS nào. Card chỉ ghi "Ôn tập: OBJ-1234 / mastery 30%" | P1 — UX |
+| REC-4 | `_selectedClassId` declared nhưng không có dropdown filter lớp. Không có CTA hành động (giao bài bổ sung, xem chi tiết HS). Không group theo HS | P2 — feature gap |
+
+### Câu hỏi cần user trả lời trước khi code
+
+1. **Scope generator:**
+   - (a) Edge fn hiện tại insert thêm `teacher_id` cho mỗi row HS yếu (1 HS yếu 5 LO → 5 row, mỗi row teacher_id của lớp HS đó), HOẶC
+   - (b) Tạo edge fn riêng `aggregate-teacher-interventions` chạy daily/cron, gom HS yếu cùng 1 lớp thành 1 row teacher_id duy nhất với resources liệt kê HS, HOẶC
+   - (c) Tạo SQL view `v_teacher_interventions` aggregate trực tiếp từ `student_skill_mastery` + `class_members`, datasource query view này thay vì query `ai_recommendations` cho phía GV.
+   - **Đề xuất:** (c) — không trùng lặp data, luôn live theo mastery hiện tại, không cần thêm cron, dismiss vẫn dùng bảng cũ (record-level). Giảm nhất phụ thuộc edge function.
+
+2. **Hiển thị tên HS trong card:**
+   - Thêm field `student_name` vào response (datasource JOIN profiles).
+   - Card teacher: thêm header "🎓 [Tên HS] · [Lớp]" trên title.
+   - Confirm OK?
+
+3. **Filter lớp:**
+   - Thêm dropdown ở đầu `teacher_recommendations_screen` (load từ `teacherDashboardClassesProvider`), filter theo `class_id`. Confirm OK?
+
+4. **Group theo HS:**
+   - Card grouping: 1 HS = 1 expandable card, các LO yếu là sub-list. Hay vẫn để mỗi LO là 1 card riêng?
+   - **Đề xuất:** Group — đỡ noise khi 1 HS yếu 5 LO.
+
+5. **Push notification thật:**
+   - Có cần thêm hay vẫn chỉ là badge in-app?
+   - **Đề xuất:** Skip Phase này, defer sang Tier 3.
+
+### Plan thực thi (đề xuất 3 Tier)
+
+#### TIER 1 — UI fix nhanh (Low effort, high visibility)
+
+Mục tiêu: text có dấu, hiển thị tên HS, filter lớp, không đụng backend.
+
+**Thay đổi:**
+
+```
+lib/presentation/views/recommendation/teacher/teacher_recommendations_screen.dart
+  - "Goi y hoc tap" → "Gợi ý học tập"
+  - "Tat ca" → "Tất cả", "Khan cap" → "Khẩn cấp"
+  - "Can chu y" → "Cần chú ý", "Goi y khac" → "Gợi ý khác"
+  - "Khong co goi y nao" → "Không có gợi ý nào"
+  - "Cac goi y se xuat hien khi co hoc sinh\ncan ho tro them." → "Các gợi ý sẽ xuất hiện khi có học sinh\ncần hỗ trợ thêm."
+  - "Loi tai du lieu" → "Lỗi tải dữ liệu"
+  - "Thu lai" → "Thử lại"
+  - Thêm DropdownButton<String?> cho _selectedClassId, watch teacherDashboardClassesProvider
+  - Group urgent recommendations theo student_id: Map<String, List<Recommendation>> grouped
+
+lib/presentation/views/recommendation/widgets/recommendation_card.dart
+  - _buildTypeBadge labels:
+      "So sanh" → "So sánh"
+      "Ky nang yeu" → "Kỹ năng yếu"
+      "Can thiep" → "Can thiệp"
+      "Nop muon" → "Nộp muộn"
+      "Canh bao tham gia" → "Cảnh báo tham gia"
+      "Rui ro" → "Rủi ro"
+      "Goi y bai tap" → "Gợi ý bài tập"
+      "Meo hoc tap" → "Mẹo học tập"
+      "Co hoi cai thien" → "Cơ hội cải thiện"
+  - "An goi y" tooltip → "Ẩn gợi ý"
+  - "Khan cap" → "Khẩn cấp", "Cao" giữ, "Thap" → "Thấp"
+  - "On tap" → "Ôn tập", "Tai lieu" → "Tài liệu"
+  - _formatDate: "Hom nay" → "Hôm nay", "Hom qua" → "Hôm qua", "X ngay truoc" → "X ngày trước"
+  - Thêm prop optional `studentName` + `className` → render header phía trên title nếu có
+  - Đã xóa "Đã xóa gợi ý" snackbar text nếu cần đồng bộ
+
+lib/data/datasources/recommendation_datasource.dart
+  - getTeacherRecommendations(): select bổ sung student profile:
+      .select('*, student:profiles!student_id(id, full_name, avatar_url), class:classes!class_id(id, name)')
+  - _mapRowToRecommendation: parse thêm studentName, className từ row
+  - (Cần kiểm tra schema FK qua Supabase MCP trước khi thay select string)
+
+lib/domain/entities/recommendation/recommendation.dart
+  - Thêm field optional: String? studentName, String? className (Freezed)
+  - dart run build_runner build -d
+```
+
+**Verify:**
+- `flutter analyze` 0 error
+- Mở teacher recommendations screen → text đầy đủ dấu
+- Card hiện tên HS (sau khi T2 enable data)
+
+#### TIER 2 — Backend pipeline (Medium effort, fix REC-1)
+
+Mục tiêu: GV thực sự thấy data sinh tự động, không cần seed.
+
+**Phương án đề xuất: SQL view aggregate**
+
+```
+db/migration_25_teacher_interventions_view.sql
+  CREATE OR REPLACE VIEW v_teacher_interventions AS
+  SELECT
+    gen_random_uuid()::text AS virtual_id,
+    cm_t.user_id              AS teacher_id,
+    ssm.student_id            AS student_id,
+    cls.id                    AS class_id,
+    cls.name                  AS class_name,
+    p.full_name               AS student_name,
+    p.avatar_url              AS student_avatar,
+    'intervention'            AS type,
+    GREATEST(1, LEAST(5, ROUND((1 - AVG(ssm.mastery_level)) * 5))) AS priority,
+    'Cần can thiệp: ' || p.full_name AS title,
+    'HS yếu ' || COUNT(*) || ' kỹ năng (mastery TB ' ||
+      ROUND(AVG(ssm.mastery_level) * 100) || '%)' AS description,
+    jsonb_build_object(
+      'objective_ids', array_agg(ssm.objective_id),
+      'mastery_avg', AVG(ssm.mastery_level),
+      'weak_count', COUNT(*)
+    )                         AS resources,
+    false                     AS dismissed,
+    NOW()                     AS created_at
+  FROM student_skill_mastery ssm
+  JOIN class_members cm_s ON cm_s.user_id = ssm.student_id AND cm_s.role = 'student'
+  JOIN classes cls         ON cls.id = cm_s.class_id
+  JOIN class_members cm_t  ON cm_t.class_id = cls.id AND cm_t.role = 'teacher'
+  JOIN profiles p          ON p.id = ssm.student_id
+  WHERE ssm.mastery_level < 0.6
+  GROUP BY cm_t.user_id, ssm.student_id, cls.id, cls.name, p.full_name, p.avatar_url
+  HAVING COUNT(*) >= 1;
+
+  -- RLS view: chỉ teacher đó đọc được row của mình
+  CREATE POLICY "teacher_view_own_interventions" ON v_teacher_interventions
+    FOR SELECT USING (teacher_id = (select auth.uid()));
+```
+
+**Lưu ý:**
+- View không tự sinh ID stable (mỗi query 1 UUID khác) → KHÔNG dismiss được. Cần workflow dismiss riêng:
+  - Option: bảng `teacher_intervention_dismissals(teacher_id, student_id, dismissed_at)`. Datasource LEFT JOIN để filter.
+  - Option khác: bỏ chức năng dismiss cho teacher view (vì data tự refresh khi mastery thay đổi).
+  - **Đề xuất:** dismiss = "snooze 7 ngày" → bảng `teacher_intervention_snoozes(teacher_id, student_id, until_at)`. View filter ra.
+
+**Files đụng:**
+```
+db/migration_25_teacher_interventions_view.sql        (NEW)
+db/migration_25_teacher_intervention_snoozes.sql      (NEW, optional)
+lib/data/datasources/recommendation_datasource.dart   (getTeacherRecommendations đổi sang query view)
+lib/presentation/providers/recommendation_providers.dart (interventionCountProvider count từ view)
+docs/note sql.txt                                     (sync schema)
+memory-bank/README_SUPABASE.md                        (note view + table mới)
+```
+
+**Verify:**
+- Apply migration qua Supabase MCP
+- Test với account GV K17A1 → badge hiện số HS yếu thật
+- Dismiss → row biến mất 7 ngày
+- Mastery tăng > 60% → row biến mất ngay (live)
+
+#### TIER 3 — Tương lai (Defer)
+
+- Push notification realtime (FCM hoặc Supabase Realtime subscribe `student_skill_mastery` → trigger snackbar/notification)
+- CTA "Giao bài bổ sung" trong card → push sang `teacher_create_assignment` với `objective_ids` từ resources prefilled
+- Drilldown card → mở screen chi tiết HS với radar chart kỹ năng yếu
+- "Liên hệ phụ huynh" button (cần feature parent contact hiện chưa có)
+
+### Files quick reference
+
+```
+UI:
+  lib/presentation/views/recommendation/widgets/intervention_badge.dart            (đã đúng dấu, không đụng)
+  lib/presentation/views/recommendation/widgets/recommendation_card.dart           (T1 — sửa text + thêm studentName/className)
+  lib/presentation/views/recommendation/teacher/teacher_recommendations_screen.dart (T1 — sửa text + dropdown lớp + group)
+  lib/presentation/views/recommendation/student/student_recommendations_tab.dart   (T1 — kiểm tra text)
+
+Data:
+  lib/data/datasources/recommendation_datasource.dart                              (T1 — JOIN profiles. T2 — query view)
+  lib/domain/entities/recommendation/recommendation.dart                           (T1 — thêm studentName, className. build_runner)
+  lib/presentation/providers/recommendation_providers.dart                         (T2 — interventionCount đổi nguồn)
+
+Backend:
+  supabase/functions/process-ai-queue/index.ts                                     (KHÔNG đụng — vẫn sinh student_id rows cho phía HS)
+  db/migration_25_teacher_interventions_view.sql                                   (T2 — NEW)
+  db/migration_25_teacher_intervention_snoozes.sql                                 (T2 — NEW, optional dismiss)
+
+Docs:
+  docs/note sql.txt                                                                (T2 — sync)
+  memory-bank/README_SUPABASE.md                                                   (T2 — sync)
+  memory-bank/activeContext.md, progress.md                                        (post-fix update)
+```
+
+### 5 câu hỏi cần user trả lời khi resume
+
+1. **Scope:** chọn (a) edge fn insert teacher_id, (b) cron aggregate, hay (c) SQL view? Đề xuất (c).
+2. **Group cards theo HS** (1 HS = 1 card với sub-list LO yếu) hay giữ 1 card / 1 LO?
+3. **Dismiss workflow** cho teacher view: snooze 7 ngày, dismiss vĩnh viễn, hay bỏ dismiss?
+4. **Tier order:** làm T1 (UI) trước rồi T2 (backend), hay T2 trước (vì không có data thật thì test T1 không ý nghĩa)?
+5. **CTA "Giao bài bổ sung"**: include trong T1 hay defer T3?
+
+Đủ 5 câu trả lời là có thể bắt đầu thực thi không cần discuss thêm.
+

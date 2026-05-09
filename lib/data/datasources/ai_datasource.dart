@@ -17,6 +17,7 @@ class AiDataSource {
     String? documentContext,
     bool useAsStyleTemplate = false,
     TemplateMode? templateMode,
+    int? templateCount,
   }) async {
     try {
       final response = await AiService.generateQuestions(
@@ -27,6 +28,7 @@ class AiDataSource {
         documentContext: documentContext,
         useAsStyleTemplate: useAsStyleTemplate,
         templateMode: templateMode,
+        templateCount: templateCount,
       );
       return response;
     } catch (e) {

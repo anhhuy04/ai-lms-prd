@@ -1114,6 +1114,11 @@ class _TeacherDistributeAssignmentScreenState
                         label: Text('Mới nhất', style: TextStyle(fontSize: 11)),
                       ),
                       ButtonSegment(
+                        value: 'first',
+                        icon: Icon(Icons.looks_one_outlined, size: 15),
+                        label: Text('Đầu tiên', style: TextStyle(fontSize: 11)),
+                      ),
+                      ButtonSegment(
                         value: 'max',
                         icon: Icon(Icons.trending_up, size: 15),
                         label: Text('Cao nhất', style: TextStyle(fontSize: 11)),
@@ -1481,6 +1486,7 @@ class _TeacherDistributeAssignmentScreenState
   String _ruleLabel(String rule) => switch (rule) {
         'max' => 'Cao nhất',
         'average' => 'Trung bình',
+        'first' => 'Đầu tiên',
         _ => 'Mới nhất',
       };
 

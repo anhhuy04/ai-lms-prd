@@ -430,6 +430,89 @@ class SubmissionDataSource {
     return submission;
   }
 
+  /// Lấy submission_answers của một session cụ thể (dùng cho review theo lần).
+  Future<List<Map<String, dynamic>>> getSubmissionAnswersBySessionId(
+    String sessionId,
+  ) async {
+    final res = await _client
+        .from('submission_answers')
+        .select('''
+          *,
+          assignment_questions(
+            id,
+            question_id(type),
+            points,
+            custom_content
+          )
+        ''')
+        .eq('session_id', sessionId)
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  /// Lấy detail review của 1 work_session cụ thể (dùng cho trang Xem lại bài làm
+  /// khi học sinh chọn 1 lần làm cụ thể trong lịch sử).
+  ///
+  /// Trả về structure tương đương [getStudentSubmissionDetail] nhưng dữ liệu
+  /// thuộc session truyền vào, không phải session mới nhất:
+  ///   - các field của bản ghi `submissions` (total_score, ai_graded, …)
+  ///   - `assignment_distributions` (lồng `assignments`, `classes`)
+  ///   - `workSessions` (id, status, submitted_at, time_spent_seconds, attempt)
+  ///   - `submission_answers`
+  Future<Map<String, dynamic>?> getSessionReviewDetail(String sessionId) async {
+    final session = await _client
+        .from('work_sessions')
+        .select('''
+          id, status, started_at, submitted_at, time_spent_seconds, attempt,
+          assignment_distribution_id,
+          submissions(*),
+          assignment_distributions(
+            *,
+            assignments(*),
+            classes(name)
+          )
+        ''')
+        .eq('id', sessionId)
+        .maybeSingle();
+    if (session == null) return null;
+
+    final answersRes = await _client
+        .from('submission_answers')
+        .select('''
+          *,
+          assignment_questions(
+            id,
+            question_id(type),
+            points,
+            custom_content
+          )
+        ''')
+        .eq('session_id', sessionId)
+        .order('created_at', ascending: true);
+
+    // Submission row (1:1 với session) — flatten để match shape cũ
+    final subsRaw = session['submissions'];
+    final submissionRow = (subsRaw is List && subsRaw.isNotEmpty)
+        ? Map<String, dynamic>.from(subsRaw.first as Map)
+        : (subsRaw is Map
+            ? Map<String, dynamic>.from(subsRaw)
+            : <String, dynamic>{});
+
+    return <String, dynamic>{
+      ...submissionRow,
+      'assignment_distributions': session['assignment_distributions'],
+      'workSessions': <String, dynamic>{
+        'id': session['id'],
+        'status': session['status'],
+        'started_at': session['started_at'],
+        'submitted_at': session['submitted_at'],
+        'time_spent_seconds': session['time_spent_seconds'],
+        'attempt': session['attempt'],
+      },
+      'submission_answers': answersRes,
+    };
+  }
+
   /// Cập nhật điểm và phản hồi (teacher grading).
   Future<void> updateSubmissionGrade(
     String submissionId, {

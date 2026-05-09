@@ -91,6 +91,27 @@ Future<Map<String, dynamic>?> studentSubmissionReview(
   return ds.getStudentSubmissionDetail(distributionId, studentId);
 }
 
+/// Answers theo sessionId — dùng khi học sinh xem lại lần làm cụ thể.
+/// Non-code-gen provider để tránh chạy lại build_runner.
+final submissionAnswersBySessionProvider =
+    FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>(
+  (ref, sessionId) async {
+    final ds = ref.watch(submissionDataSourceProviderProvider);
+    return ds.getSubmissionAnswersBySessionId(sessionId);
+  },
+);
+
+/// Review detail theo sessionId — trả về cùng shape với [studentSubmissionReview]
+/// nhưng metadata + answers thuộc session được truyền vào, không phải session
+/// mới nhất. Dùng khi học sinh chọn 1 lần làm cụ thể từ lịch sử attempts.
+final submissionReviewBySessionProvider =
+    FutureProvider.autoDispose.family<Map<String, dynamic>?, String>(
+  (ref, sessionId) async {
+    final ds = ref.watch(submissionDataSourceProviderProvider);
+    return ds.getSessionReviewDetail(sessionId);
+  },
+);
+
 /// Lịch sử nộp bài của học sinh (Tất cả các bài tập)
 @riverpod
 Future<List<Map<String, dynamic>>> studentSubmissionHistory(Ref ref) async {

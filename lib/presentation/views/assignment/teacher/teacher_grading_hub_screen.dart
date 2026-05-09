@@ -27,7 +27,11 @@ enum GradingHubFilter {
 /// - Cards: white, borderRadius 18, subtle shadow
 /// - AppBar: white, elevation 0
 class TeacherGradingHubScreen extends ConsumerStatefulWidget {
-  const TeacherGradingHubScreen({super.key});
+  final GradingHubFilter initialFilter;
+  const TeacherGradingHubScreen({
+    super.key,
+    this.initialFilter = GradingHubFilter.all,
+  });
 
   @override
   ConsumerState<TeacherGradingHubScreen> createState() =>
@@ -41,6 +45,7 @@ class _TeacherGradingHubScreenState
   @override
   void initState() {
     super.initState();
+    _currentFilter = widget.initialFilter;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(teacherAssignmentHubNotifierProvider.notifier).refresh();
     });

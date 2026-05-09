@@ -31,6 +31,7 @@ class AiRepositoryImpl implements AiRepository {
     bool useAsStyleTemplate = false,
     TemplateMode? templateMode,
     List<Map<String, dynamic>>? templateQuestions,
+    int? templateCount,
     void Function(String rawJson)? onRawResponse,
   }) async {
     // Resolve sub-mode: caller cũ chỉ truyền boolean → coi là styleOnly (an toàn).
@@ -55,6 +56,7 @@ class AiRepositoryImpl implements AiRepository {
           documentContext: documentContext,
           useAsStyleTemplate: useAsStyleTemplate,
           templateMode: resolvedTemplateMode,
+          templateCount: templateCount,
         );
 
         try {
@@ -72,6 +74,7 @@ class AiRepositoryImpl implements AiRepository {
           useAsStyleTemplate: useAsStyleTemplate,
           templateMode: resolvedTemplateMode,
           templateQuestions: templateQuestions,
+          templateCount: templateCount,
           onRawResponse: onRawResponse,
         );
         AppLogger.info('✅ [AI REPO] Generated ${questions.length} questions');
@@ -95,6 +98,7 @@ class AiRepositoryImpl implements AiRepository {
           documentContext: documentContext,
           useAsStyleTemplate: useAsStyleTemplate,
           templateMode: resolvedTemplateMode,
+          templateCount: templateCount,
         );
 
         try {
@@ -125,6 +129,7 @@ class AiRepositoryImpl implements AiRepository {
             documentContext: documentContext,
             useAsStyleTemplate: useAsStyleTemplate,
             templateMode: resolvedTemplateMode,
+            templateCount: templateCount,
           );
           try {
             final rawJson = retryResponse is String
@@ -156,6 +161,7 @@ class AiRepositoryImpl implements AiRepository {
         useAsStyleTemplate: useAsStyleTemplate,
         templateMode: resolvedTemplateMode,
         templateQuestions: templateQuestions,
+        templateCount: templateCount,
         onRawResponse: onRawResponse,
       );
 
@@ -622,6 +628,9 @@ class AiRepositoryImpl implements AiRepository {
     String s = jsonString.trim();
     if (s.isEmpty) return null;
 
+    // 0) Strip <think>...</think> blocks emitted by reasoning models (DeepSeek-R1, QwQ, etc.)
+    s = s.replaceAll(RegExp(r'<think>[\s\S]*?</think>', caseSensitive: false), '').trim();
+
     // 1) Remove common Markdown code fences (```json ... ``` or ``` ... ```)
     // Keep best-effort: if fences exist, extract inner content.
     final fenceMatch = RegExp(r'```(?:json)?\s*([\s\S]*?)\s*```', caseSensitive: false)
@@ -705,6 +714,7 @@ class AiRepositoryImpl implements AiRepository {
     required bool useAsStyleTemplate,
     required TemplateMode? templateMode,
     required List<Map<String, dynamic>>? templateQuestions,
+    required int? templateCount,
     required void Function(String rawJson)? onRawResponse,
   }) async {
     // Skip nếu không phải template flow
@@ -766,6 +776,7 @@ class AiRepositoryImpl implements AiRepository {
           documentContext: documentContext,
           useAsStyleTemplate: useAsStyleTemplate,
           templateMode: templateMode,
+          templateCount: templateCount,
         );
         try {
           final rawJson = retryResponse is String

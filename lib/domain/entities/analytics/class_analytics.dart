@@ -14,6 +14,9 @@ class ClassAnalytics with _$ClassAnalytics {
     @Default(0.0) @JsonKey(name: 'class_average') double classAverage,
     @Default(0) @JsonKey(name: 'total_students') int totalStudents,
     @Default(0) @JsonKey(name: 'total_submissions') int totalSubmissions,
+    /// Số học sinh đã nộp ÍT NHẤT 1 bài tập trong lớp (DISTINCT, dedupe retake).
+    /// Khác `totalSubmissions`: cái sau là số LƯỢT (student × distribution).
+    @Default(0) @JsonKey(name: 'participating_students') int participatingStudents,
     @Default(0.0) @JsonKey(name: 'submission_rate') double submissionRate,
     @Default(0.0) @JsonKey(name: 'late_submission_rate') double lateSubmissionRate,
     @Default(0) @JsonKey(name: 'late_submission_count') int lateSubmissionCount,

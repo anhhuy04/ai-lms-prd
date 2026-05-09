@@ -14,8 +14,8 @@ import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_assignment_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_question_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_distribute_assignment_screen.dart';
-import 'package:ai_mls/presentation/views/assignment/teacher/teacher_draft_assignments_screen.dart';
-import 'package:ai_mls/presentation/views/assignment/teacher/teacher_published_assignments_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_bank_screen.dart';
+import 'package:ai_mls/widgets/dialogs/assignment_filter_bottom_sheet.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_class_submission_list_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_submission_detail_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_grading_hub_screen.dart';
@@ -269,10 +269,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.teacherGradingPath,
         name: AppRoute.teacherGrading,
-        pageBuilder: (context, state) => FadeTransitionPage(
-          key: state.pageKey,
-          child: const TeacherGradingHubScreen(),
-        ),
+        pageBuilder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final initialFilter =
+              extra?['initialFilter'] as GradingHubFilter? ??
+              GradingHubFilter.all;
+          return FadeTransitionPage(
+            key: state.pageKey,
+            child: TeacherGradingHubScreen(initialFilter: initialFilter),
+          );
+        },
       ),
 
       // Teacher Analytics Overview (show class list)
@@ -474,7 +480,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.studentSubmissionReview,
         builder: (context, state) {
           final distributionId = state.pathParameters['distributionId']!;
-          return StudentSubmissionReviewScreen(distributionId: distributionId);
+          final extra = state.extra as Map<String, dynamic>?;
+          final sessionId = extra?['sessionId'] as String?;
+          return StudentSubmissionReviewScreen(
+            distributionId: distributionId,
+            sessionId: sessionId,
+          );
         },
       ),
 
@@ -508,17 +519,30 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return TeacherCreateAssignmentScreen(assignmentId: assignmentId);
         },
       ),
-      // Route draft assignments (kho bài tập nháp)
+      // Route ngân hàng bài tập — entry "Đang tạo" (init filter = draft).
+      // Hub screen điều hướng vào đây qua AppRoute.teacherDraftAssignments.
       GoRoute(
         path: AppRoute.teacherDraftAssignmentsPath,
         name: AppRoute.teacherDraftAssignments,
-        builder: (context, state) => const TeacherDraftAssignmentsScreen(),
+        builder: (context, state) => const TeacherAssignmentBankScreen(
+          initialStatus: AssignmentStatusFilter.draft,
+        ),
       ),
-      // Route published assignments (kho bài tập đã tạo)
+      // Route ngân hàng bài tập — entry "Đã tạo" (init filter = published).
       GoRoute(
         path: AppRoute.teacherPublishedAssignmentsPath,
         name: AppRoute.teacherPublishedAssignments,
-        builder: (context, state) => const TeacherPublishedAssignmentsScreen(),
+        builder: (context, state) => const TeacherAssignmentBankScreen(
+          initialStatus: AssignmentStatusFilter.published,
+        ),
+      ),
+      // Route ngân hàng bài tập — entry "Tổng quan bài tập" (init = all).
+      GoRoute(
+        path: AppRoute.teacherAssignmentBankPath,
+        name: AppRoute.teacherAssignmentBank,
+        builder: (context, state) => const TeacherAssignmentBankScreen(
+          initialStatus: AssignmentStatusFilter.all,
+        ),
       ),
       // Route assignment selection (chọn nhiều bài tập để giao)
       GoRoute(
@@ -715,8 +739,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final extra = state.extra as Map<String, dynamic>?;
           final allSubmissionIds =
               extra?['allSubmissionIds'] as List<String>? ?? [];
+          final distributionId = extra?['distributionId'] as String?;
           return TeacherSubmissionDetailScreen(
             submissionId: submissionId,
+            distributionId: distributionId,
             allSubmissionIds: allSubmissionIds,
           );
         },

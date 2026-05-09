@@ -7,6 +7,8 @@ class ClassOverviewCard extends StatelessWidget {
   final int totalStudents;
   final int totalSubmissions;
   final int totalExpectedSubmissions;
+  /// Số HS đã nộp ÍT NHẤT 1 bài (dedupe). Khác `totalSubmissions` (số lượt nộp).
+  final int participatingStudents;
   final double? highestScore;
   final double? lowestScore;
   final double? submissionRate;
@@ -22,6 +24,7 @@ class ClassOverviewCard extends StatelessWidget {
     required this.totalStudents,
     required this.totalSubmissions,
     required this.totalExpectedSubmissions,
+    this.participatingStudents = 0,
     this.highestScore,
     this.lowestScore,
     this.submissionRate,
@@ -78,7 +81,7 @@ class ClassOverviewCard extends StatelessWidget {
                 child: _MetricTile(
                   icon: Icons.assignment_turned_in_outlined,
                   value: '$totalSubmissions',
-                  label: 'Bài nộp',
+                  label: 'Lượt nộp',
                 ),
               ),
             ],
@@ -102,22 +105,45 @@ class ClassOverviewCard extends StatelessWidget {
 
     return Column(
       children: [
-        // Row 1: Đã nộp | Đúng hạn
+        // Row 1: Đã tham gia (HS) | Lượt nộp (events)
+        // - "Đã tham gia": HS đã nộp ít nhất 1 bài / sĩ số. Trả lời "lớp có ai chưa làm bài không?"
+        // - "Lượt nộp": tổng lượt nộp / tổng lượt mong đợi (HS × dist). Trả lời "tiến độ chung của lớp".
         Row(
           children: [
             Expanded(
               child: _DetailChip(
-                icon: Icons.assignment_turned_in_outlined,
-                label: 'Đã nộp',
-                value: '$totalSubmissions/$totalExpectedSubmissions',
+                icon: Icons.how_to_reg_outlined,
+                label: 'Đã tham gia',
+                value: '$participatingStudents/$totalStudents',
               ),
             ),
             SizedBox(width: DesignSpacing.sm),
             Expanded(
               child: _DetailChip(
+                icon: Icons.assignment_turned_in_outlined,
+                label: 'Lượt nộp',
+                value: '$totalSubmissions/$totalExpectedSubmissions',
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: DesignSpacing.sm),
+        // Row 1.5: Đúng hạn | (placeholder để cân layout)
+        Row(
+          children: [
+            Expanded(
+              child: _DetailChip(
                 icon: Icons.check_circle_outline,
                 label: 'Đúng hạn',
                 value: onTimeStr,
+              ),
+            ),
+            SizedBox(width: DesignSpacing.sm),
+            Expanded(
+              child: _DetailChip(
+                icon: Icons.schedule,
+                label: 'Nộp muộn',
+                value: lateStr,
               ),
             ),
           ],
@@ -147,21 +173,13 @@ class ClassOverviewCard extends StatelessWidget {
             ),
           ],
         ),
-        SizedBox(height: DesignSpacing.sm),
-        // Row 3: Nộp muộn | Worst offender
-        Row(
-          children: [
-            Expanded(
-              child: _DetailChip(
-                icon: Icons.schedule,
-                label: 'Nộp muộn',
-                value: lateStr,
-              ),
-            ),
-            SizedBox(width: DesignSpacing.sm),
-            if (worstOffenderName != null &&
-                worstOffenderCount != null &&
-                worstOffenderCount! > 0)
+        // Row 3: Worst offender (nếu có)
+        if (worstOffenderName != null &&
+            worstOffenderCount != null &&
+            worstOffenderCount! > 0) ...[
+          SizedBox(height: DesignSpacing.sm),
+          Row(
+            children: [
               Expanded(
                 child: _DetailChip(
                   icon: Icons.warning_amber,
@@ -170,11 +188,12 @@ class ClassOverviewCard extends StatelessWidget {
                       : worstOffenderName!,
                   value: '$worstOffenderCount muộn',
                 ),
-              )
-            else
+              ),
+              SizedBox(width: DesignSpacing.sm),
               const Expanded(child: SizedBox()),
-          ],
-        ),
+            ],
+          ),
+        ],
       ],
     );
   }

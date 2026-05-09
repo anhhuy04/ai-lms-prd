@@ -468,8 +468,9 @@ class StudentHomeContentScreen extends ConsumerWidget {
                   dueAtStr != null ? DateTime.tryParse(dueAtStr) : null;
               final status =
                   a['submission_status'] as String? ?? 'not_submitted';
+              final distributionId = a['distribution_id'] as String?;
               return _buildDueCard(
-                  context, title, status, dueAt, index);
+                  context, title, status, dueAt, index, distributionId);
             },
           ),
         );
@@ -483,6 +484,7 @@ class StudentHomeContentScreen extends ConsumerWidget {
     String status,
     DateTime? dueAt,
     int index,
+    String? distributionId,
   ) {
     final config = ResponsiveUtils.getLayoutConfig(context);
 
@@ -525,68 +527,79 @@ class StudentHomeContentScreen extends ConsumerWidget {
         statusLabel = 'Chưa làm';
     }
 
-    return ResponsiveCard(
-      padding: EdgeInsets.all(config.cardPadding),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(DesignRadius.lg),
-      ),
-      child: SizedBox(
-        width: ResponsiveUtils.responsiveValue(
-          context,
-          mobile: 240.0,
-          tablet: 280.0,
-          desktop: 320.0,
+    return InkWell(
+      onTap: () {
+        if (distributionId != null) {
+          context.pushNamed(
+            AppRoute.studentAssignmentDetail,
+            pathParameters: {'distributionId': distributionId},
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(DesignRadius.lg),
+      child: ResponsiveCard(
+        padding: EdgeInsets.all(config.cardPadding),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(DesignRadius.lg),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Icon(
-                  Icons.timer_outlined,
-                  color: DesignColors.textSecondary,
-                  size: DesignIcons.smSize,
+        child: SizedBox(
+          width: ResponsiveUtils.responsiveValue(
+            context,
+            mobile: 240.0,
+            tablet: 280.0,
+            desktop: 320.0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Icon(
+                    Icons.timer_outlined,
+                    color: DesignColors.textSecondary,
+                    size: DesignIcons.smSize,
+                  ),
+                ],
+              ),
+              const Spacer(),
+              ResponsiveText(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                fontSize: DesignTypography.bodyLargeSize,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              ResponsiveText(
+                statusLabel,
+                style: TextStyle(color: DesignColors.textPrimary),
+                fontSize: DesignTypography.bodySmallSize,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              SizedBox(height: config.itemSpacing),
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: config.itemSpacing,
+                  vertical: DesignSpacing.xs,
                 ),
-              ],
-            ),
-            const Spacer(),
-            ResponsiveText(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-              fontSize: DesignTypography.bodyLargeSize,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            ResponsiveText(
-              statusLabel,
-              style: TextStyle(color: DesignColors.textPrimary),
-              fontSize: DesignTypography.bodySmallSize,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            SizedBox(height: config.itemSpacing),
-            Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: config.itemSpacing,
-                vertical: DesignSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: ResponsiveText(
-                timeText,
-                style: const TextStyle(
-                  color: DesignColors.primary,
-                  fontWeight: FontWeight.bold,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30),
                 ),
-                fontSize: DesignTypography.labelSmallSize,
+                child: ResponsiveText(
+                  timeText,
+                  style: const TextStyle(
+                    color: DesignColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  fontSize: DesignTypography.labelSmallSize,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -643,65 +656,78 @@ class StudentHomeContentScreen extends ConsumerWidget {
     final pointsText =
         totalPoints != null ? '/$totalPoints' : '/10';
 
-    return ResponsiveCard(
-      padding: EdgeInsets.symmetric(
-        horizontal: config.itemSpacing,
-        vertical: DesignSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(DesignRadius.md),
-        border: Border.all(color: DesignColors.dividerLight),
-      ),
-      child: ResponsiveRow(
-        children: [
-          CircleAvatar(
-            backgroundColor: DesignColors.warning.withValues(alpha: 0.1),
-            child: const Icon(
-              Icons.assignment_outlined,
-              color: DesignColors.warning,
+    final distributionId = distData?['id'] as String?;
+
+    return InkWell(
+      onTap: () {
+        if (distributionId != null) {
+          context.pushNamed(
+            AppRoute.studentAssignmentDetail,
+            pathParameters: {'distributionId': distributionId},
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(DesignRadius.md),
+      child: ResponsiveCard(
+        padding: EdgeInsets.symmetric(
+          horizontal: config.itemSpacing,
+          vertical: DesignSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(DesignRadius.md),
+          border: Border.all(color: DesignColors.dividerLight),
+        ),
+        child: ResponsiveRow(
+          children: [
+            CircleAvatar(
+              backgroundColor: DesignColors.warning.withValues(alpha: 0.1),
+              child: const Icon(
+                Icons.assignment_outlined,
+                color: DesignColors.warning,
+              ),
             ),
-          ),
-          SizedBox(width: config.itemSpacing),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            SizedBox(width: config.itemSpacing),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ResponsiveText(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    fontSize: DesignTypography.bodyLargeSize,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  ResponsiveText(
+                    'Đã chấm',
+                    style: TextStyle(color: Colors.grey[600]),
+                    fontSize: DesignTypography.bodySmallSize,
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 ResponsiveText(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                  fontSize: DesignTypography.bodyLargeSize,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  scoreText,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: DesignColors.success,
+                  ),
+                  fontSize: DesignTypography.headlineMediumSize,
                 ),
-                const SizedBox(height: 4),
                 ResponsiveText(
-                  'Đã chấm',
-                  style: TextStyle(color: Colors.grey[600]),
-                  fontSize: DesignTypography.bodySmallSize,
+                  pointsText,
+                  style: TextStyle(color: DesignColors.textSecondary),
+                  fontSize: DesignTypography.labelSmallSize,
                 ),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              ResponsiveText(
-                scoreText,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: DesignColors.success,
-                ),
-                fontSize: DesignTypography.headlineMediumSize,
-              ),
-              ResponsiveText(
-                pointsText,
-                style: TextStyle(color: DesignColors.textSecondary),
-                fontSize: DesignTypography.labelSmallSize,
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -102,9 +102,14 @@ abstract class AssignmentRepository {
   );
 
   /// Lấy chi tiết distribution kèm assignment info.
+  ///
+  /// [sessionId] (tùy chọn): khi truyền vào, variant của câu hỏi sẽ được lọc
+  /// đúng theo session đó (mỗi attempt = 1 variant immutable). Bỏ trống thì
+  /// fallback chọn variant mới nhất theo `created_at` để tương thích lịch sử.
   Future<Map<String, dynamic>> getDistributionDetail(
     String distributionId, {
     String? studentId,
+    String? sessionId,
   });
 
   /// Lấy danh sách submissions cho 1 distribution (kèm student info).

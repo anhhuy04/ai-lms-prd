@@ -20,10 +20,16 @@ class ContextSourcesSection extends ConsumerStatefulWidget {
     super.key,
     required this.onSelectionChanged,
     this.showRoleBadge = false,
+    this.isTemplateActive = false,
   });
 
   final void Function(List<String> fileIds) onSelectionChanged;
   final bool showRoleBadge;
+
+  /// Khi `true` — coi như có template "active" (vd: user bật "Coi tài liệu là MẪU"
+  /// trong hint card, hoặc system đã detect template). Cho phép sub-mode chip
+  /// enabled ngay cả khi không có file nào ở role Mẫu.
+  final bool isTemplateActive;
 
   @override
   ConsumerState<ContextSourcesSection> createState() =>
@@ -128,6 +134,7 @@ class _ContextSourcesSectionState
 
     // Pre-compute allMcq cho Tầng 2 (Cùng dạng enable/disable)
     bool allMcq = false;
+    bool hasTemplateSelected = false;
     if (widget.showRoleBadge) {
       final templateQs = files
           .where((f) =>
@@ -144,7 +151,17 @@ class _ContextSourcesSectionState
                 t == QuestionType.trueFalse ||
                 t == QuestionType.math;
           });
+      hasTemplateSelected = files.any((f) =>
+          _selectedFileIds.contains(f.id) &&
+          f.parsedQuestions?.isNotEmpty == true &&
+          f.effectiveRole == FileRole.template);
     }
+    // Mode 3 luôn render chip sub-mode 1 lần. Nếu chip đã hiện trong card
+    // (template + selected), không render thêm ở ngoài để tránh duplicate.
+    final showStandaloneSubMode =
+        widget.showRoleBadge && !hasTemplateSelected;
+    // Chip enabled khi: có template selected (chip-in-card) HOẶC force flag bật.
+    final subModeEnabled = hasTemplateSelected || widget.isTemplateActive;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,6 +209,19 @@ class _ContextSourcesSectionState
             itemBuilder: (_, i) =>
                 _buildFileCard(files[i], isDark, allMcq),
           ),
+
+        // Standalone sub-mode strip — Mode 3 LUÔN show chip ngay cả khi
+        // không có file role=Mẫu. Disabled + tooltip nếu chưa có template
+        // (cần file mẫu hoặc bật "Coi tài liệu là MẪU" trong hint card).
+        if (showStandaloneSubMode) ...[
+          const SizedBox(height: 10),
+          _buildSubModeStrip(
+            isDark,
+            allMcq,
+            enabled: subModeEnabled,
+            standalone: true,
+          ),
+        ],
 
         const SizedBox(height: 8),
 
@@ -365,7 +395,7 @@ class _ContextSourcesSectionState
 
             // ── Sub-mode strip (Tầng 2) ───────────────────────────
             if (showSubMode)
-              _buildSubModeStrip(isDark, allMcq),
+              _buildSubModeStrip(isDark, allMcq, enabled: true),
           ],
         ),
       ),
@@ -590,24 +620,38 @@ class _ContextSourcesSectionState
   // Sub-mode strip (Tầng 2) — chỉ hiện khi Mẫu + selected
   // ─────────────────────────────────────────────────────────────────
 
-  Widget _buildSubModeStrip(bool isDark, bool allMcq) {
+  Widget _buildSubModeStrip(
+    bool isDark,
+    bool allMcq, {
+    required bool enabled,
+    bool standalone = false,
+  }) {
     final current =
         ref.watch(aiGenerationSettingsNotifierProvider).templateMode;
 
-    return Container(
+    const disabledTooltip =
+        "Cần tài liệu mẫu (file Excel mẫu hoặc Word có cấu trúc 'Câu N:') hoặc bật 'Coi tài liệu là MẪU' trong card hướng dẫn để dùng chế độ này.";
+
+    final strip = Container(
       decoration: BoxDecoration(
         color: isDark
             ? Colors.grey[850]!.withValues(alpha: 0.6)
             : DesignColors.moonMedium.withValues(alpha: 0.8),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(DesignRadius.md),
-          bottomRight: Radius.circular(DesignRadius.md),
-        ),
+        borderRadius: standalone
+            ? BorderRadius.circular(DesignRadius.md)
+            : const BorderRadius.only(
+                bottomLeft: Radius.circular(DesignRadius.md),
+                bottomRight: Radius.circular(DesignRadius.md),
+              ),
+        border: standalone
+            ? Border.all(
+                color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+              )
+            : null,
       ),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
       child: Row(
         children: [
-          // Label
           Text(
             'Kiểu tạo:',
             style: DesignTypography.labelSmall.copyWith(
@@ -615,43 +659,42 @@ class _ContextSourcesSectionState
             ),
           ),
           const SizedBox(width: 8),
-
-          // Tạo mới
           _buildSubChip(
             chipKey: const ValueKey('chip_style_only'),
             label: 'Tạo mới',
             icon: Icons.auto_awesome_outlined,
-            selected: current == TemplateMode.styleOnly,
-            disabled: false,
+            selected: enabled && current == TemplateMode.styleOnly,
+            disabled: !enabled,
             activeColor: DesignColors.primary,
             isDark: isDark,
-            onTap: () => ref
-                .read(aiGenerationSettingsNotifierProvider.notifier)
-                .setTemplateMode(TemplateMode.styleOnly),
+            tooltip: enabled ? null : disabledTooltip,
+            onTap: enabled
+                ? () => ref
+                    .read(aiGenerationSettingsNotifierProvider.notifier)
+                    .setTemplateMode(TemplateMode.styleOnly)
+                : null,
           ),
           const SizedBox(width: 6),
-
-          // Cùng dạng
           _buildSubChip(
             chipKey: const ValueKey('chip_same_form'),
             label: 'Cùng dạng',
             icon: Icons.content_copy_outlined,
-            selected: current == TemplateMode.sameForm,
-            disabled: !allMcq,
+            selected: enabled && current == TemplateMode.sameForm,
+            disabled: !enabled || !allMcq,
             activeColor: DesignColors.success,
             isDark: isDark,
-            tooltip: allMcq
-                ? 'Giữ cấu trúc câu, đổi số liệu/tình huống'
-                : 'Cần ít nhất 2 câu Trắc nghiệm trong file mẫu',
-            onTap: allMcq
+            tooltip: !enabled
+                ? disabledTooltip
+                : (allMcq
+                    ? 'Giữ cấu trúc câu, đổi số liệu/tình huống'
+                    : 'Cần ít nhất 2 câu Trắc nghiệm trong file mẫu'),
+            onTap: (enabled && allMcq)
                 ? () => ref
                     .read(aiGenerationSettingsNotifierProvider.notifier)
                     .setTemplateMode(TemplateMode.sameForm)
                 : null,
           ),
-
-          // Tooltip giải thích khi disable
-          if (!allMcq) ...[
+          if (enabled && !allMcq) ...[
             const SizedBox(width: 6),
             Tooltip(
               message: 'Cần ít nhất 2 câu Trắc nghiệm để dùng Cùng dạng',
@@ -665,6 +708,12 @@ class _ContextSourcesSectionState
         ],
       ),
     );
+
+    // Greyed visual cue khi disabled toàn strip
+    if (!enabled) {
+      return Opacity(opacity: 0.55, child: strip);
+    }
+    return strip;
   }
 
   Widget _buildSubChip({

@@ -104,51 +104,70 @@ class RecentActivityItem extends StatelessWidget {
               ],
             ),
             SizedBox(height: DesignSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.group,
-                        size: DesignIcons.xsSize,
-                        color: isDark
-                            ? Colors.grey[400]
-                            : const Color(0xFF617589),
-                      ),
-                      SizedBox(width: DesignSpacing.xs),
-                      Text(
-                        '$submittedCount/$totalCount Đã nộp',
-                        style: DesignTypography.bodySmall.copyWith(
+            if (totalCount == 0)
+              Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: DesignIcons.xsSize,
+                    color: isDark ? Colors.grey[500] : const Color(0xFF617589),
+                  ),
+                  SizedBox(width: DesignSpacing.xs),
+                  Text(
+                    'Chưa phân phối cho lớp nào',
+                    style: DesignTypography.bodySmall.copyWith(
+                      color: isDark ? Colors.grey[500] : const Color(0xFF617589),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.group,
+                          size: DesignIcons.xsSize,
                           color: isDark
                               ? Colors.grey[400]
                               : const Color(0xFF617589),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.pie_chart,
-                        size: DesignIcons.xsSize,
-                        color: DesignColors.primary,
-                      ),
-                      SizedBox(width: DesignSpacing.xs),
-                      Text(
-                        'Tiến độ: ${(progress * 100).toInt()}%',
-                        style: DesignTypography.bodySmall.copyWith(
-                          color: isDark ? Colors.white : DesignColors.textPrimary,
-                          fontWeight: FontWeight.w500,
+                        SizedBox(width: DesignSpacing.xs),
+                        Text(
+                          '$submittedCount/$totalCount Đã nộp',
+                          style: DesignTypography.bodySmall.copyWith(
+                            color: isDark
+                                ? Colors.grey[400]
+                                : const Color(0xFF617589),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.pie_chart,
+                          size: DesignIcons.xsSize,
+                          color: DesignColors.primary,
+                        ),
+                        SizedBox(width: DesignSpacing.xs),
+                        Text(
+                          'Tiến độ: ${(progress * 100).toInt()}%',
+                          style: DesignTypography.bodySmall.copyWith(
+                            color: isDark ? Colors.white : DesignColors.textPrimary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             if (progress < 1.0 && totalCount > 0) ...[
               SizedBox(height: DesignSpacing.sm),
               ClipRRect(

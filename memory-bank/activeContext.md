@@ -11,6 +11,30 @@
 
 **Next:** Phase 3 - Rubric System
 
+## Session Note (2026-05-09 - LATEST) — Mode 3 Fix Bundle
+
+### Mode 3 (RAG/Template Generation) — 4-Agent Team Fix
+
+✅ **Bug đã fix:**
+- Template detection cứng nhắc — `isTemplateStyleDoc()` thêm path C bắt math expression `1+1=2`
+- LaTeX không render — thêm widget `MathText` (flutter_math_fork) cho `$...$` / `$$...$$` / `\(...\)`
+- Edit dialog không thêm công thức được — Tab "Sửa/Xem trước" + math toolbar 11 nút
+- Chip sub-mode hidden — luôn hiển thị ở Mode 3, disabled khi không có template
+
+✅ **Files thay đổi (8 files):**
+- `lib/core/services/ai_service.dart` — detection + prompt + templateCount
+- `lib/widgets/text/math_text.dart` — NEW (LaTeX render)
+- `lib/domain/repositories/ai_repository.dart` — add templateCount
+- `lib/data/repositories/ai_repository_impl.dart` — forward templateCount
+- `lib/data/datasources/ai_datasource.dart` — forward templateCount
+- `lib/presentation/views/assignment/teacher/widgets/context_sources_section.dart` — chip always-show + isTemplateActive param
+- `lib/presentation/views/assignment/teacher/teacher_ai_generate_question_screen.dart` — Force toggle + banner + LaTeX swap + Edit dialog tab/toolbar
+- `pubspec.yaml` — flutter_math_fork: ^0.7.2
+
+✅ **Build:** flutter analyze pass, build apk debug success
+
+✅ **Workflow:** 4-agent team (A1 Backend, A2 Widget, A3 Screen, A4 QA) + A5 (chip widget). Leader (main) dispatched 3 wave: detect/render/swap → resolve blockers → verify.
+
 ## Session Note (2026-03-12 - LATEST)
 
 ### JSONB Standardization - Strict Data Contract (2026-03-12)

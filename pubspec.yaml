@@ -84,11 +84,16 @@ dependencies:
   image_picker: ^1.0.7
   file_picker: ^11.0.2
   excel: ^4.0.6
+  archive: ^3.6.1
+  pdfrx: ^1.0.0
   fl_chart: ^0.69.0
   url_launcher: ^6.3.2
 
   # AI Agent interaction - Marionette MCP (debug only)
   marionette_flutter: ^0.4.0
+
+  # Math/LaTeX rendering
+  flutter_math_fork: ^0.7.2
 
 dev_dependencies:
 

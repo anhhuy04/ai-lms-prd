@@ -23,17 +23,16 @@ Future<List<Class>> teacherDashboardClasses(Ref ref) async {
   );
 }
 
-/// Tổng số bài nộp chờ chấm (submitted - graded) trên tất cả distributions.
+/// Tổng số HS có latest attempt = submitted-not-graded trên tất cả distributions.
+/// Dùng pending_action_count đã dedupe (1 HS làm lại N lần chỉ đếm 1).
 @riverpod
 Future<int> teacherPendingCount(Ref ref) async {
   final hub = ref.watch(teacherAssignmentHubNotifierProvider).valueOrNull;
   if (hub == null) return 0;
-  int total = 0;
-  for (final dist in hub.distributions) {
-    final pending = (dist.submittedCount ?? 0) - (dist.gradedCount ?? 0);
-    if (pending > 0) total += pending;
-  }
-  return total;
+  return hub.distributions.fold<int>(
+    0,
+    (sum, d) => sum + (d.pendingActionCount ?? 0),
+  );
 }
 
 /// Đếm nhanh bài chờ chấm — không phụ thuộc vào hub nặng, chỉ 2 queries.

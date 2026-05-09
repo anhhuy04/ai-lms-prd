@@ -6,17 +6,25 @@ import 'package:go_router/go_router.dart';
 
 /// Màn hình xem lại bài làm của học sinh (read-only).
 /// Hiển thị câu hỏi + đáp án đúng/sai giống trang chấm của giáo viên.
+/// Khi [sessionId] được truyền, hiển thị đáp án của lần làm đó thay vì lần mặc định.
 class StudentSubmissionReviewScreen extends ConsumerWidget {
   final String distributionId;
+  final String? sessionId;
 
   const StudentSubmissionReviewScreen({
     super.key,
     required this.distributionId,
+    this.sessionId,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final detailAsync = ref.watch(studentSubmissionReviewProvider(distributionId));
+    // Khi học sinh chọn 1 lần làm cụ thể (sessionId != null) → load detail
+    // theo session đó (header + answers cùng nguồn). Không có sessionId →
+    // fallback về detail của lần mới nhất (behavior cũ cho 1-attempt case).
+    final detailAsync = sessionId != null
+        ? ref.watch(submissionReviewBySessionProvider(sessionId!))
+        : ref.watch(studentSubmissionReviewProvider(distributionId));
 
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
@@ -75,8 +83,13 @@ class StudentSubmissionReviewScreen extends ConsumerWidget {
           final distribution = submission['assignment_distributions'] as Map<String, dynamic>?;
           final assignment = distribution?['assignments'] as Map<String, dynamic>?;
           final workSession = submission['workSessions'] as Map<String, dynamic>?;
+
+          // Answers được nhúng sẵn trong detailAsync — cùng nguồn với header,
+          // đảm bảo khi xem lần làm cũ thì cả title/submittedAt và bài làm
+          // đều thuộc session đó (không bao giờ rớt về latest).
           final answers = List<Map<String, dynamic>>.from(
-            (submission['submission_answers'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+            (submission['submission_answers'] as List? ?? [])
+                .map((e) => Map<String, dynamic>.from(e as Map)),
           );
 
           final distSettings = (() {
@@ -85,9 +98,15 @@ class StudentSubmissionReviewScreen extends ConsumerWidget {
           })();
           final aiEnabled = distSettings['ai_feedback_enabled'] as bool? ?? false;
           final submittedAt = workSession?['submitted_at'] as String?;
+          final attemptNum = workSession?['attempt'] as int?;
 
           return Column(
             children: [
+              // Banner cho biết đang xem lần làm nào — chỉ khi mở từ 1 attempt
+              // cụ thể trong lịch sử (sessionId != null). Giúp học sinh dễ
+              // phân biệt khi cùng đề có nhiều lần làm với nội dung tương tự.
+              if (sessionId != null && attemptNum != null)
+                _AttemptViewingBanner(attemptNum: attemptNum),
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.all(DesignSpacing.md),
@@ -118,7 +137,13 @@ class StudentSubmissionReviewScreen extends ConsumerWidget {
               const Text('Không thể tải dữ liệu bài làm'),
               const SizedBox(height: DesignSpacing.md),
               ElevatedButton(
-                onPressed: () => ref.invalidate(studentSubmissionReviewProvider(distributionId)),
+                onPressed: () {
+                  if (sessionId != null) {
+                    ref.invalidate(submissionReviewBySessionProvider(sessionId!));
+                  } else {
+                    ref.invalidate(studentSubmissionReviewProvider(distributionId));
+                  }
+                },
                 child: const Text('Thử lại'),
               ),
             ],
@@ -725,5 +750,55 @@ class StudentSubmissionReviewScreen extends ConsumerWidget {
     } catch (_) {
       return iso;
     }
+  }
+}
+
+class _AttemptViewingBanner extends StatelessWidget {
+  final int attemptNum;
+  const _AttemptViewingBanner({required this.attemptNum});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: DesignSpacing.md,
+        vertical: DesignSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: DesignColors.primary.withValues(alpha: 0.08),
+        border: Border(
+          bottom: BorderSide(
+            color: DesignColors.primary.withValues(alpha: 0.2),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.history, size: 16, color: DesignColors.primary),
+          const SizedBox(width: DesignSpacing.sm),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: DesignColors.textSecondary,
+                ),
+                children: [
+                  const TextSpan(text: 'Đang xem kết quả '),
+                  TextSpan(
+                    text: 'lần $attemptNum',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: DesignColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

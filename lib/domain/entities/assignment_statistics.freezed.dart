@@ -39,6 +39,14 @@ mixin _$AssignmentStatistics {
   int get ungraded => throw _privateConstructorUsedError;
   @JsonKey(name: 'graded')
   int get graded => throw _privateConstructorUsedError;
+  @JsonKey(name: 'total_submissions')
+  int get totalSubmissions => throw _privateConstructorUsedError;
+  @JsonKey(name: 'late_submissions')
+  int get lateSubmissions => throw _privateConstructorUsedError;
+  @JsonKey(name: 'dists_with_late')
+  int get distsWithLate => throw _privateConstructorUsedError;
+  @JsonKey(name: 'in_progress_classes')
+  int get inProgressClasses => throw _privateConstructorUsedError;
 
   /// Serializes this AssignmentStatistics to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -67,6 +75,10 @@ abstract class $AssignmentStatisticsCopyWith<$Res> {
     @JsonKey(name: 'in_progress') int inProgress,
     @JsonKey(name: 'ungraded') int ungraded,
     @JsonKey(name: 'graded') int graded,
+    @JsonKey(name: 'total_submissions') int totalSubmissions,
+    @JsonKey(name: 'late_submissions') int lateSubmissions,
+    @JsonKey(name: 'dists_with_late') int distsWithLate,
+    @JsonKey(name: 'in_progress_classes') int inProgressClasses,
   });
 }
 
@@ -97,6 +109,10 @@ class _$AssignmentStatisticsCopyWithImpl<
     Object? inProgress = null,
     Object? ungraded = null,
     Object? graded = null,
+    Object? totalSubmissions = null,
+    Object? lateSubmissions = null,
+    Object? distsWithLate = null,
+    Object? inProgressClasses = null,
   }) {
     return _then(
       _value.copyWith(
@@ -136,6 +152,22 @@ class _$AssignmentStatisticsCopyWithImpl<
                 ? _value.graded
                 : graded // ignore: cast_nullable_to_non_nullable
                       as int,
+            totalSubmissions: null == totalSubmissions
+                ? _value.totalSubmissions
+                : totalSubmissions // ignore: cast_nullable_to_non_nullable
+                      as int,
+            lateSubmissions: null == lateSubmissions
+                ? _value.lateSubmissions
+                : lateSubmissions // ignore: cast_nullable_to_non_nullable
+                      as int,
+            distsWithLate: null == distsWithLate
+                ? _value.distsWithLate
+                : distsWithLate // ignore: cast_nullable_to_non_nullable
+                      as int,
+            inProgressClasses: null == inProgressClasses
+                ? _value.inProgressClasses
+                : inProgressClasses // ignore: cast_nullable_to_non_nullable
+                      as int,
           )
           as $Val,
     );
@@ -161,6 +193,10 @@ abstract class _$$AssignmentStatisticsImplCopyWith<$Res>
     @JsonKey(name: 'in_progress') int inProgress,
     @JsonKey(name: 'ungraded') int ungraded,
     @JsonKey(name: 'graded') int graded,
+    @JsonKey(name: 'total_submissions') int totalSubmissions,
+    @JsonKey(name: 'late_submissions') int lateSubmissions,
+    @JsonKey(name: 'dists_with_late') int distsWithLate,
+    @JsonKey(name: 'in_progress_classes') int inProgressClasses,
   });
 }
 
@@ -187,6 +223,10 @@ class __$$AssignmentStatisticsImplCopyWithImpl<$Res>
     Object? inProgress = null,
     Object? ungraded = null,
     Object? graded = null,
+    Object? totalSubmissions = null,
+    Object? lateSubmissions = null,
+    Object? distsWithLate = null,
+    Object? inProgressClasses = null,
   }) {
     return _then(
       _$AssignmentStatisticsImpl(
@@ -226,6 +266,22 @@ class __$$AssignmentStatisticsImplCopyWithImpl<$Res>
             ? _value.graded
             : graded // ignore: cast_nullable_to_non_nullable
                   as int,
+        totalSubmissions: null == totalSubmissions
+            ? _value.totalSubmissions
+            : totalSubmissions // ignore: cast_nullable_to_non_nullable
+                  as int,
+        lateSubmissions: null == lateSubmissions
+            ? _value.lateSubmissions
+            : lateSubmissions // ignore: cast_nullable_to_non_nullable
+                  as int,
+        distsWithLate: null == distsWithLate
+            ? _value.distsWithLate
+            : distsWithLate // ignore: cast_nullable_to_non_nullable
+                  as int,
+        inProgressClasses: null == inProgressClasses
+            ? _value.inProgressClasses
+            : inProgressClasses // ignore: cast_nullable_to_non_nullable
+                  as int,
       ),
     );
   }
@@ -244,6 +300,10 @@ class _$AssignmentStatisticsImpl implements _AssignmentStatistics {
     @JsonKey(name: 'in_progress') this.inProgress = 0,
     @JsonKey(name: 'ungraded') this.ungraded = 0,
     @JsonKey(name: 'graded') this.graded = 0,
+    @JsonKey(name: 'total_submissions') this.totalSubmissions = 0,
+    @JsonKey(name: 'late_submissions') this.lateSubmissions = 0,
+    @JsonKey(name: 'dists_with_late') this.distsWithLate = 0,
+    @JsonKey(name: 'in_progress_classes') this.inProgressClasses = 0,
   });
 
   factory _$AssignmentStatisticsImpl.fromJson(Map<String, dynamic> json) =>
@@ -276,10 +336,22 @@ class _$AssignmentStatisticsImpl implements _AssignmentStatistics {
   @override
   @JsonKey(name: 'graded')
   final int graded;
+  @override
+  @JsonKey(name: 'total_submissions')
+  final int totalSubmissions;
+  @override
+  @JsonKey(name: 'late_submissions')
+  final int lateSubmissions;
+  @override
+  @JsonKey(name: 'dists_with_late')
+  final int distsWithLate;
+  @override
+  @JsonKey(name: 'in_progress_classes')
+  final int inProgressClasses;
 
   @override
   String toString() {
-    return 'AssignmentStatistics(totalAssignments: $totalAssignments, ungradedAssignments: $ungradedAssignments, creatingCount: $creatingCount, distributingCount: $distributingCount, waitingToAssign: $waitingToAssign, assigned: $assigned, inProgress: $inProgress, ungraded: $ungraded, graded: $graded)';
+    return 'AssignmentStatistics(totalAssignments: $totalAssignments, ungradedAssignments: $ungradedAssignments, creatingCount: $creatingCount, distributingCount: $distributingCount, waitingToAssign: $waitingToAssign, assigned: $assigned, inProgress: $inProgress, ungraded: $ungraded, graded: $graded, totalSubmissions: $totalSubmissions, lateSubmissions: $lateSubmissions, distsWithLate: $distsWithLate, inProgressClasses: $inProgressClasses)';
   }
 
   @override
@@ -303,7 +375,15 @@ class _$AssignmentStatisticsImpl implements _AssignmentStatistics {
                 other.inProgress == inProgress) &&
             (identical(other.ungraded, ungraded) ||
                 other.ungraded == ungraded) &&
-            (identical(other.graded, graded) || other.graded == graded));
+            (identical(other.graded, graded) || other.graded == graded) &&
+            (identical(other.totalSubmissions, totalSubmissions) ||
+                other.totalSubmissions == totalSubmissions) &&
+            (identical(other.lateSubmissions, lateSubmissions) ||
+                other.lateSubmissions == lateSubmissions) &&
+            (identical(other.distsWithLate, distsWithLate) ||
+                other.distsWithLate == distsWithLate) &&
+            (identical(other.inProgressClasses, inProgressClasses) ||
+                other.inProgressClasses == inProgressClasses));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -319,6 +399,10 @@ class _$AssignmentStatisticsImpl implements _AssignmentStatistics {
     inProgress,
     ungraded,
     graded,
+    totalSubmissions,
+    lateSubmissions,
+    distsWithLate,
+    inProgressClasses,
   );
 
   /// Create a copy of AssignmentStatistics
@@ -350,6 +434,10 @@ abstract class _AssignmentStatistics implements AssignmentStatistics {
     @JsonKey(name: 'in_progress') final int inProgress,
     @JsonKey(name: 'ungraded') final int ungraded,
     @JsonKey(name: 'graded') final int graded,
+    @JsonKey(name: 'total_submissions') final int totalSubmissions,
+    @JsonKey(name: 'late_submissions') final int lateSubmissions,
+    @JsonKey(name: 'dists_with_late') final int distsWithLate,
+    @JsonKey(name: 'in_progress_classes') final int inProgressClasses,
   }) = _$AssignmentStatisticsImpl;
 
   factory _AssignmentStatistics.fromJson(Map<String, dynamic> json) =
@@ -382,6 +470,18 @@ abstract class _AssignmentStatistics implements AssignmentStatistics {
   @override
   @JsonKey(name: 'graded')
   int get graded;
+  @override
+  @JsonKey(name: 'total_submissions')
+  int get totalSubmissions;
+  @override
+  @JsonKey(name: 'late_submissions')
+  int get lateSubmissions;
+  @override
+  @JsonKey(name: 'dists_with_late')
+  int get distsWithLate;
+  @override
+  @JsonKey(name: 'in_progress_classes')
+  int get inProgressClasses;
 
   /// Create a copy of AssignmentStatistics
   /// with the given fields replaced by the non-null parameter values.

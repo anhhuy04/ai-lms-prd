@@ -53,14 +53,27 @@ mixin _$AssignmentDistribution {
   String? get className => throw _privateConstructorUsedError;
   String? get groupName => throw _privateConstructorUsedError;
   String? get assignmentTitle => throw _privateConstructorUsedError;
+
+  /// Mẫu số "X/Y đã nộp" — tổng HS được giao bài (theo distribution_type).
   @JsonKey(name: 'recipient_count')
   int? get recipientCount => throw _privateConstructorUsedError;
+
+  /// Tử số "X/Y đã nộp" — số HS đã nộp ÍT NHẤT 1 lần (DISTINCT, đã dedupe retake).
   @JsonKey(name: 'submitted_count')
   int? get submittedCount => throw _privateConstructorUsedError;
+
+  /// Số HS có latest attempt = graded.
   @JsonKey(name: 'graded_count')
   int? get gradedCount => throw _privateConstructorUsedError;
+
+  /// Số HS có latest non-in_progress attempt nộp muộn so với due_at.
   @JsonKey(name: 'late_submission_count')
   int? get lateSubmissionCount => throw _privateConstructorUsedError;
+
+  /// Actionable Queue: số HS có latest attempt đã submit nhưng chưa graded
+  /// → việc cần GV xử lý. 1 HS làm lại N lần chỉ đếm 1 lần (latest only).
+  @JsonKey(name: 'pending_action_count')
+  int? get pendingActionCount => throw _privateConstructorUsedError;
 
   /// Serializes this AssignmentDistribution to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -100,6 +113,7 @@ abstract class $AssignmentDistributionCopyWith<$Res> {
     @JsonKey(name: 'submitted_count') int? submittedCount,
     @JsonKey(name: 'graded_count') int? gradedCount,
     @JsonKey(name: 'late_submission_count') int? lateSubmissionCount,
+    @JsonKey(name: 'pending_action_count') int? pendingActionCount,
   });
 }
 
@@ -141,6 +155,7 @@ class _$AssignmentDistributionCopyWithImpl<
     Object? submittedCount = freezed,
     Object? gradedCount = freezed,
     Object? lateSubmissionCount = freezed,
+    Object? pendingActionCount = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -224,6 +239,10 @@ class _$AssignmentDistributionCopyWithImpl<
                 ? _value.lateSubmissionCount
                 : lateSubmissionCount // ignore: cast_nullable_to_non_nullable
                       as int?,
+            pendingActionCount: freezed == pendingActionCount
+                ? _value.pendingActionCount
+                : pendingActionCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -260,6 +279,7 @@ abstract class _$$AssignmentDistributionImplCopyWith<$Res>
     @JsonKey(name: 'submitted_count') int? submittedCount,
     @JsonKey(name: 'graded_count') int? gradedCount,
     @JsonKey(name: 'late_submission_count') int? lateSubmissionCount,
+    @JsonKey(name: 'pending_action_count') int? pendingActionCount,
   });
 }
 
@@ -298,6 +318,7 @@ class __$$AssignmentDistributionImplCopyWithImpl<$Res>
     Object? submittedCount = freezed,
     Object? gradedCount = freezed,
     Object? lateSubmissionCount = freezed,
+    Object? pendingActionCount = freezed,
   }) {
     return _then(
       _$AssignmentDistributionImpl(
@@ -381,6 +402,10 @@ class __$$AssignmentDistributionImplCopyWithImpl<$Res>
             ? _value.lateSubmissionCount
             : lateSubmissionCount // ignore: cast_nullable_to_non_nullable
                   as int?,
+        pendingActionCount: freezed == pendingActionCount
+            ? _value.pendingActionCount
+            : pendingActionCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -410,6 +435,7 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
     @JsonKey(name: 'submitted_count') this.submittedCount,
     @JsonKey(name: 'graded_count') this.gradedCount,
     @JsonKey(name: 'late_submission_count') this.lateSubmissionCount,
+    @JsonKey(name: 'pending_action_count') this.pendingActionCount,
   }) : _studentIds = studentIds,
        _latePolicy = latePolicy,
        _settings = settings;
@@ -489,22 +515,36 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
   final String? groupName;
   @override
   final String? assignmentTitle;
+
+  /// Mẫu số "X/Y đã nộp" — tổng HS được giao bài (theo distribution_type).
   @override
   @JsonKey(name: 'recipient_count')
   final int? recipientCount;
+
+  /// Tử số "X/Y đã nộp" — số HS đã nộp ÍT NHẤT 1 lần (DISTINCT, đã dedupe retake).
   @override
   @JsonKey(name: 'submitted_count')
   final int? submittedCount;
+
+  /// Số HS có latest attempt = graded.
   @override
   @JsonKey(name: 'graded_count')
   final int? gradedCount;
+
+  /// Số HS có latest non-in_progress attempt nộp muộn so với due_at.
   @override
   @JsonKey(name: 'late_submission_count')
   final int? lateSubmissionCount;
 
+  /// Actionable Queue: số HS có latest attempt đã submit nhưng chưa graded
+  /// → việc cần GV xử lý. 1 HS làm lại N lần chỉ đếm 1 lần (latest only).
+  @override
+  @JsonKey(name: 'pending_action_count')
+  final int? pendingActionCount;
+
   @override
   String toString() {
-    return 'AssignmentDistribution(id: $id, assignmentId: $assignmentId, distributionType: $distributionType, classId: $classId, groupId: $groupId, studentIds: $studentIds, availableFrom: $availableFrom, dueAt: $dueAt, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePolicy: $latePolicy, settings: $settings, createdAt: $createdAt, className: $className, groupName: $groupName, assignmentTitle: $assignmentTitle, recipientCount: $recipientCount, submittedCount: $submittedCount, gradedCount: $gradedCount, lateSubmissionCount: $lateSubmissionCount)';
+    return 'AssignmentDistribution(id: $id, assignmentId: $assignmentId, distributionType: $distributionType, classId: $classId, groupId: $groupId, studentIds: $studentIds, availableFrom: $availableFrom, dueAt: $dueAt, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePolicy: $latePolicy, settings: $settings, createdAt: $createdAt, className: $className, groupName: $groupName, assignmentTitle: $assignmentTitle, recipientCount: $recipientCount, submittedCount: $submittedCount, gradedCount: $gradedCount, lateSubmissionCount: $lateSubmissionCount, pendingActionCount: $pendingActionCount)';
   }
 
   @override
@@ -550,7 +590,9 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
             (identical(other.gradedCount, gradedCount) ||
                 other.gradedCount == gradedCount) &&
             (identical(other.lateSubmissionCount, lateSubmissionCount) ||
-                other.lateSubmissionCount == lateSubmissionCount));
+                other.lateSubmissionCount == lateSubmissionCount) &&
+            (identical(other.pendingActionCount, pendingActionCount) ||
+                other.pendingActionCount == pendingActionCount));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -577,6 +619,7 @@ class _$AssignmentDistributionImpl implements _AssignmentDistribution {
     submittedCount,
     gradedCount,
     lateSubmissionCount,
+    pendingActionCount,
   ]);
 
   /// Create a copy of AssignmentDistribution
@@ -619,6 +662,7 @@ abstract class _AssignmentDistribution implements AssignmentDistribution {
     @JsonKey(name: 'submitted_count') final int? submittedCount,
     @JsonKey(name: 'graded_count') final int? gradedCount,
     @JsonKey(name: 'late_submission_count') final int? lateSubmissionCount,
+    @JsonKey(name: 'pending_action_count') final int? pendingActionCount,
   }) = _$AssignmentDistributionImpl;
 
   factory _AssignmentDistribution.fromJson(Map<String, dynamic> json) =
@@ -670,18 +714,32 @@ abstract class _AssignmentDistribution implements AssignmentDistribution {
   String? get groupName;
   @override
   String? get assignmentTitle;
+
+  /// Mẫu số "X/Y đã nộp" — tổng HS được giao bài (theo distribution_type).
   @override
   @JsonKey(name: 'recipient_count')
   int? get recipientCount;
+
+  /// Tử số "X/Y đã nộp" — số HS đã nộp ÍT NHẤT 1 lần (DISTINCT, đã dedupe retake).
   @override
   @JsonKey(name: 'submitted_count')
   int? get submittedCount;
+
+  /// Số HS có latest attempt = graded.
   @override
   @JsonKey(name: 'graded_count')
   int? get gradedCount;
+
+  /// Số HS có latest non-in_progress attempt nộp muộn so với due_at.
   @override
   @JsonKey(name: 'late_submission_count')
   int? get lateSubmissionCount;
+
+  /// Actionable Queue: số HS có latest attempt đã submit nhưng chưa graded
+  /// → việc cần GV xử lý. 1 HS làm lại N lần chỉ đếm 1 lần (latest only).
+  @override
+  @JsonKey(name: 'pending_action_count')
+  int? get pendingActionCount;
 
   /// Create a copy of AssignmentDistribution
   /// with the given fields replaced by the non-null parameter values.

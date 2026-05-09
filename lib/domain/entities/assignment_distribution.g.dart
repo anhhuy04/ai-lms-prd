@@ -37,6 +37,7 @@ _$AssignmentDistributionImpl _$$AssignmentDistributionImplFromJson(
   submittedCount: (json['submitted_count'] as num?)?.toInt(),
   gradedCount: (json['graded_count'] as num?)?.toInt(),
   lateSubmissionCount: (json['late_submission_count'] as num?)?.toInt(),
+  pendingActionCount: (json['pending_action_count'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$$AssignmentDistributionImplToJson(
@@ -62,4 +63,5 @@ Map<String, dynamic> _$$AssignmentDistributionImplToJson(
   'submitted_count': instance.submittedCount,
   'graded_count': instance.gradedCount,
   'late_submission_count': instance.lateSubmissionCount,
+  'pending_action_count': instance.pendingActionCount,
 };

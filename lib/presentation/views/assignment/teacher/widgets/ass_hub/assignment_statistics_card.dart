@@ -10,6 +10,7 @@ class AssignmentStatisticsCard extends StatelessWidget {
   final Color textColor;
   final Color borderColor;
   final IconData? icon;
+  final VoidCallback? onTap;
 
   const AssignmentStatisticsCard({
     super.key,
@@ -19,6 +20,7 @@ class AssignmentStatisticsCard extends StatelessWidget {
     required this.textColor,
     required this.borderColor,
     this.icon,
+    this.onTap,
   });
 
   @override
@@ -30,6 +32,7 @@ class AssignmentStatisticsCard extends StatelessWidget {
       textColor: textColor,
       borderColor: borderColor,
       icon: icon,
+      onTap: onTap,
     );
   }
 }

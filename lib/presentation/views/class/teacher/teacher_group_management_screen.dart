@@ -589,7 +589,7 @@ class _TeacherGroupManagementScreenState
     int numGroups = suggested;
     final formKey = GlobalKey<FormState>();
 
-    String _distributionText(int n) {
+    String distributionText(int n) {
       if (studentCount == 0) return 'Học sinh sẽ được chia ngẫu nhiên thành $n nhóm';
       final base = studentCount ~/ n;
       final remainder = studentCount % n;
@@ -662,7 +662,7 @@ class _TeacherGroupManagementScreenState
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _distributionText(numGroups),
+                          distributionText(numGroups),
                           style: DesignTypography.bodySmall.copyWith(
                               color: DesignColors.primary),
                         ),

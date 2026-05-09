@@ -396,6 +396,7 @@ class _TeacherAnalyticsScreenState
               totalStudents: analytics.totalStudents,
               totalSubmissions: analytics.totalSubmissions,
               totalExpectedSubmissions: analytics.totalExpectedSubmissions,
+              participatingStudents: analytics.participatingStudents,
               highestScore: analytics.highestScore,
               lowestScore: analytics.lowestScore,
               submissionRate: analytics.submissionRate,

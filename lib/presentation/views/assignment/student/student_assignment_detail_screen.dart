@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
+import 'package:ai_mls/core/utils/redo_eligibility.dart';
 import 'package:ai_mls/data/datasources/assignment_datasource.dart';
 import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
@@ -475,8 +476,6 @@ class _AssignmentInfoCard extends StatelessWidget {
       examDeadline = sessionStartedAt!.add(Duration(minutes: timeLimitMinutes!));
     }
     final examExpired = examDeadline != null && now.isAfter(examDeadline);
-    final hasContent =
-        (totalPoints != null && totalPoints! > 0) || totalQuestions > 0;
 
     return Column(
       children: [
@@ -768,15 +767,64 @@ class _SubmittedView extends ConsumerStatefulWidget {
 }
 
 class _SubmittedViewState extends ConsumerState<_SubmittedView> {
-  // Attempt đang được chọn để xem; null = hiển thị submission hiện tại
+  /// Lần làm được người dùng chọn rõ ràng; null = dùng mặc định theo rule
   Map<String, dynamic>? _selectedAttempt;
 
   void _onAttemptTapped(Map<String, dynamic> attempt) {
     setState(() {
-      // Tap lại item đang chọn → bỏ chọn (về submission hiện tại)
-      _selectedAttempt =
-          _selectedAttempt?['id'] == attempt['id'] ? null : attempt;
+      // Tap lại item đang chọn → quay về mặc định (theo rule)
+      if (_selectedAttempt?['id'] == attempt['id']) {
+        _selectedAttempt = null;
+      } else {
+        _selectedAttempt = attempt;
+      }
     });
+  }
+
+  /// Tính attempt mặc định theo rule tính điểm
+  Map<String, dynamic>? _pickDefault(
+    List<Map<String, dynamic>> valid,
+    String rule,
+  ) {
+    if (valid.isEmpty) return null;
+    switch (rule) {
+      case 'latest':
+        return valid.last;
+      case 'first':
+        return valid.first;
+      case 'max':
+        Map<String, dynamic>? best;
+        num bestScore = -1;
+        for (final a in valid) {
+          final s = _scoreOf(a) ?? -1;
+          if (s > bestScore) {
+            bestScore = s;
+            best = a;
+          }
+        }
+        return best;
+      case 'average':
+        // average: không pin lần nào → null (hiện điểm TB từ sub)
+        return null;
+      default:
+        return valid.last;
+    }
+  }
+
+  num? _scoreOf(Map<String, dynamic> a) {
+    final subs = a['submissions'];
+    if (subs is List && subs.isNotEmpty) {
+      return subs[0]['total_score'] as num?;
+    }
+    final answers = a['submission_answers'];
+    if (answers is List && answers.isNotEmpty) {
+      num t = 0;
+      for (final x in answers) {
+        if (x is Map) t += (x['final_score'] as num? ?? 0);
+      }
+      return t;
+    }
+    return null;
   }
 
   @override
@@ -794,10 +842,23 @@ class _SubmittedViewState extends ConsumerState<_SubmittedView> {
     final reviewMode = widget.reviewMode;
     final aiEnabled = widget.aiEnabled;
 
-    final sel = _selectedAttempt;
+    // Watch attempts để tự chọn lần mặc định theo rule
+    final attemptsAsync = ref.watch(
+        studentDistributionAttemptsProvider(widget.distributionId));
+    final validAttempts = attemptsAsync.valueOrNull
+            ?.where((a) => a['status'] != 'in_progress')
+            .toList() ??
+        [];
+
+    // Effective attempt được hiển thị: lựa chọn rõ ràng > mặc định theo rule.
+    // Tính trực tiếp trong build() — không dùng postFrame setState (gây flicker).
+    final defaultAttempt = validAttempts.length >= 2
+        ? _pickDefault(validAttempts, scoreAggregationRule)
+        : null;
+    final sel = _selectedAttempt ?? defaultAttempt;
     final bool isViewing = sel != null;
 
-    // Giá trị hiển thị — lấy từ attempt được chọn hoặc submission hiện tại
+    // ─── Dữ liệu hiển thị — lấy từ attempt được chọn hoặc submission hiện tại ───
     num? score;
     String status;
     num? timeTakenSec;
@@ -810,24 +871,54 @@ class _SubmittedViewState extends ConsumerState<_SubmittedView> {
     int? viewingAttemptNum;
 
     if (isViewing) {
-      final subs = sel!['submissions'];
+      // Khi xem lần làm cũ: trích dữ liệu từ work_session được chọn
+      final subs = sel['submissions'];
       final subMap = (subs is List && subs.isNotEmpty)
           ? subs[0] as Map<String, dynamic>
           : <String, dynamic>{};
-      score = subMap['total_score'] as num?;
+
+      // Tính đúng/sai/đã trả lời từ submission_answers — submissions không lưu các
+      // count này (submission_datasource tính động cho lần mới nhất, attempts query
+      // không có), nên phải tự tính client-side từ answers.
+      // Quy ước: final_score (hoặc ai_score fallback) > 0 → đúng, ngược lại → sai.
+      final answersRaw = sel['submission_answers'];
+      final hasAnswers = answersRaw is List && answersRaw.isNotEmpty;
+      int correct = 0;
+      int wrong = 0;
+      num scoreSum = 0;
+      if (hasAnswers) {
+        for (final a in answersRaw) {
+          if (a is! Map) continue;
+          final eff = (a['final_score'] ?? a['ai_score'] ?? 0) as num;
+          scoreSum += (a['final_score'] as num? ?? 0);
+          if (eff > 0) {
+            correct++;
+          } else {
+            wrong++;
+          }
+        }
+      }
+
+      score = subMap['total_score'] as num? ?? (hasAnswers ? scoreSum : null);
       status = sel['status'] as String? ?? 'graded';
       timeTakenSec = sel['time_spent_seconds'] as num?;
-      correctCount = null;
-      wrongCount = null;
-      totalAnswered = 0;
+      correctCount = hasAnswers ? correct : (subMap['correct_count'] as int?);
+      wrongCount = hasAnswers ? wrong : (subMap['wrong_count'] as int?);
+      totalAnswered = hasAnswers
+          ? answersRaw.length
+          : (subMap['answered_count'] as int? ?? 0);
       aiGraded = subMap['ai_graded'] as bool? ?? false;
-      startDt = null;
+      final startedAtRaw = sel['started_at'] as String?;
       final submittedRaw = sel['submitted_at'] as String?;
+      startDt = startedAtRaw != null
+          ? DateTime.tryParse(startedAtRaw)?.toLocal()
+          : null;
       endDt = submittedRaw != null
           ? DateTime.tryParse(submittedRaw)?.toLocal()
           : null;
       viewingAttemptNum = sel['attempt'] as int?;
     } else {
+      // Khi xem lần làm mới nhất (mặc định)
       score = sub['score'] as num?;
       status = sub['status'] as String? ?? 'submitted';
       timeTakenSec = sub['time_taken_seconds'] as num?;
@@ -838,9 +929,12 @@ class _SubmittedViewState extends ConsumerState<_SubmittedView> {
       final startedAtRaw = sub['started_at'] as String?;
       final submittedAtRaw =
           (sub['work_session_submitted_at'] ?? sub['submitted_at']) as String?;
-      startDt = startedAtRaw != null ? DateTime.tryParse(startedAtRaw) : null;
-      endDt =
-          submittedAtRaw != null ? DateTime.tryParse(submittedAtRaw) : null;
+      startDt = startedAtRaw != null
+          ? DateTime.tryParse(startedAtRaw)?.toLocal()
+          : null;
+      endDt = submittedAtRaw != null
+          ? DateTime.tryParse(submittedAtRaw)?.toLocal()
+          : null;
       viewingAttemptNum = null;
     }
 
@@ -865,14 +959,14 @@ class _SubmittedViewState extends ConsumerState<_SubmittedView> {
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
                 children: [
-                  // Banner khi đang xem lần làm cũ
+                  // Banner nhỏ gọn khi đang xem lần làm cũ
                   if (isViewing)
                     _ViewingBanner(
                       attemptNum: viewingAttemptNum ?? 1,
                       onClear: () => setState(() => _selectedAttempt = null),
                     ),
 
-                  // Điểm số hoặc banner ẩn
+                  // Điểm số — luôn hiện, dữ liệu thay đổi theo lần được chọn
                   if (reviewMode != 'none')
                     _ScoreCard(
                       score: score,
@@ -882,8 +976,8 @@ class _SubmittedViewState extends ConsumerState<_SubmittedView> {
                   else
                     _HiddenResultBanner(),
 
-                  // Nhãn phương thức tính điểm — ẩn khi đang xem lần cũ
-                  if (reviewMode != 'none' && allowRetake && !isViewing)
+                  // Nhãn phương thức tính điểm — luôn hiện khi có làm lại
+                  if (reviewMode != 'none' && allowRetake)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
                           DesignSpacing.md, DesignSpacing.xs, DesignSpacing.md, 0),
@@ -897,28 +991,42 @@ class _SubmittedViewState extends ConsumerState<_SubmittedView> {
                       children: [
                         const SizedBox(height: DesignSpacing.md),
 
-                        // Thời gian (chỉ full_review, chỉ submission hiện tại)
-                        if (reviewMode == 'full_review' &&
-                            !isViewing &&
-                            (startDt != null || endDt != null)) ...[
+                        // Card thời gian thực hiện — luôn hiện khi full_review.
+                        // Dữ liệu thay đổi theo lần được chọn; các dòng thiếu data
+                        // hiện "Không có" thay vì ẩn cả card (tránh giao diện flicker).
+                        if (reviewMode == 'full_review') ...[
                           _CompactInfoCard(
                             icon: Icons.schedule_outlined,
                             iconColor: DesignColors.primary,
-                            header: 'Thời gian thực hiện',
+                            header: isViewing
+                                ? 'Thời gian lần $viewingAttemptNum'
+                                : 'Thời gian thực hiện',
                             lines: [
-                              (label: 'Bắt đầu: ', value: startDt != null ? _fmtDate(startDt!) : 'Không có', valueColor: null),
-                              (label: 'Kết thúc: ', value: endDt != null ? _fmtDate(endDt!) : 'Không có', valueColor: null),
-                              (label: 'Thời gian bài làm: ', value: timeLimitMinutes != null ? _fmtLimit(timeLimitMinutes) : 'Không giới hạn', valueColor: null),
+                              (
+                                label: 'Bắt đầu: ',
+                                value: startDt != null ? _fmtDate(startDt) : 'Không có',
+                                valueColor: null,
+                              ),
+                              (
+                                label: 'Kết thúc: ',
+                                value: endDt != null ? _fmtDate(endDt) : 'Không có',
+                                valueColor: null,
+                              ),
+                              (
+                                label: 'Thời gian bài làm: ',
+                                value: timeLimitMinutes != null
+                                    ? _fmtLimit(timeLimitMinutes)
+                                    : 'Không giới hạn',
+                                valueColor: null,
+                              ),
                             ],
                           ),
                           const SizedBox(height: DesignSpacing.md),
                         ],
 
-                        // Thống kê đúng/sai (chỉ full_review, chỉ submission hiện tại)
-                        if (reviewMode == 'full_review' &&
-                            !isViewing &&
-                            (correctCount != null ||
-                                timeTakenLabel != null)) ...[
+                        // Thống kê đúng/sai — luôn hiện khi full_review
+                        // (hiện dù correctCount null để timeTakenLabel vẫn show)
+                        if (reviewMode == 'full_review') ...[
                           _StatsRow(
                             correctCount: correctCount,
                             wrongCount: wrongCount,
@@ -928,17 +1036,7 @@ class _SubmittedViewState extends ConsumerState<_SubmittedView> {
                           const SizedBox(height: DesignSpacing.md),
                         ],
 
-                        // Thời gian nộp + thời gian làm khi xem lần cũ
-                        if (isViewing && (endDt != null || timeTakenLabel != null))
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: DesignSpacing.md),
-                            child: _HistoricalTimeRow(
-                              submittedAt: endDt,
-                              timeTakenLabel: timeTakenLabel,
-                            ),
-                          ),
-
-                        // AI feedback (chỉ full_review, chỉ submission hiện tại)
+                        // AI feedback — chỉ hiện ở lần mới nhất
                         if (reviewMode == 'full_review' &&
                             !isViewing &&
                             aiEnabled &&
@@ -950,7 +1048,10 @@ class _SubmittedViewState extends ConsumerState<_SubmittedView> {
                         // Danh sách các lần làm bài (chỉ hiện khi ≥ 2 lần)
                         _AttemptsHistoryList(
                           distributionId: widget.distributionId,
-                          currentSessionId: sub['id'] as String?,
+                          currentSubmittedAt:
+                              (sub['work_session_submitted_at'] ??
+                                      sub['submitted_at'])
+                                  as String?,
                           selectedAttemptId: sel?['id'] as String?,
                           reviewMode: reviewMode,
                           scoreAggregationRule: scoreAggregationRule,
@@ -975,6 +1076,11 @@ class _SubmittedViewState extends ConsumerState<_SubmittedView> {
           maxAttempts: widget.maxAttempts,
           allowRetake: allowRetake,
           scoreAggregationRule: scoreAggregationRule,
+          selectedSessionId: sel?['id'] as String?,
+          dueAt: () {
+            final raw = dist['due_at'] as String?;
+            return raw != null ? DateTime.tryParse(raw)?.toLocal() : null;
+          }(),
         ),
       ],
     );
@@ -1021,40 +1127,6 @@ class _ViewingBanner extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// Dòng thông tin rút gọn: ngày nộp + thời gian làm khi xem lần cũ
-class _HistoricalTimeRow extends StatelessWidget {
-  final DateTime? submittedAt;
-  final String? timeTakenLabel;
-
-  const _HistoricalTimeRow({this.submittedAt, this.timeTakenLabel});
-
-  @override
-  Widget build(BuildContext context) {
-    final parts = <String>[];
-    if (submittedAt != null) parts.add('Nộp lúc: ${_fmtDate(submittedAt!)}');
-    if (timeTakenLabel != null) parts.add('Thời gian làm: $timeTakenLabel');
-    if (parts.isEmpty) return const SizedBox.shrink();
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-          horizontal: DesignSpacing.lg, vertical: DesignSpacing.sm + 2),
-      decoration: BoxDecoration(
-        color: DesignColors.white,
-        border: Border.all(color: DesignColors.dividerLight),
-        borderRadius: BorderRadius.circular(DesignRadius.md),
-      ),
-      child: Text(
-        parts.join('  ·  '),
-        style: TextStyle(
-          fontSize: 11.sp,
-          color: DesignColors.textSecondary,
-        ),
-        textAlign: TextAlign.center,
       ),
     );
   }
@@ -1266,52 +1338,50 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = <Widget>[];
-
-    if (correctCount != null) {
-      items.add(Expanded(
-        child: _StatChip(
-          icon: Icons.check_circle_outline,
-          iconColor: DesignColors.success,
-          label: 'Đúng',
-          value: '$correctCount/$totalQuestions',
-          valueColor: DesignColors.success,
+    // Luôn hiển thị cả 3 chip — "--" khi không có dữ liệu
+    return Row(
+      children: [
+        Expanded(
+          child: _StatChip(
+            icon: Icons.check_circle_outline,
+            iconColor: correctCount != null
+                ? DesignColors.success
+                : DesignColors.textTertiary,
+            label: 'Đúng',
+            value: correctCount != null
+                ? '$correctCount/$totalQuestions'
+                : '--',
+            valueColor: correctCount != null
+                ? DesignColors.success
+                : DesignColors.textTertiary,
+          ),
         ),
-      ));
-    }
-
-    if (wrongCount != null) {
-      if (items.isNotEmpty) {
-        items.add(const SizedBox(width: DesignSpacing.sm));
-      }
-      items.add(Expanded(
-        child: _StatChip(
-          icon: Icons.cancel_outlined,
-          iconColor: DesignColors.error,
-          label: 'Sai',
-          value: '$wrongCount',
-          valueColor: DesignColors.error,
+        const SizedBox(width: DesignSpacing.sm),
+        Expanded(
+          child: _StatChip(
+            icon: Icons.cancel_outlined,
+            iconColor: wrongCount != null
+                ? DesignColors.error
+                : DesignColors.textTertiary,
+            label: 'Sai',
+            value: wrongCount != null ? '$wrongCount' : '--',
+            valueColor: wrongCount != null
+                ? DesignColors.error
+                : DesignColors.textTertiary,
+          ),
         ),
-      ));
-    }
-
-    if (timeTakenLabel != null) {
-      if (items.isNotEmpty) {
-        items.add(const SizedBox(width: DesignSpacing.sm));
-      }
-      items.add(Expanded(
-        child: _StatChip(
-          icon: Icons.timer_outlined,
-          iconColor: DesignColors.textSecondary,
-          label: 'Thời gian',
-          value: timeTakenLabel!,
-          valueColor: DesignColors.textSecondary,
+        const SizedBox(width: DesignSpacing.sm),
+        Expanded(
+          child: _StatChip(
+            icon: Icons.timer_outlined,
+            iconColor: DesignColors.textSecondary,
+            label: 'Thời gian',
+            value: timeTakenLabel ?? '--',
+            valueColor: DesignColors.textSecondary,
+          ),
         ),
-      ));
-    }
-
-    if (items.isEmpty) return const SizedBox.shrink();
-    return Row(children: items);
+      ],
+    );
   }
 }
 
@@ -1449,6 +1519,10 @@ class _SubmittedFooter extends ConsumerStatefulWidget {
   final int? maxAttempts;
   final bool allowRetake;
   final String scoreAggregationRule;
+  final String? selectedSessionId;
+  /// Hạn nộp bài. Khi đã quá → block redo (mirror rule server).
+  /// allow_late KHÔNG nới lỏng nhánh này: chỉ áp cho lần đầu.
+  final DateTime? dueAt;
 
   const _SubmittedFooter({
     required this.distributionId,
@@ -1457,6 +1531,8 @@ class _SubmittedFooter extends ConsumerStatefulWidget {
     this.maxAttempts,
     this.allowRetake = false,
     this.scoreAggregationRule = 'latest',
+    this.selectedSessionId,
+    this.dueAt,
   });
 
   @override
@@ -1486,12 +1562,25 @@ class _SubmittedFooterState extends ConsumerState<_SubmittedFooter> {
     return 'Không thể làm lại. Vui lòng thử lại sau.';
   }
 
+  String _disabledLabel(RedoBlockedClient reason) {
+    switch (reason) {
+      case RedoBlockedClient.notAllowed:
+        return 'Không được làm lại';
+      case RedoBlockedClient.maxReached:
+        return 'Hết số lần làm';
+      case RedoBlockedClient.pastDue:
+        return 'Hết hạn làm lại';
+    }
+  }
+
   String _ruleLabel(String rule) {
     switch (rule) {
       case 'max':
         return 'Điểm cao nhất';
       case 'average':
         return 'Điểm trung bình';
+      case 'first':
+        return 'Điểm lần làm đầu tiên';
       default:
         return 'Điểm lần làm mới nhất';
     }
@@ -1554,8 +1643,15 @@ class _SubmittedFooterState extends ConsumerState<_SubmittedFooter> {
 
   @override
   Widget build(BuildContext context) {
-    final bool canRetry = widget.allowRetake &&
-        (widget.maxAttempts == null || widget.attemptCount < widget.maxAttempts!);
+    // Mirror rule của RPC start_redo_session — disable nút trước khi user
+    // nhấn để khỏi nuốt 1 round-trip mạng + snackbar lỗi.
+    final blockReason = whyCannotRedo(
+      allowRetake: widget.allowRetake,
+      attemptCount: widget.attemptCount,
+      maxAttempts: widget.maxAttempts,
+      dueAt: widget.dueAt,
+    );
+    final bool canRetry = blockReason == null;
 
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -1579,6 +1675,9 @@ class _SubmittedFooterState extends ConsumerState<_SubmittedFooter> {
                   onPressed: () => context.pushNamed(
                     AppRoute.studentSubmissionReview,
                     pathParameters: {'distributionId': widget.distributionId},
+                    extra: widget.selectedSessionId != null
+                        ? {'sessionId': widget.selectedSessionId}
+                        : null,
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: DesignColors.textSecondary,
@@ -1631,9 +1730,7 @@ class _SubmittedFooterState extends ConsumerState<_SubmittedFooter> {
                       ? 'Đang xử lý...'
                       : canRetry
                           ? 'Làm lại'
-                          : !widget.allowRetake
-                              ? 'Không được làm lại'
-                              : 'Hết số lần làm',
+                          : _disabledLabel(blockReason),
                   style: TextStyle(
                     fontSize: DesignTypography.bodySmallSize,
                     fontWeight: DesignTypography.bold,
@@ -1729,7 +1826,8 @@ class _CircularProgressPainter extends CustomPainter {
 
 class _AttemptsHistoryList extends ConsumerWidget {
   final String distributionId;
-  final String? currentSessionId;
+  /// submitted_at fallback cho lần làm mới nhất (khi work_session.submitted_at null)
+  final String? currentSubmittedAt;
   final String? selectedAttemptId;
   final String reviewMode;
   final String scoreAggregationRule;
@@ -1738,7 +1836,7 @@ class _AttemptsHistoryList extends ConsumerWidget {
 
   const _AttemptsHistoryList({
     required this.distributionId,
-    this.currentSessionId,
+    this.currentSubmittedAt,
     this.selectedAttemptId,
     this.reviewMode = 'full_review',
     this.scoreAggregationRule = 'latest',
@@ -1752,14 +1850,14 @@ class _AttemptsHistoryList extends ConsumerWidget {
     if (scoreAggregationRule == 'latest') {
       return attempts.last['id'] as String?;
     }
+    if (scoreAggregationRule == 'first') {
+      return attempts.first['id'] as String?;
+    }
     if (scoreAggregationRule == 'max') {
       Map<String, dynamic>? best;
       num bestScore = -1;
       for (final a in attempts) {
-        final subs = a['submissions'];
-        final s = (subs is List && subs.isNotEmpty)
-            ? (subs[0]['total_score'] as num? ?? -1)
-            : -1;
+        final s = _extractScore(a) ?? -1;
         if (s > bestScore) { bestScore = s; best = a; }
       }
       return best?['id'] as String?;
@@ -1771,6 +1869,15 @@ class _AttemptsHistoryList extends ConsumerWidget {
     final subs = attemptData['submissions'];
     if (subs is List && subs.isNotEmpty) return subs[0]['total_score'] as num?;
     if (subs is Map) return subs['total_score'] as num?;
+    // Fallback cho các lần cũ: tính tổng final_score từ submission_answers
+    final answers = attemptData['submission_answers'];
+    if (answers is List && answers.isNotEmpty) {
+      num total = 0;
+      for (final a in answers) {
+        if (a is Map) total += (a['final_score'] as num? ?? 0);
+      }
+      return total;
+    }
     return null;
   }
 
@@ -1835,14 +1942,20 @@ class _AttemptsHistoryList extends ConsumerWidget {
                 itemBuilder: (context, index) {
                   final a = valid[index];
                   final attemptNum = a['attempt'] as int? ?? (index + 1);
-                  final submittedAt = a['submitted_at'] != null
-                      ? DateTime.tryParse(a['submitted_at'] as String)?.toLocal()
+                  // isSelected = lần này đang được xem trên UI (được chọn bởi parent)
+                  final isSelected = a['id'] == selectedAttemptId;
+                  // isCounting = lần được tính điểm theo rule
+                  final isCounting = a['id'] == counting;
+                  // Giải quyết submitted_at: fallback sang currentSubmittedAt nếu là lần mới nhất
+                  final isLatest = index == valid.length - 1;
+                  final rawSubmittedAt = a['submitted_at'] as String?;
+                  final resolvedSubmittedAt = rawSubmittedAt ??
+                      (isLatest ? currentSubmittedAt : null);
+                  final submittedAt = resolvedSubmittedAt != null
+                      ? DateTime.tryParse(resolvedSubmittedAt)?.toLocal()
                       : null;
                   final timeSec = a['time_spent_seconds'] as int?;
                   final score = _extractScore(a);
-                  final isCurrent = a['id'] == currentSessionId;
-                  final isCounting = a['id'] == counting;
-                  final isSelected = a['id'] == selectedAttemptId;
 
                   return GestureDetector(
                     onTap: () => onAttemptTapped?.call(Map<String, dynamic>.from(a)),
@@ -1863,11 +1976,12 @@ class _AttemptsHistoryList extends ConsumerWidget {
                           width: 36,
                           height: 36,
                           decoration: BoxDecoration(
-                            color: isCurrent
+                            // Nếu đang được xem (isSelected) → primary, còn nếu là lần tính điểm → viền
+                            color: isSelected
                                 ? DesignColors.primary
                                 : DesignColors.moonLight,
                             shape: BoxShape.circle,
-                            border: isCounting && !isCurrent
+                            border: isCounting && !isSelected
                                 ? Border.all(color: DesignColors.primary, width: 1.5)
                                 : null,
                           ),
@@ -1877,7 +1991,7 @@ class _AttemptsHistoryList extends ConsumerWidget {
                               style: TextStyle(
                                 fontSize: 13.sp,
                                 fontWeight: DesignTypography.bold,
-                                color: isCurrent
+                                color: isSelected
                                     ? DesignColors.white
                                     : isCounting
                                         ? DesignColors.primary
@@ -1898,15 +2012,16 @@ class _AttemptsHistoryList extends ConsumerWidget {
                                     'Lần $attemptNum',
                                     style: TextStyle(
                                       fontSize: DesignTypography.bodySmallSize,
-                                      fontWeight: isCurrent
+                                      fontWeight: isSelected
                                           ? DesignTypography.bold
                                           : DesignTypography.semiBold,
-                                      color: isCurrent
+                                      color: isSelected
                                           ? DesignColors.primary
                                           : DesignColors.textPrimary,
                                     ),
                                   ),
-                                  if (isCurrent) ...[
+                                  // Badge "Hiện tại" = item đang được xem
+                                  if (isSelected) ...[
                                     const SizedBox(width: 6),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
@@ -1918,7 +2033,7 @@ class _AttemptsHistoryList extends ConsumerWidget {
                                             BorderRadius.circular(4),
                                       ),
                                       child: Text(
-                                        'Hiện tại',
+                                        'Xem',
                                         style: TextStyle(
                                           fontSize: 9.sp,
                                           fontWeight: DesignTypography.bold,
@@ -1927,6 +2042,7 @@ class _AttemptsHistoryList extends ConsumerWidget {
                                       ),
                                     ),
                                   ],
+                                  // ★ đánh dấu lần được tính điểm
                                   if (isCounting && scoreAggregationRule != 'average') ...[
                                     const SizedBox(width: 6),
                                     Icon(
@@ -1941,7 +2057,9 @@ class _AttemptsHistoryList extends ConsumerWidget {
                               Text(
                                 submittedAt != null
                                     ? _fmtDate(submittedAt)
-                                    : 'Đang xử lý...',
+                                    : isLatest
+                                        ? 'Vừa nộp'
+                                        : 'Không rõ',
                                 style: TextStyle(
                                   fontSize: 11.sp,
                                   color: DesignColors.textTertiary,
@@ -2020,12 +2138,14 @@ class _ScoreRuleChip extends StatelessWidget {
   String get _label => switch (rule) {
         'max' => 'Điểm cao nhất',
         'average' => 'Trung bình các lần',
+        'first' => 'Lần làm đầu tiên',
         _ => 'Bài nộp mới nhất',
       };
 
   IconData get _icon => switch (rule) {
         'max' => Icons.emoji_events_outlined,
         'average' => Icons.calculate_outlined,
+        'first' => Icons.looks_one_outlined,
         _ => Icons.history_outlined,
       };
 

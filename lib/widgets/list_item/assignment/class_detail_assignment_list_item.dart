@@ -71,6 +71,7 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
   int? get _submissionCount => assignment['submission_count'] as int?;
   int? get _gradedCount => assignment['graded_count'] as int?;
   int? get _totalStudents => assignment['total_students'] as int?;
+  int? get _pendingActionCount => assignment['pending_action_count'] as int?;
 
   // ── Computed labels ───────────────────────────────────────────────────────
 
@@ -340,9 +341,11 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
     final metaColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
     final badge = _badgeStyle;
 
+    final pendingAction = _pendingActionCount ?? 0;
+
     return Row(
       children: [
-        // Bên trái: Thống kê nộp bài (recipient đã hiển thị ở chip phía trên)
+        // Bên trái: Thống kê tham gia (1 HS làm lại N lần chỉ đếm 1).
         Icon(Icons.how_to_reg_outlined, size: 16, color: metaColor),
         const SizedBox(width: 4),
         Text(
@@ -352,6 +355,25 @@ class ClassDetailAssignmentListItem extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
+        // Badge actionable queue: số HS có latest attempt chờ chấm.
+        if (pendingAction > 0) ...[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE53935),
+              borderRadius: BorderRadius.circular(DesignRadius.full),
+            ),
+            child: Text(
+              '$pendingAction chờ chấm',
+              style: DesignTypography.bodySmall.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
 
         const Spacer(),
 

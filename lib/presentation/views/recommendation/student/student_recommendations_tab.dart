@@ -20,8 +20,9 @@ class StudentRecommendationsTab extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 1,
         title: Text(
-          'Goi y hoc tap',
+          'Gợi ý học tập',
           style: DesignTypography.titleLarge,
         ),
         automaticallyImplyLeading: true,
@@ -41,27 +42,7 @@ class StudentRecommendationsTab extends ConsumerWidget {
               itemCount: recs.length + 1,
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return Padding(
-                    padding: EdgeInsets.only(bottom: DesignSpacing.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Han che nhat',
-                          style: DesignTypography.titleSmall.copyWith(
-                            color: DesignColors.primary,
-                          ),
-                        ),
-                        Text(
-                          'Tap hop nhung goi y quan trong nhat dua tren ket qua hoc tap gan day.',
-                          style: DesignTypography.bodySmall.copyWith(
-                            color: Colors.grey,
-                          ),
-                        ),
-                        SizedBox(height: DesignSpacing.md),
-                      ],
-                    ),
-                  );
+                  return _buildHeaderCard(recs.length);
                 }
 
                 final rec = recs[index - 1];
@@ -73,7 +54,7 @@ class StudentRecommendationsTab extends ConsumerWidget {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Da xoa goi y'),
+                          content: Text('Đã xóa gợi ý'),
                           duration: Duration(seconds: 2),
                         ),
                       );
@@ -90,31 +71,96 @@ class StudentRecommendationsTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildHeaderCard(int count) {
+    return Container(
+      margin: EdgeInsets.only(bottom: DesignSpacing.md),
+      padding: EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            DesignColors.primary.withValues(alpha: 0.10),
+            DesignColors.primary.withValues(alpha: 0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border: Border.all(
+            color: DesignColors.primary.withValues(alpha: 0.18)),
+      ),
+      child: Row(
         children: [
-          Icon(
-            Icons.thumb_up_outlined,
-            size: 64,
-            color: DesignColors.success,
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: DesignColors.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(DesignRadius.md),
+            ),
+            child: Icon(Icons.auto_awesome_rounded,
+                color: DesignColors.primary, size: 24),
           ),
-          SizedBox(height: DesignSpacing.md),
-          Text(
-            'Khong co goi y nao',
-            style: DesignTypography.titleMedium,
-          ),
-          SizedBox(height: DesignSpacing.sm),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: DesignSpacing.xl),
-            child: Text(
-              'Ban dang hoc tot! Tiep tuc lam bai de cai thien.',
-              style: DesignTypography.bodyMedium.copyWith(color: Colors.grey),
-              textAlign: TextAlign.center,
+          SizedBox(width: DesignSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Dành cho bạn',
+                  style: DesignTypography.titleMedium.copyWith(
+                    color: DesignColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  '$count gợi ý dựa trên kết quả học tập gần đây',
+                  style: DesignTypography.bodySmall
+                      .copyWith(color: DesignColors.textSecondary),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(DesignSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: DesignColors.success.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.thumb_up_rounded,
+                size: 56,
+                color: DesignColors.success,
+              ),
+            ),
+            SizedBox(height: DesignSpacing.lg),
+            Text(
+              'Bạn đang học rất tốt!',
+              style: DesignTypography.titleMedium
+                  .copyWith(fontWeight: FontWeight.w700),
+            ),
+            SizedBox(height: DesignSpacing.sm),
+            Text(
+              'Tiếp tục làm bài để duy trì phong độ.\nGợi ý sẽ xuất hiện khi cần.',
+              style: DesignTypography.bodyMedium
+                  .copyWith(color: DesignColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -142,19 +188,44 @@ class StudentRecommendationsTab extends ConsumerWidget {
 
   Widget _buildErrorState(WidgetRef ref, String error) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 48, color: DesignColors.error),
-          SizedBox(height: DesignSpacing.md),
-          Text('Loi tai du lieu', style: DesignTypography.titleMedium),
-          Text(error, style: DesignTypography.bodySmall.copyWith(color: Colors.grey)),
-          SizedBox(height: DesignSpacing.md),
-          ElevatedButton(
-            onPressed: () => ref.invalidate(studentRecommendationNotifierProvider()),
-            child: Text('Thu lai'),
-          ),
-        ],
+      child: Padding(
+        padding: EdgeInsets.all(DesignSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline_rounded,
+                size: 56, color: DesignColors.error),
+            SizedBox(height: DesignSpacing.md),
+            Text('Lỗi tải dữ liệu',
+                style: DesignTypography.titleMedium
+                    .copyWith(fontWeight: FontWeight.w700)),
+            SizedBox(height: DesignSpacing.xs),
+            Text(
+              error,
+              style: DesignTypography.bodySmall
+                  .copyWith(color: DesignColors.textSecondary),
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            SizedBox(height: DesignSpacing.lg),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Thử lại'),
+              onPressed: () =>
+                  ref.invalidate(studentRecommendationNotifierProvider()),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: DesignColors.primary,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                    horizontal: DesignSpacing.lg,
+                    vertical: DesignSpacing.sm),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(DesignRadius.md)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -18,6 +18,10 @@ _$AssignmentStatisticsImpl _$$AssignmentStatisticsImplFromJson(
   inProgress: (json['in_progress'] as num?)?.toInt() ?? 0,
   ungraded: (json['ungraded'] as num?)?.toInt() ?? 0,
   graded: (json['graded'] as num?)?.toInt() ?? 0,
+  totalSubmissions: (json['total_submissions'] as num?)?.toInt() ?? 0,
+  lateSubmissions: (json['late_submissions'] as num?)?.toInt() ?? 0,
+  distsWithLate: (json['dists_with_late'] as num?)?.toInt() ?? 0,
+  inProgressClasses: (json['in_progress_classes'] as num?)?.toInt() ?? 0,
 );
 
 Map<String, dynamic> _$$AssignmentStatisticsImplToJson(
@@ -32,4 +36,8 @@ Map<String, dynamic> _$$AssignmentStatisticsImplToJson(
   'in_progress': instance.inProgress,
   'ungraded': instance.ungraded,
   'graded': instance.graded,
+  'total_submissions': instance.totalSubmissions,
+  'late_submissions': instance.lateSubmissions,
+  'dists_with_late': instance.distsWithLate,
+  'in_progress_classes': instance.inProgressClasses,
 };

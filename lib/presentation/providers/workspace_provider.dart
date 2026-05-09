@@ -84,9 +84,13 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
       // Lý do: ensure_student_variant được gọi bên trong getOrCreateSubmission.
       // Nếu gọi getDistributionDetail trước, variant chưa tồn tại → shuffle không apply.
       final submission = await repo.getOrCreateSubmission(distributionId, studentId);
+      // BUG-1 fix: truyền session_id của attempt hiện tại để load đúng variant
+      // (mỗi attempt sau khi redo có variant immutable riêng).
+      final sessionId = submission?['id'] as String?;
       final detail = await repo.getDistributionDetail(
         distributionId,
         studentId: studentId,
+        sessionId: sessionId,
       );
 
       // Extract data từ detail (cấu trúc mới)
@@ -118,11 +122,15 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
 
       final wsState = WorkspaceState(
         distributionId: distributionId,
+        sessionId: sessionId,
         assignmentTitle: assignment['title'] as String? ?? 'Bài tập',
         totalPoints: (assignment['total_points'] as num?)?.toDouble(),
         dueAt: distribution['due_at'] != null
             ? DateTime.tryParse(distribution['due_at'] as String)
             : null,
+        // Cấu hình "cho nộp muộn" lấy từ distribution. UI dùng combo này
+        // (dueAt + allowLate) để quyết định auto-submit hay disable submit.
+        allowLate: distribution['allow_late'] as bool? ?? true,
         timeLimitMinutes: timeLimitMinutes,
         sessionStartedAt: sessionStartedAt,
         attempt: currentAttempt,
@@ -453,9 +461,15 @@ class WorkspaceNotifier extends _$WorkspaceNotifier {
 /// State cho workspace
 class WorkspaceState {
   final String distributionId;
+  /// ID của work_session đang load (null khi chưa biết — ví dụ trước initialize).
+  /// Dùng để audit/log; mọi save/submit hiện tại vẫn dò latest session ở DS.
+  final String? sessionId;
   final String assignmentTitle;
   final double? totalPoints;
   final DateTime? dueAt;
+  /// Cho phép nộp muộn (sau dueAt) — copy từ distribution.allow_late.
+  /// Khi false + đã quá dueAt: workspace tự auto-submit & block submit thủ công.
+  final bool allowLate;
   /// Giới hạn thời gian làm bài (phút), null = không giới hạn
   final int? timeLimitMinutes;
   /// Thời điểm học sinh bắt đầu làm bài (từ server — đóng đinh, không thể giả mạo)
@@ -472,9 +486,11 @@ class WorkspaceState {
 
   const WorkspaceState({
     required this.distributionId,
+    this.sessionId,
     required this.assignmentTitle,
     this.totalPoints,
     this.dueAt,
+    this.allowLate = true,
     this.timeLimitMinutes,
     this.sessionStartedAt,
     required this.questions,
@@ -488,9 +504,11 @@ class WorkspaceState {
 
   WorkspaceState copyWith({
     String? distributionId,
+    String? sessionId,
     String? assignmentTitle,
     double? totalPoints,
     DateTime? dueAt,
+    bool? allowLate,
     int? timeLimitMinutes,
     DateTime? sessionStartedAt,
     List<QuestionState>? questions,
@@ -503,9 +521,11 @@ class WorkspaceState {
   }) {
     return WorkspaceState(
       distributionId: distributionId ?? this.distributionId,
+      sessionId: sessionId ?? this.sessionId,
       assignmentTitle: assignmentTitle ?? this.assignmentTitle,
       totalPoints: totalPoints ?? this.totalPoints,
       dueAt: dueAt ?? this.dueAt,
+      allowLate: allowLate ?? this.allowLate,
       timeLimitMinutes: timeLimitMinutes ?? this.timeLimitMinutes,
       sessionStartedAt: sessionStartedAt ?? this.sessionStartedAt,
       questions: questions ?? this.questions,
@@ -516,6 +536,15 @@ class WorkspaceState {
       attempt: attempt ?? this.attempt,
       maxAttempts: maxAttempts ?? this.maxAttempts,
     );
+  }
+
+  /// Bài đã đóng cứng: dueAt qua + GV không cho nộp muộn.
+  /// Workspace screen dùng để tự auto-submit và disable nút "Nộp bài".
+  bool get isPastDueClosed {
+    final due = dueAt;
+    if (due == null) return false;
+    if (allowLate) return false;
+    return DateTime.now().isAfter(due);
   }
 
   /// Số câu hỏi đã trả lời

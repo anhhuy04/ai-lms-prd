@@ -1,5 +1,17 @@
 # Progress Tracker
 
+## Current Session (2026-05-09)
+
+### Mode 3 Bug Bundle Fix ✅
+**Completed (4-agent team workflow):**
+- ✅ Template detection: thêm bắt math expression cho 1-câu mẫu
+- ✅ LaTeX rendering: widget MathText + 3 swap trong preview card
+- ✅ Edit dialog: Tab Preview + 11-nút math toolbar + nút fx per choice
+- ✅ UX template: Force toggle, banner trạng thái, chip sub-mode always-show
+- ✅ Backend cascade: templateCount param qua repo→datasource→service
+
+**Files:** 8 files changed (1 new, 7 edited). flutter analyze pass, build apk debug success.
+
 ## Current Session (2026-03-12)
 
 ### GSD Roadmap Review & Database Migration ✅

@@ -1,4 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/presentation/providers/teacher_submission_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/ai_confidence_indicator.dart';
@@ -1416,21 +1417,6 @@ class _TeacherSubmissionDetailScreenState
     }
   }
 
-  Future<void> _updateFeedback(String answerId, String feedback) async {
-    try {
-      await ref.read(submissionGradingNotifierProvider.notifier).updateTeacherFeedback(
-            submissionAnswerId: answerId,
-            feedback: feedback,
-          );
-      // Refresh dữ liệu sau khi lưu
-      ref.invalidate(teacherSubmissionDetailProvider(
-        submissionId: widget.submissionId,
-      ));
-    } catch (e) {
-      AppLogger.error('Error updating feedback: $e');
-    }
-  }
-
   Future<void> _publishGrades() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1711,22 +1697,34 @@ class _TeacherAttemptsHistoryList extends ConsumerWidget {
                   final submittedAt = submittedAtRaw != null ? DateTime.tryParse(submittedAtRaw) : null;
                   
                   final submissions = attemptData['submissions'];
-                  final score = (submissions is List && submissions.isNotEmpty) 
-                      ? (submissions[0]['total_score'] ?? submissions[0]['score'] as num?) 
-                      : (submissions is Map ? (submissions['total_score'] ?? submissions['score'] as num?) : null);
+                  final submissionAnswers = attemptData['submission_answers'];
+
+                  num? score;
+                  if (submissions is List && submissions.isNotEmpty) {
+                    score = submissions[0]['total_score'] as num? ?? submissions[0]['score'] as num?;
+                  } else if (submissions is Map) {
+                    score = submissions['total_score'] as num? ?? submissions['score'] as num?;
+                  } else if (submissionAnswers is List && submissionAnswers.isNotEmpty) {
+                    // Fallback cho các lần cũ: tính tổng final_score từ submission_answers
+                    num total = 0;
+                    for (final a in submissionAnswers) {
+                      if (a is Map) {
+                        total += (a['final_score'] as num? ?? a['ai_score'] as num? ?? 0);
+                      }
+                    }
+                    score = total;
+                  }
 
                   final isCurrent = attemptData['id'] == currentSessionId;
-                  final attemptSubmissionId = (submissions is List && submissions.isNotEmpty) 
+                  final attemptSubmissionId = (submissions is List && submissions.isNotEmpty)
                       ? submissions[0]['id'] as String?
                       : (submissions is Map ? submissions['id'] as String? : null);
 
                   return InkWell(
                     onTap: isCurrent || attemptSubmissionId == null ? null : () {
-                      // Navigate to this attempt's detail using attemptSubmissionId
-                      // Cho phép GV chuyển đổi qua lại giữa các phiên bản chấm bài
                       context.pushReplacementNamed(
-                        'teacher_submission_detail', // AppRoutes.teacherSubmissionDetail.name
-                        pathParameters: {'id': attemptSubmissionId},
+                        AppRoute.teacherGradeSubmission,
+                        pathParameters: {'submissionId': attemptSubmissionId},
                         extra: {'distributionId': distributionId},
                       );
                     },

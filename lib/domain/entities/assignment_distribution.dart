@@ -28,10 +28,17 @@ class AssignmentDistribution with _$AssignmentDistribution {
     String? className,
     String? groupName,
     String? assignmentTitle,
+    /// Mẫu số "X/Y đã nộp" — tổng HS được giao bài (theo distribution_type).
     @JsonKey(name: 'recipient_count') int? recipientCount,
+    /// Tử số "X/Y đã nộp" — số HS đã nộp ÍT NHẤT 1 lần (DISTINCT, đã dedupe retake).
     @JsonKey(name: 'submitted_count') int? submittedCount,
+    /// Số HS có latest attempt = graded.
     @JsonKey(name: 'graded_count') int? gradedCount,
+    /// Số HS có latest non-in_progress attempt nộp muộn so với due_at.
     @JsonKey(name: 'late_submission_count') int? lateSubmissionCount,
+    /// Actionable Queue: số HS có latest attempt đã submit nhưng chưa graded
+    /// → việc cần GV xử lý. 1 HS làm lại N lần chỉ đếm 1 lần (latest only).
+    @JsonKey(name: 'pending_action_count') int? pendingActionCount,
   }) = _AssignmentDistribution;
 
   factory AssignmentDistribution.fromJson(Map<String, dynamic> json) =>

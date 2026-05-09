@@ -256,7 +256,10 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
     _displayedTeacherAssignments = allAssignments.take(endIndex).toList();
     _isLoadingMore = false;
 
-    setState(() {});
+    // Defer setState vì method này có thể được gọi trong itemBuilder (during build)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   /// Xây dựng view cho học sinh
@@ -526,7 +529,7 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
         });
       case 'status':
         // Thứ tự: in_progress → not_submitted → submitted/ai_processing → graded
-        int _statusOrder(String? s) => switch (s) {
+        int statusOrder(String? s) => switch (s) {
           'in_progress' => 0,
           null || 'not_submitted' => 1,
           'submitted' || 'returned' || 'ai_processing' || 'pending_review' => 2,
@@ -534,8 +537,8 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
           _ => 4,
         };
         sorted.sort((a, b) {
-          final aOrder = _statusOrder(a['submission_status'] as String?);
-          final bOrder = _statusOrder(b['submission_status'] as String?);
+          final aOrder = statusOrder(a['submission_status'] as String?);
+          final bOrder = statusOrder(b['submission_status'] as String?);
           if (aOrder != bOrder) return aOrder.compareTo(bOrder);
           // Cùng nhóm → mới nhất lên đầu
           final aDate = a['distribution_created_at'] as String?;

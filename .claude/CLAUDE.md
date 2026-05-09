@@ -12,7 +12,7 @@
 3. `memory-bank/projectbrief.md`
 4. `memory-bank/systemPatterns.md`
 5. `tasks/lessons.md` (nếu có)
-
+6. Nếu đang sửa phase 7 trong gsd 'D:\code\Flutter_Android\Flutter_Android\AI_LMS_PRD\.planning\phases\07-ai-analytics-pipeline' thì hãy đọc qua D:\code\Flutter_Android\Flutter_Android\AI_LMS_PRD\docs\PHASE7_FLOW_REFERENCE.md để fix nhanh hơn và chính xác hơn, ko quên so sánh với các file trong phase 7.
 ---
 
 ## 1. Source Priority

@@ -17,6 +17,7 @@ import 'package:ai_mls/presentation/providers/local_temp_file_notifier.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/ai_settings_drawer.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/context_sources_section.dart';
+import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -70,6 +71,9 @@ class _TeacherAiGenerateQuestionScreenState
 
   // Style-template mode: tài liệu là khuôn mẫu về văn phong/cấu trúc
   bool _useAsStyleTemplate = false;
+
+  /// User-toggle: ép coi tài liệu là mẫu dù detection không bắt được.
+  bool _forceTemplateMode = false;
 
   // Sub-mode cuối cùng dùng khi gọi AI (đã apply auto-downgrade nếu cần).
   // Reset null mỗi lần generate; chỉ set khi Mode 3 + template detect.
@@ -674,6 +678,12 @@ class _TeacherAiGenerateQuestionScreenState
           'useAsStyleTemplate=$_useAsStyleTemplate',
         );
 
+        // Force toggle override: GV ép cứng khi UX detection miss
+        if (_forceTemplateMode && !_useAsStyleTemplate) {
+          _useAsStyleTemplate = true;
+          AppLogger.info('[Mode3] Force template mode ON — bypass detection');
+        }
+
         // Lấy templateMode từ provider — quyết định schema-only vs full text.
         // Default styleOnly (an toàn) nếu user chưa tương tác.
         final templateMode = ref
@@ -854,14 +864,16 @@ class _TeacherAiGenerateQuestionScreenState
           useAsStyleTemplate: _useAsStyleTemplate,
           templateMode: _effectiveTemplateMode,
           templateQuestions: _templateQuestionsForVerify,
+          templateCount: _templateQuestionsForVerify?.length,
           onRawResponse: (raw) {
             batchCount++;
-            if (mounted)
+            if (mounted) {
               setState(
                 () => _batchProgress = quantity > 10
                     ? 'Đang tạo lô $batchCount...'
                     : null,
               );
+            }
             appendRaw(raw);
           },
         );
@@ -887,6 +899,7 @@ class _TeacherAiGenerateQuestionScreenState
             useAsStyleTemplate: _useAsStyleTemplate,
             templateMode: _effectiveTemplateMode,
             templateQuestions: _templateQuestionsForVerify,
+            templateCount: _templateQuestionsForVerify?.length,
             onRawResponse: (raw) {
               batchCount++;
               appendRaw(raw);
@@ -1068,7 +1081,14 @@ class _TeacherAiGenerateQuestionScreenState
 
     // Kiểm tra text có chứa phép toán (số + ký tự toán học)
     final text = (q['override_text'] ?? q['text'] ?? '').toString();
-    return RegExp(r'[\d]+\s*[+\-×÷*/=<>]|\b[xy]\s*=').hasMatch(text);
+    if (RegExp(r'[\d]+\s*[+\-×÷*/=<>]|\b[xy]\s*=').hasMatch(text)) return true;
+    // LaTeX commands phổ biến → xác định là math
+    if (RegExp(
+      r'\\(frac|sqrt|sum|int|alpha|beta|theta|pi|infty|leq|geq|neq|cdot|times|div|pm)|\$[^\$]+\$',
+    ).hasMatch(text)) {
+      return true;
+    }
+    return false;
   }
 
   /// Thay thế [blank_N] / [___N] thành:
@@ -1227,6 +1247,7 @@ class _TeacherAiGenerateQuestionScreenState
         useAsStyleTemplate: regenUseAsStyleTemplate,
         templateMode: regenTemplateMode,
         templateQuestions: regenUseAsStyleTemplate ? _templateQuestionsForVerify : null,
+        templateCount: regenUseAsStyleTemplate ? _templateQuestionsForVerify?.length : null,
       );
       if (result.isNotEmpty && mounted) {
         setState(() {
@@ -1465,6 +1486,8 @@ class _TeacherAiGenerateQuestionScreenState
                                 .setSelectedFileIds(ids),
                             // Badge Mẫu/Kiến thức chỉ có nghĩa ở Mode 3
                             showRoleBadge: mode == ProcessingMode.ragGeneration,
+                            isTemplateActive:
+                                _forceTemplateMode || _useAsStyleTemplate,
                           ),
                           SizedBox(height: DesignSpacing.lg),
                         ],
@@ -2047,8 +2070,9 @@ class _TeacherAiGenerateQuestionScreenState
             ],
             onChanged: (_) => setState(() {}), // rebuild để cập nhật badge
             validator: (value) {
-              if (value == null || value.trim().isEmpty)
+              if (value == null || value.trim().isEmpty) {
                 return null; // trống = auto
+              }
               final quantity = int.tryParse(value.trim());
               if (quantity == null || quantity <= 0) {
                 return 'Số lượng phải lớn hơn 0';
@@ -2524,34 +2548,69 @@ class _TeacherAiGenerateQuestionScreenState
         borderRadius: BorderRadius.circular(DesignRadius.md),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: DesignIcons.mdSize),
-          SizedBox(width: DesignSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: DesignTypography.bodyMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: color, size: DesignIcons.mdSize),
+              SizedBox(width: DesignSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: DesignTypography.bodyMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                    SizedBox(height: DesignSpacing.xs),
+                    Text(
+                      subtitle,
+                      style: DesignTypography.bodySmall.copyWith(
+                        color: isDark
+                            ? Colors.grey[300]
+                            : DesignColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(height: DesignSpacing.xs),
-                Text(
-                  subtitle,
-                  style: DesignTypography.bodySmall.copyWith(
-                    color: isDark
-                        ? Colors.grey[300]
-                        : DesignColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+          // Mode 3 only — Force-template toggle (Phase 1.2)
+          if (mode == ProcessingMode.ragGeneration) ...[
+            SizedBox(height: DesignSpacing.sm),
+            Divider(
+              color: color.withValues(alpha: 0.2),
+              height: 1,
+            ),
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              activeThumbColor: DesignColors.primary,
+              value: _forceTemplateMode,
+              onChanged: (v) => setState(() => _forceTemplateMode = v),
+              title: Text(
+                'Coi tài liệu là MẪU',
+                style: DesignTypography.bodySmall.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : DesignColors.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                'Bật khi muốn tạo câu cùng dạng dù tài liệu chỉ có 1 câu',
+                style: DesignTypography.labelSmall.copyWith(
+                  color: isDark
+                      ? Colors.grey[400]
+                      : DesignColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -2795,6 +2854,7 @@ class _TeacherAiGenerateQuestionScreenState
 
   Widget _buildAiResponseSection(BuildContext context, bool isDark) {
     final questions = _generatedQuestions ?? [];
+    final mode = ref.watch(aiGenerationSettingsNotifierProvider).processingMode;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2897,6 +2957,11 @@ class _TeacherAiGenerateQuestionScreenState
             ],
           ),
         ),
+        // Banner trạng thái template — chỉ hiện ở Mode 3 (Phase 1.4)
+        if (mode == ProcessingMode.ragGeneration) ...[
+          const SizedBox(height: 8),
+          _buildTemplateStatusBanner(isDark),
+        ],
         const SizedBox(height: 12),
         ...() {
           final widgets = <Widget>[];
@@ -3095,6 +3160,60 @@ class _TeacherAiGenerateQuestionScreenState
     );
   }
 
+  /// Banner trạng thái template (Phase 1.4) — render trong _buildAiResponseSection
+  /// chỉ khi Mode 3 active. Phản ánh state SAU khi đã chạy Generate (hoặc init).
+  Widget _buildTemplateStatusBanner(bool isDark) {
+    final IconData icon;
+    final Color color;
+    final String text;
+    if (_useAsStyleTemplate &&
+        _templateQuestionsForVerify != null &&
+        _templateQuestionsForVerify!.isNotEmpty) {
+      icon = Icons.check_circle;
+      color = DesignColors.success;
+      text =
+          'Đã phát hiện ${_templateQuestionsForVerify!.length} câu mẫu — chế độ Cùng Dạng sẵn sàng';
+    } else if (_forceTemplateMode) {
+      icon = Icons.bolt;
+      color = DesignColors.warning;
+      text =
+          'Đã ép coi là tài liệu mẫu — AI sẽ tạo câu cùng dạng dựa trên nội dung file';
+    } else {
+      icon = Icons.info_outline;
+      color = DesignColors.info;
+      text =
+          'Tài liệu được dùng làm nguồn kiến thức — câu hỏi MỚI hoàn toàn (không cùng dạng)';
+    }
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: DesignSpacing.md,
+        vertical: DesignSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: DesignIcons.smSize),
+          SizedBox(width: DesignSpacing.sm),
+          Expanded(
+            child: Text(
+              text,
+              style: DesignTypography.labelSmall.copyWith(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String label, int count, bool isDark) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10, top: 4),
@@ -3223,7 +3342,7 @@ class _TeacherAiGenerateQuestionScreenState
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
+                  MathText(
                     questionText,
                     style: DesignTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.w500,
@@ -3254,7 +3373,7 @@ class _TeacherAiGenerateQuestionScreenState
                             color: DesignColors.success.withValues(alpha: 0.3),
                           ),
                         ),
-                        child: Text(
+                        child: MathText(
                           answer['expected_answer'].toString(),
                           style: DesignTypography.bodySmall.copyWith(
                             color: isDark
@@ -3322,7 +3441,7 @@ class _TeacherAiGenerateQuestionScreenState
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: Text(
+                                child: MathText(
                                   optionText,
                                   style: DesignTypography.bodySmall.copyWith(
                                     color: isCorrect
@@ -3739,13 +3858,310 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
     Navigator.of(context).pop();
   }
 
+  // ─── Math toolbar helpers (Task 7b) ────────────────────────────────────
+
+  void _insert(
+    TextEditingController c,
+    String snippet, {
+    int? cursorOffsetFromStart,
+  }) {
+    final sel = c.selection;
+    final text = c.text;
+    final hasValidSel = sel.isValid && sel.start >= 0;
+    final start = hasValidSel ? sel.start.clamp(0, text.length) : text.length;
+    final end = hasValidSel ? sel.end.clamp(0, text.length) : text.length;
+    final newText = text.replaceRange(start, end, snippet);
+    final newCursor = start + (cursorOffsetFromStart ?? snippet.length);
+    c.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+  }
+
+  void _wrapMath(TextEditingController c) {
+    final sel = c.selection;
+    if (!sel.isValid || sel.start < 0) {
+      _insert(c, r'$  $', cursorOffsetFromStart: 2);
+      return;
+    }
+    final selected = c.text.substring(sel.start, sel.end);
+    final wrapped = selected.isEmpty ? r'$  $' : '\$$selected\$';
+    c.value = TextEditingValue(
+      text: c.text.replaceRange(sel.start, sel.end, wrapped),
+      selection: TextSelection.collapsed(offset: sel.start + wrapped.length),
+    );
+  }
+
+  /// Insert blank placeholder `[___N]` cho fill_blank (Task 7d).
+  void _insertBlank(TextEditingController c) {
+    final existing = RegExp(r'\[___(\d+)\]').allMatches(c.text);
+    final n = existing.length + 1;
+    _insert(c, '[___$n]');
+  }
+
+  Widget _buildToolbarButton({
+    required String label,
+    required VoidCallback onTap,
+    required bool isDark,
+    String? tooltip,
+  }) {
+    final btn = Material(
+      color: isDark
+          ? const Color(0xFF1A2632)
+          : DesignColors.primary.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(DesignRadius.sm),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(DesignRadius.sm),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(DesignRadius.sm),
+            border: Border.all(
+              color: DesignColors.primary.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : DesignColors.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+    if (tooltip != null) return Tooltip(message: tooltip, child: btn);
+    return btn;
+  }
+
+  Widget _buildMathToolbar(
+    TextEditingController controller, {
+    required bool isDark,
+    bool compact = false,
+  }) {
+    final isFillBlank = widget.questionType == QuestionType.fillBlank;
+    final buttons = <Widget>[
+      _buildToolbarButton(
+        label: 'f(x)',
+        tooltip: r'Bọc bằng $...$',
+        onTap: () => setState(() => _wrapMath(controller)),
+        isDark: isDark,
+      ),
+      _buildToolbarButton(
+        label: '√',
+        tooltip: r'\sqrt{}',
+        onTap: () => setState(
+          () => _insert(controller, r'\sqrt{}', cursorOffsetFromStart: 6),
+        ),
+        isDark: isDark,
+      ),
+      _buildToolbarButton(
+        label: 'x²',
+        tooltip: '^{}',
+        onTap: () => setState(
+          () => _insert(controller, '^{}', cursorOffsetFromStart: 2),
+        ),
+        isDark: isDark,
+      ),
+      _buildToolbarButton(
+        label: 'x_n',
+        tooltip: '_{}',
+        onTap: () => setState(
+          () => _insert(controller, '_{}', cursorOffsetFromStart: 2),
+        ),
+        isDark: isDark,
+      ),
+      _buildToolbarButton(
+        label: '½',
+        tooltip: r'\frac{}{}',
+        onTap: () => setState(
+          () => _insert(controller, r'\frac{}{}', cursorOffsetFromStart: 6),
+        ),
+        isDark: isDark,
+      ),
+      if (!compact) ...[
+        _buildToolbarButton(
+          label: 'Σ',
+          tooltip: r'\sum_{}^{}',
+          onTap: () => setState(
+            () => _insert(controller, r'\sum_{}^{}', cursorOffsetFromStart: 6),
+          ),
+          isDark: isDark,
+        ),
+        _buildToolbarButton(
+          label: '∫',
+          tooltip: r'\int_{}^{}',
+          onTap: () => setState(
+            () => _insert(controller, r'\int_{}^{}', cursorOffsetFromStart: 6),
+          ),
+          isDark: isDark,
+        ),
+        _buildToolbarButton(
+          label: '≤',
+          tooltip: r'\leq',
+          onTap: () => setState(() => _insert(controller, r'\leq ')),
+          isDark: isDark,
+        ),
+        _buildToolbarButton(
+          label: '≥',
+          tooltip: r'\geq',
+          onTap: () => setState(() => _insert(controller, r'\geq ')),
+          isDark: isDark,
+        ),
+        _buildToolbarButton(
+          label: '±',
+          tooltip: r'\pm',
+          onTap: () => setState(() => _insert(controller, r'\pm ')),
+          isDark: isDark,
+        ),
+      ],
+      if (isFillBlank && !compact)
+        _buildToolbarButton(
+          label: '[___N]',
+          tooltip: 'Thêm ô trống',
+          onTap: () => setState(() => _insertBlank(controller)),
+          isDark: isDark,
+        ),
+    ];
+    return Wrap(spacing: 6, runSpacing: 6, children: buttons);
+  }
+
+  /// Tab Xem trước (Task 7a) — render live preview dùng MathText.
+  Widget _buildPreviewTab(bool isDark) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        _textCtrl,
+        _expectedAnswerCtrl,
+        ..._choiceControllers,
+      ]),
+      builder: (context, _) {
+        final textStyle = DesignTypography.bodyMedium.copyWith(
+          color: isDark ? Colors.white : DesignColors.textPrimary,
+          height: 1.5,
+          fontWeight: FontWeight.w500,
+        );
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionLabel(
+                icon: Icons.help_outline_rounded,
+                label: 'CÂU HỎI',
+                isDark: isDark,
+              ),
+              const SizedBox(height: 8),
+              MathText(
+                _textCtrl.text.isEmpty
+                    ? '(chưa có nội dung)'
+                    : _textCtrl.text,
+                style: textStyle,
+              ),
+              const SizedBox(height: 16),
+              Divider(
+                color: isDark ? Colors.grey[800] : Colors.grey[200],
+                height: 1,
+              ),
+              const SizedBox(height: 16),
+              if (_isChoiceType && _choiceControllers.isNotEmpty) ...[
+                _buildSectionLabel(
+                  icon: Icons.radio_button_checked_rounded,
+                  label: 'CÁC ĐÁP ÁN',
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 8),
+                ...List.generate(_choiceControllers.length, (i) {
+                  final isCorrect = i == _correctIndex;
+                  final label = String.fromCharCode(65 + i);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          margin: const EdgeInsets.only(top: 2),
+                          decoration: BoxDecoration(
+                            color: isCorrect
+                                ? DesignColors.success
+                                : (isDark
+                                    ? Colors.grey[700]!
+                                    : Colors.grey[200]!),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isCorrect
+                                    ? Colors.white
+                                    : (isDark
+                                        ? Colors.grey[300]
+                                        : Colors.grey[600]),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: MathText(
+                            _choiceControllers[i].text.isEmpty
+                                ? '(trống)'
+                                : _choiceControllers[i].text,
+                            style: DesignTypography.bodyMedium.copyWith(
+                              color: isCorrect
+                                  ? DesignColors.success
+                                  : (isDark
+                                      ? Colors.white
+                                      : DesignColors.textPrimary),
+                              fontWeight: isCorrect
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ] else ...[
+                _buildSectionLabel(
+                  icon: Icons.task_alt_rounded,
+                  label: 'ĐÁP ÁN MẪU',
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 8),
+                MathText(
+                  _expectedAnswerCtrl.text.isEmpty
+                      ? '(chưa có)'
+                      : _expectedAnswerCtrl.text,
+                  style: DesignTypography.bodySmall.copyWith(
+                    color: isDark ? Colors.white : DesignColors.textPrimary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenH = MediaQuery.of(context).size.height;
     final typeColor = widget.questionType.color;
 
-    return Dialog(
+    return DefaultTabController(
+      length: 2,
+      child: Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
       child: Container(
@@ -3764,7 +4180,7 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Header ───────────��──────────────────────────────────────
+            // ── Header ─────────────────────────────────────────────────
             Container(
               padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
               decoration: BoxDecoration(
@@ -3837,28 +4253,70 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
               ),
             ),
 
-            // ── Scrollable content ───────────────────────────���───────────
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Section: Nội dung câu hỏi
-                    _buildSectionLabel(
-                      icon: Icons.help_outline_rounded,
-                      label: 'NỘI DUNG CÂU HỎI',
-                      isDark: isDark,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildTextField(
-                      controller: _textCtrl,
-                      hintText: 'Nhập nội dung câu hỏi...',
-                      maxLines: 4,
-                      isDark: isDark,
-                    ),
+            // ── TabBar ──────────────────────────────────────────────────
+            Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F1923) : Colors.white,
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+                  ),
+                ),
+              ),
+              child: TabBar(
+                labelColor: DesignColors.primary,
+                unselectedLabelColor: isDark
+                    ? Colors.grey[400]
+                    : Colors.grey[600],
+                indicatorColor: DesignColors.primary,
+                tabs: const [
+                  Tab(icon: Icon(Icons.edit_rounded, size: 18), text: 'Sửa'),
+                  Tab(
+                    icon: Icon(Icons.visibility_rounded, size: 18),
+                    text: 'Xem trước',
+                  ),
+                ],
+              ),
+            ),
 
-                    const SizedBox(height: 20),
+            // ── TabBarView ──────────────────────────────────────────────
+            Flexible(
+              child: TabBarView(
+                children: [
+                  // Tab 1: Sửa
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Section: Nội dung câu hỏi
+                        _buildSectionLabel(
+                          icon: Icons.help_outline_rounded,
+                          label: 'NỘI DUNG CÂU HỎI',
+                          isDark: isDark,
+                        ),
+                        const SizedBox(height: 8),
+                        // Math toolbar trên _textCtrl
+                        Text(
+                          'Chèn công thức:',
+                          style: DesignTypography.labelSmall.copyWith(
+                            color: isDark
+                                ? Colors.grey[400]
+                                : Colors.grey[600],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        _buildMathToolbar(_textCtrl, isDark: isDark),
+                        const SizedBox(height: 10),
+                        _buildTextField(
+                          controller: _textCtrl,
+                          hintText: 'Nhập nội dung câu hỏi...',
+                          maxLines: 4,
+                          isDark: isDark,
+                        ),
+
+                        const SizedBox(height: 20),
 
                     // Section: Đáp án
                     if (_isChoiceType && _choiceControllers.isNotEmpty) ...[
@@ -4003,6 +4461,19 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                                       ),
                                     ),
                                   ),
+                                  // Math wrap helper cho từng choice (Task 7c)
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.functions,
+                                      size: 18,
+                                    ),
+                                    color: DesignColors.primary,
+                                    tooltip: r'Bọc bằng $...$',
+                                    onPressed: () => setState(
+                                      () =>
+                                          _wrapMath(_choiceControllers[i]),
+                                    ),
+                                  ),
                                   const SizedBox(width: 8),
                                 ],
                               ),
@@ -4017,6 +4488,13 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                         isDark: isDark,
                       ),
                       const SizedBox(height: 8),
+                      // Math toolbar cho expected answer
+                      _buildMathToolbar(
+                        _expectedAnswerCtrl,
+                        isDark: isDark,
+                        compact: true,
+                      ),
+                      const SizedBox(height: 8),
                       _buildTextField(
                         controller: _expectedAnswerCtrl,
                         hintText: 'Nhập đáp án mẫu...',
@@ -4029,13 +4507,17 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                       ),
                     ],
 
-                    const SizedBox(height: 4),
-                  ],
-                ),
+                        const SizedBox(height: 4),
+                      ],
+                    ),
+                  ),
+                  // Tab 2: Xem trước (Task 7a)
+                  _buildPreviewTab(isDark),
+                ],
               ),
             ),
 
-            // ── Footer buttons ─────────────────────��─────────────────────
+            // ── Footer buttons ───────────────────────────────────────────
             Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
               decoration: BoxDecoration(
@@ -4116,6 +4598,7 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

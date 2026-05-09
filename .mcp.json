@@ -3,7 +3,12 @@
     "marionette": {
       "type": "stdio",
       "command": "dart.exe",
-      "args": ["pub", "global", "run", "marionette_mcp"],
+      "args": [
+        "pub",
+        "global",
+        "run",
+        "marionette_mcp"
+      ],
       "env": {}
     },
     "dart": {
@@ -19,10 +24,14 @@
     "mcp-flutter-debug": {
       "type": "stdio",
       "command": "dart.exe",
-      "args": ["pub", "global", "run", "flutter_inspector_mcp_server:main"],
+      "args": [
+        "pub",
+        "global",
+        "run",
+        "flutter_inspector_mcp_server:main"
+      ],
       "env": {}
     },
-
     "supabase": {
       "type": "stdio",
       "command": "npx",
@@ -30,32 +39,11 @@
         "-y",
         "@supabase/mcp-server-supabase@latest",
         "--access-token",
-        "sbp_f7c9c9b5c4e14e13728d7975dcd39b8a3c900596",
+        "sbp_17a0e72022dc621cee2e1c6acd168a075cf50304",
         "--project-ref",
         "vazhgunhcjdwlkbslroc"
       ],
-      "autoApprove": [
-        "list_tables",
-        "execute_sql",
-        "search_docs",
-        "list_extensions",
-        "list_migrations",
-        "apply_migration",
-        "get_logs",
-        "get_advisors",
-        "get_project_url",
-        "get_publishable_keys",
-        "generate_typescript_types",
-        "list_edge_functions",
-        "get_edge_function",
-        "deploy_edge_function",
-        "create_branch",
-        "list_branches",
-        "delete_branch",
-        "merge_branch",
-        "reset_branch",
-        "rebase_branch"
-      ]
+      "env": {}
     }
   }
 }

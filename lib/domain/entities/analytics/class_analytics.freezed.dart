@@ -31,6 +31,11 @@ mixin _$ClassAnalytics {
   int get totalStudents => throw _privateConstructorUsedError;
   @JsonKey(name: 'total_submissions')
   int get totalSubmissions => throw _privateConstructorUsedError;
+
+  /// Số học sinh đã nộp ÍT NHẤT 1 bài tập trong lớp (DISTINCT, dedupe retake).
+  /// Khác `totalSubmissions`: cái sau là số LƯỢT (student × distribution).
+  @JsonKey(name: 'participating_students')
+  int get participatingStudents => throw _privateConstructorUsedError;
   @JsonKey(name: 'submission_rate')
   double get submissionRate => throw _privateConstructorUsedError;
   @JsonKey(name: 'late_submission_rate')
@@ -76,6 +81,7 @@ abstract class $ClassAnalyticsCopyWith<$Res> {
     @JsonKey(name: 'class_average') double classAverage,
     @JsonKey(name: 'total_students') int totalStudents,
     @JsonKey(name: 'total_submissions') int totalSubmissions,
+    @JsonKey(name: 'participating_students') int participatingStudents,
     @JsonKey(name: 'submission_rate') double submissionRate,
     @JsonKey(name: 'late_submission_rate') double lateSubmissionRate,
     @JsonKey(name: 'late_submission_count') int lateSubmissionCount,
@@ -113,6 +119,7 @@ class _$ClassAnalyticsCopyWithImpl<$Res, $Val extends ClassAnalytics>
     Object? classAverage = null,
     Object? totalStudents = null,
     Object? totalSubmissions = null,
+    Object? participatingStudents = null,
     Object? submissionRate = null,
     Object? lateSubmissionRate = null,
     Object? lateSubmissionCount = null,
@@ -146,6 +153,10 @@ class _$ClassAnalyticsCopyWithImpl<$Res, $Val extends ClassAnalytics>
             totalSubmissions: null == totalSubmissions
                 ? _value.totalSubmissions
                 : totalSubmissions // ignore: cast_nullable_to_non_nullable
+                      as int,
+            participatingStudents: null == participatingStudents
+                ? _value.participatingStudents
+                : participatingStudents // ignore: cast_nullable_to_non_nullable
                       as int,
             submissionRate: null == submissionRate
                 ? _value.submissionRate
@@ -226,6 +237,7 @@ abstract class _$$ClassAnalyticsImplCopyWith<$Res>
     @JsonKey(name: 'class_average') double classAverage,
     @JsonKey(name: 'total_students') int totalStudents,
     @JsonKey(name: 'total_submissions') int totalSubmissions,
+    @JsonKey(name: 'participating_students') int participatingStudents,
     @JsonKey(name: 'submission_rate') double submissionRate,
     @JsonKey(name: 'late_submission_rate') double lateSubmissionRate,
     @JsonKey(name: 'late_submission_count') int lateSubmissionCount,
@@ -263,6 +275,7 @@ class __$$ClassAnalyticsImplCopyWithImpl<$Res>
     Object? classAverage = null,
     Object? totalStudents = null,
     Object? totalSubmissions = null,
+    Object? participatingStudents = null,
     Object? submissionRate = null,
     Object? lateSubmissionRate = null,
     Object? lateSubmissionCount = null,
@@ -296,6 +309,10 @@ class __$$ClassAnalyticsImplCopyWithImpl<$Res>
         totalSubmissions: null == totalSubmissions
             ? _value.totalSubmissions
             : totalSubmissions // ignore: cast_nullable_to_non_nullable
+                  as int,
+        participatingStudents: null == participatingStudents
+            ? _value.participatingStudents
+            : participatingStudents // ignore: cast_nullable_to_non_nullable
                   as int,
         submissionRate: null == submissionRate
             ? _value.submissionRate
@@ -355,6 +372,7 @@ class _$ClassAnalyticsImpl implements _ClassAnalytics {
     @JsonKey(name: 'class_average') this.classAverage = 0.0,
     @JsonKey(name: 'total_students') this.totalStudents = 0,
     @JsonKey(name: 'total_submissions') this.totalSubmissions = 0,
+    @JsonKey(name: 'participating_students') this.participatingStudents = 0,
     @JsonKey(name: 'submission_rate') this.submissionRate = 0.0,
     @JsonKey(name: 'late_submission_rate') this.lateSubmissionRate = 0.0,
     @JsonKey(name: 'late_submission_count') this.lateSubmissionCount = 0,
@@ -392,6 +410,12 @@ class _$ClassAnalyticsImpl implements _ClassAnalytics {
   @override
   @JsonKey(name: 'total_submissions')
   final int totalSubmissions;
+
+  /// Số học sinh đã nộp ÍT NHẤT 1 bài tập trong lớp (DISTINCT, dedupe retake).
+  /// Khác `totalSubmissions`: cái sau là số LƯỢT (student × distribution).
+  @override
+  @JsonKey(name: 'participating_students')
+  final int participatingStudents;
   @override
   @JsonKey(name: 'submission_rate')
   final double submissionRate;
@@ -450,7 +474,7 @@ class _$ClassAnalyticsImpl implements _ClassAnalytics {
 
   @override
   String toString() {
-    return 'ClassAnalytics(classId: $classId, className: $className, classAverage: $classAverage, totalStudents: $totalStudents, totalSubmissions: $totalSubmissions, submissionRate: $submissionRate, lateSubmissionRate: $lateSubmissionRate, lateSubmissionCount: $lateSubmissionCount, totalExpectedSubmissions: $totalExpectedSubmissions, worstOffender: $worstOffender, highestScore: $highestScore, lowestScore: $lowestScore, distribution: $distribution, subjectDistributions: $subjectDistributions, topPerformers: $topPerformers, bottomPerformers: $bottomPerformers)';
+    return 'ClassAnalytics(classId: $classId, className: $className, classAverage: $classAverage, totalStudents: $totalStudents, totalSubmissions: $totalSubmissions, participatingStudents: $participatingStudents, submissionRate: $submissionRate, lateSubmissionRate: $lateSubmissionRate, lateSubmissionCount: $lateSubmissionCount, totalExpectedSubmissions: $totalExpectedSubmissions, worstOffender: $worstOffender, highestScore: $highestScore, lowestScore: $lowestScore, distribution: $distribution, subjectDistributions: $subjectDistributions, topPerformers: $topPerformers, bottomPerformers: $bottomPerformers)';
   }
 
   @override
@@ -467,6 +491,8 @@ class _$ClassAnalyticsImpl implements _ClassAnalytics {
                 other.totalStudents == totalStudents) &&
             (identical(other.totalSubmissions, totalSubmissions) ||
                 other.totalSubmissions == totalSubmissions) &&
+            (identical(other.participatingStudents, participatingStudents) ||
+                other.participatingStudents == participatingStudents) &&
             (identical(other.submissionRate, submissionRate) ||
                 other.submissionRate == submissionRate) &&
             (identical(other.lateSubmissionRate, lateSubmissionRate) ||
@@ -511,6 +537,7 @@ class _$ClassAnalyticsImpl implements _ClassAnalytics {
     classAverage,
     totalStudents,
     totalSubmissions,
+    participatingStudents,
     submissionRate,
     lateSubmissionRate,
     lateSubmissionCount,
@@ -548,6 +575,7 @@ abstract class _ClassAnalytics implements ClassAnalytics {
     @JsonKey(name: 'class_average') final double classAverage,
     @JsonKey(name: 'total_students') final int totalStudents,
     @JsonKey(name: 'total_submissions') final int totalSubmissions,
+    @JsonKey(name: 'participating_students') final int participatingStudents,
     @JsonKey(name: 'submission_rate') final double submissionRate,
     @JsonKey(name: 'late_submission_rate') final double lateSubmissionRate,
     @JsonKey(name: 'late_submission_count') final int lateSubmissionCount,
@@ -582,6 +610,12 @@ abstract class _ClassAnalytics implements ClassAnalytics {
   @override
   @JsonKey(name: 'total_submissions')
   int get totalSubmissions;
+
+  /// Số học sinh đã nộp ÍT NHẤT 1 bài tập trong lớp (DISTINCT, dedupe retake).
+  /// Khác `totalSubmissions`: cái sau là số LƯỢT (student × distribution).
+  @override
+  @JsonKey(name: 'participating_students')
+  int get participatingStudents;
   @override
   @JsonKey(name: 'submission_rate')
   double get submissionRate;

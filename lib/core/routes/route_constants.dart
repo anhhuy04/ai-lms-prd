@@ -205,6 +205,12 @@ class AppRoute {
   static const String teacherPublishedAssignmentsPath =
       '/teacher/assignments/published';
 
+  /// Teacher - Ngân hàng bài tập (tất cả: nháp + đã xuất bản)
+  /// Vào từ thẻ "Tổng quan bài tập" trên hub.
+  static const String teacherAssignmentBank = 'teacher-assignment-bank';
+  static const String teacherAssignmentBankPath =
+      '/teacher/assignments/bank';
+
   /// Teacher - Select multiple assignments
   static const String teacherAssignmentSelection =
       'teacher-assignment-selection';
@@ -433,6 +439,7 @@ class AppRoute {
       teacherCreateAssignment,
       teacherDraftAssignments,
       teacherPublishedAssignments,
+      teacherAssignmentBank,
       teacherDistributeAssignment,
       teacherCreateQuestion,
       teacherEditAssignment,

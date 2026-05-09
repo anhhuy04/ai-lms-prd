@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/presentation/providers/workspace_provider.dart';
 import 'package:ai_mls/presentation/views/assignment/student/widgets/essay_answer_field.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
@@ -37,6 +36,11 @@ class _StudentAssignmentWorkspaceScreenState
   final Map<String, Stopwatch> _questionTimers = {};
   String? _currentQuestionId;
 
+  /// Watchdog hạn nạp bài: tick 1s. Khi quá due_at + !allow_late → auto-submit.
+  /// Chỉ chạy 1 lần (tự huỷ sau khi fire).
+  Timer? _dueAtWatchdog;
+  bool _autoSubmittedDueAt = false;
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +57,7 @@ class _StudentAssignmentWorkspaceScreenState
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _dueAtWatchdog?.cancel();
     // Dispose all TextEditingControllers
     for (final controller in _fillInBlankControllers.values) {
       controller.dispose();
@@ -63,6 +68,33 @@ class _StudentAssignmentWorkspaceScreenState
       sw.stop();
     }
     super.dispose();
+  }
+
+  /// Bật watchdog 1 lần khi state đã có due_at và đang in_progress.
+  /// Tick mỗi 5s — đủ kịp thời mà không tốn tài nguyên. Nếu DB đã đóng cứng
+  /// (past due + !allow_late) ngay khi load → auto-submit ngay frame sau.
+  void _ensureDueAtWatchdog(WorkspaceState ws) {
+    if (_dueAtWatchdog != null) return;
+    if (_autoSubmittedDueAt) return;
+    if (ws.submissionStatus != WorkspaceSubmissionStatus.inProgress) return;
+    final due = ws.dueAt;
+    if (due == null) return;
+    if (ws.allowLate) return;
+
+    void tickCheck() {
+      if (!mounted || _autoSubmittedDueAt) return;
+      if (DateTime.now().isAfter(due)) {
+        _autoSubmittedDueAt = true;
+        _dueAtWatchdog?.cancel();
+        _dueAtWatchdog = null;
+        _onTimeUp();
+      }
+    }
+
+    // Check ngay (trường hợp vào màn hình lúc đã quá hạn)
+    WidgetsBinding.instance.addPostFrameCallback((_) => tickCheck());
+    _dueAtWatchdog =
+        Timer.periodic(const Duration(seconds: 5), (_) => tickCheck());
   }
 
   /// Switch active question timer: pause old, start/resume new (D-10)
@@ -283,6 +315,9 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   Widget _buildBody(BuildContext context, WorkspaceState workspace) {
+    // Bật watchdog hạn nạp bài (chỉ 1 lần per state lifecycle).
+    _ensureDueAtWatchdog(workspace);
+
     if (workspace.questions.isEmpty) {
       return _buildEmptyQuestions();
     }
@@ -535,8 +570,6 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   Widget _buildMultipleChoice(QuestionState question, dynamic answer) {
-    AppLogger.debug('[_buildMultipleChoice] question.choices.length = ${question.choices.length}, choices = $question.choices');
-
     if (question.choices.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -829,9 +862,15 @@ class _StudentAssignmentWorkspaceScreenState
           () => TextEditingController(text: initialValue),
         );
 
-        // Update controller text if answer changed externally
-        if (controller.text != initialValue) {
-          controller.text = initialValue;
+        // UI-3 fix: chỉ sync ngược khi controller đang trống (lần đầu mount
+        // sau khi đáp án nháp được nạp từ DB). Sau đó user-gõ là nguồn chân
+        // lý — KHÔNG ghi đè controller.text mỗi rebuild vì autosave debounce
+        // sẽ trigger setState → cursor nhảy cuối, mất ký tự đang gõ.
+        if (controller.text.isEmpty && initialValue.isNotEmpty) {
+          controller.value = TextEditingValue(
+            text: initialValue,
+            selection: TextSelection.collapsed(offset: initialValue.length),
+          );
         }
 
         return Padding(
@@ -996,6 +1035,7 @@ class _StudentAssignmentWorkspaceScreenState
         workspace.submissionStatus == WorkspaceSubmissionStatus.submitting;
     final isSubmitted =
         workspace.submissionStatus == WorkspaceSubmissionStatus.submitted;
+    final isPastDueClosed = workspace.isPastDueClosed;
 
     return Container(
       padding: const EdgeInsets.all(DesignSpacing.md),
@@ -1013,6 +1053,37 @@ class _StudentAssignmentWorkspaceScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Banner báo bài tập đã đóng — chặn submit thủ công khi quá hạn
+            // + GV không cho nộp muộn. Watchdog sẽ tự auto-submit, banner ở
+            // đây là phòng vệ cuối nếu watchdog chưa kịp tick.
+            if (isPastDueClosed && !isSubmitted)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: DesignSpacing.sm),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: DesignSpacing.md,
+                    vertical: DesignSpacing.sm),
+                decoration: BoxDecoration(
+                  color: DesignColors.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(DesignRadius.sm),
+                  border: Border.all(
+                    color: DesignColors.error.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_clock,
+                        size: 16, color: DesignColors.error),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Đã quá hạn nạp bài. Hệ thống đang tự động nộp bài làm hiện tại của bạn.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             // Progress indicator
             Row(
               children: [
@@ -1043,15 +1114,15 @@ class _StudentAssignmentWorkspaceScreenState
 
             const SizedBox(height: DesignSpacing.md),
 
-            // Submit button
+            // Submit button — disable khi đang nộp / đã nộp / quá hạn đóng cứng.
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: isSubmitting || isSubmitted
+                onPressed: isSubmitting || isSubmitted || isPastDueClosed
                     ? null
                     : () => _showSubmitConfirmation(context, workspace),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isSubmitted
+                  backgroundColor: isSubmitted || isPastDueClosed
                       ? Colors.grey[300]
                       : DesignColors.primary,
                   foregroundColor: Colors.white,
@@ -1071,13 +1142,19 @@ class _StudentAssignmentWorkspaceScreenState
                           color: Colors.white,
                         ),
                       )
-                    : Icon(isSubmitted ? Icons.check_circle : Icons.send),
+                    : Icon(isSubmitted
+                        ? Icons.check_circle
+                        : isPastDueClosed
+                            ? Icons.lock_clock
+                            : Icons.send),
                 label: Text(
                   isSubmitting
                       ? 'Đang nộp...'
                       : isSubmitted
-                      ? 'Đã nộp'
-                      : 'Nộp bài',
+                          ? 'Đã nộp'
+                          : isPastDueClosed
+                              ? 'Bài đã đóng'
+                              : 'Nộp bài',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,

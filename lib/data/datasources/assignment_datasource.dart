@@ -170,77 +170,75 @@ class AssignmentDataSource {
     final distributions = List<Map<String, dynamic>>.from(distRes);
     if (distributions.isEmpty) return [];
 
-    // Đếm học sinh qua RPC SECURITY DEFINER (bypass RLS — query trực tiếp class_members bị chặn)
-    int classStudentCount = 0;
-    try {
-      final countResult = await _client.rpc(
-        'get_class_member_counts',
-        params: {'p_class_ids': [classId]},
-      ) as List<dynamic>;
-      if (countResult.isNotEmpty) {
-        final row = countResult.first as Map<String, dynamic>;
-        final count = row['member_count'];
-        classStudentCount = count is int ? count : int.tryParse(count.toString()) ?? 0;
-      }
-    } catch (_) {}
-
-    // Batch fetch work_sessions để đếm số đã nộp / đã chấm theo từng distribution
-    final distIds = distributions.map((d) => d['id'] as String).toList();
-    final sessionsRes = await _client
-        .from('work_sessions')
-        .select('assignment_distribution_id, status')
-        .inFilter('assignment_distribution_id', distIds);
-
-    final sessions = List<Map<String, dynamic>>.from(sessionsRes);
-    final submissionCountMap = <String, int>{};
-    final gradedCountMap = <String, int>{};
-    const submittedStatuses = {'submitted', 'pending_review', 'ai_processing', 'graded'};
-
-    for (final s in sessions) {
-      final distId = s['assignment_distribution_id'] as String?;
-      if (distId == null) continue;
-      final status = s['status'] as String?;
-      if (status != null && submittedStatuses.contains(status)) {
-        submissionCountMap[distId] = (submissionCountMap[distId] ?? 0) + 1;
-      }
-      if (status == 'graded') {
-        gradedCountMap[distId] = (gradedCountMap[distId] ?? 0) + 1;
-      }
-    }
+    // Multi-lens stats từ RPC dedupe theo (student_id, distribution_id).
+    // 1 HS làm lại N lần chỉ đếm 1. participation_count = "đã nộp ít nhất 1 lần".
+    // pending_action_count = "latest session = submitted-not-graded" (cần GV xử lý).
+    final statsMap = await _fetchDashboardStats(classId: classId);
 
     return distributions.map((dist) {
       final assignment = Map<String, dynamic>.from(dist['assignments'] as Map);
       final groupData = dist['groups'] as Map<String, dynamic>?;
       final distId = dist['id'] as String;
-      final distType = dist['distribution_type'] as String?;
-      final studentIds = dist['student_ids'];
-
-      // individual: dùng student_ids.length; class/group: dùng class member count
-      final int? totalStudents;
-      if (distType == 'individual' && studentIds is List) {
-        totalStudents = studentIds.length;
-      } else {
-        totalStudents = classStudentCount > 0 ? classStudentCount : null;
-      }
+      final stats = statsMap[distId];
 
       return <String, dynamic>{
         ...assignment,
         'assignment_distribution_id': distId,
-        'distribution_type': distType,
+        'distribution_type': dist['distribution_type'],
         'distribution_class_id': dist['class_id'],
         'distribution_group_id': dist['group_id'],
         'distribution_group_name': groupData?['name'] as String?,
-        'distribution_student_ids': studentIds,
+        'distribution_student_ids': dist['student_ids'],
         'distribution_due_at': dist['due_at'],
         'distribution_available_from': dist['available_from'],
         'distribution_time_limit_minutes': dist['time_limit_minutes'],
         'distribution_allow_late': dist['allow_late'],
         'distribution_settings': dist['settings'],
-        'submission_count': submissionCountMap[distId],
-        'graded_count': gradedCountMap[distId],
-        'total_students': totalStudents,
+        // Chỉ số tiến độ: "X/Y đã nộp" với X = HS đã từng nộp, Y = mẫu số theo distribution_type.
+        'submission_count': stats?['participation_count'] ?? 0,
+        'graded_count': stats?['graded_count'] ?? 0,
+        'total_students': stats?['total_expected'] ?? 0,
+        // Chỉ số hành động: "5 bài chờ chấm/duyệt" — latest attempt submitted nhưng chưa graded.
+        'pending_action_count': stats?['pending_action_count'] ?? 0,
+        'late_count': stats?['late_count'] ?? 0,
       };
     }).toList();
+  }
+
+  /// Gọi RPC `get_teacher_distribution_dashboard_stats` (dedupe per student).
+  /// Trả map distribution_id → {participation_count, total_expected, pending_action_count, graded_count, late_count}.
+  Future<Map<String, Map<String, int>>> _fetchDashboardStats({
+    String? classId,
+  }) async {
+    try {
+      final result = await _client.rpc(
+        'get_teacher_distribution_dashboard_stats',
+        params: {if (classId != null) 'p_class_id': classId},
+      );
+      if (result == null) return {};
+      final rows = List<Map<String, dynamic>>.from(result as List);
+      final map = <String, Map<String, int>>{};
+      for (final row in rows) {
+        final distId = row['distribution_id'] as String?;
+        if (distId == null) continue;
+        map[distId] = {
+          'participation_count': (row['participation_count'] as num?)?.toInt() ?? 0,
+          'total_expected': (row['total_expected'] as num?)?.toInt() ?? 0,
+          'pending_action_count':
+              (row['pending_action_count'] as num?)?.toInt() ?? 0,
+          'graded_count': (row['graded_count'] as num?)?.toInt() ?? 0,
+          'late_count': (row['late_count'] as num?)?.toInt() ?? 0,
+        };
+      }
+      return map;
+    } catch (e, s) {
+      AppLogger.error(
+        '[AssignmentDatasource] _fetchDashboardStats error: $e',
+        error: e,
+        stackTrace: s,
+      );
+      return {};
+    }
   }
 
   /// Lấy bài tập cho học sinh trong 1 lớp.
@@ -323,19 +321,23 @@ class AssignmentDataSource {
         }
       }
 
-      // Lấy total_score từ submissions (total_score nằm ở bảng submissions, không phải work_sessions)
-      // NOTE: is_voided mặc định là NULL (không phải false), nên không filter is_voided=false
-      final submissionsRes = await _client
-          .from('submissions')
-          .select('assignment_distribution_id, total_score')
-          .inFilter('assignment_distribution_id', distIds)
-          .eq('student_id', studentId)
-          .not('is_voided', 'eq', true);
-      for (final sub in List<Map<String, dynamic>>.from(submissionsRes)) {
-        final distId = sub['assignment_distribution_id'] as String?;
-        if (distId == null) continue;
-        final score = sub['total_score'] as num?;
-        if (score != null) scoreByDistId[distId] = score;
+      // Dynamic Aggregation batch: mỗi distribution áp đúng score_aggregation_rule
+      // của riêng nó qua RPC — không hardcode "lấy bài mới nhất".
+      try {
+        final batchResult = await _client.rpc(
+          'get_student_final_scores_batch',
+          params: {
+            'p_distribution_ids': distIds,
+            'p_student_id': studentId,
+          },
+        );
+        for (final row in List<Map<String, dynamic>>.from(batchResult as List)) {
+          final distId = row['distribution_id'] as String?;
+          if (distId == null) continue;
+          scoreByDistId[distId] = row['final_score'] as num?;
+        }
+      } catch (e) {
+        AppLogger.warning('[AssignmentDS] Cannot fetch batch final scores: $e');
       }
     }
 
@@ -422,60 +424,33 @@ class AssignmentDataSource {
       distributions.add(dist);
     }
 
-    // Fetch counts per distribution from work_sessions
+    // Multi-lens stats từ RPC dedupe theo (student, distribution).
+    // submitted_count = participation (HS đã nộp ít nhất 1 lần, không phải tổng số sessions).
+    // recipient_count = mẫu số theo distribution_type (class/group/individual).
+    // late_submission_count = HS có latest non-in_progress session muộn so với due_at.
+    final statsMap = await _fetchDashboardStats();
     for (final dist in distributions) {
-      final distId = dist['id'] as String;
-
-      // work_sessions: status = 'submitted' (đã nộp) | 'graded' (đã chấm) | 'in_progress'
-      final wsRes = await _client
-          .from('work_sessions')
-          .select('id, status, submitted_at')
-          .eq('assignment_distribution_id', distId);
-      final sessions = List<Map<String, dynamic>>.from(wsRes as List);
-
-      // submitted = work_sessions có submitted_at (đã nộp bài)
-      dist['submitted_count'] = sessions.where((s) => s['submitted_at'] != null).length;
-      // graded = work_sessions có status = 'graded' (GV đã chấm)
-      dist['graded_count'] = sessions.where((s) => s['status'] == 'graded').length;
-      
-      // Tính số nộp muộn (late_submission_count)
-      int lateCount = 0;
-      final dueAtStr = dist['due_at'] as String?;
-      if (dueAtStr != null) {
-        final dueAt = DateTime.parse(dueAtStr);
-        lateCount = sessions.where((s) {
-          final submittedAtStr = s['submitted_at'] as String?;
-          if (submittedAtStr == null) return false;
-          final submittedAt = DateTime.parse(submittedAtStr);
-          return submittedAt.isAfter(dueAt);
-        }).length;
-      }
-      dist['late_submission_count'] = lateCount;
-
-      // recipientCount = tổng số sessions đã started
-      dist['recipient_count'] = sessions.length;
+      final stats = statsMap[dist['id'] as String];
+      dist['submitted_count'] = stats?['participation_count'] ?? 0;
+      dist['graded_count'] = stats?['graded_count'] ?? 0;
+      dist['late_submission_count'] = stats?['late_count'] ?? 0;
+      dist['recipient_count'] = stats?['total_expected'] ?? 0;
+      dist['pending_action_count'] = stats?['pending_action_count'] ?? 0;
     }
 
     return distributions;
   }
 
-  /// Đếm nhanh số bài nộp chờ chấm: 2 queries thay vì N+1 loop trên work_sessions.
+  /// Tổng số HS có latest session = submitted-not-graded trên toàn bộ distribution của giáo viên.
+  /// Dùng RPC dedupe (per-student per-dist), KHÔNG đếm raw work_sessions.
+  /// 1 HS làm lại 3 lần chỉ tính 1 (theo latest attempt).
   Future<int> getPendingSubmissionsCount(String teacherId) async {
     try {
-      final distsRes = await _client
-          .from('assignment_distributions')
-          .select('id, assignments!inner(teacher_id)')
-          .eq('assignments.teacher_id', teacherId);
-      final distIds =
-          (distsRes as List).map((d) => d['id'] as String).toList();
-      if (distIds.isEmpty) return 0;
-      final wsRes = await _client
-          .from('work_sessions')
-          .select('id')
-          .inFilter('assignment_distribution_id', distIds)
-          .not('submitted_at', 'is', null)
-          .neq('status', 'graded');
-      return (wsRes as List).length;
+      final stats = await _fetchDashboardStats();
+      return stats.values.fold<int>(
+        0,
+        (sum, s) => sum + (s['pending_action_count'] ?? 0),
+      );
     } catch (e, s) {
       AppLogger.error(
         '🔴 getPendingSubmissionsCount: $e',
@@ -643,22 +618,24 @@ class AssignmentDataSource {
         'waiting_to_assign': 0,
         'assigned': 0,
         'in_progress': 0,
+        'in_progress_classes': 0,
         'ungraded': 0,
         'graded': 0,
+        'total_submissions': 0,
+        'late_submissions': 0,
+        'dists_with_late': 0,
       };
     }
 
-    // Query distributions chỉ cho assignments của teacher này
-    // Vì Supabase Flutter không có inFilter, query tất cả rồi filter trong code
-    // Nếu assignmentIds lớn, có thể tối ưu bằng RPC function
+    // Query distributions (bao gồm id và class_id để map muộn → lớp)
     final allDistributionsRes = await _client
         .from('assignment_distributions')
-        .select('assignment_id, due_at');
+        .select('id, assignment_id, class_id, due_at, status');
     final allDistributions = List<Map<String, dynamic>>.from(
       allDistributionsRes,
     );
     final distributions = allDistributions
-        .where((e) => assignmentIds.contains(e['assignment_id'] as String))
+        .where((e) => assignmentIds.contains(e['assignment_id'] as String? ?? ''))
         .toList();
     final distributedIds = distributions
         .map((e) => e['assignment_id'] as String)
@@ -669,22 +646,77 @@ class AssignmentDataSource {
         .where((id) => !distributedIds.contains(id))
         .length;
 
-    // Tính in_progress từ distributions đã query
+    // inProgress: chỉ đếm distributions của bài đã publish (giống detail page)
+    final publishedIdSet = publishedIds.toSet();
     final now = DateTime.now();
-    final inProgress = distributions.where((e) {
+    final inProgressDists = distributions.where((e) {
+      if (e['status'] != 'active') return false;
+      // Bỏ qua bài chưa publish — detail page dùng is_published=true
+      if (!publishedIdSet.contains(e['assignment_id'] as String? ?? '')) {
+        return false;
+      }
       final dueAt = e['due_at'];
       if (dueAt == null) return true;
       try {
-        final dueDate = DateTime.parse(dueAt as String);
-        return dueDate.isAfter(now);
+        return DateTime.parse(dueAt as String).isAfter(now);
       } catch (_) {
         return false;
       }
-    }).length;
+    }).toList();
+    final inProgress = inProgressDists.length;
+    final inProgressClasses = inProgressDists
+        .map((e) => e['class_id'] as String?)
+        .whereType<String>()
+        .toSet()
+        .length;
 
-    // Query số bài chưa chấm và đã chấm
-    // Note: Cần submissions table để tính chính xác
-    // Tạm thời return 0
+    // Map distribution_id → class_id để tính "lớp có nộp muộn"
+    final distToClass = <String, String>{};
+    for (final d in distributions) {
+      final id = d['id'] as String?;
+      final classId = d['class_id'] as String?;
+      if (id != null && classId != null) distToClass[id] = classId;
+    }
+
+    // Query submissions — thêm student_id để deduplicate retake
+    final allSubmissionsRes = await _client
+        .from('submissions')
+        .select('student_id, assignment_id, assignment_distribution_id, is_late')
+        .eq('is_voided', false);
+    final allSubmissions = List<Map<String, dynamic>>.from(allSubmissionsRes);
+    final teacherSubmissions = allSubmissions
+        .where((e) => assignmentIds.contains(e['assignment_id'] as String? ?? ''))
+        .toList();
+
+    // Deduplicate: 1 học sinh có thể làm lại → dùng unique (student_id, dist_id)
+    final uniqueSubmitters = <String>{};
+    final lateDistIds = <String>{};
+    for (final s in teacherSubmissions) {
+      final studentId = s['student_id'] as String?;
+      final distId = s['assignment_distribution_id'] as String?;
+      if (studentId == null || distId == null) continue;
+      uniqueSubmitters.add('$studentId:$distId');
+      if (s['is_late'] == true) lateDistIds.add(distId);
+    }
+    final totalSubmissions = uniqueSubmitters.length;
+    // lateSubmissions: số unique (student, dist) có is_late=true
+    final lateSubmitterKeys = <String>{};
+    for (final s in teacherSubmissions) {
+      if (s['is_late'] != true) continue;
+      final studentId = s['student_id'] as String?;
+      final distId = s['assignment_distribution_id'] as String?;
+      if (studentId != null && distId != null) {
+        lateSubmitterKeys.add('$studentId:$distId');
+      }
+    }
+    final lateSubmissions = lateSubmitterKeys.length;
+    // distsWithLate: số lớp (class_id) có ít nhất 1 học sinh nộp muộn
+    final lateClassIds = lateDistIds
+        .map((distId) => distToClass[distId])
+        .whereType<String>()
+        .toSet();
+    final distsWithLate = lateClassIds.length;
+
     const ungraded = 0;
     const graded = 0;
 
@@ -694,10 +726,14 @@ class AssignmentDataSource {
       'creating_count': creatingCount,
       'distributing_count': distributingCount,
       'waiting_to_assign': waitingToAssign,
-      'assigned': distributingCount, // assigned = số có distribution
+      'assigned': distributingCount,
       'in_progress': inProgress,
+      'in_progress_classes': inProgressClasses,
       'ungraded': ungraded,
       'graded': graded,
+      'total_submissions': totalSubmissions,
+      'late_submissions': lateSubmissions,
+      'dists_with_late': distsWithLate,
     };
   }
 
@@ -725,6 +761,7 @@ class AssignmentDataSource {
   Future<Map<String, dynamic>> getDistributionDetail(
     String distributionId, {
     String? studentId,
+    String? sessionId,
   }) async {
     try {
       // Bước 1: Lấy distribution và assignment
@@ -971,15 +1008,40 @@ class AssignmentDataSource {
       }
 
       // ── Apply variant nếu có studentId (Shuffle Architecture) ──────────────
+      // BUG-1 fix: 1 student có thể có nhiều variant (mỗi attempt 1 variant
+      // immutable do start_redo_session/ensure_student_variant_for_session
+      // tạo). Khi có sessionId → match đúng variant của attempt đó. Khi
+      // không có (legacy ensure_student_variant với session_id=NULL hoặc
+      // các đường gọi cũ) → chọn variant mới nhất theo created_at để khỏi
+      // throw "multiple rows".
       if (studentId != null && questions.isNotEmpty) {
         try {
-          final variantRes = await _client
-              .from('assignment_variants')
-              .select('custom_questions')
-              .eq('assignment_id', assignmentId!)
-              .eq('variant_type', 'student')
-              .eq('student_id', studentId)
-              .maybeSingle();
+          Map<String, dynamic>? variantRes;
+          if (sessionId != null) {
+            variantRes = await _client
+                .from('assignment_variants')
+                .select('custom_questions')
+                .eq('assignment_id', assignmentId!)
+                .eq('variant_type', 'student')
+                .eq('student_id', studentId)
+                .eq('session_id', sessionId)
+                .maybeSingle();
+          }
+          // Fallback: chưa biết session, hoặc variant theo session chưa được
+          // tạo (đường legacy). Chọn variant mới nhất.
+          if (variantRes == null) {
+            final fallback = await _client
+                .from('assignment_variants')
+                .select('custom_questions')
+                .eq('assignment_id', assignmentId!)
+                .eq('variant_type', 'student')
+                .eq('student_id', studentId)
+                .order('created_at', ascending: false)
+                .limit(1);
+            if ((fallback as List).isNotEmpty) {
+              variantRes = Map<String, dynamic>.from(fallback.first as Map);
+            }
+          }
 
           if (variantRes != null) {
             final customQuestions =
@@ -1266,22 +1328,40 @@ class AssignmentDataSource {
       result['correct_count'] = correctCount;
       result['wrong_count'] = wrongCount;
 
-      // Lấy total_score từ submissions
+      // submitted_at: lấy từ bài nộp mới nhất (chỉ dùng để hiển thị thời gian)
       try {
-        final submissionRow = await _client
+        final latestSub = await _client
             .from('submissions')
-            .select('total_score, submitted_at')
+            .select('submitted_at')
             .eq('assignment_distribution_id', distributionId)
             .eq('student_id', studentId)
             .not('is_voided', 'eq', true)
             .order('created_at', ascending: false)
             .maybeSingle();
-        if (submissionRow != null) {
-          result['score'] = submissionRow['total_score'];
-          result['submitted_at'] ??= submissionRow['submitted_at'];
+        if (latestSub != null) {
+          result['submitted_at'] ??= latestSub['submitted_at'];
         }
       } catch (e) {
-        AppLogger.warning('[AssignmentDS] Cannot fetch submission score: $e');
+        AppLogger.warning('[AssignmentDS] Cannot fetch submitted_at: $e');
+      }
+
+      // Dynamic Aggregation: điểm cuối tính theo score_aggregation_rule từ backend.
+      // RPC get_student_final_score xử lý latest/max/average/first — không bao giờ
+      // hardcode "lấy bài mới nhất". Khi teacher đổi rule, tất cả học sinh thấy
+      // điểm mới ngay lập tức mà không cần migrate dữ liệu.
+      try {
+        final finalScore = await _client.rpc(
+          'get_student_final_score',
+          params: {
+            'p_distribution_id': distributionId,
+            'p_student_id': studentId,
+          },
+        );
+        if (finalScore != null) {
+          result['score'] = finalScore as num;
+        }
+      } catch (e) {
+        AppLogger.warning('[AssignmentDS] Cannot fetch final score via RPC: $e');
       }
     }
 
@@ -1329,9 +1409,12 @@ class AssignmentDataSource {
           sessionStatus == 'graded' ||
           sessionStatus == 'ai_processing';
 
-      // Nếu session hiện tại đang làm dở, hoặc đã hết số lần làm lại -> trả về session hiện tại
-      // Nếu session đã nộp và còn số lần làm lại -> bỏ qua if này để tạo session mới bên dưới
-      if (!isSubmitted || (maxAttempts != null && attemptCount >= maxAttempts)) {
+      // BUG-3 fix: LUÔN return existing session khi đã có. Khi học sinh muốn
+      // làm lại (đã nộp + còn lượt) → UI gọi RPC start_redo_session — server
+      // tự gán attempt = MAX(attempt)+1 atomic + check session_in_progress.
+      // KHÔNG INSERT work_sessions từ client với attempt hardcode = 1 vì sẽ
+      // vi phạm UNIQUE (distribution, student, attempt).
+      {
         final Map<String, dynamic> answersMap = {};
         int correctCount = 0;
         int wrongCount = 0;
@@ -1378,22 +1461,22 @@ class AssignmentDataSource {
         result['answers'] = answersMap;
         result['uploaded_files'] = <String>[];
         result['attempt_count'] = attemptCount;
+        result['max_attempts'] = maxAttempts;
         result['time_taken_seconds'] = existingRes['time_spent_seconds'];
         if (isSubmitted) {
           result['correct_count'] = correctCount;
           result['wrong_count'] = wrongCount;
         }
 
-        // Lấy total_score, submitted_at từ submissions (nếu đã nộp)
+        // BUG-2 fix: lookup submission của ĐÚNG session này. Trước đây query
+        // theo (distribution, student) có thể trả về submission của attempt
+        // khác sau khi student làm lại nhiều lần.
         if (isSubmitted) {
           try {
             final submissionRow = await _client
                 .from('submissions')
                 .select('total_score, submitted_at')
-                .eq('assignment_distribution_id', distributionId)
-                .eq('student_id', studentId)
-                .not('is_voided', 'eq', true)
-                .order('created_at', ascending: false)
+                .eq('session_id', sessionId)
                 .maybeSingle();
             if (submissionRow != null) {
               result['score'] = submissionRow['total_score'];
@@ -1424,7 +1507,9 @@ class AssignmentDataSource {
       }
     }
 
-    // Tạo mới submission draft
+    // Chưa có session nào → đây là LẦN ĐẦU làm bài. attempt=1 hợp lệ vì
+    // UNIQUE (distribution, student, attempt) chưa có row nào để vi phạm.
+    // Các attempt sau (làm lại) đi qua RPC start_redo_session.
     // NOTE: Schema only accepts 'in_progress', 'submitted', 'graded' - NOT 'draft'
     final newSubmission = await _client
         .from('work_sessions')
@@ -1504,11 +1589,137 @@ class AssignmentDataSource {
         .eq('id', sessionId);
   }
 
-  /// Nộp bài tập
-  /// Theo kiến trúc Enterprise:
-  /// Nộp bài tập với Auto-Grading cho câu hỏi khách quan (MCQ/True-False)
+  /// Nộp bài tập — wrapper có rollback. Chuyển hướng lỗi qua [_rollbackSubmit]
+  /// để DB không bị "kẹt" trạng thái nửa-vời (work_session=submitted nhưng
+  /// chưa có submission row, hoặc ngược lại). Sau cleanup, lỗi gốc rethrow
+  /// để caller hiện snackbar "Nộp bài thất bại".
+  Future<Map<String, dynamic>> submitAssignment(
+    String distributionId,
+    String studentId, {
+    Map<String, int>? timeLog,
+  }) async {
+    // Tra session_id 1 lần ở wrapper để rollback có cái mà cleanup khi
+    // _doSubmitAssignment fail giữa chừng.
+    final session = await _client
+        .from('work_sessions')
+        .select('id')
+        .eq('assignment_distribution_id', distributionId)
+        .eq('student_id', studentId)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    if (session == null) {
+      throw Exception('Session not found');
+    }
+    final sessionId = session['id'] as String;
+
+    try {
+      return await _doSubmitAssignment(
+        distributionId: distributionId,
+        studentId: studentId,
+        sessionId: sessionId,
+        timeLog: timeLog,
+      );
+    } catch (e, st) {
+      AppLogger.error(
+        '🔴 [SUBMIT] failed for session=$sessionId — running rollback: $e',
+        error: e,
+        stackTrace: st,
+      );
+      // Best-effort rollback. Nếu rollback cũng lỗi, log nhưng KHÔNG nuốt lỗi
+      // gốc — caller cần biết submit đã fail.
+      try {
+        await _rollbackSubmit(sessionId);
+      } catch (rollbackErr, rollbackSt) {
+        AppLogger.error(
+          '🔴 [SUBMIT] rollback FAILED — DB có thể lệch: $rollbackErr',
+          error: rollbackErr,
+          stackTrace: rollbackSt,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  /// Rollback partial submit: revert work_session về 'in_progress' và xoá các
+  /// row đã chèn (submissions, ai_queue, submission_answers). KHÔNG đụng vào
+  /// autosave_answers vì autosave chỉ bị xoá ở bước cuối cùng của submit
+  /// thành công — giữ nguyên để student có thể nộp lại sau khi sửa lỗi mạng.
   ///
-  /// Luồng xử lý (6 bước trong 1 transaction):
+  /// Idempotent: gọi nhiều lần an toàn (DELETE/UPDATE đều WHERE rỗng → no-op).
+  Future<void> _rollbackSubmit(String sessionId) async {
+    // 1. Lấy id của các submission_answers đã insert cho session (để xoá
+    //    ai_queue trước, vì FK ai_queue.submission_answer_id không CASCADE).
+    final saRows = await _client
+        .from('submission_answers')
+        .select('id')
+        .eq('session_id', sessionId);
+    final saIds = (saRows as List)
+        .map((r) => r['id'] as String?)
+        .whereType<String>()
+        .toList();
+
+    // 2. Xoá ai_queue: cả entry per-answer (request_type=score/feedback) lẫn
+    //    entry analysis level session (submission_answer_id=NULL).
+    if (saIds.isNotEmpty) {
+      try {
+        await _client
+            .from('ai_queue')
+            .delete()
+            .inFilter('submission_answer_id', saIds);
+      } catch (e) {
+        AppLogger.warning('[ROLLBACK] delete ai_queue per-answer failed: $e');
+      }
+    }
+    try {
+      // analysis entry: payload.session_id = sessionId (lưu trong jsonb).
+      await _client
+          .from('ai_queue')
+          .delete()
+          .filter('payload->>session_id', 'eq', sessionId);
+    } catch (e) {
+      AppLogger.warning('[ROLLBACK] delete ai_queue analysis failed: $e');
+    }
+
+    // 3. Xoá submissions row (CQRS receipt).
+    try {
+      await _client.from('submissions').delete().eq('session_id', sessionId);
+    } catch (e) {
+      AppLogger.warning('[ROLLBACK] delete submissions failed: $e');
+    }
+
+    // 4. Xoá submission_answers.
+    if (saIds.isNotEmpty) {
+      try {
+        await _client
+            .from('submission_answers')
+            .delete()
+            .eq('session_id', sessionId);
+      } catch (e) {
+        AppLogger.warning('[ROLLBACK] delete submission_answers failed: $e');
+      }
+    }
+
+    // 5. Revert work_session về 'in_progress' nếu đã bị finalize.
+    //    finalize_work_session set submitted_at + time_spent — phải clear.
+    try {
+      await _client.from('work_sessions').update({
+        'status': 'in_progress',
+        'submitted_at': null,
+        'time_spent_seconds': 0,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', sessionId);
+    } catch (e) {
+      AppLogger.warning('[ROLLBACK] revert work_sessions failed: $e');
+    }
+
+    AppLogger.info('[ROLLBACK] cleanup completed for session=$sessionId');
+  }
+
+  /// Internal — luồng submit nguyên gốc (6 bước). Throw on bất kỳ lỗi nào;
+  /// wrapper [submitAssignment] sẽ catch + rollback.
+  ///
+  /// Luồng xử lý:
   /// 1️⃣  READ:       autosave_answers (Lấy toàn bộ mảng ID câu hỏi và đáp án nháp)
   /// 1.1 READ:       assignment_distributions (Lấy due_at và late_policy)
   /// 1.2 READ:       assignment_questions JOIN questions (Lấy points, type và answer gốc)
@@ -1517,26 +1728,18 @@ class AssignmentDataSource {
   /// 4️⃣  INSERT:      submissions (Sinh biên lai CQRS: lưu total_score MCQ, chốt is_late, ai_graded = false)
   /// 5️⃣  INSERT:      ai_queue (Lọc câu Tự luận/Trả lời ngắn -> status = 'pending')
   /// 6️⃣  DELETE:     autosave_answers (Dọn dẹp Vùng đệm an toàn)
-  Future<Map<String, dynamic>> submitAssignment(
-    String distributionId,
-    String studentId, {
+  Future<Map<String, dynamic>> _doSubmitAssignment({
+    required String distributionId,
+    required String studentId,
+    required String sessionId,
     Map<String, int>? timeLog,
   }) async {
-    // Get session (lấy session mới nhất)
+    // Lấy session row đầy đủ (wrapper chỉ select 'id' để xác định sessionId)
     final session = await _client
         .from('work_sessions')
         .select()
-        .eq('assignment_distribution_id', distributionId)
-        .eq('student_id', studentId)
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-
-    if (session == null) {
-      throw Exception('Session not found');
-    }
-
-    final sessionId = session['id'] as String;
+        .eq('id', sessionId)
+        .single();
     // localNow: chỉ dùng cho metadata (created_at, updated_at) — KHÔNG dùng cho submitted_at.
     // submitted_at và time_spent_seconds được tính bởi finalize_work_session (server-side).
     final localNow = DateTime.now().toIso8601String();
@@ -1944,18 +2147,22 @@ class AssignmentDataSource {
     );
 
     // 4️⃣ Create/update submission record (CQRS) với server-side values
+    // BUG-2 fix: query bằng session_id (mỗi attempt = 1 submission row).
+    // Trước đây lookup theo (distribution, student) với .maybeSingle() gây 2
+    // bệnh: (a) UPDATE đè submission của attempt cũ → mất điểm lần 1, (b)
+    // throw "multiple rows" khi đã có >1 attempt. Schema submissions không
+    // có UNIQUE (distribution, student) chính là vì hỗ trợ nhiều attempt.
     final existingSubmission = await _client
         .from('submissions')
-        .select()
-        .eq('assignment_distribution_id', distributionId)
-        .eq('student_id', studentId)
+        .select('id')
+        .eq('session_id', sessionId)
         .maybeSingle();
 
     if (existingSubmission != null) {
+      // Cùng session re-submit (re-grade lại): update tại chỗ.
       await _client
           .from('submissions')
           .update({
-            'session_id': sessionId,
             'submitted_at': serverSubmittedAt,
             'total_score': totalMcqScore,
             'is_late': serverIsLate,
@@ -1964,6 +2171,7 @@ class AssignmentDataSource {
           })
           .eq('id', existingSubmission['id']);
     } else {
+      // Mỗi session lần đầu submit → insert row mới (giữ lịch sử attempt).
       await _client.from('submissions').insert({
         'assignment_id': assignmentId,
         'assignment_distribution_id': distributionId,
@@ -2235,8 +2443,9 @@ class AssignmentDataSource {
     final res = await _client
         .from('work_sessions')
         .select('''
-          id, status, created_at, submitted_at, time_spent_seconds, attempt,
-          submissions(total_score, is_late, ai_graded, id)
+          id, status, created_at, started_at, submitted_at, time_spent_seconds, attempt,
+          submissions(total_score, is_late, ai_graded, id),
+          submission_answers(final_score, ai_score)
         ''')
         .eq('assignment_distribution_id', distributionId)
         .eq('student_id', studentId)

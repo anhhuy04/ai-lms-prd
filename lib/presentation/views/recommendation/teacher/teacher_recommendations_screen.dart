@@ -36,17 +36,19 @@ class _TeacherRecommendationsScreenState
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 1,
         title: Text(
-          'Goi y hoc tap',
+          'Gợi ý học tập',
           style: DesignTypography.titleLarge,
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
       ),
       body: Column(
         children: [
+          _buildSummaryHeader(recsAsync),
           _buildFilterRow(),
           Expanded(
             child: recsAsync.when(
@@ -63,6 +65,13 @@ class _TeacherRecommendationsScreenState
                 final showUrgent = _filterMode == _FilterMode.all || _filterMode == _FilterMode.urgent;
                 final showNormal = _filterMode == _FilterMode.all;
 
+                final isFilteredEmpty =
+                    (showUrgent ? urgent.isEmpty : true) &&
+                        (showNormal ? normal.isEmpty : true);
+                if (isFilteredEmpty) {
+                  return _buildFilterEmptyState();
+                }
+
                 return RefreshIndicator(
                   onRefresh: () async {
                     ref.invalidate(
@@ -73,20 +82,23 @@ class _TeacherRecommendationsScreenState
                     padding: EdgeInsets.all(DesignSpacing.md),
                     children: [
                       if (showUrgent && urgent.isNotEmpty) ...[
-                        _buildSectionHeader('Can chu y', DesignColors.error, urgent.length),
+                        _buildSectionHeader(
+                            'Cần chú ý', DesignColors.error, urgent.length),
                         ...urgent.map((rec) => RecommendationCard(
-                          recommendation: rec,
-                          onDismiss: () => _dismiss(rec.id),
-                        )),
+                              recommendation: rec,
+                              onDismiss: () => _dismiss(rec.id),
+                            )),
                         SizedBox(height: DesignSpacing.lg),
                       ],
                       if (showNormal && normal.isNotEmpty) ...[
-                        _buildSectionHeader('Goi y khac', DesignColors.primary, normal.length),
+                        _buildSectionHeader(
+                            'Gợi ý khác', DesignColors.primary, normal.length),
                         ...normal.map((rec) => RecommendationCard(
-                          recommendation: rec,
-                          onDismiss: () => _dismiss(rec.id),
-                        )),
+                              recommendation: rec,
+                              onDismiss: () => _dismiss(rec.id),
+                            )),
                       ],
+                      const SizedBox(height: 24),
                     ],
                   ),
                 );
@@ -100,52 +112,166 @@ class _TeacherRecommendationsScreenState
     );
   }
 
-  Widget _buildFilterRow() {
+  Widget _buildSummaryHeader(AsyncValue recsAsync) {
+    final recs = recsAsync.valueOrNull;
+    if (recs == null) return const SizedBox.shrink();
+    final urgentCount =
+        (recs as List).where((r) => r.priorityValue <= 2).length;
+    final totalCount = recs.length;
+    if (totalCount == 0) return const SizedBox.shrink();
+
     return Container(
-      color: Colors.white,
-      padding: EdgeInsets.symmetric(
-        horizontal: DesignSpacing.md,
-        vertical: DesignSpacing.sm,
+      margin: EdgeInsets.fromLTRB(
+          DesignSpacing.md, DesignSpacing.md, DesignSpacing.md, 0),
+      padding: EdgeInsets.all(DesignSpacing.md),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            DesignColors.error.withValues(alpha: 0.08),
+            DesignColors.warning.withValues(alpha: 0.06),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(DesignRadius.lg),
+        border: Border.all(
+            color: DesignColors.error.withValues(alpha: 0.15)),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: DesignColors.error.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(DesignRadius.md),
+            ),
+            child: Icon(Icons.insights_rounded,
+                color: DesignColors.error, size: 24),
+          ),
+          SizedBox(width: DesignSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$urgentCount học sinh cần chú ý',
+                  style: DesignTypography.titleMedium.copyWith(
+                    color: DesignColors.error,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Tổng $totalCount gợi ý từ kết quả học tập gần đây',
+                  style: DesignTypography.bodySmall
+                      .copyWith(color: DesignColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterEmptyState() {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(DesignSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildFilterChip('Tat ca', _filterMode == _FilterMode.all, _FilterMode.all),
-            SizedBox(width: DesignSpacing.sm),
-            _buildFilterChip('Khan cap', _filterMode == _FilterMode.urgent, _FilterMode.urgent),
+            Icon(Icons.filter_alt_off_outlined,
+                size: 48, color: DesignColors.textTertiary),
+            SizedBox(height: DesignSpacing.md),
+            Text(
+              'Không có gợi ý phù hợp với bộ lọc',
+              style: DesignTypography.bodyMedium
+                  .copyWith(color: DesignColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, bool selected, _FilterMode mode) {
+  Widget _buildFilterRow() {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: DesignSpacing.md,
+        vertical: DesignSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          _buildFilterChip(
+            icon: Icons.list_rounded,
+            label: 'Tất cả',
+            selected: _filterMode == _FilterMode.all,
+            mode: _FilterMode.all,
+          ),
+          SizedBox(width: DesignSpacing.sm),
+          _buildFilterChip(
+            icon: Icons.priority_high_rounded,
+            label: 'Khẩn cấp',
+            selected: _filterMode == _FilterMode.urgent,
+            mode: _FilterMode.urgent,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required _FilterMode mode,
+  }) {
+    final activeColor = mode == _FilterMode.urgent
+        ? DesignColors.error
+        : DesignColors.primary;
     return FilterChip(
-      label: Text(label, style: DesignTypography.labelMedium),
+      avatar: Icon(
+        icon,
+        size: 16,
+        color: selected ? activeColor : DesignColors.textSecondary,
+      ),
+      label: Text(
+        label,
+        style: DesignTypography.labelMedium.copyWith(
+          color: selected ? activeColor : DesignColors.textPrimary,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        ),
+      ),
       selected: selected,
+      showCheckmark: false,
       onSelected: (_) {
         setState(() {
           _filterMode = mode;
         });
       },
       backgroundColor: Colors.white,
-      selectedColor: DesignColors.primary.withValues(alpha: 0.1),
-      checkmarkColor: DesignColors.primary,
+      selectedColor: activeColor.withValues(alpha: 0.1),
       side: BorderSide(
-        color: selected ? DesignColors.primary : Colors.grey.shade300,
+        color: selected ? activeColor : DesignColors.dividerLight,
+        width: selected ? 1.2 : 1,
       ),
     );
   }
 
   Widget _buildSectionHeader(String title, Color color, int count) {
     return Padding(
-      padding: EdgeInsets.only(bottom: DesignSpacing.sm),
+      padding: EdgeInsets.only(
+        bottom: DesignSpacing.sm,
+        top: DesignSpacing.xs,
+      ),
       child: Row(
         children: [
           Container(
             width: 4,
-            height: 20,
+            height: 18,
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(2),
@@ -153,8 +279,27 @@ class _TeacherRecommendationsScreenState
           ),
           SizedBox(width: DesignSpacing.sm),
           Text(
-            '$title ($count)',
-            style: DesignTypography.titleSmall.copyWith(color: color),
+            title,
+            style: DesignTypography.titleSmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(width: DesignSpacing.sm),
+          Container(
+            padding: EdgeInsets.symmetric(
+                horizontal: DesignSpacing.sm, vertical: 2),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(DesignRadius.full),
+            ),
+            child: Text(
+              '$count',
+              style: DesignTypography.labelSmall.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -163,26 +308,39 @@ class _TeacherRecommendationsScreenState
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.check_circle_outline,
-            size: 64,
-            color: DesignColors.success,
-          ),
-          SizedBox(height: DesignSpacing.md),
-          Text(
-            'Khong co goi y nao',
-            style: DesignTypography.titleMedium,
-          ),
-          SizedBox(height: DesignSpacing.sm),
-          Text(
-            'Cac goi y se xuat hien khi co hoc sinh\ncan ho tro them.',
-            style: DesignTypography.bodyMedium.copyWith(color: Colors.grey),
-            textAlign: TextAlign.center,
-          ),
-        ],
+      child: Padding(
+        padding: EdgeInsets.all(DesignSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: DesignColors.success.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.check_circle_rounded,
+                size: 56,
+                color: DesignColors.success,
+              ),
+            ),
+            SizedBox(height: DesignSpacing.lg),
+            Text(
+              'Mọi học sinh đều ổn',
+              style: DesignTypography.titleMedium
+                  .copyWith(fontWeight: FontWeight.w700),
+            ),
+            SizedBox(height: DesignSpacing.sm),
+            Text(
+              'Các gợi ý sẽ xuất hiện khi có học sinh\ncần hỗ trợ thêm.',
+              style: DesignTypography.bodyMedium
+                  .copyWith(color: DesignColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -210,21 +368,45 @@ class _TeacherRecommendationsScreenState
 
   Widget _buildErrorState(String error) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 48, color: DesignColors.error),
-          SizedBox(height: DesignSpacing.md),
-          Text('Loi tai du lieu', style: DesignTypography.titleMedium),
-          Text(error, style: DesignTypography.bodySmall.copyWith(color: Colors.grey)),
-          SizedBox(height: DesignSpacing.md),
-          ElevatedButton(
-            onPressed: () => ref.invalidate(
-              teacherRecommendationNotifierProvider(classId: _selectedClassId),
+      child: Padding(
+        padding: EdgeInsets.all(DesignSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline_rounded,
+                size: 56, color: DesignColors.error),
+            SizedBox(height: DesignSpacing.md),
+            Text('Lỗi tải dữ liệu',
+                style: DesignTypography.titleMedium
+                    .copyWith(fontWeight: FontWeight.w700)),
+            SizedBox(height: DesignSpacing.xs),
+            Text(
+              error,
+              style: DesignTypography.bodySmall
+                  .copyWith(color: DesignColors.textSecondary),
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
             ),
-            child: Text('Thu lai'),
-          ),
-        ],
+            SizedBox(height: DesignSpacing.lg),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Thử lại'),
+              onPressed: () => ref.invalidate(
+                teacherRecommendationNotifierProvider(classId: _selectedClassId),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: DesignColors.primary,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                    horizontal: DesignSpacing.lg,
+                    vertical: DesignSpacing.sm),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(DesignRadius.md)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

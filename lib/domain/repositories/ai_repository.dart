@@ -16,6 +16,9 @@ abstract class AiRepository {
   ///                         (an toàn, backward-compat).
   /// [templateQuestions]   — Câu mẫu gốc (Excel parsed) để hậu kiểm similarity
   ///                         post-hoc. null/rỗng = bỏ qua kiểm tra.
+  /// [templateCount]       — Số câu mẫu gốc thực có (để prompt cảnh báo
+  ///                         scarcity khi templateCount < quantity / 2). null
+  ///                         = bỏ qua scarcity note.
   /// [onRawResponse]       — Callback nhận raw JSON từng batch (để debug/preview)
   Future<List<Map<String, dynamic>>> generateQuestions({
     required String topic,
@@ -26,6 +29,7 @@ abstract class AiRepository {
     bool useAsStyleTemplate = false,
     TemplateMode? templateMode,
     List<Map<String, dynamic>>? templateQuestions,
+    int? templateCount,
     void Function(String rawJson)? onRawResponse,
   });
 }

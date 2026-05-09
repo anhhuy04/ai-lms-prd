@@ -6,6 +6,7 @@ import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/teacher_assignment_hub_notifier.dart';
 import 'package:ai_mls/presentation/providers/teacher_dashboard_notifier.dart';
 import 'package:ai_mls/presentation/providers/teacher_dashboard_providers.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_grading_hub_screen.dart';
 import 'package:ai_mls/presentation/views/recommendation/widgets/intervention_badge.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/text/smart_marquee_text.dart';
@@ -269,8 +270,10 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                   icon: const Icon(Icons.check_circle, size: 20),
                   label: const Text('Chấm ngay'),
                   // goNamed để switch tab trong ShellRoute (không push stack)
-                  onPressed: () =>
-                      context.goNamed(AppRoute.teacherAssignmentHub),
+                  onPressed: () => context.pushNamed(
+                    AppRoute.teacherGrading,
+                    extra: {'initialFilter': GradingHubFilter.pending},
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
@@ -397,88 +400,96 @@ class TeacherHomeContentScreen extends ConsumerWidget {
       if (cls.academicYear?.isNotEmpty == true) cls.academicYear!,
     ].join(' • ');
 
-    return Container(
-      padding: EdgeInsets.all(DesignSpacing.lg),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(DesignRadius.md),
-        border: Border.all(color: DesignColors.dividerLight),
-        boxShadow: [
-          BoxShadow(
-              color: DesignColors.shadowLight,
-              blurRadius: 5,
-              offset: const Offset(0, 2)),
-        ],
+    return InkWell(
+      onTap: () => context.pushNamed(
+        AppRoute.teacherClassDetail,
+        pathParameters: {'classId': cls.id},
+        extra: {'className': cls.name, 'semesterInfo': infoLine},
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              gradient: gradient,
-              borderRadius: BorderRadius.circular(DesignRadius.sm),
-              boxShadow: [
-                BoxShadow(
-                    color: gradient.colors.first.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4)),
-              ],
-            ),
-            child: Center(
-              child: Text(badge,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(cls.name,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16),
-                    overflow: TextOverflow.ellipsis),
-                if (infoLine.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(infoLine,
-                      style: TextStyle(
-                          color: DesignColors.textSecondary,
-                          fontSize: 13),
-                      overflow: TextOverflow.ellipsis),
+      borderRadius: BorderRadius.circular(DesignRadius.md),
+      child: Container(
+        padding: EdgeInsets.all(DesignSpacing.lg),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(DesignRadius.md),
+          border: Border.all(color: DesignColors.dividerLight),
+          boxShadow: [
+            BoxShadow(
+                color: DesignColors.shadowLight,
+                blurRadius: 5,
+                offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                gradient: gradient,
+                borderRadius: BorderRadius.circular(DesignRadius.sm),
+                boxShadow: [
+                  BoxShadow(
+                      color: gradient.colors.first.withValues(alpha: 0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4)),
                 ],
-                const SizedBox(height: 4),
-                Text(
-                  '$studentCount học sinh',
-                  style: TextStyle(
-                      color: DesignColors.textSecondary, fontSize: 14),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    if (isHubLoading)
-                      const ShimmerInlineChips()
-                    else ...[
-                      if (totalAssignments > 0)
-                        _chip('$totalAssignments bài tập', DesignColors.primary),
-                      if (pendingCount > 0)
-                        _chip('$pendingCount chờ chấm', DesignColors.warning)
-                      else
-                        _chip('Không có bài chờ', DesignColors.success),
-                    ],
-                  ],
-                ),
-              ],
+              ),
+              child: Center(
+                child: Text(badge,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold)),
+              ),
             ),
-          ),
-          Icon(Icons.chevron_right, color: DesignColors.textTertiary),
-        ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(cls.name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
+                      overflow: TextOverflow.ellipsis),
+                  if (infoLine.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(infoLine,
+                        style: TextStyle(
+                            color: DesignColors.textSecondary,
+                            fontSize: 13),
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                  const SizedBox(height: 4),
+                  Text(
+                    '$studentCount học sinh',
+                    style: TextStyle(
+                        color: DesignColors.textSecondary, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      if (isHubLoading)
+                        const ShimmerInlineChips()
+                      else ...[
+                        if (totalAssignments > 0)
+                          _chip('$totalAssignments bài tập', DesignColors.primary),
+                        if (pendingCount > 0)
+                          _chip('$pendingCount chờ chấm', DesignColors.warning)
+                        else
+                          _chip('Không có bài chờ', DesignColors.success),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: DesignColors.textTertiary),
+          ],
+        ),
       ),
     );
   }
@@ -536,7 +547,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
       BuildContext context, AssignmentDistribution dist) {
     final dueAt = dist.dueAt;
     final now = DateTime.now();
-    final diff = dueAt != null ? dueAt.difference(now) : null;
+    final diff = dueAt?.difference(now);
 
     Color timeColor;
     String timeText;
@@ -569,104 +580,123 @@ class TeacherHomeContentScreen extends ConsumerWidget {
     final submissionStatus =
         total > 0 ? '$submitted/$total đã nộp' : 'Chưa có bài nộp';
 
-    return Container(
-      padding: EdgeInsets.all(DesignSpacing.md),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(DesignRadius.md),
-        border: Border.all(color: DesignColors.dividerLight),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x08000000),
-              blurRadius: 5,
-              offset: Offset(0, 2)),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: timeColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(DesignRadius.sm),
-              border: Border.all(color: timeColor.withValues(alpha: 0.2)),
+    return InkWell(
+      onTap: () {
+        // dist.id non-null theo entity; chỉ classId là nullable.
+        if (dist.classId != null) {
+          context.pushNamed(
+            AppRoute.teacherAssignmentDetail,
+            pathParameters: {
+              'classId': dist.classId!,
+              'distributionId': dist.id,
+            },
+            extra: {
+              'assignmentTitle': dist.assignmentTitle,
+              'className': dist.className,
+            },
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(DesignRadius.md),
+      child: Container(
+        padding: EdgeInsets.all(DesignSpacing.md),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(DesignRadius.md),
+          border: Border.all(color: DesignColors.dividerLight),
+          boxShadow: const [
+            BoxShadow(
+                color: Color(0x08000000),
+                blurRadius: 5,
+                offset: Offset(0, 2)),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: timeColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(DesignRadius.sm),
+                border: Border.all(color: timeColor.withValues(alpha: 0.2)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(dayOfWeek,
+                      style: TextStyle(
+                          color: timeColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5)),
+                  Text(dayNum,
+                      style: TextStyle(
+                          color: timeColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          height: 1.2)),
+                ],
+              ),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(dayOfWeek,
-                    style: TextStyle(
-                        color: timeColor,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5)),
-                Text(dayNum,
-                    style: TextStyle(
-                        color: timeColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        height: 1.2)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(title,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 14),
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                    Chip(
-                      label: Text(timeText,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(title,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 14),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      Chip(
+                        label: Text(timeText,
+                            style: TextStyle(
+                                color: timeColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold)),
+                        backgroundColor: timeColor.withValues(alpha: 0.1),
+                        padding: EdgeInsets.zero,
+                        labelPadding:
+                            const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Chip(
+                        label: Text(className,
+                            style: TextStyle(
+                                color: DesignColors.textPrimary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold)),
+                        backgroundColor: DesignColors.moonLight,
+                        side: BorderSide.none,
+                        padding: EdgeInsets.zero,
+                        labelPadding:
+                            const EdgeInsets.symmetric(horizontal: 6),
+                      ),
+                      const SizedBox(width: 4),
+                      Text('•',
+                          style:
+                              TextStyle(color: DesignColors.textSecondary)),
+                      const SizedBox(width: 4),
+                      Text(submissionStatus,
                           style: TextStyle(
-                              color: timeColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold)),
-                      backgroundColor: timeColor.withValues(alpha: 0.1),
-                      padding: EdgeInsets.zero,
-                      labelPadding:
-                          const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Chip(
-                      label: Text(className,
-                          style: TextStyle(
-                              color: DesignColors.textPrimary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold)),
-                      backgroundColor: DesignColors.moonLight,
-                      side: BorderSide.none,
-                      padding: EdgeInsets.zero,
-                      labelPadding:
-                          const EdgeInsets.symmetric(horizontal: 6),
-                    ),
-                    const SizedBox(width: 4),
-                    Text('•',
-                        style:
-                            TextStyle(color: DesignColors.textSecondary)),
-                    const SizedBox(width: 4),
-                    Text(submissionStatus,
-                        style: TextStyle(
-                            color: DesignColors.textSecondary,
-                            fontSize: 12)),
-                  ],
-                ),
-              ],
+                              color: DesignColors.textSecondary,
+                              fontSize: 12)),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -61,3 +61,22 @@ lib/core/env/env.g.dart
 android/java_pid37916.hprof
 .worktrees/
 .worktrees/
+
+# Claude Code local state (agent worktrees có thể tới hàng GB)
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+
+# Superpowers local skill cache
+.superpowers/
+
+# Firebase hosting cache (auto-regen, không phải source)
+.firebase/
+
+# Supabase CLI local link (chứa project ref local)
+supabase/.temp/
+
+# GSD reports (output local của subagent)
+.planning/reports/
+
+# File rỗng accidentally created
+Trượt

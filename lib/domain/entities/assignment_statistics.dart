@@ -18,6 +18,10 @@ class AssignmentStatistics with _$AssignmentStatistics {
     @Default(0) @JsonKey(name: 'in_progress') int inProgress,
     @Default(0) @JsonKey(name: 'ungraded') int ungraded,
     @Default(0) @JsonKey(name: 'graded') int graded,
+    @Default(0) @JsonKey(name: 'total_submissions') int totalSubmissions,
+    @Default(0) @JsonKey(name: 'late_submissions') int lateSubmissions,
+    @Default(0) @JsonKey(name: 'dists_with_late') int distsWithLate,
+    @Default(0) @JsonKey(name: 'in_progress_classes') int inProgressClasses,
   }) = _AssignmentStatistics;
 
   factory AssignmentStatistics.fromJson(Map<String, dynamic> json) =>

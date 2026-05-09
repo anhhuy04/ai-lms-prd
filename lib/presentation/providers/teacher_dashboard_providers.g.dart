@@ -29,9 +29,10 @@ final teacherDashboardClassesProvider =
 // ignore: unused_element
 typedef TeacherDashboardClassesRef = AutoDisposeFutureProviderRef<List<Class>>;
 String _$teacherPendingCountHash() =>
-    r'47ab6aae12608acbbb5e94ed08a569500fd62610';
+    r'58744a44d9952ed3a52ec45a1340a802df9693a2';
 
-/// Tổng số bài nộp chờ chấm (submitted - graded) trên tất cả distributions.
+/// Tổng số HS có latest attempt = submitted-not-graded trên tất cả distributions.
+/// Dùng pending_action_count đã dedupe (1 HS làm lại N lần chỉ đếm 1).
 ///
 /// Copied from [teacherPendingCount].
 @ProviderFor(teacherPendingCount)

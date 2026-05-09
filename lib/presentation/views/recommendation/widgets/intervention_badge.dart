@@ -20,34 +20,63 @@ class InterventionBadge extends ConsumerWidget {
       data: (count) {
         if (count == 0) return const SizedBox.shrink();
 
-        return GestureDetector(
-          onTap: () => context.pushNamed(AppRoute.teacherRecommendationsTab),
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: DesignSpacing.md,
-              vertical: DesignSpacing.sm,
-            ),
-            decoration: BoxDecoration(
-              color: DesignColors.error.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(DesignRadius.full),
-              border: Border.all(color: DesignColors.error),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.warning_amber,
-                  color: DesignColors.error,
-                  size: DesignIcons.smSize,
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () =>
+                context.pushNamed(AppRoute.teacherRecommendationsTab),
+            borderRadius: BorderRadius.circular(DesignRadius.full),
+            child: Ink(
+              padding: EdgeInsets.symmetric(
+                horizontal: DesignSpacing.md,
+                vertical: DesignSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    DesignColors.error.withValues(alpha: 0.12),
+                    DesignColors.error.withValues(alpha: 0.06),
+                  ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
                 ),
-                SizedBox(width: DesignSpacing.xs),
-                Text(
-                  '$count hoc sinh can chu y',
-                  style: DesignTypography.labelMedium.copyWith(
-                    color: DesignColors.error,
+                borderRadius: BorderRadius.circular(DesignRadius.full),
+                border: Border.all(
+                  color: DesignColors.error.withValues(alpha: 0.5),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: DesignColors.error.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.warning_amber_rounded,
+                      color: DesignColors.error,
+                      size: DesignIcons.smSize,
+                    ),
                   ),
-                ),
-              ],
+                  SizedBox(width: DesignSpacing.sm),
+                  Text(
+                    '$count học sinh cần chú ý',
+                    style: DesignTypography.labelMedium.copyWith(
+                      color: DesignColors.error,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(width: DesignSpacing.xs),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    color: DesignColors.error,
+                    size: 14,
+                  ),
+                ],
+              ),
             ),
           ),
         );

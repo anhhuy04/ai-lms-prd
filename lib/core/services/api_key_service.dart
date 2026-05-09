@@ -31,11 +31,13 @@ class ApiKeyService {
   static const String providerGemini = 'gemini';
   static const String providerGroq = 'groq';
   static const String providerOllama = 'ollama';
+  static const String providerOpenRouter = 'openrouter';
 
   // Default models (fallback)
   static const String defaultGeminiModel = 'gemini-1.5-flash';
   static const String defaultGroqModel = 'llama-3.1-8b-instant';
-  static const String defaultOllamaModel = 'mistral'; // Default Ollama model
+  static const String defaultOllamaModel = 'mistral';
+  static const String defaultOpenRouterModel = 'google/gemma-3-4b-it:free';
 
   static const FlutterSecureStorage _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -49,6 +51,7 @@ class ApiKeyService {
   static const String _groqApiKeyKey = 'groq_api_key';
   static const String _ollamaBaseUrlKey = 'ollama_base_url';
   static const String _aiApiKeyKey = 'ai_api_key';
+  static const String _openRouterApiKeyKey = 'openrouter_api_key';
 
   // Ollama - NO default base URL (user must enter manually)
 
@@ -56,6 +59,8 @@ class ApiKeyService {
       'https://generativelanguage.googleapis.com/v1beta';
   static const String _groqChatUrl =
       'https://api.groq.com/openai/v1/chat/completions';
+  static const String _openRouterBaseUrl = 'https://openrouter.ai/api/v1';
+  static const String _openRouterChatUrl = '$_openRouterBaseUrl/chat/completions';
 
   static String _geminiEndpointFromModel(String model) =>
       '$_geminiBaseUrl/models/$model:generateContent';
@@ -84,6 +89,15 @@ class ApiKeyService {
     BaseOptions(
       connectTimeout: const Duration(seconds: 5),
       receiveTimeout: const Duration(seconds: 10),
+      headers: {'Content-Type': 'application/json'},
+      validateStatus: (s) => s != null,
+    ),
+  );
+
+  static final Dio _openRouterDio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 15),
       headers: {'Content-Type': 'application/json'},
       validateStatus: (s) => s != null,
     ),
@@ -547,6 +561,7 @@ Web: Browser's secure storage (if supported)
     }
     if (provider == providerGroq) return defaultGroqModel;
     if (provider == providerOllama) return defaultOllamaModel;
+    if (provider == providerOpenRouter) return defaultOpenRouterModel;
     return defaultGeminiModel;
   }
 
@@ -561,7 +576,8 @@ Web: Browser's secure storage (if supported)
     try {
       if (provider != providerGemini &&
           provider != providerGroq &&
-          provider != providerOllama) {
+          provider != providerOllama &&
+          provider != providerOpenRouter) {
         throw Exception('Provider không hợp lệ: $provider');
       }
       if (model.trim().isEmpty) {
@@ -602,6 +618,7 @@ Web: Browser's secure storage (if supported)
     }
     if (provider == providerGroq) return defaultGroqModel;
     if (provider == providerOllama) return defaultOllamaModel;
+    if (provider == providerOpenRouter) return defaultOpenRouterModel;
     return defaultGeminiModel;
   }
 
@@ -613,7 +630,8 @@ Web: Browser's secure storage (if supported)
     try {
       if (provider != providerGemini &&
           provider != providerGroq &&
-          provider != providerOllama) {
+          provider != providerOllama &&
+          provider != providerOpenRouter) {
         throw Exception('Provider không hợp lệ: $provider');
       }
       if (model.trim().isEmpty) throw Exception('Model không được để trống');
@@ -1001,6 +1019,7 @@ Web: Browser's secure storage (if supported)
       await _storage.delete(key: _groqApiKeyKey);
       await _storage.delete(key: _ollamaBaseUrlKey);
       await _storage.delete(key: _aiApiKeyKey);
+      await _storage.delete(key: _openRouterApiKeyKey);
       AppLogger.info('✅ [API Key Service] All API keys cleared');
       return true;
     } catch (e) {
@@ -1009,6 +1028,236 @@ Web: Browser's secure storage (if supported)
         error: e,
       );
       return false;
+    }
+  }
+
+  // ── OpenRouter ────────────────────────────────────────────────────────────
+
+  /// Lấy OpenRouter API key (metadata → SecureStorage)
+  static Future<String> getOpenRouterApiKey() async {
+    try {
+      try {
+        final key = await ProfileMetadataService.getOpenRouterApiKey();
+        if (key != null && key.isNotEmpty) return key;
+      } catch (_) {}
+      final stored = await _storage.read(key: _openRouterApiKeyKey);
+      return stored ?? '';
+    } catch (e) {
+      AppLogger.error('❌ [API Key Service] Error reading OpenRouter API key: $e');
+      return '';
+    }
+  }
+
+  static Future<bool> hasOpenRouterApiKey() async {
+    try {
+      if (await ProfileMetadataService.hasOpenRouterApiKey()) return true;
+      final stored = await _storage.read(key: _openRouterApiKeyKey);
+      return stored != null && stored.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Lưu OpenRouter API key vào metadata + optional set active provider/model
+  static Future<Map<String, dynamic>> setOpenRouterApiKey(
+    String apiKey, {
+    String? model,
+    bool setActive = false,
+    bool skipTest = false,
+  }) async {
+    try {
+      if (apiKey.isEmpty) {
+        return {
+          'saved': false,
+          'tested': false,
+          'error': 'API key không được để trống',
+        };
+      }
+      bool testSuccess = false;
+      String? testError;
+      if (!skipTest) {
+        final testResult = await testOpenRouterApiKey(apiKey, model: model);
+        testSuccess = testResult['success'] as bool;
+        testError = testResult['error'] as String?;
+      }
+      final saved = await ProfileMetadataService.setOpenRouterApiKey(apiKey);
+      if (setActive) {
+        await ProfileMetadataService.setAiConfig(
+          provider: providerOpenRouter,
+          model: model ?? defaultOpenRouterModel,
+        );
+      }
+      if (saved) {
+        return {
+          'saved': true,
+          'tested': !skipTest,
+          'testSuccess': skipTest ? null : testSuccess,
+          'error': testError,
+        };
+      }
+      await _storage.write(key: _openRouterApiKeyKey, value: apiKey);
+      return {
+        'saved': true,
+        'tested': !skipTest,
+        'testSuccess': skipTest ? null : testSuccess,
+        'error': testError,
+      };
+    } catch (e) {
+      AppLogger.error('❌ [API Key Service] Error saving OpenRouter API key: $e');
+      return {'saved': false, 'tested': false, 'error': e.toString()};
+    }
+  }
+
+  static Future<bool> clearOpenRouterApiKey() async {
+    try {
+      try {
+        await ProfileMetadataService.removeOpenRouterApiKey();
+      } catch (_) {}
+      await _storage.delete(key: _openRouterApiKeyKey);
+      return true;
+    } catch (e) {
+      AppLogger.error('❌ [API Key Service] Error clearing OpenRouter API key: $e');
+      return false;
+    }
+  }
+
+  /// Test OpenRouter API key (OpenAI-compatible)
+  static Future<Map<String, dynamic>> testOpenRouterApiKey(
+    String apiKey, {
+    String? model,
+  }) async {
+    if (apiKey.isEmpty) {
+      return {'success': false, 'error': 'API key không được để trống'};
+    }
+    try {
+      final usedModel = model ?? defaultOpenRouterModel;
+      final response = await _openRouterDio.post(
+        _openRouterChatUrl,
+        options: Options(headers: {
+          'Authorization': 'Bearer $apiKey',
+          'HTTP-Referer': 'https://ai-lms.app',
+        }),
+        data: {
+          'model': usedModel,
+          'max_tokens': 5,
+          'messages': [
+            {'role': 'user', 'content': 'test'},
+          ],
+        },
+      );
+      if (response.statusCode == 200) {
+        AppLogger.info('✅ [OpenRouter] API key test OK');
+        return {'success': true};
+      }
+      final msg = _parseHttpError(response.statusCode, response.data);
+      AppLogger.error('❌ [OpenRouter] $msg');
+      return {'success': false, 'error': msg};
+    } on DioException catch (e) {
+      final msg = _parseDioNetworkError(e, server: 'OpenRouter');
+      AppLogger.error('❌ [OpenRouter] $msg', error: e);
+      return {'success': false, 'error': msg};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Fetch danh sách models từ Gemini API (chỉ lấy models hỗ trợ generateContent)
+  ///
+  /// Returns: `List<String>` model names, hoặc [] nếu lỗi
+  static Future<List<String>> fetchGeminiModels(String apiKey) async {
+    if (apiKey.isEmpty) return [];
+    try {
+      final response = await _geminiDio.get(
+        '$_geminiBaseUrl/models',
+        queryParameters: {'key': apiKey},
+      );
+      if (response.statusCode != 200) return [];
+      final data = response.data;
+      final Map<String, dynamic> map = data is String
+          ? (jsonDecode(data) as Map<String, dynamic>? ?? {})
+          : (data as Map<String, dynamic>? ?? {});
+      final models = (map['models'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .where((m) {
+                final methods = (m['supportedGenerationMethods'] as List?)
+                        ?.whereType<String>()
+                        .toList() ??
+                    [];
+                return methods.contains('generateContent');
+              })
+              .map((m) => (m['name'] as String?)?.replaceFirst('models/', '') ?? '')
+              .where((n) => n.isNotEmpty)
+              .toList() ??
+          [];
+      AppLogger.info('✅ [Gemini] Fetched ${models.length} models');
+      return models;
+    } catch (e) {
+      AppLogger.error('❌ [Gemini] fetchGeminiModels: $e', error: e);
+      return [];
+    }
+  }
+
+  /// Fetch danh sách models từ Groq API
+  ///
+  /// Returns: `List<String>` model IDs, hoặc [] nếu lỗi
+  static Future<List<String>> fetchGroqModels(String apiKey) async {
+    if (apiKey.isEmpty) return [];
+    try {
+      final response = await _groqDio.get(
+        'https://api.groq.com/openai/v1/models',
+        options: Options(headers: {'Authorization': 'Bearer $apiKey'}),
+      );
+      if (response.statusCode != 200) return [];
+      final data = response.data;
+      final Map<String, dynamic> map = data is String
+          ? (jsonDecode(data) as Map<String, dynamic>? ?? {})
+          : (data as Map<String, dynamic>? ?? {});
+      final models = (map['data'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .map((m) => m['id'] as String?)
+              .whereType<String>()
+              .where((n) => n.isNotEmpty)
+              .toList() ??
+          [];
+      AppLogger.info('✅ [Groq] Fetched ${models.length} models');
+      return models;
+    } catch (e) {
+      AppLogger.error('❌ [Groq] fetchGroqModels: $e', error: e);
+      return [];
+    }
+  }
+
+  /// Fetch danh sách models từ OpenRouter (public endpoint, không cần auth)
+  ///
+  /// Returns: List<Map> với keys: id, name, isFree
+  static Future<List<Map<String, dynamic>>> fetchOpenRouterModels() async {
+    try {
+      final response = await _openRouterDio.get(
+        '$_openRouterBaseUrl/models',
+      );
+      if (response.statusCode != 200) return [];
+      final data = response.data;
+      final Map<String, dynamic> map = data is String
+          ? (jsonDecode(data) as Map<String, dynamic>? ?? {})
+          : (data as Map<String, dynamic>? ?? {});
+      final models = (map['data'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .map((m) {
+                final id = m['id'] as String? ?? '';
+                final name = m['name'] as String? ?? id;
+                final pricing = m['pricing'] as Map<String, dynamic>?;
+                final promptPrice = pricing?['prompt']?.toString() ?? '1';
+                final isFree = id.endsWith(':free') || promptPrice == '0';
+                return {'id': id, 'name': name, 'isFree': isFree};
+              })
+              .where((m) => (m['id'] as String).isNotEmpty)
+              .toList() ??
+          [];
+      AppLogger.info('✅ [OpenRouter] Fetched ${models.length} models');
+      return models;
+    } catch (e) {
+      AppLogger.error('❌ [OpenRouter] fetchOpenRouterModels: $e', error: e);
+      return [];
     }
   }
 }

@@ -53,73 +53,62 @@ class AnalyticsDatasource {
     DateTime? endDate,
   }) async {
     try {
-      // Build submission query - filter by class via assignment_distributions if classId provided
-      List<Map<String, dynamic>> submissions;
+      // Dynamic Aggregation via RPC — 1 Verdict per distribution, đúng rule của từng bài.
+      // avgScore = trung bình Verdicts, không phải trung bình raw attempts.
+      final rpcResult = await _client.rpc(
+        'get_student_verdicts_with_meta',
+        params: {
+          'p_student_id': studentId,
+          if (classId != null) 'p_class_id': classId,
+        },
+      );
+      var verdicts = List<Map<String, dynamic>>.from(rpcResult as List);
 
-      if (classId != null) {
-        // Join via assignment_distributions to filter by class
-        final distributions = await _client
-            .from('assignment_distributions')
-            .select('id')
-            .eq('class_id', classId);
-        final distributionIds = distributions
-            .map((d) => d['id'] as String)
-            .toList();
-
-        if (distributionIds.isEmpty) {
-          submissions = [];
-        } else {
-          var q = _client
-              .from('submissions')
-              .select('total_score, is_late, submitted_at')
-              .eq('student_id', studentId)
-              .inFilter('assignment_distribution_id', distributionIds);
-          if (startDate != null) {
-            q = q.gte('submitted_at', startDate.toIso8601String());
-          }
-          if (endDate != null) {
-            q = q.lte('submitted_at', endDate.toIso8601String());
-          }
-          submissions = await q.order('submitted_at', ascending: false);
-        }
-      } else {
-        var q = _client
-            .from('submissions')
-            .select('total_score, is_late, submitted_at')
-            .eq('student_id', studentId);
-        if (startDate != null) {
-          q = q.gte('submitted_at', startDate.toIso8601String());
-        }
-        if (endDate != null) {
-          q = q.lte('submitted_at', endDate.toIso8601String());
-        }
-        submissions = await q.order('submitted_at', ascending: false);
+      // Apply date filter client-side nếu có (dùng last_submitted_at)
+      if (startDate != null || endDate != null) {
+        verdicts = verdicts.where((v) {
+          final raw = v['last_submitted_at'] as String?;
+          if (raw == null) return false;
+          final dt = DateTime.tryParse(raw);
+          if (dt == null) return false;
+          if (startDate != null && dt.isBefore(startDate)) return false;
+          if (endDate != null && dt.isAfter(endDate)) return false;
+          return true;
+        }).toList();
       }
 
-      if (submissions.isEmpty) {
+      // Sort newest first (để trendDirection tính "recent vs older" đúng thứ tự)
+      verdicts.sort((a, b) {
+        final ta = DateTime.tryParse(a['last_submitted_at'] as String? ?? '');
+        final tb = DateTime.tryParse(b['last_submitted_at'] as String? ?? '');
+        if (ta == null && tb == null) return 0;
+        if (ta == null) return 1;
+        if (tb == null) return -1;
+        return tb.compareTo(ta);
+      });
+
+      if (verdicts.isEmpty) {
         return const BasicEngagementMetrics();
       }
 
-      final totalScore = submissions.fold<double>(
+      final totalScore = verdicts.fold<double>(
         0,
-        (sum, s) => sum + ((s['total_score'] ?? 0) as num).toDouble(),
+        (sum, v) => sum + ((v['final_score'] ?? 0) as num).toDouble(),
       );
-      final onTimeCount = submissions.where((s) => s['is_late'] != true).length;
-      final avgScore = submissions.isNotEmpty
-          ? totalScore / submissions.length
-          : 0.0;
+      final onTimeCount = verdicts.where((v) => v['is_late'] != true).length;
+      final avgScore = totalScore / verdicts.length;
 
-      // Calculate trend direction (compare last 3 vs previous 3)
+      // Trend: so sánh Verdict 3 bài gần nhất vs 3 bài trước đó
       TrendDirection? trendDirection;
-      if (submissions.length >= 6) {
-        final recent = submissions
+      if (verdicts.length >= 6) {
+        final recent = verdicts
             .take(3)
-            .map((s) => ((s['total_score'] ?? 0) as num).toDouble())
+            .map((v) => ((v['final_score'] ?? 0) as num).toDouble())
             .toList();
-        final older = submissions
+        final older = verdicts
             .skip(3)
             .take(3)
-            .map((s) => ((s['total_score'] ?? 0) as num).toDouble())
+            .map((v) => ((v['final_score'] ?? 0) as num).toDouble())
             .toList();
         final recentAvg = recent.reduce((a, b) => a + b) / 3;
         final olderAvg = older.reduce((a, b) => a + b) / 3;
@@ -146,11 +135,9 @@ class AnalyticsDatasource {
 
       return BasicEngagementMetrics(
         avgScore: avgScore,
-        onTimeRate: submissions.isNotEmpty
-            ? onTimeCount / submissions.length
-            : 0.0,
+        onTimeRate: onTimeCount / verdicts.length,
         totalTimeMinutes: totalTime ~/ 60,
-        submissionCount: submissions.length,
+        submissionCount: verdicts.length,
         trendDirection: trendDirection,
       );
     } catch (e, st) {
@@ -453,9 +440,6 @@ class AnalyticsDatasource {
           .eq('class_id', classId)
           .eq('status', 'approved');
       final totalStudents = studentsResult.length;
-      final studentIds = studentsResult
-          .map((s) => s['student_id'] as String)
-          .toList();
 
       // Get all submissions for this class - filter by assignment_distribution_id
       // so we only get submissions for assignments that belong to this class
@@ -498,21 +482,29 @@ class AnalyticsDatasource {
         }
       });
 
-      final submissions = studentIds.isEmpty || distributionIds.isEmpty
-          ? <Map<String, dynamic>>[]
-          : await _client
-                .from('submissions')
-                .select(
-                  'total_score, student_id, assignment_distribution_id, is_late, profiles(full_name)',
-                )
-                .inFilter('student_id', studentIds)
-                .inFilter('assignment_distribution_id', distributionIds)
-                .not('total_score', 'is', null);
+      // Dynamic Aggregation via RPC — 1 row per (student, distribution), đúng rule của từng bài.
+      // Thay thế raw submissions query vốn phồng số liệu khi học sinh làm lại nhiều lần.
+      final List<Map<String, dynamic>> submissions;
+      if (distributionIds.isEmpty) {
+        submissions = [];
+      } else {
+        final rpcResult = await _client.rpc(
+          'get_class_final_scores',
+          params: {'p_class_id': classId},
+        );
+        submissions = [
+          for (final row in List<Map<String, dynamic>>.from(rpcResult as List))
+            {
+              'total_score': row['final_score'],
+              'student_id': row['student_id'],
+              'assignment_distribution_id': row['distribution_id'],
+              'is_late': row['is_late'] ?? false,
+              'profiles': {'full_name': row['student_name'] ?? 'Học sinh'},
+            },
+        ];
+      }
 
       final totalSubmissions = submissions.length;
-      final submittedStudentIds = submissions
-          .map((s) => s['student_id'] as String)
-          .toSet();
       final lateSubmissions = submissions
           .where((s) => s['is_late'] == true)
           .length;
@@ -612,12 +604,20 @@ class AnalyticsDatasource {
         }
       }
 
+      // Số HS đã nộp ít nhất 1 bài (dedupe theo student_id).
+      final participatingStudents = submissions
+          .map((s) => s['student_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .length;
+
       return ClassAnalytics(
         classId: classId,
         className: (classInfo?['name'] ?? 'Class') as String,
         classAverage: classAverage,
         totalStudents: totalStudents,
         totalSubmissions: totalSubmissions,
+        participatingStudents: participatingStudents,
         submissionRate: totalSubmissions > 0
             ? (totalSubmissions - lateSubmissions) / totalSubmissions
             : 0.0,
@@ -660,64 +660,80 @@ class AnalyticsDatasource {
     }
   }
 
-  /// Builds a map from distribution id → assignment title, filtered by classId.
-  Future<Map<String, ({String title, double maxScore})>>
+  /// Builds a map from distribution id → unique display title + maxScore + sortKey.
+  /// Khi 2 distributions trong cùng lớp có CÙNG title (vd: GV phân phối lại 1 bài),
+  /// các lần sau được append "(2)", "(3)" để user phân biệt được trên heatmap.
+  /// `sortKey` dùng để giữ thứ tự ổn định (created_at ascending — bài cũ hiện trước).
+  Future<Map<String, ({String title, double maxScore, int sortKey})>>
   _buildDistributionInfoMap(String classId) async {
     final distributions = await _client
         .from('assignment_distributions')
-        .select('id, assignments(total_points, title)')
+        .select('id, created_at, assignments(total_points, title)')
         .eq('class_id', classId)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: true);
 
-    final result = <String, ({String title, double maxScore})>{};
+    final result = <String, ({String title, double maxScore, int sortKey})>{};
+    final titleCount = <String, int>{};
+    int sortKey = 0;
     for (final d in distributions) {
       final id = d['id'] as String?;
+      if (id == null) continue;
       final assignment = d['assignments'] as Map<String, dynamic>?;
-      final title = assignment?['title'] as String? ?? 'Bài tập';
+      final rawTitle = assignment?['title'] as String? ?? 'Bài tập';
       final totalPoints =
           (assignment?['total_points'] as num?)?.toDouble() ?? 10.0;
-      if (id != null) {
-        result[id] = (title: title, maxScore: totalPoints);
-      }
+      // Phân biệt khi cùng tên: lần đầu giữ nguyên, từ lần 2 thêm "(N)".
+      final occurrence = (titleCount[rawTitle] ?? 0) + 1;
+      titleCount[rawTitle] = occurrence;
+      final displayTitle = occurrence == 1 ? rawTitle : '$rawTitle ($occurrence)';
+      result[id] = (title: displayTitle, maxScore: totalPoints, sortKey: sortKey++);
     }
     return result;
   }
 
-  /// Maps raw submissions grouped by assignment → SubjectDistribution.
-  /// Buckets: thang diem 10 → "0-4", "4-6", "6-8", "8-10"
+  /// Map RPC submissions (1 row per (student, distribution)) → SubjectDistribution.
+  /// Mỗi DISTRIBUTION = 1 row trên heatmap (KHÔNG group theo title).
+  /// → 2 dist cùng tên hiển thị thành 2 row riêng (suffix "(2)" để phân biệt).
+  /// → 1 HS không bao giờ xuất hiện 2 lần trong CÙNG 1 row, vì RPC đã dedupe per (student, dist)
+  ///   theo aggregation rule (latest/first/max/average).
+  /// Buckets: thang điểm 0-100 (đã normalize) → "0-4", "4-6", "6-8", "8-10".
   List<SubjectDistribution> _mapToSubjectDistributions(
     List<Map<String, dynamic>> submissions,
-    Map<String, ({String title, double maxScore})> distributionInfo,
+    Map<String, ({String title, double maxScore, int sortKey})> distributionInfo,
   ) {
-    // Track scores + student info per bucket per assignment
-    final Map<String, List<double>> assignmentScores = {};
-    final Map<
-      String,
-      List<({String studentId, String studentName, double score})>
-    >
-    assignmentStudents = {};
+    // Group theo distributionId (NOT title) — mỗi distribution là 1 row độc lập.
+    final Map<String, List<({String studentId, String studentName, double scorePercent})>>
+        scoresByDist = {};
 
     for (final sub in submissions) {
       final distributionId = sub['assignment_distribution_id'] as String?;
+      if (distributionId == null) continue;
+      final info = distributionInfo[distributionId];
+      if (info == null) continue;
       final score = ((sub['total_score'] ?? 0) as num).toDouble();
       final studentId = sub['student_id'] as String? ?? '';
       final studentName =
           sub['profiles']?['full_name'] as String? ?? 'Học sinh';
-      final info = distributionInfo[distributionId];
-      final title = info?.title ?? 'Bài tập';
-      final maxScore = info?.maxScore ?? 10.0;
-
-      // Normalize score to 100-scale for consistent bucket comparison
+      final maxScore = info.maxScore;
+      // Normalize sang 0-100.
       final scorePercent = maxScore > 0 ? (score / maxScore) * 100 : 0.0;
-      assignmentScores.putIfAbsent(title, () => []).add(scorePercent);
-      assignmentStudents.putIfAbsent(title, () => []).add((
+      scoresByDist.putIfAbsent(distributionId, () => []).add((
         studentId: studentId,
         studentName: studentName,
-        score: scorePercent,
+        scorePercent: scorePercent,
       ));
     }
 
-    return assignmentScores.entries.map((entry) {
+    // Build SubjectDistribution per distribution, giữ thứ tự theo sortKey (created_at).
+    final entries = scoresByDist.entries.toList()
+      ..sort((a, b) {
+        final ka = distributionInfo[a.key]?.sortKey ?? 0;
+        final kb = distributionInfo[b.key]?.sortKey ?? 0;
+        return ka.compareTo(kb);
+      });
+
+    return entries.map((entry) {
+      final info = distributionInfo[entry.key]!;
       final buckets = <String, int>{'0-4': 0, '4-6': 0, '6-8': 0, '8-10': 0};
       final bucketStudents = <String, List<StudentScoreItem>>{
         '0-4': [],
@@ -726,33 +742,31 @@ class AnalyticsDatasource {
         '8-10': [],
       };
 
-      for (int i = 0; i < entry.value.length; i++) {
-        final scorePercent = entry.value[i];
-        final student = assignmentStudents[entry.key]![i];
-        final bucket = scorePercent < 40
+      for (final s in entry.value) {
+        final bucket = s.scorePercent < 40
             ? '0-4'
-            : scorePercent < 60
+            : s.scorePercent < 60
             ? '4-6'
-            : scorePercent < 80
+            : s.scorePercent < 80
             ? '6-8'
             : '8-10';
         buckets[bucket] = buckets[bucket]! + 1;
         bucketStudents[bucket]!.add(
           StudentScoreItem(
-            studentId: student.studentId,
-            studentName: student.studentName,
-            score: scorePercent,
+            studentId: s.studentId,
+            studentName: s.studentName,
+            score: s.scorePercent,
           ),
         );
       }
 
-      // Sort each bucket by score descending
+      // Sort mỗi bucket theo điểm giảm dần.
       for (final key in bucketStudents.keys) {
         bucketStudents[key]!.sort((a, b) => b.score.compareTo(a.score));
       }
 
       return SubjectDistribution(
-        subjectName: entry.key,
+        subjectName: info.title,
         below50Count: buckets['0-4']!,
         below60Count: buckets['4-6']!,
         below80Count: buckets['6-8']!,

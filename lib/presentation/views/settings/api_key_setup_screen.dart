@@ -14,15 +14,28 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
   final _geminiKeyController = TextEditingController();
   final _groqKeyController = TextEditingController();
   final _ollamaUrlController = TextEditingController();
+  final _openRouterKeyController = TextEditingController();
   bool _geminiKeyObscured = true;
   bool _groqKeyObscured = true;
+  bool _openRouterKeyObscured = true;
   bool _isLoading = false;
   bool _hasGeminiKey = false;
   bool _hasGroqKey = false;
+  bool _hasOpenRouterKey = false;
   List<String> _ollamaAvailableModels = [];
   String? _geminiKeyStatus; // 'working', 'error', null
   String? _groqKeyStatus; // 'working', 'error', null
   String? _ollamaConnectionStatus; // 'working', 'error', null
+  String? _openRouterKeyStatus; // 'working', 'error', null
+
+  // ── Dynamic model lists (shared, keys are shared) ──────────────────────
+  List<String>? _geminiAvailableModels; // null = chưa fetch
+  bool _isFetchingGeminiModels = false;
+  List<String>? _groqAvailableModels;
+  bool _isFetchingGroqModels = false;
+  List<String> _openRouterAvailableModels = [];
+  Map<String, ({String name, bool isFree})> _openRouterModelMeta = {};
+  bool _isFetchingOpenRouterModels = false;
 
   // ── Tạo câu hỏi ────────────────────────────────────────────────────────
   String _activeProvider = ApiKeyService.providerGemini;
@@ -31,6 +44,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
   String _selectedGeminiModel = ApiKeyService.defaultGeminiModel;
   String _selectedGroqModel = ApiKeyService.defaultGroqModel;
   String _selectedOllamaModel = ApiKeyService.defaultOllamaModel;
+  String _selectedOpenRouterModel = ApiKeyService.defaultOpenRouterModel;
 
   // ── Phân tích dữ liệu ──────────────────────────────────────────────────
   String _analyticsProvider = ApiKeyService.providerGemini;
@@ -39,6 +53,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
   String _selectedAnalyticsGeminiModel = ApiKeyService.defaultGeminiModel;
   String _selectedAnalyticsGroqModel = ApiKeyService.defaultGroqModel;
   String _selectedAnalyticsOllamaModel = ApiKeyService.defaultOllamaModel;
+  String _selectedAnalyticsOpenRouterModel = ApiKeyService.defaultOpenRouterModel;
   String? _analyticsKeyStatus; // 'working', 'error', null
   String? _analyticsKeyError;
   bool _analyticsKeyTesting = false;
@@ -74,9 +89,11 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       ApiKeyService.getActiveModel(),
       ApiKeyService.getAnalyticsProvider(),
       ApiKeyService.getAnalyticsModel(),
+      ApiKeyService.getOpenRouterApiKey(),
     ]);
     final hasGemini = await ApiKeyService.hasGeminiApiKey();
     final hasGroq = await ApiKeyService.hasGroqApiKey();
+    final hasOpenRouter = await ApiKeyService.hasOpenRouterApiKey();
 
     final geminiKey = results[0];
     final groqKey = results[1];
@@ -85,6 +102,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
     final model = results[4];
     final analyticsProvider = results[5];
     final analyticsModel = results[6];
+    final openRouterKey = results[7];
 
     setState(() {
       if (geminiKey.isNotEmpty) {
@@ -98,6 +116,10 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       if (ollamaUrl.isNotEmpty) {
         _ollamaUrlController.text = ollamaUrl;
       }
+      if (openRouterKey.isNotEmpty) {
+        _openRouterKeyController.text = openRouterKey;
+        _hasOpenRouterKey = hasOpenRouter;
+      }
 
       _activeProvider = provider;
       _activeModel = model;
@@ -107,6 +129,8 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       } else if (provider == ApiKeyService.providerOllama) {
         _selectedOllamaModel = model;
         _ollamaModelQuestionController.text = model;
+      } else if (provider == ApiKeyService.providerOpenRouter) {
+        _selectedOpenRouterModel = model;
       } else {
         _selectedGeminiModel = model;
       }
@@ -119,6 +143,8 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       } else if (analyticsProvider == ApiKeyService.providerOllama) {
         _selectedAnalyticsOllamaModel = analyticsModel;
         _ollamaModelAnalyticsController.text = analyticsModel;
+      } else if (analyticsProvider == ApiKeyService.providerOpenRouter) {
+        _selectedAnalyticsOpenRouterModel = analyticsModel;
       } else {
         _selectedAnalyticsGeminiModel = analyticsModel;
       }
@@ -153,14 +179,88 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
     }
   }
 
+  Future<void> _fetchGeminiModels() async {
+    final key = _geminiKeyController.text.trim();
+    if (key.isEmpty || _isFetchingGeminiModels) return;
+    setState(() => _isFetchingGeminiModels = true);
+    try {
+      final models = await ApiKeyService.fetchGeminiModels(key);
+      if (!mounted) return;
+      setState(() {
+        _geminiAvailableModels = models;
+        _isFetchingGeminiModels = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isFetchingGeminiModels = false);
+    }
+  }
+
+  Future<void> _fetchGroqModels() async {
+    final key = _groqKeyController.text.trim();
+    if (key.isEmpty || _isFetchingGroqModels) return;
+    setState(() => _isFetchingGroqModels = true);
+    try {
+      final models = await ApiKeyService.fetchGroqModels(key);
+      if (!mounted) return;
+      setState(() {
+        _groqAvailableModels = models;
+        _isFetchingGroqModels = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isFetchingGroqModels = false);
+    }
+  }
+
+  Future<void> _fetchOpenRouterModels() async {
+    if (_isFetchingOpenRouterModels) return;
+    setState(() => _isFetchingOpenRouterModels = true);
+    try {
+      final raw = await ApiKeyService.fetchOpenRouterModels();
+      if (!mounted) return;
+      final ids = <String>[];
+      final meta = <String, ({String name, bool isFree})>{};
+      for (final m in raw) {
+        final id = m['id'] as String? ?? '';
+        if (id.isEmpty) continue;
+        ids.add(id);
+        meta[id] = (
+          name: m['name'] as String? ?? id,
+          isFree: m['isFree'] as bool? ?? false,
+        );
+      }
+      setState(() {
+        _openRouterAvailableModels = ids;
+        _openRouterModelMeta = meta;
+        _isFetchingOpenRouterModels = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isFetchingOpenRouterModels = false);
+    }
+  }
+
+  /// Nhận diện model có khả năng thinking/reasoning dựa trên model ID.
+  /// Áp dụng cho DeepSeek-R1, QwQ, Gemini Thinking, OpenAI o1/o3, v.v.
+  static bool _isThinkingModel(String modelId) {
+    final id = modelId.toLowerCase();
+    if (id.contains('thinking')) return true;
+    if (id.contains('deepseek-r1') || id.contains('deepseek-r2')) return true;
+    if (id.contains('qwq')) return true;
+    if (id.contains('reasoning')) return true;
+    // o1/o3 family: /o1, /o3, o1-, o3-mini, v.v. — tránh match gpt-4o
+    if (RegExp(r'(?:^|[/\-:])o[13](?:$|[/\-:\d])').hasMatch(id)) return true;
+    return false;
+  }
+
   String _resolveModel({
     required String provider,
     required String geminiModel,
     required String groqModel,
     required String ollamaModel,
+    String openRouterModel = ApiKeyService.defaultOpenRouterModel,
   }) => switch (provider) {
     ApiKeyService.providerGroq => groqModel,
     ApiKeyService.providerOllama => ollamaModel,
+    ApiKeyService.providerOpenRouter => openRouterModel,
     _ => geminiModel,
   };
 
@@ -173,6 +273,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       geminiModel: _selectedGeminiModel,
       groqModel: _selectedGroqModel,
       ollamaModel: _selectedOllamaModel,
+      openRouterModel: _selectedOpenRouterModel,
     );
 
     try {
@@ -180,30 +281,31 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       final geminiKey = _geminiKeyController.text.trim();
       final groqKey = _groqKeyController.text.trim();
       final ollamaUrl = _ollamaUrlController.text.trim();
+      final openRouterKey = _openRouterKeyController.text.trim();
 
-      if (provider != ApiKeyService.providerOllama) {
-        final key = provider == ApiKeyService.providerGemini ? geminiKey : groqKey;
+      if (provider == ApiKeyService.providerOllama) {
+        if (ollamaUrl.isEmpty) {
+          if (!mounted) return;
+          setState(() => _isUpdatingQuestion = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Vui lòng nhập Ollama URL'), backgroundColor: DesignColors.warning),
+          );
+          return;
+        }
+      } else {
+        final key = switch (provider) {
+          ApiKeyService.providerGroq => groqKey,
+          ApiKeyService.providerOpenRouter => openRouterKey,
+          _ => geminiKey,
+        };
         if (key.isEmpty) {
           if (!mounted) return;
           setState(() => _isUpdatingQuestion = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚠️ Vui lòng nhập API key'),
-              backgroundColor: DesignColors.warning,
-            ),
+            const SnackBar(content: Text('⚠️ Vui lòng nhập API key'), backgroundColor: DesignColors.warning),
           );
           return;
         }
-      } else if (ollamaUrl.isEmpty) {
-        if (!mounted) return;
-        setState(() => _isUpdatingQuestion = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('⚠️ Vui lòng nhập Ollama URL'),
-            backgroundColor: DesignColors.warning,
-          ),
-        );
-        return;
       }
 
       // ── Bước 2: Test API ───────────────────────────────────────────────
@@ -212,6 +314,8 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         testResult = await ApiKeyService.testGeminiApiKey(geminiKey, model: model);
       } else if (provider == ApiKeyService.providerGroq) {
         testResult = await ApiKeyService.testGroqApiKey(groqKey, model: model);
+      } else if (provider == ApiKeyService.providerOpenRouter) {
+        testResult = await ApiKeyService.testOpenRouterApiKey(openRouterKey, model: model);
       } else {
         testResult = await ApiKeyService.testOllamaConnection(ollamaUrl);
       }
@@ -249,6 +353,8 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         saveResult = await ApiKeyService.setGeminiApiKey(geminiKey, setActive: false, model: model);
       } else if (provider == ApiKeyService.providerGroq) {
         saveResult = await ApiKeyService.setGroqApiKey(groqKey, setActive: false, model: model);
+      } else if (provider == ApiKeyService.providerOpenRouter) {
+        saveResult = await ApiKeyService.setOpenRouterApiKey(openRouterKey, setActive: false, model: model, skipTest: true);
       } else {
         saveResult = await ApiKeyService.setOllamaBaseUrl(ollamaUrl, model: model, setActive: false);
       }
@@ -270,6 +376,8 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         setState(() => _hasGeminiKey = true);
       } else if (provider == ApiKeyService.providerGroq) {
         setState(() => _hasGroqKey = true);
+      } else if (provider == ApiKeyService.providerOpenRouter) {
+        setState(() => _hasOpenRouterKey = true);
       }
 
       // ── Bước 4: Áp dụng model ─────────────────────────────────────────
@@ -314,6 +422,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       geminiModel: _selectedAnalyticsGeminiModel,
       groqModel: _selectedAnalyticsGroqModel,
       ollamaModel: _selectedAnalyticsOllamaModel,
+      openRouterModel: _selectedAnalyticsOpenRouterModel,
     );
 
     try {
@@ -321,30 +430,31 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       final geminiKey = _geminiKeyController.text.trim();
       final groqKey = _groqKeyController.text.trim();
       final ollamaUrl = _ollamaUrlController.text.trim();
+      final openRouterKey = _openRouterKeyController.text.trim();
 
-      if (provider != ApiKeyService.providerOllama) {
-        final key = provider == ApiKeyService.providerGemini ? geminiKey : groqKey;
+      if (provider == ApiKeyService.providerOllama) {
+        if (ollamaUrl.isEmpty) {
+          if (!mounted) return;
+          setState(() => _isUpdatingAnalytics = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ Vui lòng nhập Ollama URL'), backgroundColor: DesignColors.warning),
+          );
+          return;
+        }
+      } else {
+        final key = switch (provider) {
+          ApiKeyService.providerGroq => groqKey,
+          ApiKeyService.providerOpenRouter => openRouterKey,
+          _ => geminiKey,
+        };
         if (key.isEmpty) {
           if (!mounted) return;
           setState(() => _isUpdatingAnalytics = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚠️ Vui lòng nhập API key'),
-              backgroundColor: DesignColors.warning,
-            ),
+            const SnackBar(content: Text('⚠️ Vui lòng nhập API key'), backgroundColor: DesignColors.warning),
           );
           return;
         }
-      } else if (ollamaUrl.isEmpty) {
-        if (!mounted) return;
-        setState(() => _isUpdatingAnalytics = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('⚠️ Vui lòng nhập Ollama URL'),
-            backgroundColor: DesignColors.warning,
-          ),
-        );
-        return;
       }
 
       // ── Bước 2: Test API ───────────────────────────────────────────────
@@ -353,6 +463,8 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         testResult = await ApiKeyService.testGeminiApiKey(geminiKey, model: model);
       } else if (provider == ApiKeyService.providerGroq) {
         testResult = await ApiKeyService.testGroqApiKey(groqKey, model: model);
+      } else if (provider == ApiKeyService.providerOpenRouter) {
+        testResult = await ApiKeyService.testOpenRouterApiKey(openRouterKey, model: model);
       } else {
         testResult = await ApiKeyService.testOllamaConnection(ollamaUrl);
       }
@@ -390,6 +502,8 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         saveResult = await ApiKeyService.setGeminiApiKey(geminiKey, setActive: false, model: model);
       } else if (provider == ApiKeyService.providerGroq) {
         saveResult = await ApiKeyService.setGroqApiKey(groqKey, setActive: false, model: model);
+      } else if (provider == ApiKeyService.providerOpenRouter) {
+        saveResult = await ApiKeyService.setOpenRouterApiKey(openRouterKey, setActive: false, model: model, skipTest: true);
       } else {
         saveResult = await ApiKeyService.setOllamaBaseUrl(ollamaUrl, model: model, setActive: false);
       }
@@ -410,6 +524,8 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         setState(() => _hasGeminiKey = true);
       } else if (provider == ApiKeyService.providerGroq) {
         setState(() => _hasGroqKey = true);
+      } else if (provider == ApiKeyService.providerOpenRouter) {
+        setState(() => _hasOpenRouterKey = true);
       }
 
       // ── Bước 4: Áp dụng model ─────────────────────────────────────────
@@ -450,6 +566,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
     _geminiKeyController.dispose();
     _groqKeyController.dispose();
     _ollamaUrlController.dispose();
+    _openRouterKeyController.dispose();
     _ollamaModelQuestionController.dispose();
     _ollamaModelAnalyticsController.dispose();
     super.dispose();
@@ -462,6 +579,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       geminiModel: _selectedAnalyticsGeminiModel,
       groqModel: _selectedAnalyticsGroqModel,
       ollamaModel: _selectedAnalyticsOllamaModel,
+      openRouterModel: _selectedAnalyticsOpenRouterModel,
     );
 
     setState(() {
@@ -487,6 +605,14 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
           result = {'success': false, 'error': 'Chưa có Groq API key. Hãy nhập key vào ô bên dưới.'};
         } else {
           result = await ApiKeyService.testGroqApiKey(key, model: model);
+        }
+      } else if (provider == ApiKeyService.providerOpenRouter) {
+        final fieldKey = _openRouterKeyController.text.trim();
+        final key = fieldKey.isNotEmpty ? fieldKey : await ApiKeyService.getOpenRouterApiKey();
+        if (key.isEmpty) {
+          result = {'success': false, 'error': 'Chưa có OpenRouter API key. Hãy nhập key vào ô bên dưới.'};
+        } else {
+          result = await ApiKeyService.testOpenRouterApiKey(key, model: model);
         }
       } else {
         final url = _ollamaUrlController.text.trim();
@@ -581,6 +707,14 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
           result = {'success': false, 'error': 'Chưa có Groq API key. Hãy nhập key vào ô bên dưới.'};
         } else {
           result = await ApiKeyService.testGroqApiKey(key, model: model);
+        }
+      } else if (provider == ApiKeyService.providerOpenRouter) {
+        final fieldKey = _openRouterKeyController.text.trim();
+        final key = fieldKey.isNotEmpty ? fieldKey : await ApiKeyService.getOpenRouterApiKey();
+        if (key.isEmpty) {
+          result = {'success': false, 'error': 'Chưa có OpenRouter API key. Hãy nhập key vào ô bên dưới.'};
+        } else {
+          result = await ApiKeyService.testOpenRouterApiKey(key, model: model);
         }
       } else {
         final url = _ollamaUrlController.text.trim();
@@ -929,6 +1063,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
                     selectedGeminiModel: _selectedGeminiModel,
                     selectedGroqModel: _selectedGroqModel,
                     selectedOllamaModel: _selectedOllamaModel,
+                    selectedOpenRouterModel: _selectedOpenRouterModel,
                     ollamaModelController: _ollamaModelQuestionController,
                     onProviderChanged: (v) => setState(() {
                       _selectedProvider = v;
@@ -945,6 +1080,10 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
                     }),
                     onOllamaModelChanged: (v) => setState(() {
                       _selectedOllamaModel = v;
+                      _questionKeyStatus = null;
+                    }),
+                    onOpenRouterModelChanged: (v) => setState(() {
+                      _selectedOpenRouterModel = v;
                       _questionKeyStatus = null;
                     }),
                     onTest: _testQuestionApi,
@@ -978,6 +1117,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
                     selectedGeminiModel: _selectedAnalyticsGeminiModel,
                     selectedGroqModel: _selectedAnalyticsGroqModel,
                     selectedOllamaModel: _selectedAnalyticsOllamaModel,
+                    selectedOpenRouterModel: _selectedAnalyticsOpenRouterModel,
                     ollamaModelController: _ollamaModelAnalyticsController,
                     onProviderChanged: (v) => setState(() {
                       _selectedAnalyticsProvider = v;
@@ -994,6 +1134,10 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
                     }),
                     onOllamaModelChanged: (v) => setState(() {
                       _selectedAnalyticsOllamaModel = v;
+                      _analyticsKeyStatus = null;
+                    }),
+                    onOpenRouterModelChanged: (v) => setState(() {
+                      _selectedAnalyticsOpenRouterModel = v;
                       _analyticsKeyStatus = null;
                     }),
                     onTest: _testAnalyticsApi,
@@ -1185,6 +1329,683 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
     );
   }
 
+  // ── UNIFIED MODEL PICKER (Gemini / Groq / OpenRouter) ─────────────────────
+  Widget _buildUnifiedModelPicker({
+    required String provider,
+    required String currentModel,
+    required List<String>? availableModels,
+    required bool isFetching,
+    required VoidCallback onFetch,
+    required ValueChanged<String> onChanged,
+    required bool isDark,
+    required Color accentColor,
+    bool fetchDisabled = false,
+  }) {
+    final labelColor = isDark ? Colors.grey[400]! : DesignColors.textSecondary;
+    final models = availableModels ?? [];
+    final isOpenRouter = provider == ApiKeyService.providerOpenRouter;
+    final isFree = isOpenRouter && (_openRouterModelMeta[currentModel]?.isFree ?? currentModel.endsWith(':free'));
+    final displayName = isOpenRouter
+        ? (_openRouterModelMeta[currentModel]?.name ?? currentModel)
+        : currentModel;
+    final providerLabel = switch (provider) {
+      ApiKeyService.providerGemini => 'Gemini',
+      ApiKeyService.providerGroq => 'Groq',
+      ApiKeyService.providerOpenRouter => 'OpenRouter',
+      _ => provider,
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Label ─────────────────────────────────────────────────────────
+        Row(
+          children: [
+            Icon(Icons.memory_rounded, size: 13, color: labelColor),
+            const SizedBox(width: 4),
+            Text(
+              'MODEL ${providerLabel.toUpperCase()}',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.6,
+                color: labelColor,
+              ),
+            ),
+            if (models.isNotEmpty) ...[
+              const Spacer(),
+              Text(
+                '${models.length} model',
+                style: TextStyle(fontSize: 10, color: labelColor),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: DesignSpacing.sm),
+        // ── Tap tile → mở sheet ──────────────────────────────────────────
+        GestureDetector(
+          onTap: models.isEmpty && fetchDisabled
+              ? null
+              : () => _showUnifiedModelSheet(
+                    provider: provider,
+                    isDark: isDark,
+                    accentColor: accentColor,
+                    currentModel: currentModel,
+                    models: models,
+                    onChanged: onChanged,
+                    onFetch: onFetch,
+                    isFetching: isFetching,
+                    fetchDisabled: fetchDisabled,
+                  ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+              ),
+              borderRadius: BorderRadius.circular(DesignRadius.lg),
+              color: isDark ? Colors.grey[850] : Colors.grey[50],
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.memory_rounded, size: 18, color: labelColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        currentModel.isEmpty
+                            ? 'Tải danh sách model để chọn'
+                            : displayName,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: currentModel.isEmpty
+                              ? Colors.grey
+                              : (isDark ? Colors.white : Colors.black87),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (isOpenRouter && currentModel.isNotEmpty && displayName != currentModel)
+                        Text(
+                          currentModel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.grey[500] : Colors.grey[600],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+                if (isFree)
+                  Container(
+                    margin: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: DesignColors.success.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(DesignRadius.full),
+                    ),
+                    child: Text(
+                      'FREE',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: DesignColors.success,
+                      ),
+                    ),
+                  ),
+                if (currentModel.isNotEmpty && _isThinkingModel(currentModel))
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Icon(
+                      Icons.psychology_rounded,
+                      size: 16,
+                      color: Colors.purple[400],
+                    ),
+                  ),
+                const SizedBox(width: 4),
+                Icon(Icons.arrow_drop_down_rounded, color: labelColor),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: DesignSpacing.xs),
+        // ── Nút Fetch ────────────────────────────────────────────────────
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: (isFetching || fetchDisabled) ? null : onFetch,
+            icon: isFetching
+                ? const SizedBox(
+                    width: 13,
+                    height: 13,
+                    child: CircularProgressIndicator(strokeWidth: 1.5),
+                  )
+                : Icon(
+                    Icons.refresh_rounded,
+                    size: 15,
+                    color: fetchDisabled ? null : accentColor,
+                  ),
+            label: Text(
+              isFetching
+                  ? 'Đang tải...'
+                  : fetchDisabled
+                      ? 'Nhập API key để tải danh sách model'
+                      : models.isEmpty
+                          ? 'Tải danh sách model từ API'
+                          : 'Tải lại (${models.length} model)',
+              style: TextStyle(
+                fontSize: 12,
+                color: fetchDisabled ? Colors.grey : accentColor,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(
+                color: fetchDisabled ? Colors.grey[300]! : accentColor,
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── UNIFIED MODEL BOTTOM SHEET ───────────────────────────────────────────
+  void _showUnifiedModelSheet({
+    required String provider,
+    required bool isDark,
+    required Color accentColor,
+    required String currentModel,
+    required List<String> models,
+    required ValueChanged<String> onChanged,
+    required VoidCallback onFetch,
+    required bool isFetching,
+    required bool fetchDisabled,
+  }) {
+    // Auto-fetch nếu chưa có data
+    if (models.isEmpty && !isFetching && !fetchDisabled) {
+      onFetch();
+    }
+
+    String searchQuery = '';
+    bool filterFree = false;
+    bool filterThinking = false;
+    int displayCount = 40; // Lazy load: hiển thị 40 items đầu
+    final isOpenRouter = provider == ApiKeyService.providerOpenRouter;
+    final providerLabel = switch (provider) {
+      ApiKeyService.providerGemini => 'Gemini',
+      ApiKeyService.providerGroq => 'Groq',
+      ApiKeyService.providerOpenRouter => 'OpenRouter',
+      _ => provider,
+    };
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          // Lấy lại models mới nhất từ state (vì có thể fetch xong sau khi mở sheet)
+          final latestModels = switch (provider) {
+            ApiKeyService.providerGemini => _geminiAvailableModels ?? [],
+            ApiKeyService.providerGroq => _groqAvailableModels ?? [],
+            ApiKeyService.providerOpenRouter => _openRouterAvailableModels,
+            _ => models,
+          };
+          final latestFetching = switch (provider) {
+            ApiKeyService.providerGemini => _isFetchingGeminiModels,
+            ApiKeyService.providerGroq => _isFetchingGroqModels,
+            ApiKeyService.providerOpenRouter => _isFetchingOpenRouterModels,
+            _ => isFetching,
+          };
+
+          // Filter
+          final filtered = latestModels.where((id) {
+            if (isOpenRouter && filterFree) {
+              final meta = _openRouterModelMeta[id];
+              final isFreeModel = meta?.isFree ?? id.endsWith(':free');
+              if (!isFreeModel) return false;
+            }
+            if (filterThinking && !_isThinkingModel(id)) return false;
+            if (searchQuery.isEmpty) return true;
+            final q = searchQuery.toLowerCase();
+            if (id.toLowerCase().contains(q)) return true;
+            if (isOpenRouter) {
+              final meta = _openRouterModelMeta[id];
+              if (meta != null && meta.name.toLowerCase().contains(q)) return true;
+            }
+            return false;
+          }).toList();
+
+          // Lazy load: chỉ hiện displayCount items
+          final visibleItems = filtered.take(displayCount).toList();
+          final hasMore = filtered.length > displayCount;
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.85,
+            maxChildSize: 0.95,
+            minChildSize: 0.5,
+            expand: false,
+            builder: (_, scrollCtrl) {
+              // Lazy load: khi scroll gần cuối → tăng displayCount
+              scrollCtrl.addListener(() {
+                if (scrollCtrl.hasClients &&
+                    scrollCtrl.position.pixels >=
+                        scrollCtrl.position.maxScrollExtent - 200 &&
+                    hasMore) {
+                  setSheetState(() => displayCount += 40);
+                }
+              });
+
+              return Column(
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 10),
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[600] : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // ── Header ──────────────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Icon(Icons.memory_rounded, color: accentColor),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Chọn model $providerLabel',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                        if (latestFetching)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else
+                          Text(
+                            '${latestModels.length} model',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.grey[400] : Colors.grey[600],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // ── Search ──────────────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      autofocus: false,
+                      decoration: InputDecoration(
+                        hintText: 'Tìm kiếm model...',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        isDense: true,
+                      ),
+                      onChanged: (v) => setSheetState(() {
+                        searchQuery = v;
+                        displayCount = 40;
+                      }),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // ── Filter pills ─────────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        if (isOpenRouter)
+                          _FilterPill(
+                            active: filterFree,
+                            icon: Icons.money_off_csred_rounded,
+                            label: 'Miễn phí',
+                            color: DesignColors.success,
+                            isDark: isDark,
+                            onTap: () => setSheetState(() {
+                              filterFree = !filterFree;
+                              displayCount = 40;
+                            }),
+                          ),
+                        if (isOpenRouter) const SizedBox(width: 8),
+                        _FilterPill(
+                          active: filterThinking,
+                          icon: Icons.psychology_rounded,
+                          label: 'Thinking',
+                          color: Colors.purple[400]!,
+                          isDark: isDark,
+                          onTap: () => setSheetState(() {
+                            filterThinking = !filterThinking;
+                            displayCount = 40;
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // ── Fetch button inside sheet ────────────────────────────
+                  if (!fetchDisabled)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: latestFetching
+                              ? null
+                              : () {
+                                  onFetch();
+                                  // Cần re-read state sau khi fetch xong
+                                  Future.delayed(
+                                    const Duration(milliseconds: 500),
+                                    () {
+                                      if (ctx.mounted) setSheetState(() {});
+                                    },
+                                  );
+                                },
+                          icon: latestFetching
+                              ? const SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(strokeWidth: 1.5),
+                                )
+                              : Icon(Icons.refresh_rounded, size: 14, color: accentColor),
+                          label: Text(
+                            latestFetching
+                                ? 'Đang tải...'
+                                : latestModels.isEmpty
+                                    ? 'Tải danh sách model'
+                                    : 'Tải lại danh sách',
+                            style: TextStyle(fontSize: 12, color: accentColor),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: accentColor),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 4),
+                  // ── Filter info bar ──────────────────────────────────────
+                  if (searchQuery.isNotEmpty || filterFree || filterThinking)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Icon(Icons.filter_list_rounded, size: 14, color: accentColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${filtered.length} kết quả',
+                            style: TextStyle(fontSize: 12, color: accentColor, fontWeight: FontWeight.w500),
+                          ),
+                          if (hasMore) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              '(hiển thị ${visibleItems.length})',
+                              style: TextStyle(fontSize: 11, color: isDark ? Colors.grey[500] : Colors.grey[500]),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  // ── Model list ──────────────────────────────────────────
+                  if (latestFetching && latestModels.isEmpty)
+                    const Expanded(
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (latestModels.isEmpty)
+                    Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.cloud_off_rounded,
+                              size: 40,
+                              color: isDark ? Colors.grey[600] : Colors.grey[400],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Chưa có danh sách model',
+                              style: TextStyle(
+                                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Bấm "Tải danh sách model" để lấy dữ liệu',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.grey[600] : Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (filtered.isEmpty)
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          'Không tìm thấy model phù hợp',
+                          style: TextStyle(
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollCtrl,
+                        itemCount: visibleItems.length + (hasMore ? 1 : 0),
+                        itemBuilder: (_, i) {
+                          // Loading indicator cuối list
+                          if (i >= visibleItems.length) {
+                            return const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                            );
+                          }
+                          final id = visibleItems[i];
+                          final isSelected = id == currentModel;
+                          // OpenRouter: hiển thị name + free badge
+                          String displayTitle = id;
+                          bool modelIsFree = false;
+                          if (isOpenRouter) {
+                            final meta = _openRouterModelMeta[id];
+                            if (meta != null) {
+                              displayTitle = meta.name;
+                              modelIsFree = meta.isFree;
+                            }
+                          }
+                          return ListTile(
+                            selected: isSelected,
+                            selectedTileColor: accentColor.withValues(alpha: 0.08),
+                            leading: Icon(
+                              isOpenRouter
+                                  ? (modelIsFree
+                                      ? Icons.money_off_csred_rounded
+                                      : Icons.attach_money_rounded)
+                                  : Icons.layers_outlined,
+                              size: 18,
+                              color: isSelected
+                                  ? accentColor
+                                  : modelIsFree
+                                      ? DesignColors.success
+                                      : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                            ),
+                            title: Text(
+                              isOpenRouter ? displayTitle : id,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                color: isSelected ? accentColor : null,
+                              ),
+                            ),
+                            subtitle: isOpenRouter && displayTitle != id
+                                ? Text(
+                                    id,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isDark ? Colors.grey[500] : Colors.grey[600],
+                                    ),
+                                  )
+                                : null,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (modelIsFree)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: DesignColors.success.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      'FREE',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: DesignColors.success,
+                                      ),
+                                    ),
+                                  ),
+                                if (_isThinkingModel(id)) ...[
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.psychology_rounded,
+                                    size: 16,
+                                    color: Colors.purple[400],
+                                  ),
+                                ],
+                                if (isSelected) ...[
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.check_rounded, size: 18, color: accentColor),
+                                ],
+                              ],
+                            ),
+                            onTap: () {
+                              onChanged(id);
+                              Navigator.pop(ctx);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+
+  Widget _buildOpenRouterKeyInput({required bool isDark, required Color accentColor}) {
+    final borderColor = isDark ? Colors.grey[700]! : Colors.grey[300]!;
+    final labelColor = isDark ? Colors.grey[400]! : DesignColors.textSecondary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.key_rounded, size: 14, color: labelColor),
+            const SizedBox(width: 6),
+            Text(
+              'OPENROUTER API KEY',
+              style: TextStyle(fontSize: DesignTypography.labelSmallSize, fontWeight: FontWeight.bold, letterSpacing: 0.6, color: labelColor),
+            ),
+            if (_hasOpenRouterKey) ...[
+              const Spacer(),
+              _buildStatusDot(_openRouterKeyStatus),
+            ],
+          ],
+        ),
+        const SizedBox(height: DesignSpacing.sm),
+        TextField(
+          controller: _openRouterKeyController,
+          obscureText: _openRouterKeyObscured,
+          decoration: InputDecoration(
+            hintText: 'sk-or-...',
+            hintStyle: TextStyle(color: isDark ? Colors.grey[600] : Colors.grey[400]),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(DesignRadius.lg), borderSide: BorderSide(color: borderColor)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(DesignRadius.lg), borderSide: BorderSide(color: borderColor)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(DesignRadius.lg), borderSide: BorderSide(color: accentColor, width: 1.5)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            prefixIcon: Icon(Icons.lock_outline_rounded, size: 18, color: labelColor),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    _openRouterKeyObscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                    size: 18,
+                    color: labelColor,
+                  ),
+                  onPressed: () => setState(() => _openRouterKeyObscured = !_openRouterKeyObscured),
+                ),
+                if (_hasOpenRouterKey)
+                  IconButton(
+                    icon: Icon(Icons.clear_rounded, size: 16, color: DesignColors.error),
+                    tooltip: 'Xóa key',
+                    onPressed: _clearOpenRouterKey,
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: DesignSpacing.xs),
+        Text(
+          'Lấy API key tại openrouter.ai/keys — Hỗ trợ 200+ model, nhiều model free.',
+          style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: isDark ? Colors.grey[500] : Colors.grey[500]),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _clearOpenRouterKey() async {
+    await ApiKeyService.clearOpenRouterApiKey();
+    if (!mounted) return;
+    setState(() {
+      _openRouterKeyController.clear();
+      _hasOpenRouterKey = false;
+      _openRouterKeyStatus = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('✅ Đã xóa OpenRouter API key'), backgroundColor: DesignColors.success),
+    );
+  }
+
   // ── KEY INPUT INLINE ──────────────────────────────────────────────────
   Widget _buildInlineKeyInput(String provider, bool isDark, Color accentColor) {
     final borderColor = isDark ? Colors.grey[700]! : Colors.grey[300]!;
@@ -1299,6 +2120,10 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
           ),
         ],
       );
+    }
+
+    if (provider == ApiKeyService.providerOpenRouter) {
+      return _buildOpenRouterKeyInput(isDark: isDark, accentColor: accentColor);
     }
 
     final isGemini = provider == ApiKeyService.providerGemini;
@@ -1432,11 +2257,13 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
     required String selectedGeminiModel,
     required String selectedGroqModel,
     required String selectedOllamaModel,
+    required String selectedOpenRouterModel,
     required TextEditingController ollamaModelController,
     required ValueChanged<String> onProviderChanged,
     required ValueChanged<String> onGeminiModelChanged,
     required ValueChanged<String> onGroqModelChanged,
     required ValueChanged<String> onOllamaModelChanged,
+    required ValueChanged<String> onOpenRouterModelChanged,
     required List<Widget> featureChips,
     required VoidCallback onTest,
     required VoidCallback onUpdate,
@@ -1444,6 +2271,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
     final hasKeyForProvider = switch (selectedProvider) {
       ApiKeyService.providerGroq => _hasGroqKey,
       ApiKeyService.providerOllama => _ollamaUrlController.text.isNotEmpty,
+      ApiKeyService.providerOpenRouter => _hasOpenRouterKey,
       _ => _hasGeminiKey,
     };
     final busy = isTesting || isUpdating;
@@ -1593,6 +2421,12 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
                       description: 'Chạy cục bộ, không cần internet',
                       icon: Icons.computer_rounded,
                     ),
+                    SelectFieldOption(
+                      value: ApiKeyService.providerOpenRouter,
+                      label: 'OpenRouter (200+ models)',
+                      description: 'Tổng hợp nhiều provider, nhiều model free',
+                      icon: Icons.route_rounded,
+                    ),
                   ],
                   onChanged: (v) { if (v != null) onProviderChanged(v); },
                 ),
@@ -1600,54 +2434,28 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
 
                 // ── Model selector ───────────────────────────────────────
                 if (selectedProvider == ApiKeyService.providerGemini)
-                  SelectField<String>(
-                    label: 'Model Gemini',
-                    value: selectedGeminiModel,
-                    prefixIcon: Icons.memory_rounded,
-                    useCustomPicker: true,
-                    options: const [
-                      SelectFieldOption(
-                        value: 'gemini-1.5-flash',
-                        label: 'gemini-1.5-flash (khuyến nghị)',
-                        description: 'Nhanh, tối ưu chi phí',
-                        icon: Icons.bolt_outlined,
-                      ),
-                      SelectFieldOption(
-                        value: 'gemini-2.0-flash',
-                        label: 'gemini-2.0-flash',
-                        description: 'Model mới hơn, thông minh hơn',
-                        icon: Icons.auto_awesome,
-                      ),
-                    ],
-                    onChanged: (v) { if (v != null) onGeminiModelChanged(v); },
+                  _buildUnifiedModelPicker(
+                    provider: ApiKeyService.providerGemini,
+                    currentModel: selectedGeminiModel,
+                    availableModels: _geminiAvailableModels,
+                    isFetching: _isFetchingGeminiModels,
+                    onFetch: _fetchGeminiModels,
+                    onChanged: onGeminiModelChanged,
+                    isDark: isDark,
+                    accentColor: accentColor,
+                    fetchDisabled: _geminiKeyController.text.trim().isEmpty,
                   )
                 else if (selectedProvider == ApiKeyService.providerGroq)
-                  SelectField<String>(
-                    label: 'Model Groq',
-                    value: selectedGroqModel,
-                    prefixIcon: Icons.memory_rounded,
-                    useCustomPicker: true,
-                    options: const [
-                      SelectFieldOption(
-                        value: 'llama-3.1-8b-instant',
-                        label: 'llama-3.1-8b-instant',
-                        description: 'Nhanh, nhẹ, generate số lượng lớn',
-                        icon: Icons.flash_on_outlined,
-                      ),
-                      SelectFieldOption(
-                        value: 'llama-3.1-70b-versatile',
-                        label: 'llama-3.1-70b-versatile',
-                        description: 'Độ chính xác cao',
-                        icon: Icons.star_rate_rounded,
-                      ),
-                      SelectFieldOption(
-                        value: 'mixtral-8x7b-32768',
-                        label: 'mixtral-8x7b-32768',
-                        description: 'Context rất dài, nhiều tài liệu',
-                        icon: Icons.description_outlined,
-                      ),
-                    ],
-                    onChanged: (v) { if (v != null) onGroqModelChanged(v); },
+                  _buildUnifiedModelPicker(
+                    provider: ApiKeyService.providerGroq,
+                    currentModel: selectedGroqModel,
+                    availableModels: _groqAvailableModels,
+                    isFetching: _isFetchingGroqModels,
+                    onFetch: _fetchGroqModels,
+                    onChanged: onGroqModelChanged,
+                    isDark: isDark,
+                    accentColor: accentColor,
+                    fetchDisabled: _groqKeyController.text.trim().isEmpty,
                   )
                 else if (selectedProvider == ApiKeyService.providerOllama)
                   _buildOllamaModelInput(
@@ -1655,6 +2463,18 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
                     accentColor: accentColor,
                     controller: ollamaModelController,
                     onChanged: onOllamaModelChanged,
+                  )
+                else if (selectedProvider == ApiKeyService.providerOpenRouter)
+                  _buildUnifiedModelPicker(
+                    provider: ApiKeyService.providerOpenRouter,
+                    currentModel: selectedOpenRouterModel,
+                    availableModels: _openRouterAvailableModels,
+                    isFetching: _isFetchingOpenRouterModels,
+                    onFetch: _fetchOpenRouterModels,
+                    onChanged: onOpenRouterModelChanged,
+                    isDark: isDark,
+                    accentColor: accentColor,
+                    fetchDisabled: _openRouterKeyController.text.trim().isEmpty,
                   ),
 
                 // ── Divider ──────────────────────────────────────────────
@@ -2365,6 +3185,85 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
           ),
           Expanded(child: Text(value, style: DesignTypography.bodySmall)),
         ],
+      ),
+    );
+  }
+}
+
+/// Pill filter chip với animation — dùng trong model picker sheet.
+class _FilterPill extends StatelessWidget {
+  const _FilterPill({
+    required this.active,
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  final bool active;
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final inactiveIconColor = isDark ? Colors.grey[400]! : Colors.grey[500]!;
+    final inactiveBorder = isDark ? Colors.grey[600]! : Colors.grey[300]!;
+    final inactiveBg = isDark ? Colors.grey[800]! : Colors.grey[100]!;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? color.withValues(alpha: 0.12) : inactiveBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: active ? color : inactiveBorder,
+            width: active ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: active ? color : inactiveIconColor,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                color: active ? color : inactiveIconColor,
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 180),
+              child: active
+                  ? Padding(
+                      padding: const EdgeInsets.only(left: 5),
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.check, size: 9, color: Colors.white),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
     );
   }

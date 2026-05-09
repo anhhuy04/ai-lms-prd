@@ -82,14 +82,6 @@ class GradingActionButtons extends StatelessWidget {
     );
   }
 
-  /// Extract text từ JSONB field (có thể là String hoặc Map {"text": "..."})
-  String? _extractText(dynamic value) {
-    if (value == null) return null;
-    if (value is String) return value.isEmpty ? null : value;
-    if (value is Map) return value['text']?.toString();
-    return value.toString();
-  }
-
   void _showOverrideDialog(BuildContext context) {
     final scoreController = TextEditingController();
     final reasonController = TextEditingController();
