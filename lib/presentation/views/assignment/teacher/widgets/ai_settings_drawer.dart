@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/data/models/local_temp_file.dart';
+import 'package:ai_mls/presentation/providers/ai_generation_settings_notifier.dart';
 import 'package:ai_mls/presentation/providers/local_temp_file_notifier.dart';
 import 'package:ai_mls/presentation/views/settings/widgets/export_template_bottom_sheet.dart';
 import 'package:file_picker/file_picker.dart';
@@ -62,6 +63,8 @@ class AiSettingsDrawer extends ConsumerWidget {
                   _DocumentLibrarySection(isDark: isDark),
                   SizedBox(height: DesignSpacing.xl),
                   _ToolsSection(isDark: isDark),
+                  SizedBox(height: DesignSpacing.xl),
+                  _AdvancedSection(isDark: isDark),
                 ],
               ),
             ),
@@ -289,6 +292,48 @@ class _ToolsSection extends StatelessWidget {
           Scaffold.of(context).closeEndDrawer();
           ExportTemplateBottomSheet.show(context);
         },
+      ),
+    );
+  }
+}
+
+class _AdvancedSection extends ConsumerWidget {
+  const _AdvancedSection({required this.isDark});
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(aiGenerationSettingsNotifierProvider);
+    final notifier = ref.read(aiGenerationSettingsNotifierProvider.notifier);
+    final enabled = settings.highAccuracyMode;
+
+    return _DrawerSectionCard(
+      title: 'Nâng cao',
+      icon: Icons.tune_rounded,
+      isDark: isDark,
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: enabled,
+        onChanged: notifier.setHighAccuracyMode,
+        activeThumbColor: DesignColors.primary,
+        secondary: Icon(
+          Icons.verified_outlined,
+          color: enabled ? DesignColors.primary : DesignColors.textSecondary,
+          size: DesignIcons.mdSize,
+        ),
+        title: Text(
+          'Chế độ chính xác cao',
+          style: DesignTypography.bodyMedium.copyWith(
+            fontWeight: FontWeight.w500,
+            color: isDark ? DesignColors.white : DesignColors.textPrimary,
+          ),
+        ),
+        subtitle: Text(
+          'AI tự kiểm tra mỗi câu sau khi tạo (chậm hơn ~10s, tốn 2x token, đánh dấu câu nghi ngờ)',
+          style: DesignTypography.bodySmall.copyWith(
+            color: DesignColors.textSecondary,
+          ),
+        ),
       ),
     );
   }

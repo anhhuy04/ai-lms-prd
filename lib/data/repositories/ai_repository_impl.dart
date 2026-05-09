@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:ai_mls/core/services/ai_service.dart';
 import 'package:ai_mls/core/services/template_similarity_verifier.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/error_translation_utils.dart';
@@ -33,6 +34,7 @@ class AiRepositoryImpl implements AiRepository {
     List<Map<String, dynamic>>? templateQuestions,
     int? templateCount,
     void Function(String rawJson)? onRawResponse,
+    bool highAccuracyMode = false,
   }) async {
     // Resolve sub-mode: caller cũ chỉ truyền boolean → coi là styleOnly (an toàn).
     final TemplateMode? resolvedTemplateMode = useAsStyleTemplate
@@ -78,7 +80,11 @@ class AiRepositoryImpl implements AiRepository {
           onRawResponse: onRawResponse,
         );
         AppLogger.info('✅ [AI REPO] Generated ${questions.length} questions');
-        return questions;
+        return await _maybeApplyHighAccuracyCritique(
+          questions: questions,
+          topic: topic,
+          enabled: highAccuracyMode,
+        );
       }
 
       final all = <Map<String, dynamic>>[];
@@ -166,7 +172,11 @@ class AiRepositoryImpl implements AiRepository {
       );
 
       AppLogger.info('✅ [AI REPO] Generated ${verified.length} questions (batched)');
-      return verified;
+      return await _maybeApplyHighAccuracyCritique(
+        questions: verified,
+        topic: topic,
+        enabled: highAccuracyMode,
+      );
     } catch (e, stackTrace) {
       AppLogger.error(
         '🔴 [AI REPO ERROR] generateQuestions: $e',
@@ -844,5 +854,32 @@ class AiRepositoryImpl implements AiRepository {
       '(drop=$dropCount, regen=$regenCount, replaced=$replacementCursor)',
     );
     return out;
+  }
+
+  /// "Chế độ chính xác cao" — sau khi gen xong, gọi AI lần 2 self-critique.
+  ///
+  /// Khi `enabled=false` (default): no-op, ZERO change behavior, KHÔNG AI call.
+  /// Khi `enabled=true`: gắn `_critique: {pass, reason}` vào từng câu. Critique
+  /// tự graceful — nếu fail/throw, [AiService.critiqueQuestions] trả pass-all
+  /// nên không bao giờ block flow chính.
+  Future<List<Map<String, dynamic>>> _maybeApplyHighAccuracyCritique({
+    required List<Map<String, dynamic>> questions,
+    required String topic,
+    required bool enabled,
+  }) async {
+    if (!enabled || questions.isEmpty) return questions;
+    AppLogger.info(
+      '[Repo] high-accuracy on → critique ${questions.length} câu',
+    );
+    final critiques = await AiService.critiqueQuestions(
+      questions,
+      topic: topic.isEmpty ? null : topic,
+    );
+    for (var i = 0; i < questions.length; i++) {
+      if (i < critiques.length) {
+        questions[i]['_critique'] = critiques[i];
+      }
+    }
+    return questions;
   }
 }

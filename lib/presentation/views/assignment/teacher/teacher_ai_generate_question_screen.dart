@@ -865,6 +865,7 @@ class _TeacherAiGenerateQuestionScreenState
           templateMode: _effectiveTemplateMode,
           templateQuestions: _templateQuestionsForVerify,
           templateCount: _templateQuestionsForVerify?.length,
+          highAccuracyMode: aiSettings.highAccuracyMode,
           onRawResponse: (raw) {
             batchCount++;
             if (mounted) {
@@ -900,6 +901,7 @@ class _TeacherAiGenerateQuestionScreenState
             templateMode: _effectiveTemplateMode,
             templateQuestions: _templateQuestionsForVerify,
             templateCount: _templateQuestionsForVerify?.length,
+            highAccuracyMode: aiSettings.highAccuracyMode,
             onRawResponse: (raw) {
               batchCount++;
               appendRaw(raw);
@@ -1248,6 +1250,7 @@ class _TeacherAiGenerateQuestionScreenState
         templateMode: regenTemplateMode,
         templateQuestions: regenUseAsStyleTemplate ? _templateQuestionsForVerify : null,
         templateCount: regenUseAsStyleTemplate ? _templateQuestionsForVerify?.length : null,
+        highAccuracyMode: aiSettings.highAccuracyMode,
       );
       if (result.isNotEmpty && mounted) {
         setState(() {
@@ -3046,6 +3049,12 @@ class _TeacherAiGenerateQuestionScreenState
                           answer: answer,
                           explanation: explanation,
                           isExplanationExpanded: isExplExpanded,
+                          critiquePass: (q['_critique'] is Map)
+                              ? (q['_critique'] as Map)['pass'] as bool?
+                              : null,
+                          critiqueReason: (q['_critique'] is Map)
+                              ? (q['_critique'] as Map)['reason'] as String?
+                              : null,
                           onToggleExplanation: _explanationFeatureEnabled
                               ? () {
                                   final willAutoGenerate =
@@ -3293,6 +3302,8 @@ class _TeacherAiGenerateQuestionScreenState
     VoidCallback? onToggleExplanation,
     VoidCallback? onRefreshExplanation,
     bool isRefreshingExplanation = false,
+    bool? critiquePass,
+    String? critiqueReason,
   }) {
     final borderRadius = BorderRadius.circular(DesignRadius.lg * 1.5);
     return Container(
@@ -3462,6 +3473,57 @@ class _TeacherAiGenerateQuestionScreenState
                     ),
                   ],
 
+                  // ── Critique badge (Chế độ chính xác cao) ────────────────
+                  if (critiquePass == false) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: DesignColors.warning.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(DesignRadius.md),
+                        border: Border.all(
+                          color: DesignColors.warning.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 16,
+                            color: DesignColors.warning,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'AI đánh dấu cần kiểm tra',
+                                  style: DesignTypography.labelSmall.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: DesignColors.warning,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  (critiqueReason?.trim().isNotEmpty == true)
+                                      ? critiqueReason!.trim()
+                                      : 'Có thể có lỗi kiến thức',
+                                  style: DesignTypography.bodySmall.copyWith(
+                                    color: isDark
+                                        ? Colors.white
+                                        : DesignColors.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   // ── Gợi ý làm bài (toggle + nội dung) ──────────────────
                   if (onToggleExplanation != null) ...[
                     const SizedBox(height: 10),

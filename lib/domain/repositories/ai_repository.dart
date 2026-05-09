@@ -20,6 +20,10 @@ abstract class AiRepository {
   ///                         scarcity khi templateCount < quantity / 2). null
   ///                         = bỏ qua scarcity note.
   /// [onRawResponse]       — Callback nhận raw JSON từng batch (để debug/preview)
+  /// [highAccuracyMode]    — true = sau khi gen xong, gọi AI lần 2 self-critique
+  ///                         từng câu (đính kèm `_critique: {pass, reason}`).
+  ///                         Default false (KHÔNG đổi behavior cũ, KHÔNG tốn
+  ///                         thêm AI call). Opt-in từ UI.
   Future<List<Map<String, dynamic>>> generateQuestions({
     required String topic,
     required int quantity,
@@ -31,5 +35,6 @@ abstract class AiRepository {
     List<Map<String, dynamic>>? templateQuestions,
     int? templateCount,
     void Function(String rawJson)? onRawResponse,
+    bool highAccuracyMode = false,
   });
 }

@@ -10,6 +10,7 @@ class AiGenerationConfig {
     this.processingMode = ProcessingMode.promptOnly,
     this.selectedFileIds = const [],
     this.templateMode = TemplateMode.styleOnly,
+    this.highAccuracyMode = false,
   });
 
   final ProcessingMode processingMode;
@@ -20,15 +21,22 @@ class AiGenerationConfig {
   /// template; flow khác bỏ qua field này.
   final TemplateMode templateMode;
 
+  /// "Chế độ chính xác cao" — sau khi AI gen xong, gọi AI lần 2 để self-critique
+  /// từng câu. Default OFF (opt-in vì tốn 2x token + latency).
+  /// Khi ON, mỗi câu trả về có key `_critique: {pass: bool, reason: String}`.
+  final bool highAccuracyMode;
+
   AiGenerationConfig copyWith({
     ProcessingMode? processingMode,
     List<String>? selectedFileIds,
     TemplateMode? templateMode,
+    bool? highAccuracyMode,
   }) {
     return AiGenerationConfig(
       processingMode: processingMode ?? this.processingMode,
       selectedFileIds: selectedFileIds ?? this.selectedFileIds,
       templateMode: templateMode ?? this.templateMode,
+      highAccuracyMode: highAccuracyMode ?? this.highAccuracyMode,
     );
   }
 }
@@ -48,4 +56,7 @@ class AiGenerationSettingsNotifier extends _$AiGenerationSettingsNotifier {
 
   void setTemplateMode(TemplateMode mode) =>
       state = state.copyWith(templateMode: mode);
+
+  void setHighAccuracyMode(bool enabled) =>
+      state = state.copyWith(highAccuracyMode: enabled);
 }

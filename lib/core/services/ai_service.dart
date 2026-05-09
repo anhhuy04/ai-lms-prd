@@ -1214,6 +1214,177 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
     return Exception('Quota đã hết: $quotaMessage$retryInfo\n\n$solution');
   }
 
+  /// Tự đánh giá danh sách câu hỏi vừa generate. Trả về list result song song
+  /// với input — mỗi entry là `{pass: bool, reason: String}`.
+  ///
+  /// Cost: 1 AI call duy nhất (batch verify), khoảng 800-1500 token output cho
+  /// 10 câu. Latency thêm ~5-10s.
+  ///
+  /// Khi nào pass=false:
+  /// - Kiến thức sai (vd phép tính sai)
+  /// - Đáp án ĐÚNG không thực sự đúng
+  /// - Distractor không hợp lý hoặc trùng đáp án
+  /// - Lỗi chính tả/ngữ pháp tiếng Việt nặng
+  /// - Không phù hợp cấp học VN (vd lớp 9 mà yêu cầu tích phân)
+  ///
+  /// Graceful: nếu parse fail hoặc API throw, trả về toàn bộ pass=true để
+  /// KHÔNG block flow generate chính.
+  static Future<List<Map<String, dynamic>>> critiqueQuestions(
+    List<Map<String, dynamic>> questions, {
+    String? topic,
+    int? gradeLevel,
+  }) async {
+    if (questions.isEmpty) return const [];
+    final passAll = List<Map<String, dynamic>>.generate(
+      questions.length,
+      (_) => {'pass': true, 'reason': ''},
+    );
+    try {
+      final prompt = _buildCritiquePrompt(
+        questions: questions,
+        topic: topic,
+        gradeLevel: gradeLevel,
+      );
+      final raw = await callActiveAi(prompt);
+      final parsed = _parseCritiqueResponse(raw, questions.length);
+      final fails = parsed.where((e) => e['pass'] == false).length;
+      AppLogger.info(
+        '[Critique] N=${questions.length}, fails=$fails',
+      );
+      return parsed;
+    } catch (e, st) {
+      AppLogger.warning(
+        '⚠️ [Critique] Lỗi self-critique, bỏ qua (pass-all): $e',
+      );
+      AppLogger.error('[Critique] error', error: e, stackTrace: st);
+      return passAll;
+    }
+  }
+
+  /// Build prompt critique batch.
+  static String _buildCritiquePrompt({
+    required List<Map<String, dynamic>> questions,
+    String? topic,
+    int? gradeLevel,
+  }) {
+    final buf = StringBuffer();
+    for (var i = 0; i < questions.length; i++) {
+      buf.write('[${i + 1}] ');
+      buf.writeln(_critiqueFormatQuestion(questions[i]));
+    }
+    final topicLine = (topic != null && topic.trim().isNotEmpty)
+        ? 'Chủ đề: "$topic".'
+        : '';
+    final gradeLine = (gradeLevel != null)
+        ? 'Cấp học mục tiêu: lớp $gradeLevel.'
+        : 'Cấp học mục tiêu: trung học VN (lớp 9-12).';
+    return '''Bạn là giáo viên VN có 15 năm kinh nghiệm chấm bài. Hãy đánh giá NGẮN GỌN từng câu hỏi sau.
+$topicLine
+$gradeLine
+
+DANH SÁCH CÂU HỎI:
+${buf.toString().trimRight()}
+
+Với MỖI câu, kiểm:
+A. Kiến thức có đúng không (đáp án đúng có thực sự đúng)?
+B. Distractor có hợp lý không (không trùng đáp án, không vô nghĩa)?
+C. Phù hợp cấp học VN không?
+D. Văn phong tiếng Việt OK không?
+
+Trả về JSON ARRAY thuần, đủ ${questions.length} entry, idx khớp số thứ tự:
+[{"idx":1,"pass":true,"reason":""},{"idx":2,"pass":false,"reason":"Đáp án sai: 2+3=5 chứ không phải 6"}]
+
+KHÔNG markdown, KHÔNG giải thích thừa. CHỈ JSON ARRAY.''';
+  }
+
+  /// Format 1 câu hỏi cho prompt critique (compact).
+  static String _critiqueFormatQuestion(Map<String, dynamic> q) {
+    final text = (q['override_text'] as String?)
+        ?? (q['text'] as String?)
+        ?? ((q['content'] is Map<String, dynamic>)
+            ? (q['content'] as Map<String, dynamic>)['text'] as String?
+            : null)
+        ?? '';
+    final type = q['type']?.toString() ?? 'multiple_choice';
+    final buf = StringBuffer()..writeln('[$type] ${text.trim()}');
+    final choices = q['choices'] as List<dynamic>?;
+    if (choices != null && choices.isNotEmpty) {
+      for (var i = 0; i < choices.length; i++) {
+        final c = choices[i];
+        if (c is! Map<String, dynamic>) continue;
+        final cText = (c['text'] as String?)
+            ?? ((c['content'] is Map<String, dynamic>)
+                ? (c['content'] as Map<String, dynamic>)['text'] as String?
+                : null)
+            ?? '';
+        final isCorrect = (c['isCorrect'] as bool?) ?? (c['is_correct'] as bool?) ?? false;
+        buf.writeln('  ${String.fromCharCode(65 + i)}. $cText${isCorrect ? "  ✓" : ""}');
+      }
+    }
+    final expected = q['expected_answer'] as String?;
+    if (expected != null && expected.trim().isNotEmpty) {
+      buf.writeln('  Đáp án mẫu: ${expected.trim()}');
+    }
+    return buf.toString().trimRight();
+  }
+
+  /// Parse JSON array critique → list `{pass, reason}` đúng độ dài N.
+  static List<Map<String, dynamic>> _parseCritiqueResponse(
+    dynamic raw,
+    int expectedLen,
+  ) {
+    final fallback = List<Map<String, dynamic>>.generate(
+      expectedLen,
+      (_) => {'pass': true, 'reason': ''},
+    );
+    try {
+      dynamic decoded = raw;
+      if (raw is String) {
+        decoded = _stripJsonFences(raw);
+        decoded = jsonDecode(decoded as String);
+      }
+      List<dynamic>? arr;
+      if (decoded is List) {
+        arr = decoded;
+      } else if (decoded is Map<String, dynamic>) {
+        arr = (decoded['results'] as List<dynamic>?)
+            ?? (decoded['data'] as List<dynamic>?);
+      }
+      if (arr == null) return fallback;
+
+      final out = List<Map<String, dynamic>>.from(fallback);
+      for (final item in arr) {
+        if (item is! Map<String, dynamic>) continue;
+        final idx = (item['idx'] as num?)?.toInt();
+        if (idx == null || idx < 1 || idx > expectedLen) continue;
+        out[idx - 1] = {
+          'pass': (item['pass'] as bool?) ?? true,
+          'reason': (item['reason'] as String?)?.trim() ?? '',
+        };
+      }
+      return out;
+    } catch (e) {
+      AppLogger.warning('⚠️ [Critique] parse fail: $e');
+      return fallback;
+    }
+  }
+
+  /// Strip markdown fences + extract JSON substring (defensive).
+  static String _stripJsonFences(String s) {
+    var t = s.trim();
+    t = t.replaceAll(
+      RegExp(r'<think>[\s\S]*?</think>', caseSensitive: false),
+      '',
+    ).trim();
+    final fence = RegExp(r'```(?:json)?\s*([\s\S]*?)\s*```', caseSensitive: false)
+        .firstMatch(t);
+    if (fence != null) t = (fence.group(1) ?? '').trim();
+    final start = t.indexOf('[');
+    final end = t.lastIndexOf(']');
+    if (start >= 0 && end > start) return t.substring(start, end + 1);
+    return t;
+  }
+
   /// Get prompt template by key (for advanced usage)
   ///
   /// Cho phép access trực tiếp vào prompt templates nếu cần customize
