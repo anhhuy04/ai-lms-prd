@@ -79,6 +79,19 @@ class AiRepositoryImpl implements AiRepository {
           templateCount: templateCount,
           onRawResponse: onRawResponse,
         );
+        questions = await _applyDomainFilterAndRefill(
+          generated: questions,
+          topic: topic,
+          quantity: quantity,
+          difficulty: difficulty,
+          questionType: questionType,
+          documentContext: documentContext,
+          useAsStyleTemplate: useAsStyleTemplate,
+          templateMode: resolvedTemplateMode,
+          templateQuestions: templateQuestions,
+          templateCount: templateCount,
+          onRawResponse: onRawResponse,
+        );
         AppLogger.info('✅ [AI REPO] Generated ${questions.length} questions');
         return await _maybeApplyHighAccuracyCritique(
           questions: questions,
@@ -158,9 +171,22 @@ class AiRepositoryImpl implements AiRepository {
       }
 
       // Verify similarity post-hoc cho toàn bộ batch
-      final verified = await _applyTemplateVerification(
+      var verified = await _applyTemplateVerification(
         generated: all,
         topic: topic,
+        difficulty: difficulty,
+        questionType: questionType,
+        documentContext: documentContext,
+        useAsStyleTemplate: useAsStyleTemplate,
+        templateMode: resolvedTemplateMode,
+        templateQuestions: templateQuestions,
+        templateCount: templateCount,
+        onRawResponse: onRawResponse,
+      );
+      verified = await _applyDomainFilterAndRefill(
+        generated: verified,
+        topic: topic,
+        quantity: quantity,
         difficulty: difficulty,
         questionType: questionType,
         documentContext: documentContext,
@@ -1131,6 +1157,182 @@ class AiRepositoryImpl implements AiRepository {
       '(drop=$dropCount, regen=$regenCount, replaced=$replacementCursor)',
     );
     return out;
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // F-014/F-015: Domain filter + auto-refill
+  // ────────────────────────────────────────────────────────────────────────
+
+  /// Top-level subject keyword map. Một câu được phân loại vào domain nào
+  /// nếu tags hoặc text chứa BẤT KỲ keyword nào của domain đó.
+  static const Map<String, List<String>> _domainKeywords = {
+    'toán': [
+      'toán', 'đại số', 'hình học', 'phương trình', 'số học', 'giải tích',
+      'lượng giác', 'cộng', 'trừ', 'nhân', 'chia', 'diện tích', 'chu vi',
+      'thể tích', 'tam giác', 'hình tròn', 'hình vuông', 'hình chữ nhật',
+    ],
+    'lý': [
+      'vật lý', 'vận tốc', 'lực', 'gia tốc', 'năng lượng', 'điện', 'từ trường',
+      'quang học', 'cơ học', 'newton', 'rơi tự do', 'khối lượng',
+    ],
+    'hóa': [
+      'hóa', 'hoá', 'axit', 'bazơ', 'phản ứng', 'nguyên tố', 'phân tử',
+      'hno', 'hcl', 'h2so4', 'naoh', 'h_2so_4', 'hno_3', 'co_2', 'h_2o',
+    ],
+    'sinh': [
+      'sinh học', 'tế bào', 'quang hợp', 'hô hấp', 'động vật', 'thực vật',
+      'gen', 'tiến hóa', 'lớp thú', 'lục lạp', 'diệp lục',
+    ],
+    'văn': [
+      'văn học', 'bài thơ', 'truyện', 'tác giả', 'tác phẩm', 'nhân vật',
+      'cốt truyện', 'truyện kiều', 'nguyễn du',
+    ],
+    'sử': [
+      'lịch sử', 'triều đại', 'cách mạng', 'đảng cộng sản', 'chiến tranh',
+      'hồ chí minh', 'việt minh', 'kháng chiến',
+    ],
+    'địa': [
+      'địa lý', 'thủ đô', 'tỉnh', 'sông', 'núi', 'khí hậu', 'dân số',
+      'thành phố', 'quốc gia',
+    ],
+    'anh': ['tiếng anh', 'english', 'grammar', 'vocabulary'],
+    'tin': ['tin học', 'lập trình', 'thuật toán', 'máy tính'],
+  };
+
+  /// Phân loại domain của 1 tập câu hỏi từ tags + text.
+  /// Trả về tập domain (top-level) mà câu đó thuộc về.
+  Set<String> _detectDomains(List<Map<String, dynamic>> questions) {
+    final detected = <String>{};
+    for (final q in questions) {
+      final tags = (q['tags'] as List?)
+              ?.map((t) => t.toString().toLowerCase())
+              .toList() ??
+          const <String>[];
+      final text = (_extractQuestionText(q) ?? '').toLowerCase();
+      final haystack = '${tags.join(' ')} $text';
+      for (final entry in _domainKeywords.entries) {
+        for (final kw in entry.value) {
+          if (haystack.contains(kw)) {
+            detected.add(entry.key);
+            break;
+          }
+        }
+      }
+    }
+    return detected;
+  }
+
+  /// Filter câu drift domain + auto-refill nếu thiếu.
+  ///
+  /// Chỉ chạy khi `useAsStyleTemplate=true` và `templateQuestions` không rỗng.
+  /// Mục đích: chống AI sinh câu lệch môn (mẫu Toán → AI sinh Hóa).
+  /// Sau filter, nếu count < quantity sẽ gọi AI thêm tối đa 2 lần để bù.
+  Future<List<Map<String, dynamic>>> _applyDomainFilterAndRefill({
+    required List<Map<String, dynamic>> generated,
+    required String topic,
+    required int quantity,
+    required int? difficulty,
+    required String? questionType,
+    required String? documentContext,
+    required bool useAsStyleTemplate,
+    required TemplateMode? templateMode,
+    required List<Map<String, dynamic>>? templateQuestions,
+    required int? templateCount,
+    required void Function(String rawJson)? onRawResponse,
+  }) async {
+    if (!useAsStyleTemplate ||
+        templateQuestions == null ||
+        templateQuestions.isEmpty ||
+        generated.isEmpty) {
+      return generated;
+    }
+
+    final templateDomains = _detectDomains(templateQuestions);
+    if (templateDomains.isEmpty) {
+      AppLogger.info(
+        '🧭 [Domain] template không xác định được domain → skip filter',
+      );
+      return generated;
+    }
+    AppLogger.info('🧭 [Domain] template domains: $templateDomains');
+
+    final filtered = <Map<String, dynamic>>[];
+    for (final q in generated) {
+      final qDomains = _detectDomains([q]);
+      if (qDomains.isEmpty) {
+        filtered.add(q);
+        continue;
+      }
+      if (qDomains.intersection(templateDomains).isNotEmpty) {
+        filtered.add(q);
+      } else {
+        final preview = (_extractQuestionText(q) ?? '').padRight(60).substring(0, 60);
+        AppLogger.warning(
+          '🧭 [Domain] DROP drift: $qDomains ⊄ $templateDomains | "$preview"',
+        );
+      }
+    }
+
+    final dropped = generated.length - filtered.length;
+    AppLogger.info(
+      '🧭 [Domain] filter: input=${generated.length} kept=${filtered.length} drop=$dropped',
+    );
+
+    // Auto-refill: nếu thiếu, gọi AI thêm tối đa 2 lần
+    var result = filtered;
+    var attempts = 0;
+    const maxAttempts = 2;
+    while (result.length < quantity && attempts < maxAttempts) {
+      attempts++;
+      final missing = quantity - result.length;
+      AppLogger.info(
+        '🧭 [Domain] auto-refill attempt $attempts: cần thêm $missing câu',
+      );
+      try {
+        final retryResponse = await _dataSource.generateQuestions(
+          topic: topic.isEmpty ? 'Câu hỏi từ tài liệu' : topic,
+          quantity: missing,
+          difficulty: difficulty,
+          questionType: questionType,
+          documentContext: documentContext,
+          useAsStyleTemplate: useAsStyleTemplate,
+          templateMode: templateMode,
+          templateCount: templateCount,
+        );
+        try {
+          final rawJson = retryResponse is String
+              ? retryResponse
+              : jsonEncode(retryResponse);
+          onRawResponse?.call(
+            '/* domain-refill attempt=$attempts size=$missing */\n$rawJson',
+          );
+        } catch (_) {}
+        final parsed = _parseAiResponse(retryResponse, missing);
+        final kept = <Map<String, dynamic>>[];
+        for (final q in parsed) {
+          final qDomains = _detectDomains([q]);
+          if (qDomains.isEmpty ||
+              qDomains.intersection(templateDomains).isNotEmpty) {
+            kept.add(q);
+          }
+        }
+        AppLogger.info(
+          '🧭 [Domain] refill $attempts: parsed=${parsed.length} kept=${kept.length}',
+        );
+        result.addAll(kept);
+      } catch (e) {
+        AppLogger.warning(
+          '🧭 [Domain] refill attempt $attempts FAIL: $e — break loop',
+        );
+        break;
+      }
+    }
+
+    if (result.length > quantity) {
+      result = result.sublist(0, quantity);
+    }
+    AppLogger.info('🧭 [Domain] final: ${result.length}/$quantity câu');
+    return result;
   }
 
   /// "Chế độ chính xác cao" — sau khi gen xong, gọi AI lần 2 self-critique.
