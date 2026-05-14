@@ -577,14 +577,14 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 - [x] TC-02 PASS: Mode 2 Excel — 5 câu load không gọi AI _(F-010 fix: dùng xlsxwriter thay openpyxl; F-011: UI overflow 1292px → visual content blocked, functional PASS qua log + action bar)_
 - [x] TC-03 PASS: Mode 2 Word — `mau_word_mcq.docx` parse trực tiếp 5 câu (format `Câu N: ... Đáp án: X`), không gọi AI. Verified 5/5 câu hiển thị A/B/C/D đáp án highlight 2026-05-14
 - [x] TC-04 PASS: Mode 3 KT only — `useAsStyleTemplate=false`, `docChars=1965` (kienthuc.docx), AI OpenRouter gen 10 câu quang hợp khớp tài liệu (Lá cây / Đỏ+xanh lam / Màng tilacoit), LaTeX `$O_2$`,`$CO_2$` render đúng 2026-05-14
-- [ ] TC-05 PASS: Mode 3 styleOnly — `branch=styleOnly`, câu mới _(thiếu file)_
-- [ ] TC-06 PASS: Mode 3 sameForm — `branch=sameForm`, có/không similarity badge _(thiếu file)_
-- [ ] TC-07 PASS: Mode 3 Mixed — context có cả 2 phần _(thiếu file)_
-- [ ] TC-08 PASS: GAP-2 — auto-downgrade Mẫu cũ _(thiếu file)_
-- [ ] TC-09a PASS: GAP-6 — chip enabled với 2 MCQ _(thiếu file)_
-- [ ] TC-09b PASS: GAP-6 — chip disabled với 1 MCQ _(thiếu file)_
-- [ ] TC-10 PASS: auto-downgrade khi không có số liệu _(thiếu file)_
-- [ ] TC-11 PASS: badge dưới card, không che content _(cần Mode 3 + file)_
+- [~] TC-05 LOGIC PASS: Mode 3 styleOnly — verified `resolvedMode=styleOnly`, `branch=styleOnly qty=10`, `templateQCount=6`, `Built styleOnly prompt: 6587 chars` (mau_excel_mcq.xlsx + mau_excel_1mcq.xlsx selected as Mẫu). **AI external flaky**: `deepseek/deepseek-v4-flash:free` trả `content rỗng` → cần retry hoặc đổi model. App logic OK.
+- [ ] TC-06 PASS: Mode 3 sameForm — `branch=sameForm`, có/không similarity badge _(cần retry với model ổn định)_
+- [ ] TC-07 LOGIC PASS (combined with TC-05): Mixed mode đã thấy `Total context: 2700 chars (2 template, 1 KT parts)` trong TC-05 log → context build OK
+- [ ] TC-08 PASS: GAP-2 — auto-downgrade Mẫu cũ _(manual test cần)_
+- [ ] TC-09a PASS: GAP-6 — chip enabled với 2 MCQ _(manual)_
+- [ ] TC-09b PASS: GAP-6 — chip disabled với 1 MCQ _(manual)_
+- [ ] TC-10 PASS: auto-downgrade khi không có số liệu _(manual)_
+- [ ] TC-11 PASS: badge dưới card, không che content _(cần TC-06 PASS trước)_
 - [ ] TC-12 PASS: regenerate single — chỉ 1 câu thay đổi _(BLOCKED: marionette không tap được icon refresh trên card qua coordinates — manual test)_
 - [B] TC-13 BLOCKED: save to bank — code logic verified OK (`_handleSaveToQuestionBank` → confirm dialog → `questionRepo.createQuestion()` cho mỗi câu). Marionette KHÔNG tương tác được với Flutter web AlertDialog overlay → cần manual test
 - [x] S5 (Export Word) PASS — 2026-05-14: file `de_ai_<timestamp>.docx` 2258 bytes, có Câu N + A/B/C/D options + `Đáp án: X` italic. Bug F-009 fixed (enum.toString())
