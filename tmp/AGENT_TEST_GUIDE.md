@@ -575,8 +575,8 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 - [x] TC-01 PASS: Mode 1 tạo N câu, có đủ nội dung — Session 2026-05-14 verified live (Đạo hàm + Diện tích hình tròn, 10/10 câu LaTeX render đẹp)
 - [x] TC-02 PASS: Mode 2 Excel — 5 câu load không gọi AI _(F-010 fix: dùng xlsxwriter thay openpyxl; F-011: UI overflow 1292px → visual content blocked, functional PASS qua log + action bar)_
-- [ ] TC-03 PASS: Mode 2 Word — AI generate từ text _(thiếu file mẫu)_
-- [ ] TC-04 PASS: Mode 3 KT only — `useAsStyleTemplate=false` _(thiếu file kienthuc.docx)_
+- [x] TC-03 PASS: Mode 2 Word — `mau_word_mcq.docx` parse trực tiếp 5 câu (format `Câu N: ... Đáp án: X`), không gọi AI. Verified 5/5 câu hiển thị A/B/C/D đáp án highlight 2026-05-14
+- [x] TC-04 PASS: Mode 3 KT only — `useAsStyleTemplate=false`, `docChars=1965` (kienthuc.docx), AI OpenRouter gen 10 câu quang hợp khớp tài liệu (Lá cây / Đỏ+xanh lam / Màng tilacoit), LaTeX `$O_2$`,`$CO_2$` render đúng 2026-05-14
 - [ ] TC-05 PASS: Mode 3 styleOnly — `branch=styleOnly`, câu mới _(thiếu file)_
 - [ ] TC-06 PASS: Mode 3 sameForm — `branch=sameForm`, có/không similarity badge _(thiếu file)_
 - [ ] TC-07 PASS: Mode 3 Mixed — context có cả 2 phần _(thiếu file)_
