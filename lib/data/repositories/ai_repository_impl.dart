@@ -1038,7 +1038,24 @@ class AiRepositoryImpl implements AiRepository {
       return generated;
     }
 
-    final verifier = TemplateSimilarityVerifier();
+    // F-017: nới threshold khi templateCount thấp (≤3) hoặc mode sameForm.
+    // Lý do: 1-3 mẫu → AI buộc clone cấu trúc (score 0.93+), giáo viên CHỦ ĐÍCH
+    // muốn vậy. Threshold mặc định (drop=0.88) sẽ drop sạch → 0 câu render.
+    // styleOnly với nhiều mẫu (≥4) vẫn giữ strict để chống regurgitate.
+    final isLowTemplate = templateQuestions.length <= 3;
+    final isStructuralIntent =
+        isLowTemplate || templateMode == TemplateMode.sameForm;
+    final verifier = isStructuralIntent
+        ? TemplateSimilarityVerifier(
+            warnThreshold: 0.70,
+            regenerateThreshold: 0.92,
+            dropThreshold: 0.985,
+          )
+        : TemplateSimilarityVerifier();
+    AppLogger.info(
+      '🔍 [Similarity] templates=${templateQuestions.length} mode=${templateMode?.name} '
+      '→ ${isStructuralIntent ? "LOOSE (warn=0.70 regen=0.92 drop=0.985)" : "STRICT (default)"}',
+    );
     final results = verifier.verifyAgainstTemplate(
       generated: generated,
       templateQuestions: templateQuestions,
