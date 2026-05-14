@@ -9,7 +9,6 @@ import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/create_question/widgets/question_list_drawer.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/create_question/widgets/question_options_list.dart';
 import 'package:ai_mls/widgets/dialogs/warning_dialog.dart';
-import 'package:ai_mls/widgets/math/math_input_toolbar.dart';
 import 'package:ai_mls/widgets/objective_selector/objective_selector_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -764,9 +763,6 @@ class _TeacherCreateQuestionScreenState
 
           // Toolbar
           _buildToolbar(isDark),
-          SizedBox(height: DesignSpacing.sm),
-          // Math/LaTeX toolbar — chèn công thức LaTeX nhanh
-          MathInputToolbar(controller: _questionTextController),
           SizedBox(height: DesignSpacing.sm),
 
           // Textarea
@@ -2186,9 +2182,6 @@ class _TeacherCreateQuestionScreenState
             ),
           ],
         ),
-        SizedBox(height: DesignSpacing.sm),
-        MathInputToolbar(controller: _explanationController, compact: true),
-        SizedBox(height: DesignSpacing.sm),
         TextFormField(
           controller: _explanationController,
           minLines: 3,
