@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:ai_mls/core/env/env.dart';
 import 'package:ai_mls/core/services/api_key_service.dart';
+import 'package:ai_mls/core/services/profile_metadata_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/domain/entities/template_mode.dart';
 import 'package:dio/dio.dart';
@@ -108,7 +109,7 @@ LATEX BẮT BUỘC cho công thức:
     }
 
     // Debug: Check ENV_FILE environment variable
-    final envFile = String.fromEnvironment(
+    const envFile = String.fromEnvironment(
       'ENV_FILE',
       defaultValue: '.env.dev',
     );
@@ -392,7 +393,14 @@ RÀNG BUỘC FORMAT:
 - essay/short_answer: override_text (nội dung câu hỏi) + expected_answer (chuỗi văn bản đáp án mẫu).
 - fill_blank: override_text dùng [___1], [___2]... để đánh dấu chỗ trống. blanks liệt kê đáp án đúng với id khớp.
 - tags: 1-3 từ khóa liên quan topic.
-- KHÔNG tạo field "explanation" — giáo viên sẽ tự tạo gợi ý riêng cho từng câu.''';
+- KHÔNG tạo field "explanation" — giáo viên sẽ tự tạo gợi ý riêng cho từng câu.
+
+JSON HỢP LỆ — BẮT BUỘC:
+- Output PHẢI bắt đầu bằng `[` và kết thúc bằng `]`. KHÔNG có chữ trước/sau, KHÔNG có ```markdown fence```.
+- KHÔNG dùng smart quotes (“ ” ‘ ’) — chỉ dùng dấu nháy thẳng " và '.
+- KHÔNG có trailing comma trước `]` hoặc `}` (vd `,]` `,}` SAI).
+- LaTeX trong text: escape backslash thành `\\\\` để JSON hợp lệ (vd viết `\\\\frac{1}{2}` chứ không phải `\\frac{1}{2}`).
+- KHÔNG cắt JSON giữa chừng — nếu sắp hết token, giảm số câu chứ KHÔNG truncate.''';
   }
 
   static String _buildDifficultyLine(int? difficulty) {
@@ -850,7 +858,10 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
       // Gemini API endpoint (từ model config, fallback default)
       final usedModel = (model != null && model.isNotEmpty)
           ? model
-          : await ApiKeyService.getActiveModelFor(providerGemini);
+          : await ApiKeyService.getActiveModelFor(
+              providerGemini,
+              forceRefresh: true,
+            );
       final geminiUrl = getGeminiEndpoint(usedModel);
 
       // Tạo Dio client riêng cho Gemini (không dùng baseUrl)
@@ -953,7 +964,10 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
     }
     final usedModel = (model != null && model.isNotEmpty)
         ? model
-        : await ApiKeyService.getActiveModelFor(providerOllama);
+        : await ApiKeyService.getActiveModelFor(
+            providerOllama,
+            forceRefresh: true,
+          );
 
     final dio = Dio(
       BaseOptions(
@@ -1016,7 +1030,10 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
 
       final usedModel = (model != null && model.isNotEmpty)
           ? model
-          : await ApiKeyService.getActiveModelFor(providerGroq);
+          : await ApiKeyService.getActiveModelFor(
+              providerGroq,
+              forceRefresh: true,
+            );
 
       final dio = Dio();
       dio.options = BaseOptions(
@@ -1087,9 +1104,14 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
         );
       }
 
-      final usedModel = (model != null && model.isNotEmpty)
+      // forceRefresh: bypass cache 5 phút để đảm bảo dùng model user vừa save
+      // trong Settings — tránh case "đổi model rồi vẫn dùng model cũ".
+      var usedModel = (model != null && model.isNotEmpty)
           ? model
-          : await ApiKeyService.getActiveModelFor(providerOpenRouter);
+          : await ApiKeyService.getActiveModelFor(
+              providerOpenRouter,
+              forceRefresh: true,
+            );
 
       final dio = Dio();
       dio.options = BaseOptions(
@@ -1100,22 +1122,60 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
           'Authorization': 'Bearer $apiKey',
           'HTTP-Referer': 'https://ai-lms.app',
         },
+        // Cho phép 4xx response qua để có thể bắt 404 "No endpoints found"
+        // và auto-fallback sang defaultOpenRouterModel (model OpenRouter
+        // hết đời rất thường xuyên).
+        validateStatus: (s) => s != null && s < 500,
       );
 
-      final payload = {
-        'model': usedModel,
-        'temperature': 0.1,
-        'max_tokens': _openRouterMaxTokensFromPrompt(prompt),
-        'messages': [
-          {'role': 'user', 'content': prompt},
-        ],
-      };
+      Map<String, dynamic> payload() => {
+            'model': usedModel,
+            'temperature': 0.1,
+            'max_tokens': _openRouterMaxTokensFromPrompt(prompt),
+            'messages': [
+              {'role': 'user', 'content': prompt},
+            ],
+          };
 
       AppLogger.info('🤖 [AI Service] Calling OpenRouter... model=$usedModel');
-      final response = await dio.post(
+      var response = await dio.post(
         'https://openrouter.ai/api/v1/chat/completions',
-        data: payload,
+        data: payload(),
       );
+
+      // Fallback live-resolve: nếu model user chọn đã bị OpenRouter remove
+      // (404 "No endpoints found"), fetch live model list, pick model :free
+      // đầu tiên còn sống, save vào profile metadata để lần sau không lỗi,
+      // rồi retry. KHÔNG dùng hardcode default (vì cũng có thể đã chết).
+      if (response.statusCode == 404) {
+        final originalModel = usedModel;
+        final resolved = await _resolveLiveOpenRouterModel(exclude: usedModel);
+        if (resolved != null) {
+          AppLogger.warning(
+            '⚠️ [OpenRouter] Model "$originalModel" không khả dụng (404). '
+            'Auto-resolve sang "$resolved" (fetched live).',
+          );
+          usedModel = resolved;
+          // Persist để lần sau dùng thẳng model live, không cần retry
+          await ProfileMetadataService.setAiConfig(
+            provider: providerOpenRouter,
+            model: resolved,
+          );
+          response = await dio.post(
+            'https://openrouter.ai/api/v1/chat/completions',
+            data: payload(),
+          );
+        }
+      }
+
+      // Sau fallback, nếu vẫn lỗi → throw để UI hiển thị
+      if (response.statusCode != null && response.statusCode! >= 400) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          type: DioExceptionType.badResponse,
+        );
+      }
 
       final data = response.data;
       if (data is! Map<String, dynamic>) {
@@ -1145,6 +1205,34 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
         throw Exception('Lỗi $status từ OpenRouter: ${body?.toString() ?? ''}');
       }
       throw Exception('Lỗi khi gọi OpenRouter: ${e.message}');
+    }
+  }
+
+  /// Fetch live OpenRouter model list, pick model `:free` đầu tiên KHÁC với
+  /// [exclude] (model đang gãy). Dùng cho auto-resolve khi nhận 404.
+  ///
+  /// Returns null nếu fetch thất bại hoặc list rỗng — caller sẽ throw lỗi gốc.
+  static Future<String?> _resolveLiveOpenRouterModel({
+    required String exclude,
+  }) async {
+    try {
+      final models = await ApiKeyService.fetchOpenRouterModels();
+      if (models.isEmpty) return null;
+      // Ưu tiên :free khác model đang gãy
+      for (final m in models) {
+        final id = m['id'] as String? ?? '';
+        final isFree = m['isFree'] as bool? ?? false;
+        if (isFree && id.isNotEmpty && id != exclude) return id;
+      }
+      // Nếu không có :free, lấy model đầu tiên khác exclude (paid)
+      for (final m in models) {
+        final id = m['id'] as String? ?? '';
+        if (id.isNotEmpty && id != exclude) return id;
+      }
+      return null;
+    } catch (e) {
+      AppLogger.warning('[OpenRouter] _resolveLiveOpenRouterModel failed: $e');
+      return null;
     }
   }
 

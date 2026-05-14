@@ -251,12 +251,15 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
     return false;
   }
 
+  /// Chọn model theo provider. Tất cả params required để callers
+  /// KHÔNG bị silent fallback về hardcoded default — đã từng bị bug
+  /// "nút Test luôn dùng gemma-3-4b" do quên truyền openRouterModel.
   String _resolveModel({
     required String provider,
     required String geminiModel,
     required String groqModel,
     required String ollamaModel,
-    String openRouterModel = ApiKeyService.defaultOpenRouterModel,
+    required String openRouterModel,
   }) => switch (provider) {
     ApiKeyService.providerGroq => groqModel,
     ApiKeyService.providerOllama => ollamaModel,
@@ -682,6 +685,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       geminiModel: _selectedGeminiModel,
       groqModel: _selectedGroqModel,
       ollamaModel: _selectedOllamaModel,
+      openRouterModel: _selectedOpenRouterModel,
     );
 
     setState(() {

@@ -204,27 +204,34 @@ class AiRepositoryImpl implements AiRepository {
     try {
       List<dynamic>? questionsList;
 
-      // Handle different response formats
+      // Handle different response formats — wrapper keys phổ biến cho mọi model
+      const wrapperKeys = [
+        'questions',
+        'data',
+        'results',
+        'items',
+        'list',
+        'output',
+      ];
+
+      List<dynamic>? findListInMap(Map<String, dynamic> m) {
+        for (final k in wrapperKeys) {
+          final v = m[k];
+          if (v is List<dynamic>) return v;
+        }
+        return null;
+      }
+
       if (response is Map<String, dynamic>) {
-        // Detect AI uncertainty error response (object with `error` key)
         _checkAiErrorResponse(response);
-        // Try common keys
-        questionsList =
-            response['questions'] as List<dynamic>? ??
-            response['data'] as List<dynamic>? ??
-            response['results'] as List<dynamic>?;
+        questionsList = findListInMap(response);
       } else if (response is List) {
         questionsList = response;
       } else if (response is String) {
-        // Try to parse as JSON string
         final parsed = _tryParseJson(response);
         if (parsed is Map<String, dynamic>) {
-          // Detect AI uncertainty error response after parsing string
           _checkAiErrorResponse(parsed);
-          questionsList =
-              parsed['questions'] as List<dynamic>? ??
-              parsed['data'] as List<dynamic>? ??
-              parsed['results'] as List<dynamic>?;
+          questionsList = findListInMap(parsed);
         } else if (parsed is List) {
           questionsList = parsed;
         }
@@ -235,27 +242,49 @@ class AiRepositoryImpl implements AiRepository {
             ? response
             : response?.toString() ?? '';
         AppLogger.warning(
-          '⚠️ [AI REPO] No questions found. Raw response (500 chars):\n'
+          '⚠️ [AI REPO] No questions found. Đã thử wrapper keys: '
+          '${wrapperKeys.join(", ")}. Raw response (500 chars):\n'
           '${rawStr.substring(0, rawStr.length.clamp(0, 500))}',
         );
         return _generateFallbackQuestions(expectedQuantity);
       }
 
-      // Convert to question format
+      // Convert to question format — track skip reason để debug
       final questions = <Map<String, dynamic>>[];
+      int skippedNonMap = 0;
+      int skippedEmptyText = 0;
       for (var i = 0; i < questionsList.length && i < expectedQuantity; i++) {
         final q = questionsList[i];
         if (q is Map<String, dynamic>) {
           final mapped = _mapAiQuestionToStandardFormat(q, i + 1);
-          if (mapped != null) questions.add(mapped);
+          if (mapped != null) {
+            questions.add(mapped);
+          } else {
+            skippedEmptyText++;
+          }
         } else {
-          AppLogger.warning('[AI REPO] Question ${i + 1}: format không phải Map, bỏ qua.');
+          skippedNonMap++;
+          AppLogger.warning(
+            '[AI REPO] Question ${i + 1}: format không phải Map '
+            '(${q.runtimeType}), bỏ qua. Raw: ${q.toString().substring(0, q.toString().length.clamp(0, 100))}',
+          );
         }
       }
 
       if (questions.isEmpty) {
-        AppLogger.warning('[AI REPO] Không parse được câu hỏi nào từ response.');
+        AppLogger.warning(
+          '🔴 [AI REPO] Không parse được câu hỏi nào từ ${questionsList.length} '
+          'phần tử (skipped: $skippedNonMap non-Map, $skippedEmptyText empty-text). '
+          'Schema có thể khác — kiểm tra _mapAiQuestionToStandardFormat.',
+        );
         return _generateFallbackQuestions(expectedQuantity);
+      }
+
+      if (questions.length < expectedQuantity) {
+        AppLogger.info(
+          '⚠️ [AI REPO] Parse được ${questions.length}/$expectedQuantity câu '
+          '(skipped: $skippedNonMap non-Map, $skippedEmptyText empty-text).',
+        );
       }
 
       return questions;
@@ -315,14 +344,13 @@ class AiRepositoryImpl implements AiRepository {
         .replaceAll(' ', '_');
     final questionType = _parseQuestionType(typeStr);
 
-    // Extract content (ưu tiên override_text → content.text → text → fallback)
+    // Extract question text — try nhiều key variants để tolerate mọi model.
+    // Priority: override_text → content.text → text → question → prompt → body → statement.
     Map<String, dynamic> content;
     final overrideText = aiQuestion['override_text'] as String?;
     if (overrideText != null && overrideText.trim().isNotEmpty) {
-      // AI new format: override_text tại top-level
       content = {'text': overrideText.trim(), 'images': []};
     } else if (aiQuestion['content'] is Map<String, dynamic>) {
-      // New format: content object
       final contentObj = aiQuestion['content'] as Map<String, dynamic>;
       final contentText = (contentObj['text'] as String? ?? '').trim();
       if (contentText.isNotEmpty) {
@@ -334,19 +362,11 @@ class AiRepositoryImpl implements AiRepository {
         };
       } else {
         // content.text rỗng, fall through sang legacy fallback
-        final text =
-            aiQuestion['text'] as String? ??
-            aiQuestion['question'] as String? ??
-            'Câu hỏi $index';
+        final text = _extractQuestionText(aiQuestion) ?? 'Câu hỏi $index';
         content = {'text': text, 'images': []};
       }
     } else {
-      // Legacy format: text string (backward compatibility)
-      final text =
-          aiQuestion['text'] as String? ??
-          aiQuestion['question'] as String? ??
-          (aiQuestion['content'] is String ? aiQuestion['content'] as String : null) ??
-          'Câu hỏi $index';
+      final text = _extractQuestionText(aiQuestion) ?? 'Câu hỏi $index';
       content = {'text': text, 'images': []};
     }
 
@@ -389,60 +409,103 @@ class AiRepositoryImpl implements AiRepository {
       }
     }
 
-    // Parse choices cho multiple choice / true_false
+    // Parse choices cho multiple choice / true_false.
+    // Hỗ trợ NHIỀU schema khác nhau từ các model:
+    // - Gemini: `options: [{label, content, correct}]`
+    // - Groq:   `choices: [{id, text, isCorrect}]`
+    // - OpenRouter free: thường giống Groq nhưng có model trả `answers: [...]`
+    // - Plain string list: `["choice 1", "choice 2", ...]` + `correct_answer: "A"`
     List<Map<String, dynamic>>? choices;
     if (questionType == QuestionType.multipleChoice ||
         questionType == QuestionType.trueFalse) {
-      final choicesList =
-          aiQuestion['choices'] as List<dynamic>? ??
-          aiQuestion['options'] as List<dynamic>?; // Backward compatibility
+      final choicesList = aiQuestion['choices'] as List<dynamic>? ??
+          aiQuestion['options'] as List<dynamic>? ??
+          aiQuestion['answers'] as List<dynamic>? ??
+          aiQuestion['alternatives'] as List<dynamic>?;
 
       if (choicesList != null) {
         choices = [];
         for (var i = 0; i < choicesList.length; i++) {
           final choice = choicesList[i];
           if (choice is Map<String, dynamic>) {
-            // New format: {id, content: {text, image}, is_correct}
             final choiceId = choice['id'] as int? ?? i;
             final choiceContent = choice['content'] as Map<String, dynamic>?;
 
+            // Text key fallback: content.text → text → label → value → option
+            String text = '';
             if (choiceContent != null) {
-              // New format
-              choices.add({
-                'id': choiceId,
-                'content': {
-                  'text': choiceContent['text'] as String? ?? '',
-                  if (choiceContent['image'] != null)
-                    'image': choiceContent['image'] as String?,
-                },
-                'is_correct':
-                    choice['is_correct'] as bool? ??
-                    choice['isCorrect'] as bool? ??
-                    false,
-              });
-            } else {
-              // Legacy format: {text, isCorrect}
-              choices.add({
-                'id': choiceId,
-                'content': {
-                  'text':
-                      choice['text'] as String? ??
-                      choice['label'] as String? ??
-                      '',
-                },
-                'is_correct':
-                    choice['is_correct'] as bool? ??
-                    choice['isCorrect'] as bool? ??
-                    false,
-              });
+              text = (choiceContent['text'] as String? ?? '').trim();
             }
+            if (text.isEmpty) {
+              text = ((choice['text'] as String?) ??
+                      (choice['label'] as String?) ??
+                      (choice['value'] as String?) ??
+                      (choice['option'] as String?) ??
+                      (choice['content'] is String
+                          ? choice['content'] as String
+                          : null) ??
+                      '')
+                  .trim();
+            }
+
+            // Correct flag fallback: is_correct → isCorrect → correct → correctAnswer
+            final isCorrect = (choice['is_correct'] as bool?) ??
+                (choice['isCorrect'] as bool?) ??
+                (choice['correct'] as bool?) ??
+                (choice['correctAnswer'] as bool?) ??
+                false;
+
+            choices.add({
+              'id': choiceId,
+              'content': {
+                'text': text,
+                if (choiceContent?['image'] != null)
+                  'image': choiceContent!['image'] as String?,
+              },
+              'is_correct': isCorrect,
+            });
           } else if (choice is String) {
-            // Legacy: string format
+            // Plain string list — không có field is_correct, sẽ derive từ
+            // `correct_answer` ở top-level sau.
             choices.add({
               'id': i,
-              'content': {'text': choice},
+              'content': {'text': choice.trim()},
               'is_correct': false,
             });
+          }
+        }
+
+        // Derive is_correct từ top-level `correct_answer` / `answer` letter
+        // ("A"/"B"/"C"/"D") hoặc index (0/1/2/3). Áp dụng khi NO choice có
+        // is_correct=true (vd plain string list trên).
+        final hasAnyCorrect =
+            choices.any((c) => (c['is_correct'] as bool?) == true);
+        if (!hasAnyCorrect) {
+          final rawCorrect = aiQuestion['correct_answer'] ??
+              aiQuestion['correctAnswer'] ??
+              aiQuestion['answer_letter'] ??
+              (aiQuestion['answer'] is String ? aiQuestion['answer'] : null);
+          int? correctIndex;
+          if (rawCorrect is num) {
+            correctIndex = rawCorrect.toInt();
+          } else if (rawCorrect is String) {
+            final letter = rawCorrect.trim().toUpperCase();
+            if (letter.length == 1 &&
+                letter.codeUnitAt(0) >= 'A'.codeUnitAt(0) &&
+                letter.codeUnitAt(0) <= 'Z'.codeUnitAt(0)) {
+              correctIndex = letter.codeUnitAt(0) - 'A'.codeUnitAt(0);
+            } else if (int.tryParse(letter) != null) {
+              correctIndex = int.parse(letter);
+            }
+          }
+          if (correctIndex != null &&
+              correctIndex >= 0 &&
+              correctIndex < choices.length) {
+            choices[correctIndex]['is_correct'] = true;
+            AppLogger.info(
+              '🔧 [AI REPO] Question $index: derived is_correct từ '
+              'correct_answer="$rawCorrect" → index=$correctIndex.',
+            );
           }
         }
       }
@@ -631,6 +694,32 @@ class AiRepositoryImpl implements AiRepository {
     };
   }
 
+  /// Extract question text từ AI response — try nhiều key variants.
+  /// Trả `null` nếu không tìm thấy field nào có text non-empty.
+  /// Các key thử (theo thứ tự ưu tiên): text → question → prompt → body →
+  /// statement → query → content (nếu là String).
+  String? _extractQuestionText(Map<String, dynamic> q) {
+    const candidates = [
+      'text',
+      'question',
+      'question_text',
+      'questionText',
+      'prompt',
+      'body',
+      'statement',
+      'query',
+      'q',
+    ];
+    for (final key in candidates) {
+      final v = q[key];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+    }
+    // content có thể là String (legacy format)
+    final content = q['content'];
+    if (content is String && content.trim().isNotEmpty) return content.trim();
+    return null;
+  }
+
   /// Parse question type từ string
   QuestionType _parseQuestionType(String typeStr) {
     switch (typeStr) {
@@ -667,31 +756,158 @@ class AiRepositoryImpl implements AiRepository {
     }
   }
 
-  /// Try parse JSON string
+  /// Try parse JSON từ AI response — robust với nhiều dạng malformed.
+  ///
+  /// Mỗi AI model (Gemini / Groq / OpenRouter free models) có quirks khác
+  /// nhau khi gen JSON. Parser phải tolerate:
+  /// - Markdown code fences (```json ... ```)
+  /// - `<think>...</think>` blocks (DeepSeek-R1, QwQ reasoning models)
+  /// - Smart quotes "" '' từ AI tự "sửa" content
+  /// - Trailing commas `,}` `,]` (AI hay add)
+  /// - LaTeX backslash chưa escape `\frac` (_sanitizeLatexInJson)
+  /// - Unbalanced brackets (truncate giữa output)
+  /// - Plain text noise trước/sau JSON
+  ///
+  /// Strategy: thử nhiều variant lần lượt, trả null nếu tất cả fail.
+  /// Khi fail, log raw 300 chars đầu để debug.
   dynamic _tryParseJson(String jsonString) {
-    String s = jsonString.trim();
+    String s = _preCleanResponse(jsonString);
     if (s.isEmpty) return null;
 
-    // 0) Strip <think>...</think> blocks emitted by reasoning models (DeepSeek-R1, QwQ, etc.)
-    s = s.replaceAll(RegExp(r'<think>[\s\S]*?</think>', caseSensitive: false), '').trim();
+    // Mảng các transformer thử áp dụng tăng dần. Mỗi step return string
+    // mới, sau đó thử jsonDecode. Stop khi decode success.
+    final attempts = <String Function(String)>[
+      (x) => x, // 1. raw
+      _sanitizeLatexInJson, // 2. fix LaTeX backslash
+      _removeTrailingCommas, // 3. fix `,}` `,]`
+      (x) => _removeTrailingCommas(_sanitizeLatexInJson(x)), // 4. combo
+      _autoCloseBrackets, // 5. fix unbalanced
+      (x) => _autoCloseBrackets(
+            _removeTrailingCommas(_sanitizeLatexInJson(x)),
+          ), // 6. combo all
+    ];
 
-    // 1) Remove common Markdown code fences (```json ... ``` or ``` ... ```)
-    // Keep best-effort: if fences exist, extract inner content.
-    final fenceMatch = RegExp(r'```(?:json)?\s*([\s\S]*?)\s*```', caseSensitive: false)
-        .firstMatch(s);
-    if (fenceMatch != null) {
-      s = (fenceMatch.group(1) ?? '').trim();
+    for (final fn in attempts) {
+      try {
+        return jsonDecode(fn(s));
+      } catch (_) {
+        // try next
+      }
     }
 
-    // 2) Try direct decode first
-    try {
-      return jsonDecode(s);
-    } catch (_) {
-      // continue
+    // Fallback: extract first JSON object/array substring from noisy text
+    final candidate = _extractJsonSubstring(s);
+    if (candidate == null) {
+      _logParseFailure(s);
+      return null;
+    }
+    for (final fn in attempts) {
+      try {
+        return jsonDecode(fn(candidate));
+      } catch (_) {
+        // try next
+      }
     }
 
-    // 3) Heuristic: extract first JSON object/array substring from noisy text
-    // Find first '{' or '['
+    _logParseFailure(s);
+    return null;
+  }
+
+  /// Tiền xử lý response: strip thinking blocks, code fences, BOM, smart quotes.
+  String _preCleanResponse(String input) {
+    String s = input.trim();
+    if (s.isEmpty) return s;
+
+    // Strip BOM, zero-width chars, NBSP — vô hình mà gây jsonDecode fail.
+    s = s.replaceAll('﻿', '').replaceAll('​', '').replaceAll(' ', ' ');
+
+    // Strip <think>...</think> (DeepSeek-R1, QwQ, Claude reasoning models)
+    s = s
+        .replaceAll(
+          RegExp(r'<think>[\s\S]*?</think>', caseSensitive: false),
+          '',
+        )
+        .trim();
+
+    // Strip markdown code fences ```json ... ``` (multi-fence tolerant)
+    // Lấy phần inner của fence dài nhất nếu có nhiều.
+    final fences = RegExp(r'```(?:json|JSON)?\s*([\s\S]*?)\s*```')
+        .allMatches(s)
+        .toList();
+    if (fences.isNotEmpty) {
+      final longest = fences.reduce(
+        (a, b) =>
+            (a.group(1)?.length ?? 0) >= (b.group(1)?.length ?? 0) ? a : b,
+      );
+      s = (longest.group(1) ?? '').trim();
+    }
+
+    // Smart quotes (curly) → ASCII straight — AI sometimes inserts these
+    // trong content "tự nhiên" rồi parser thấy chuỗi không khép kín.
+    s = s
+        .replaceAll('“', '"')
+        .replaceAll('”', '"')
+        .replaceAll('‘', "'")
+        .replaceAll('’', "'");
+
+    return s.trim();
+  }
+
+  /// Remove trailing commas — AI thường thêm `,` cuối phần tử cuối:
+  /// `[1, 2, 3,]` `{"a":1,}` → fix thành `[1,2,3]` `{"a":1}`.
+  String _removeTrailingCommas(String input) {
+    return input.replaceAll(RegExp(r',(\s*[}\]])'), r'$1');
+  }
+
+  /// Auto-close unbalanced brackets — AI thỉnh thoảng truncate response
+  /// giữa chừng (vd reach max_tokens). Dùng stack để track nesting và
+  /// close theo thứ tự ĐÚNG (innermost first).
+  ///
+  /// VD `[{"options":[{"a":1` → close `}]}]` (reverse stack: `{`, `[`, `{`, `[`).
+  ///
+  /// Best-effort: không guarantee semantic đúng nhưng giúp jsonDecode parse
+  /// được phần đầu, các phần tử bị truncate sau sẽ thiếu nhưng còn parse được.
+  String _autoCloseBrackets(String input) {
+    final stack = <String>[];
+    bool inString = false;
+    bool escape = false;
+    for (final c in input.runes) {
+      final ch = String.fromCharCode(c);
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch == r'\') {
+        escape = true;
+        continue;
+      }
+      if (ch == '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (ch == '{' || ch == '[') {
+        stack.add(ch);
+      } else if (ch == '}') {
+        if (stack.isNotEmpty && stack.last == '{') stack.removeLast();
+      } else if (ch == ']') {
+        if (stack.isNotEmpty && stack.last == '[') stack.removeLast();
+      }
+    }
+    // Nếu chuỗi đang dở dang giữa 1 string (chưa close ") → append `"`
+    // trước. Phần content bị cắt sẽ là literal string không hoàn chỉnh
+    // nhưng JSON parse được.
+    final buf = StringBuffer(input);
+    if (inString) buf.write('"');
+    // Close brackets theo reverse stack.
+    for (int i = stack.length - 1; i >= 0; i--) {
+      buf.write(stack[i] == '{' ? '}' : ']');
+    }
+    return buf.toString();
+  }
+
+  /// Extract substring từ first `{` or `[` đến last `}` or `]`.
+  String? _extractJsonSubstring(String s) {
     final firstObj = s.indexOf('{');
     final firstArr = s.indexOf('[');
     int start = -1;
@@ -704,7 +920,6 @@ class AiRepositoryImpl implements AiRepository {
       start = firstObj < firstArr ? firstObj : firstArr;
     }
 
-    // Find last '}' or ']'
     final lastObj = s.lastIndexOf('}');
     final lastArr = s.lastIndexOf(']');
     int end = -1;
@@ -718,13 +933,41 @@ class AiRepositoryImpl implements AiRepository {
     }
 
     if (start < 0 || end <= start) return null;
-    final candidate = s.substring(start, end + 1).trim();
+    return s.substring(start, end + 1).trim();
+  }
 
-    try {
-      return jsonDecode(candidate);
-    } catch (_) {
-      return null;
-    }
+  void _logParseFailure(String s) {
+    final preview = s.length > 300 ? '${s.substring(0, 300)}...' : s;
+    AppLogger.warning(
+      '🔴 [AI REPO] _tryParseJson: tất cả attempts thất bại. '
+      'Raw response preview (300 chars):\n$preview',
+    );
+  }
+
+  /// Escape backslash trong JSON string không phải escape JSON hợp lệ.
+  /// AI generators (Groq llama, Gemini) thường trả LaTeX trong JSON string
+  /// KHÔNG escape backslash → `jsonDecode` xử lý sai.
+  ///
+  /// Hai trường hợp cần xử lý:
+  /// 1. LaTeX command 2+ chữ cái (`\frac`, `\beta`, `\theta`, `\nabla`,
+  ///    `\sqrt`, `\sum`, `\Delta`, `\to`, `\rho`...) — escape vì:
+  ///    - `\f`, `\b`, `\n`, `\r`, `\t` LÀ valid JSON escape (form-feed,
+  ///      backspace, newline, CR, tab) → `jsonDecode` sẽ ăn ký tự đó và
+  ///      mất chữ cái kế tiếp. VD `\frac` → `<FF>rac` → render literal đỏ.
+  ///    - Cần escape cho dù chữ cái sau backslash nằm trong whitelist JSON.
+  /// 2. Ký tự đặc biệt LaTeX 1-char (`\,`, `\;`, `\!`, `\#`, `\$`, `\|`...):
+  ///    - Không phải JSON escape hợp lệ → `jsonDecode` throw ngay.
+  ///    - Escape thành `\\,` để pass decode, render OK.
+  ///
+  /// JSON valid escapes giữ nguyên: `\"` `\\` `\/` `\u` và single `\b` `\f`
+  /// `\n` `\r` `\t` không theo sau letter (control chars hợp lệ).
+  String _sanitizeLatexInJson(String input) {
+    return input.replaceAllMapped(
+      // Match 1: \\ followed by 2+ letters (LaTeX command like \frac, \beta)
+      // Match 2: \\ followed by char NOT in JSON escape whitelist (\, \; \!)
+      RegExp(r'\\(?=[a-zA-Z]{2,}|[^"\\/bfnrtu])'),
+      (_) => r'\\',
+    );
   }
 
   /// Generate fallback questions khi AI API không trả về đúng format

@@ -1,4 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
@@ -25,6 +26,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// Màn hình tạo câu hỏi bằng AI
 class TeacherAiGenerateQuestionScreen extends ConsumerStatefulWidget {
@@ -68,7 +70,9 @@ class _TeacherAiGenerateQuestionScreenState
   final List<({String typeKey, String label, int startIndex, int count})>
   _sections = [];
 
-  // Batch progress
+  // Batch progress message (vd "Đang tạo lô 2/3...") — set khi qty > 10
+  // và AI gen theo nhiều lô. Hiển thị trong skeleton header thay thế phase
+  // text mặc định khi có giá trị (ưu tiên info cụ thể hơn rotate generic).
   String? _batchProgress;
 
   // Style-template mode: tài liệu là khuôn mẫu về văn phong/cấu trúc
@@ -89,8 +93,40 @@ class _TeacherAiGenerateQuestionScreenState
   final Set<int> _expandedExplanations = {};
   final Set<int> _regeneratingExplanationSet = {};
 
+  // ─── Skeleton loader: rotate phase text trong khi AI gen ─────────────────
+  // AI gen mất 5-15s; thay vì button spinner đứng yên, hiện skeleton list +
+  // text mô tả tiến độ → user thấy app "đang làm gì đó", giảm cảm giác chậm.
+  Timer? _loadingPhaseTimer;
+  int _loadingPhase = 0;
+  static const List<String> _loadingPhrases = [
+    'Đang chuẩn bị yêu cầu cho AI...',
+    'AI đang phân tích chủ đề...',
+    'Đang sinh câu hỏi & các đáp án...',
+    'Đang kiểm tra chất lượng câu hỏi...',
+    'Sắp hoàn tất, chỉ vài giây nữa...',
+  ];
+
+  void _startLoadingPhases() {
+    _loadingPhase = 0;
+    _loadingPhaseTimer?.cancel();
+    _loadingPhaseTimer = Timer.periodic(const Duration(seconds: 3), (t) {
+      // Self-cancel khi gen xong (_isGenerating đã set false ở nhiều chỗ)
+      // — tránh phải nhớ stop timer ở mỗi exit path của _handleGenerate.
+      if (!mounted || !_isGenerating) {
+        t.cancel();
+        return;
+      }
+      setState(() {
+        // Dừng ở phase cuối, không loop về 0 — tránh nhấp nháy nếu AI lâu
+        _loadingPhase =
+            (_loadingPhase + 1).clamp(0, _loadingPhrases.length - 1);
+      });
+    });
+  }
+
   @override
   void dispose() {
+    _loadingPhaseTimer?.cancel();
     _topicController.dispose();
     _quantityController.dispose();
     _focusHintController.dispose();
@@ -560,6 +596,7 @@ class _TeacherAiGenerateQuestionScreenState
       _effectiveTemplateMode = null;
       _templateQuestionsForVerify = null;
     });
+    _startLoadingPhases(); // Rotate text "Đang chuẩn bị... → Sắp xong..."
 
     try {
       // D-07~D-11: Log selected file IDs and processing mode for Plan 07 wiring
@@ -1638,8 +1675,17 @@ class _TeacherAiGenerateQuestionScreenState
                           SizedBox(height: DesignSpacing.xxl),
                         ],
 
-                        // AI Response (all modes — shows after generate)
-                        if (_generatedQuestions != null) ...[
+                        // Skeleton loader (Cách 2) — ưu tiên hơn result cũ.
+                        // Khi user bấm "Tạo lại", _generatedQuestions vẫn còn
+                        // data cũ → nếu render result section, user nghĩ app
+                        // "đơ" trong 5-15s đợi AI mà không có loading visual.
+                        // Đặt skeleton TRƯỚC để ẩn data cũ trong khi gen.
+                        if (_isGenerating) ...[
+                          SizedBox(height: DesignSpacing.xxl),
+                          _buildSkeletonResponseSection(context, isDark),
+                        ]
+                        // AI Response (all modes — shows after generate done)
+                        else if (_generatedQuestions != null) ...[
                           SizedBox(height: DesignSpacing.xxl),
                           _buildAiResponseSection(context, isDark),
                         ],
@@ -2005,43 +2051,10 @@ class _TeacherAiGenerateQuestionScreenState
             ),
           ),
 
-          // Loading overlay
-          if (_isGenerating)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.3),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(color: Colors.white),
-                      if (_batchProgress != null) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(
-                              DesignRadius.lg,
-                            ),
-                          ),
-                          child: Text(
-                            _batchProgress!,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          // [Xóa overlay đen full-screen] — trước đây hiển thị spinner +
+          // _batchProgress dạng modal che cả màn không scroll được. Giờ thay
+          // bằng skeleton inline (_buildSkeletonResponseSection) — user thấy
+          // tiến độ MÀ vẫn scroll được toàn UI, không bị block.
         ],
       ),
     );
@@ -2938,6 +2951,149 @@ class _TeacherAiGenerateQuestionScreenState
               : (isDark ? Colors.grey[600] : Colors.grey[400]),
         ),
       ),
+    );
+  }
+
+  /// Skeleton loader hiển thị trong khi AI gen — UX trick để giảm cảm giác
+  /// "đứng hình" khi đợi 5-15s. Render N shimmer card placeholder (N = qty user
+  /// chọn, default 5) + text mô tả phase đang chạy.
+  Widget _buildSkeletonResponseSection(BuildContext context, bool isDark) {
+    final qty = _limitQty.clamp(1, 10);
+    // Ưu tiên _batchProgress (vd "Đang tạo lô 2/3...") nếu có — info cụ thể
+    // hơn phase text rotate. Fallback: phase text generic.
+    final phase = _batchProgress ?? _loadingPhrases[_loadingPhase];
+    final baseColor = isDark ? Colors.grey[800]! : Colors.grey[300]!;
+    final highlightColor = isDark ? Colors.grey[700]! : Colors.grey[100]!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header card với phase text + spinner
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A2632) : Colors.white,
+            borderRadius: BorderRadius.circular(DesignRadius.lg * 1.5),
+            border: Border.all(
+              color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+            ),
+          ),
+          padding: EdgeInsets.all(DesignSpacing.lg),
+          child: Row(
+            children: [
+              const SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: Text(
+                    phase,
+                    key: ValueKey<int>(_loadingPhase),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.grey[300] : Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: DesignColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '$qty câu',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: DesignColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: DesignSpacing.md),
+
+        // Shimmer placeholder cards (N items)
+        Shimmer.fromColors(
+          baseColor: baseColor,
+          highlightColor: highlightColor,
+          period: const Duration(milliseconds: 1500),
+          child: Column(
+            children: List.generate(
+              qty,
+              (i) => Padding(
+                padding: EdgeInsets.only(bottom: DesignSpacing.md),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1A2632) : Colors.white,
+                    borderRadius: BorderRadius.circular(DesignRadius.lg),
+                    border: Border.all(color: baseColor),
+                  ),
+                  padding: EdgeInsets.all(DesignSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header: "CÂU N • Trắc nghiệm"
+                      Container(
+                        width: 120,
+                        height: 12,
+                        color: baseColor,
+                      ),
+                      SizedBox(height: DesignSpacing.md),
+                      // Question text — 2 dòng
+                      Container(
+                        width: double.infinity,
+                        height: 14,
+                        color: baseColor,
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: 220,
+                        height: 14,
+                        color: baseColor,
+                      ),
+                      SizedBox(height: DesignSpacing.md),
+                      // 4 options
+                      ...List.generate(4, (j) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    color: baseColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Container(
+                                    height: 12,
+                                    color: baseColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

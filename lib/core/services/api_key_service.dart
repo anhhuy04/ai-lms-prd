@@ -37,7 +37,11 @@ class ApiKeyService {
   static const String defaultGeminiModel = 'gemini-2.0-flash';
   static const String defaultGroqModel = 'llama-3.1-8b-instant';
   static const String defaultOllamaModel = 'mistral';
-  static const String defaultOpenRouterModel = 'google/gemma-3-4b-it:free';
+  // OpenRouter model: phải khớp với id còn live trên https://openrouter.ai/api/v1/models.
+  // Model cũ `gemma-3-4b-it:free` đã bị OpenRouter remove (404 "No endpoints found").
+  // Nếu model mới này cũng bị remove, user có thể pick model khác qua dropdown
+  // trong Settings → API Keys (app tự fetch live list qua fetchOpenRouterModels()).
+  static const String defaultOpenRouterModel = 'google/gemma-4-31b-it:free';
 
   static const FlutterSecureStorage _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -539,24 +543,35 @@ Web: Browser's secure storage (if supported)
     }
   }
 
-  /// Provider/model đang active để AiService dùng khi gọi API
-  static Future<String> getActiveProvider() async {
-    final provider = await ProfileMetadataService.getAiProvider();
+  /// Provider/model đang active để AiService dùng khi gọi API.
+  ///
+  /// [forceRefresh] true để bypass cache 5 phút — dùng khi gọi AI gen để
+  /// đảm bảo đọc giá trị mới nhất user vừa save trong Settings, tránh case
+  /// "đổi model nhưng vẫn dùng model cũ".
+  static Future<String> getActiveProvider({bool forceRefresh = false}) async {
+    final provider = await ProfileMetadataService.getAiProvider(
+      forceRefresh: forceRefresh,
+    );
     return provider?.isNotEmpty == true ? provider! : providerGemini;
   }
 
-  static Future<String> getActiveModel() async {
-    final provider = await getActiveProvider();
-    return getActiveModelFor(provider);
+  static Future<String> getActiveModel({bool forceRefresh = false}) async {
+    final provider = await getActiveProvider(forceRefresh: forceRefresh);
+    return getActiveModelFor(provider, forceRefresh: forceRefresh);
   }
 
-  static Future<String> getActiveModelFor(String provider) async {
+  static Future<String> getActiveModelFor(
+    String provider, {
+    bool forceRefresh = false,
+  }) async {
     // Lưu ý: `ai.model` là model của provider đang active.
     // Nếu hỏi model cho provider KHÁC provider active, trả về default để tránh
     // việc lấy nhầm model (vd: active = groq, model = llama... nhưng test Gemini).
-    final activeProvider = await getActiveProvider();
+    final activeProvider = await getActiveProvider(forceRefresh: forceRefresh);
     if (activeProvider == provider) {
-      final model = await ProfileMetadataService.getAiModel();
+      final model = await ProfileMetadataService.getAiModel(
+        forceRefresh: forceRefresh,
+      );
       if (model != null && model.isNotEmpty) return model;
     }
     if (provider == providerGroq) return defaultGroqModel;

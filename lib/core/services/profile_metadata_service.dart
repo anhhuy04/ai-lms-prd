@@ -326,8 +326,12 @@ class ProfileMetadataService {
   }
 
   /// Lấy AI provider đang được chọn (vd: 'gemini', 'groq', 'ollama')
-  static Future<String?> getAiProvider() async {
-    return await get<String>('ai.provider');
+  ///
+  /// [forceRefresh] true để bypass cache (5 phút TTL), buộc fetch từ Supabase.
+  /// Dùng khi gọi AI gen — để đảm bảo dùng provider mới nhất user đã save,
+  /// tránh case cache 5 phút giữ provider cũ.
+  static Future<String?> getAiProvider({bool forceRefresh = false}) async {
+    return await get<String>('ai.provider', forceRefresh: forceRefresh);
   }
 
   /// Set AI provider đang được chọn (vd: 'gemini', 'groq')
@@ -337,8 +341,10 @@ class ProfileMetadataService {
   }
 
   /// Lấy AI model đang được chọn (vd: 'gemini-1.5-flash', 'llama-3.1-8b-instant')
-  static Future<String?> getAiModel() async {
-    return await get<String>('ai.model');
+  ///
+  /// [forceRefresh] true để bypass cache 5 phút TTL, buộc fetch từ Supabase.
+  static Future<String?> getAiModel({bool forceRefresh = false}) async {
+    return await get<String>('ai.model', forceRefresh: forceRefresh);
   }
 
   /// Set AI model đang được chọn
