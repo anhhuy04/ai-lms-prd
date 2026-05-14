@@ -1216,6 +1216,49 @@ class AiRepositoryImpl implements AiRepository {
     'tin': ['tin học', 'lập trình', 'thuật toán', 'máy tính'],
   };
 
+  /// F-018: Dedup intra-batch — loại câu có text giống ≥`threshold` 1 câu
+  /// nào đó đã xuất hiện trước trong list. Giữ câu đầu tiên, drop bản sau.
+  ///
+  /// Dùng cùng metric `similarity(a, b) = max(Lev_norm, Jaccard_bigram)` như
+  /// `TemplateSimilarityVerifier` để consistency với template check.
+  ///
+  /// Threshold 0.92 = "gần như identical" (chỉ đổi 1-2 từ/số) — đủ ngặt để
+  /// bắt duplicate thật, đủ lỏng để cho câu cùng dạng đổi số liệu pass.
+  List<Map<String, dynamic>> _dedupIntraBatch(
+    List<Map<String, dynamic>> questions, {
+    double threshold = 0.92,
+  }) {
+    if (questions.length < 2) return questions;
+    final verifier = TemplateSimilarityVerifier();
+    final keptTexts = <String>[];
+    final kept = <Map<String, dynamic>>[];
+    for (final q in questions) {
+      final text = (_extractQuestionText(q) ?? '').toLowerCase().trim();
+      if (text.isEmpty) {
+        kept.add(q);
+        keptTexts.add('');
+        continue;
+      }
+      var isDup = false;
+      for (final prev in keptTexts) {
+        if (prev.isEmpty) continue;
+        if (verifier.similarity(text, prev) >= threshold) {
+          isDup = true;
+          break;
+        }
+      }
+      if (!isDup) {
+        kept.add(q);
+        keptTexts.add(text);
+      } else {
+        AppLogger.warning(
+          '♻️ [IntraDedup] drop duplicate: "${text.padRight(60).substring(0, 60)}..."',
+        );
+      }
+    }
+    return kept;
+  }
+
   /// Phân loại domain của 1 tập câu hỏi từ tags + text.
   /// Trả về tập domain (top-level) mà câu đó thuộc về.
   Set<String> _detectDomains(List<Map<String, dynamic>> questions) {
@@ -1295,8 +1338,26 @@ class AiRepositoryImpl implements AiRepository {
       '🧭 [Domain] filter: input=${generated.length} kept=${filtered.length} drop=$dropped',
     );
 
+    // F-018: Dedup intra-batch — drop câu trùng (giữ câu xuất hiện trước).
+    // Threshold động theo intent:
+    // - Structural intent (templateCount ≤3 hoặc sameForm): ngưỡng 0.985
+    //   (chỉ drop khi gần 100% identical) vì cùng dạng đổi số là CHỦ ĐÍCH.
+    // - Còn lại: ngưỡng 0.92 (paraphrase nhẹ cũng coi là trùng).
+    final isLowTpl = templateQuestions.length <= 3;
+    final structuralIntent =
+        isLowTpl || templateMode == TemplateMode.sameForm;
+    final dedupThreshold = structuralIntent ? 0.985 : 0.92;
+    final deduped = _dedupIntraBatch(filtered, threshold: dedupThreshold);
+    final dupDropped = filtered.length - deduped.length;
+    if (dupDropped > 0) {
+      AppLogger.info(
+        '♻️ [IntraDedup] drop $dupDropped câu trùng nhau '
+        '(threshold=$dedupThreshold ${structuralIntent ? "LOOSE" : "STRICT"})',
+      );
+    }
+
     // Auto-refill: nếu thiếu, gọi AI thêm tối đa 2 lần
-    var result = filtered;
+    var result = deduped;
     var attempts = 0;
     const maxAttempts = 2;
     while (result.length < quantity && attempts < maxAttempts) {
@@ -1333,10 +1394,18 @@ class AiRepositoryImpl implements AiRepository {
             kept.add(q);
           }
         }
-        AppLogger.info(
-          '🧭 [Domain] refill $attempts: parsed=${parsed.length} kept=${kept.length}',
+        // F-018: dedup refill batch lẫn nhau VÀ với câu đã có trong result
+        final combinedBeforeDedup = [...result, ...kept];
+        final combined = _dedupIntraBatch(
+          combinedBeforeDedup,
+          threshold: dedupThreshold,
         );
-        result.addAll(kept);
+        final dedupedFromKept = combined.length - result.length;
+        AppLogger.info(
+          '🧭 [Domain] refill $attempts: parsed=${parsed.length} kept=${kept.length} '
+          'after-intra-dedup=$dedupedFromKept',
+        );
+        result = combined;
       } catch (e) {
         AppLogger.warning(
           '🧭 [Domain] refill attempt $attempts FAIL: $e — break loop',
