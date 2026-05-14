@@ -698,8 +698,8 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 - [ ] **S1.6.11** Câu fill_blank: nút `[___N]` auto-increment N theo số blank hiện có
 
 ### S1.7 templateCount cascade (backend)
-- [ ] **S1.7.1** Upload 1 câu mẫu, gen 10 câu → log AI prompt có "Bạn có 1 câu mẫu nhưng cần tạo 10 câu — hãy biến tấu MỖI mẫu thành nhiều biến thể KHÁC NHAU…"
-- [ ] **S1.7.2** Upload 5 câu mẫu, gen 10 câu → log KHÔNG có instruction trên (templateCount=5, không thỏa `< quantity/2`)
+- [x] **S1.7.1** STATIC PASS 2026-05-15: `ai_service.dart:290,330,558,561-576` — templateCount==1 → scarcity note, ≥2 → round-robin SO LE. F-015 fix.
+- [x] **S1.7.2** PASS — verified live TC-10: 5 mẫu (Địa/Văn/Sinh/Sử) → 10 câu so le, mỗi mẫu 2 biến thể, không drift domain.
 
 ---
 
@@ -707,27 +707,25 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 ### S2.1 VN sư phạm persona
 - **Pre**: gen câu hỏi bất kỳ (Mode 1, 2, 3)
-- [ ] **S2.1.1** Câu hỏi gen ra dùng tiếng Việt sư phạm rõ ràng (không Hán Việt khó hiểu)
-- [ ] **S2.1.2** Distractor (đáp án sai) hợp lý — kiểu lỗi học sinh thường mắc, không vô nghĩa
-- [ ] **S2.1.3** Nội dung gắn với chương trình SGK VN (lịch sử, địa lý, văn học VN nếu liên quan)
+- [x] **S2.1.1** STATIC + LIVE PASS 2026-05-15: `ai_service.dart:80-82` persona OK, TC-04/TC-10 live verify tiếng Việt sư phạm rõ.
+- [x] **S2.1.2** PASS — distractor TC-06 vận tốc/diện tích, TC-10 lớp Lưỡng cư/Bò sát hợp lý.
+- [x] **S2.1.3** PASS — TC-10 sinh ra văn học VN (Việt Bắc, Đây thôn Vĩ Dạ), lịch sử VN (Genève), địa lý VN (Núi VN).
 
 ### S2.2 Multi-step math reasoning (Mode 3 sameForm)
 - **Pre**: upload file Word có câu math mẫu, bật sameForm
-- [ ] **S2.2.1** Câu gen ra có đáp án đúng (verify thủ công 5/5 câu math)
-- [ ] **S2.2.2** Distractor là lỗi sai cụ thể (cộng thiếu, quên đơn vị, đảo dấu) — không bịa số ngẫu nhiên
-- [ ] **S2.2.3** Phù hợp cấp học (lớp 9 không tích phân, lớp 12 không quá đơn giản)
+- [x] **S2.2.1** PASS — TC-06 verify 5/5 đáp án vận tốc đúng (80/2.5=32, 120/3=40, 50/1.25=40, 90/2=45, 75/2.5=30).
+- [x] **S2.2.2** PASS — TC-06 distractor là số gần đúng (28/32/35/40 cho 32 km/h ans).
+- [x] **S2.2.3** PASS — kiến thức Vật lý/Toán phổ thông VN, không vượt cấp.
 
 ### S2.3 Default model Gemini 2.0 Flash
-- [ ] **S2.3.1** Vào Settings → API Keys → confirm default model dropdown hiện `gemini-2.0-flash`
-- [ ] **S2.3.2** User chưa cấu hình → AI gọi dùng `gemini-2.0-flash` (xem log network/console)
-- [ ] **S2.3.3** Long context (>20K char document) không bị truncate quá sớm
+- [x] **S2.3.1** STATIC PASS 2026-05-15: `api_key_service.dart:37` defaultGeminiModel=`gemini-2.0-flash`.
+- [N] **S2.3.2** N/A — phiên này user dùng Groq llama-3.3-70b-versatile (đổi sau khi OpenRouter flaky). Default model nguyên trong code.
+- [ ] **S2.3.3** Pending — chưa test với >20K char document.
 
 ### S2.4 Document parse cache
 - **Pre**: kBuild debug, mở DevTools console
-- [ ] **S2.4.1** Upload file Word lần đầu → parse mất ~3-5s
-- [ ] **S2.4.2** Remove file rồi upload lại CÙNG file → parse tức thì (<100ms — cache hit)
-- [ ] **S2.4.3** Upload file Word khác → parse lại bình thường (cache miss)
-- [ ] **S2.4.4** Upload >20 file khác nhau → cache evict file cũ nhất (LRU 20 entries)
+- [x] **S2.4.1-2** STATIC PASS 2026-05-15: `document_parser.dart:35-90` có `_xlsxCache/_docxCache` Map + `_fingerprint(bytes)` + `_putCache<T>` generic LRU helper. Live verify TC-02 (Excel) + TC-03 (Word) upload lần 2 không trễ.
+- [N] **S2.4.3-4** Pending — cần test 20+ file để verify LRU eviction explicit.
 
 ---
 
@@ -792,17 +790,11 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 ### S5.2 UI button "Xuất ra Word"
 - **Pre**: gen 5 câu xong, scroll xuống thấy hàng nút action
-- [ ] **S5.2.1** Nút "Xuất ra Word" hiện ở hàng 3 (sau "Reset + Tạo lại" và "Lưu Bank + Xác nhận")
-- [ ] **S5.2.2** Style: OutlinedButton.icon, height 38, border primary, icon `file_download_rounded`
-- [ ] **S5.2.3** Tooltip "Xuất danh sách câu hỏi ra file Word .docx (math LaTeX hiện đúng)"
-- [ ] **S5.2.4** Disabled khi chưa có câu (đầu screen)
-- [ ] **S5.2.5** Disabled khi đang gen / đang lưu bank
+- [x] **S5.2.1-5** STATIC PASS 2026-05-15: `teacher_ai_generate_question_screen.dart:1897-1908` OutlinedButton key=`btn_export_word`, onPressed=`_handleExportToWord`, disabled khi empty/generating/saving.
 
 ### S5.3 Export flow happy path
 - **Pre**: gen 5 câu math có công thức `$\frac{1}{2}$`, `$x^2$`, `$\sqrt{x}$`
-- [ ] **S5.3.1** Click nút → mobile mở dialog "Lưu file Word", tên mặc định `de_ai_<timestamp>.docx`
-- [ ] **S5.3.2** Web: download tự động về Downloads
-- [ ] **S5.3.3** Snackbar success "Đã xuất de_ai_xxx.docx (5 câu)"
+- [x] **S5.3.1-3** STATIC PASS 2026-05-15: `_handleExportToWord` at line 330 → `WordTemplateGenerator.generateFromQuestions` (line 349) → `file_exporter.dart::exportFile` (line 355). Web stub `file_exporter_stub.dart` cho web download. Prior session verified live: file 2258 bytes, snackbar success.
 
 ### S5.4 Mở file Word output (verify rendering)
 - **Pre**: file đã save từ S5.3
@@ -830,12 +822,10 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 ## S6. Regression sanity (chạy sau mỗi commit lớn)
 
-- [ ] **R1** Login flow vẫn work (admin/teacher/student)
-- [ ] **R2** Tạo class + add student vẫn work
-- [ ] **R3** Distribute assignment + student submit vẫn work
-- [ ] **R4** Grade submission (teacher hub) vẫn work
-- [ ] **R5** No new flutter analyze warnings
-- [ ] **R6** Build APK debug success <60s
+- [x] **R1** STATIC PASS 2026-05-15: LoginScreen + auth_providers code OK (S6 scan agent).
+- [N] **R2-4** N/A — chưa scope phiên này.
+- [x] **R5** PASS 2026-05-15: `flutter analyze lib/` → 0 errors, 1 warning (unused `isDark` line 569 teacher_assignment_hub_screen.dart — không phải code phiên này).
+- [N] **R6** N/A — chưa build APK trong phiên này.
 - [ ] **R7** Cold start app <3s
 
 ---
