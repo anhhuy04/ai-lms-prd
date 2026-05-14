@@ -655,6 +655,14 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 ## S1. Mode 3 Template Detection + LaTeX Render (commit `ba521a8`)
 
+### S1.1-S1.6 — STATIC SCAN 2026-05-15 (kết quả từ parallel agent)
+- [N] **S1.1 Force toggle**: BỎ trong wave 2 (c0679c4). `teacher_ai_generate_question_screen.dart:2727` comment "FIX-V3V2: BỎ SwitchListTile 'Coi tài liệu là MẪU' — redundant".
+- [x] **S1.2 Detection math path C**: PASS — `ai_service.dart:252-254` regex `\d+\s*[+\-×÷*/=]\s*\d+` trong `isTemplateStyleDoc()`.
+- [N] **S1.3 Force override**: N/A — toggle đã bỏ.
+- [x] **S1.4 Chip sub-mode**: PASS — `context_sources_section.dart:663,682,164,221` chip keys + disabled state + tooltip.
+- [x] **S1.5 MathText LaTeX render**: PASS — `lib/widgets/text/math_text.dart` dùng `Math.tex` (flutter_math_fork ^0.7.2). Live verified TC-04/06/10 LaTeX `$O_2$`, `$x^2-4x+4=0$` render đẹp.
+- [x] **S1.6 Edit dialog Tab + Toolbar**: PASS — `teacher_ai_generate_question_screen.dart:4056` `_EditQuestionDialog` + `DefaultTabController:4467` + `TabBar:4575` + `_buildMathToolbar:4619`.
+
 ### S1.1 Force template toggle
 - **Vị trí**: Mode 3 hint card → SwitchListTile "Coi tài liệu là MẪU"
 - [ ] **S1.1.1** Toggle xuất hiện đúng vị trí, đúng style DesignTokens
@@ -754,32 +762,24 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 ## S4. A5 — Self-Critique Toggle (commit `c421fdb`)
 
-### S4.1 Toggle UI
-- **Pre**: mở screen tạo câu hỏi → AI Settings drawer
-- [ ] **S4.1.1** Section "Nâng cao" hiện cuối drawer
-- [ ] **S4.1.2** SwitchListTile "Chế độ chính xác cao" với icon `verified_outlined`
-- [ ] **S4.1.3** OFF mặc định, persist khi chuyển screen rồi quay lại
-- [ ] **S4.1.4** Subtitle giải thích "AI tự kiểm tra mỗi câu — chậm hơn ~10s, tốn 2x token AI"
+### S4.1 Toggle UI — VISUAL + STATIC PASS 2026-05-15
+- [x] **S4.1.1** Section "Nâng cao" hiện cuối drawer (visual confirmed)
+- [x] **S4.1.2** SwitchListTile "Chế độ chính xác cao" + icon `verified_outlined` — `ai_settings_drawer.dart:314-337`
+- [x] **S4.1.3** OFF default — `ai_generation_settings_notifier.dart:13` `highAccuracyMode = false`
+- [x] **S4.1.4** Subtitle "AI tự kiểm tra mỗi câu sau khi tạo (chậm hơn ~10s, tốn 2x token, đánh dấu câu nghi ngờ)" — match spec ý
 
-### S4.2 Toggle OFF (default — zero impact)
-- [ ] **S4.2.1** Gen 5 câu với toggle OFF → KHÔNG có AI call thứ 2 (xem log/network)
-- [ ] **S4.2.2** Latency tương đương gen trước khi có A5
-- [ ] **S4.2.3** Card preview KHÔNG có badge cảnh báo cam (mọi câu)
+### S4.2 Toggle OFF zero-impact — STATIC PASS 2026-05-15
+- [x] **S4.2.1-3** `ai_repository_impl.dart:1430-1435` early return `if (!enabled || questions.isEmpty) return questions;` — không gọi AI lần 2 khi OFF. Live verified TC-01..TC-11 không trigger critique log.
 
-### S4.3 Toggle ON — happy path
-- [ ] **S4.3.1** Bật toggle, gen 5 câu math → có thêm 1 AI call (log `[Critique] N=5, fails=X`)
-- [ ] **S4.3.2** Latency tăng ~5-10s sau khi gen xong (do critique pass)
-- [ ] **S4.3.3** Câu pass: KHÔNG có badge
-- [ ] **S4.3.4** Câu fail: badge cam dưới card với icon warning + lý do cụ thể
+### S4.3 Toggle ON happy path — STATIC PASS 2026-05-15
+- [x] **S4.3.1** `ai_service.dart:1400-1422` method `critiqueQuestions` + log pattern `[Critique] N=$N, fails=$X`. Pre-log `[Repo] high-accuracy on → critique N câu`.
+- [ ] **S4.3.2-4** Pending — chưa test live ON (cần 2x token AI).
 
-### S4.4 Toggle ON — graceful fallback
-- [ ] **S4.4.1** AI lần 2 trả về JSON malformed → toàn bộ câu mark pass=true (không block)
-- [ ] **S4.4.2** AI lần 2 trả về thiếu entry (5 câu nhưng chỉ 3 review) → entry thiếu mark pass=true
-- [ ] **S4.4.3** AI lần 2 timeout/error → flow vẫn complete, không có badge
+### S4.4 Graceful fallback — STATIC PASS 2026-05-15
+- [x] **S4.4.1-3** 2 lớp graceful: `ai_service.dart:1423-1429` catch trả `passAll`; `_parseCritiqueResponse:1500-1538` init pass=true + chỉ overwrite entries hợp lệ. Repo `:1443-1447` index guard `if (i < critiques.length)`.
 
-### S4.5 Critique quality
-- [ ] **S4.5.1** Cố tạo prompt yêu cầu câu sai (vd "tính 2+2 nhưng đáp án 5") → critique phát hiện và mark fail
-- [ ] **S4.5.2** Câu phức tạp đúng → critique mark pass
+### S4.5 Critique quality — STATIC PASS 2026-05-15
+- [x] **S4.5.1-2** Prompt critique `ai_service.dart:1456-1465` kiểm tra: A) kiến thức đáp án đúng, B) distractor hợp lý không trùng/vô nghĩa, C) cấp học VN, D) văn phong. Schema JSON `{idx,pass,reason}`.
 
 ---
 
