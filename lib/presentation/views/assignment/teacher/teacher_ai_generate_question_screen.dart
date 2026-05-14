@@ -20,6 +20,7 @@ import 'package:ai_mls/presentation/providers/local_temp_file_notifier.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/ai_settings_drawer.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/context_sources_section.dart';
+import 'package:ai_mls/widgets/math/math_input_toolbar.dart';
 import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -1655,6 +1656,11 @@ class _TeacherAiGenerateQuestionScreenState
                               ),
                             ),
                           ),
+                          SizedBox(height: DesignSpacing.sm),
+                          MathInputToolbar(
+                            controller: _focusHintController,
+                            compact: true,
+                          ),
                           SizedBox(height: DesignSpacing.xl),
                         ],
 
@@ -2121,7 +2127,7 @@ class _TeacherAiGenerateQuestionScreenState
             ),
             decoration: InputDecoration(
               hintText:
-                  'Ví dụ: Tạo cho tôi các câu hỏi liên quan đến phép cộng lớp 3',
+                  r'Ví dụ: Tạo cho tôi các câu hỏi liên quan đến phép cộng lớp 3. Có thể dùng LaTeX, vd $x^2 + 2x + 1 = 0$',
               hintStyle: TextStyle(
                 color: isDark ? Colors.grey[500] : Colors.grey[400],
               ),
@@ -2148,6 +2154,8 @@ class _TeacherAiGenerateQuestionScreenState
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
+          SizedBox(height: DesignSpacing.sm),
+          MathInputToolbar(controller: _topicController, compact: true),
         ],
       ),
     );
