@@ -515,7 +515,7 @@ QUY TẮC:
 2. Giữ ĐÚNG: loại câu, số lựa chọn, độ khó tương ứng từng slot trong schema.
 3. MCQ: đúng 1 isCorrect=true, 3 false. Phân bố đáp án đúng đều id 0,1,2,3 qua $quantity câu.
 4. KIỂM TRA trước khi xuất: xác nhận isCorrect=true là đúng kiến thức. Distractor phải sai có lý do.
-5. override_text = câu hỏi thực sự (VD đúng: "Thủ đô Pháp là thành phố nào?" — VD sai: "câu hỏi địa lý" hay "câu hỏi 1").
+5. override_text = câu hỏi thực sự, BÁM CHỦ ĐỀ schema (VD đúng cho schema Vật lý lớp 10: "Tính vận tốc của vật rơi tự do sau 3 giây" — VD sai: "câu hỏi vật lý" hay "câu hỏi 1"). **CẤM dùng nội dung lệch domain với schema mẫu** — schema VN thì câu hỏi VN, schema Toán thì câu Toán.
 
 AN TOÀN — KHI BẠN KHÔNG CHẮC:
 Nếu bạn KHÔNG xác định được môn học, KHÔNG đủ thông tin từ tài liệu, HOẶC schema mơ hồ → KHÔNG được tự đoán và KHÔNG được tạo câu hỏi sai.
@@ -557,9 +557,26 @@ NHẮC LẠI: Trả về JSON ARRAY $quantity object. override_text = câu hỏi
     required String formatExample,
     int? templateCount,
   }) {
-    final scarcityNote = (templateCount != null && templateCount < quantity / 2)
-        ? '\n\nLƯU Ý: Bạn có $templateCount câu mẫu nhưng cần tạo $quantity câu — hãy biến tấu MỖI mẫu thành nhiều biến thể KHÁC NHAU rõ rệt về số liệu/dữ kiện cụ thể, KHÔNG lặp lại bộ số gần giống nhau, đa dạng phạm vi giá trị (vừa nhỏ, vừa lớn, vừa thập phân nếu phù hợp).'
-        : '';
+    final String scarcityNote;
+    if (templateCount == null || templateCount >= quantity) {
+      scarcityNote = '';
+    } else if (templateCount == 1) {
+      scarcityNote =
+          '\n\nLƯU Ý QUAN TRỌNG (1 mẫu → $quantity câu):\n'
+          'Bạn CHỈ có 1 câu mẫu. PHẢI tạo đủ $quantity câu, TẤT CẢ cùng dạng/cấu trúc với mẫu đó. '
+          'Mỗi câu là 1 biến thể KHÁC NHAU rõ rệt về số liệu/dữ kiện cụ thể (vừa nhỏ vừa lớn vừa thập phân nếu phù hợp). '
+          'KHÔNG được trả ít hơn $quantity câu. KHÔNG được lặp bộ số gần giống nhau giữa các câu.';
+    } else {
+      // 2+ mẫu nhưng chưa đủ — vòng lặp round-robin: mẫu[i % templateCount]
+      final perTemplate = (quantity / templateCount).ceil();
+      scarcityNote =
+          '\n\nLƯU Ý QUAN TRỌNG ($templateCount mẫu → $quantity câu, ROUND-ROBIN SO LE):\n'
+          'Bạn có $templateCount câu mẫu nhưng cần $quantity câu. Tạo SO LE theo thứ tự sau:\n'
+          '  • Câu 1 ← dạng mẫu #1; Câu 2 ← dạng mẫu #2; ... Câu $templateCount ← dạng mẫu #$templateCount.\n'
+          '  • Câu ${templateCount + 1} ← lại dạng mẫu #1; Câu ${templateCount + 2} ← dạng mẫu #2; cứ vòng lặp đều như vậy đến đủ $quantity câu.\n'
+          'Tức là MỖI mẫu sinh khoảng $perTemplate biến thể khác nhau, phân phối ĐỀU, KHÔNG dồn hết về 1 mẫu. '
+          'Mỗi biến thể phải khác rõ rệt về số liệu/dữ kiện. KHÔNG được trả ít hơn $quantity câu.';
+    }
     return '''$_vnTeacherPersona
 
 NHIỆM VỤ: Bạn nhận các câu hỏi MẪU dưới đây. Tạo $quantity câu hỏi MỚI giữ NGUYÊN CẤU TRÚC nhưng ĐỔI GIÁ TRỊ CỤ THỂ rồi TÍNH LẠI 4 LỰA CHỌN.
@@ -583,12 +600,13 @@ BƯỚC 2 — KIỂM TRA LẠI: thay đáp án vào câu hỏi → có khớp kh
 BƯỚC 3 — DISTRACTOR THỰC TẾ: 3 đáp án sai phải là lỗi cụ thể (cộng thiếu nhớ, quên đơn vị, đảo dấu, nhầm công thức tương tự). Không bịa số ngẫu nhiên.
 
 QUY TẮC CỨNG:
-1. GIỮ NGUYÊN: dạng đề, công thức, đơn vị tổng quát, độ dài câu hỏi.
-2. ĐỔI: số liệu/tên/giá trị cụ thể. KHÔNG dùng lại bộ số y hệt mẫu.
-3. PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OPTIONS — không bao giờ copy options từ mẫu.
-4. Đúng 1 isCorrect=true. Distractor phải khác đáp án đúng và khác nhau từng đôi một.
-5. Phân bố đáp án đúng đều id 0,1,2,3 qua $quantity câu.
-6. Output JSON ARRAY thuần. KHÔNG markdown, KHÔNG giải thích.$scarcityNote
+1. GIỮ NGUYÊN: dạng đề, công thức, đơn vị tổng quát, độ dài câu hỏi, **CHỦ ĐỀ/DOMAIN/QUỐC GIA** trong câu mẫu.
+2. ĐỔI: **chỉ đổi số liệu hoặc dữ kiện cụ thể CÙNG DOMAIN** (ví dụ: số → số khác, tên nhân vật VN → nhân vật VN khác, năm → năm khác). **CẤM** đổi sang domain khác (Việt Nam → Pháp, Toán → Lý, Lịch sử → Địa lý).
+3. NẾU MẪU LÀ NON-NUMERIC (không có số/công thức): chỉ đổi 4 OPTIONS thành phương án mới HỢP LÝ CÙNG CHỦ ĐỀ, **GIỮ NGUYÊN CÂU HỎI** hoặc paraphrase rất nhẹ. Tuyệt đối KHÔNG đổi quốc gia/môn học/lĩnh vực trong câu hỏi.
+4. PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OPTIONS — không bao giờ copy options từ mẫu.
+5. Đúng 1 isCorrect=true. Distractor phải khác đáp án đúng và khác nhau từng đôi một, **CÙNG DOMAIN với mẫu**.
+6. Phân bố đáp án đúng đều id 0,1,2,3 qua $quantity câu.
+7. Output JSON ARRAY thuần. KHÔNG markdown, KHÔNG giải thích.$scarcityNote
 
 --- VÍ DỤ 1 (Toán cộng) ---
 Mẫu: "Tính 12 + 8 = ?"  Options: 18/20/22/24
@@ -607,6 +625,18 @@ Mẫu: "Giải 2x+3=11, x=?"  Options: 4/5/3/8
 Phân tích: khung "ax+b=c, x=?", giải x=(c-b)/a. Biến a=2, b=3, c=11.
 Đổi: a=3, b=5, c=20. Tính: x=(20-5)/3=5. Distractors: 15 (quên chia), 6 (chia sai), 25/3 (cộng b thay vì trừ).
 Output: [{"type":"multiple_choice","override_text":"Giải phương trình 3x+5=20, x=?","choices":[{"id":0,"text":"6","isCorrect":false},{"id":1,"text":"15","isCorrect":false},{"id":2,"text":"5","isCorrect":true},{"id":3,"text":"25/3","isCorrect":false}],"tags":["đại số","phương trình"]}]
+
+--- VÍ DỤ 4 (Non-numeric — GIỮ NGUYÊN DOMAIN/QUỐC GIA) ---
+Mẫu: "Thủ đô của nước Việt Nam là thành phố nào?"  Options: TP.HCM/Hà Nội/Đà Nẵng/Huế
+Phân tích: khung "Thủ đô của X là?", domain = ĐỊA LÝ VIỆT NAM. **CẤM đổi X sang quốc gia khác** (KHÔNG được hỏi "Thủ đô Pháp/Anh/Mỹ").
+Đổi: GIỮ câu hỏi, đổi sang câu khác CÙNG ĐỊA LÝ VIỆT NAM. Ví dụ "Tỉnh nào của Việt Nam có diện tích lớn nhất?" với options là 4 tỉnh thực tế của VN.
+Output: [{"type":"multiple_choice","override_text":"Tỉnh nào của Việt Nam có diện tích lớn nhất?","choices":[{"id":0,"text":"Nghệ An","isCorrect":true},{"id":1,"text":"Hà Giang","isCorrect":false},{"id":2,"text":"Thanh Hóa","isCorrect":false},{"id":3,"text":"Quảng Nam","isCorrect":false}],"tags":["địa lý","Việt Nam"]}]
+
+--- VÍ DỤ 5 (Non-numeric — Văn học VN) ---
+Mẫu: "Tác giả của bài thơ 'Truyện Kiều' là ai?"  Options: Nguyễn Du/Hồ Xuân Hương/Nguyễn Trãi/Tố Hữu
+Phân tích: khung "Tác giả của <tác phẩm VN> là ai?", domain = VĂN HỌC VIỆT NAM. **CẤM đổi sang văn học nước ngoài** (KHÔNG "Tác giả Hamlet/Romeo and Juliet").
+Đổi: GIỮ domain văn học VN, đổi sang tác phẩm khác. Distractors là tác giả VN có thật.
+Output: [{"type":"multiple_choice","override_text":"Tác giả của tập 'Nhật ký trong tù' là ai?","choices":[{"id":0,"text":"Tố Hữu","isCorrect":false},{"id":1,"text":"Xuân Diệu","isCorrect":false},{"id":2,"text":"Hồ Chí Minh","isCorrect":true},{"id":3,"text":"Nguyễn Du","isCorrect":false}],"tags":["văn học","Việt Nam"]}]
 
 AN TOÀN — KHI BẠN KHÔNG CHẮC:
 Nếu bạn KHÔNG xác định được môn học, KHÔNG đủ thông tin từ tài liệu, HOẶC schema mơ hồ → KHÔNG được tự đoán và KHÔNG được tạo câu hỏi sai.
@@ -627,7 +657,7 @@ RÀNG BUỘC FORMAT:
 - KHÔNG tạo field "explanation".
 - Output JSON ARRAY thuần, KHÔNG markdown, KHÔNG text trước "[".
 
-NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OPTIONS. Trả về JSON ARRAY $quantity object đúng format ví dụ.''';
+NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OPTIONS. **GIỮ NGUYÊN DOMAIN/QUỐC GIA/CHỦ ĐỀ của mẫu** — KHÔNG drift sang nước khác hay môn khác. Trả về JSON ARRAY $quantity object đúng format ví dụ.''';
   }
 
   /// Call AI API với endpoint và payload
