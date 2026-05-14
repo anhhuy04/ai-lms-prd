@@ -118,8 +118,10 @@ class _TeacherAiGenerateQuestionScreenState
       }
       setState(() {
         // Dừng ở phase cuối, không loop về 0 — tránh nhấp nháy nếu AI lâu
-        _loadingPhase =
-            (_loadingPhase + 1).clamp(0, _loadingPhrases.length - 1);
+        _loadingPhase = (_loadingPhase + 1).clamp(
+          0,
+          _loadingPhrases.length - 1,
+        );
       });
     });
   }
@@ -139,14 +141,15 @@ class _TeacherAiGenerateQuestionScreenState
     AppLogger.info('📝 [Result] ══ Generated ${questions.length} câu ══');
     for (int i = 0; i < questions.length; i++) {
       final q = questions[i];
-      final type = (q['type'] as QuestionType?)?.name ??
-          q['type']?.toString() ??
-          '?';
-      final rawText = (q['text'] as String?) ??
+      final type =
+          (q['type'] as QuestionType?)?.name ?? q['type']?.toString() ?? '?';
+      final rawText =
+          (q['text'] as String?) ??
           ((q['content'] as Map?)?['text'] as String?) ??
           '';
-      final preview =
-          rawText.length > 90 ? '${rawText.substring(0, 90)}…' : rawText;
+      final preview = rawText.length > 90
+          ? '${rawText.substring(0, 90)}…'
+          : rawText;
       // B-003: derive label A/B/C/D từ index, không phụ thuộc field 'label' (AI không gen field này).
       final opts = (q['options'] as List?) ?? (q['choices'] as List?);
       String optStr = '';
@@ -161,8 +164,11 @@ class _TeacherAiGenerateQuestionScreenState
               final o = e.value;
               final lbl = String.fromCharCode(65 + e.key); // A, B, C, D
               if (o is Map) {
-                final txt = (o['text'] as String?) ??
-                    ((o['content'] is Map ? (o['content'] as Map)['text'] : null)
+                final txt =
+                    (o['text'] as String?) ??
+                    ((o['content'] is Map
+                            ? (o['content'] as Map)['text']
+                            : null)
                         as String?) ??
                     o.toString();
                 if (o['isCorrect'] == true || o['is_correct'] == true) {
@@ -179,14 +185,9 @@ class _TeacherAiGenerateQuestionScreenState
       final answer = correctIdx >= 0
           ? String.fromCharCode(65 + correctIdx)
           : (q['answer'] is Map &&
-                  (q['answer'] as Map)['expected_answer'] != null
-              ? '"${((q['answer'] as Map)['expected_answer'] as String).substring(
-                  0,
-                  ((q['answer'] as Map)['expected_answer'] as String)
-                      .length
-                      .clamp(0, 40),
-                )}…"'
-              : '?');
+                    (q['answer'] as Map)['expected_answer'] != null
+                ? '"${((q['answer'] as Map)['expected_answer'] as String).substring(0, ((q['answer'] as Map)['expected_answer'] as String).length.clamp(0, 40))}…"'
+                : '?');
       final sim = q['_similarityWarning'] is Map
           ? ' ⚠sim=${(q['_similarityWarning'] as Map)['score']}% (tpl#${(q['_similarityWarning'] as Map)['templateIndex']})'
           : '';
@@ -774,7 +775,8 @@ class _TeacherAiGenerateQuestionScreenState
         );
         // isTemplateStyleDoc chỉ dùng rawText của file KT (không có parsedQ) →
         // chỉ kích hoạt khi file Word có cấu trúc "Câu N:" và role là template.
-        final hasDocxTemplate = AiService.isTemplateStyleDoc(rawText) &&
+        final hasDocxTemplate =
+            AiService.isTemplateStyleDoc(rawText) &&
             allFiles.any(
               (f) =>
                   selectedIds.contains(f.id) &&
@@ -815,15 +817,18 @@ class _TeacherAiGenerateQuestionScreenState
         // FIX-V3V2: BỎ auto-downgrade sameForm → styleOnly.
         // User chọn sameForm hay styleOnly → tôn trọng, không tự chuyển
         // (kể cả khi tài liệu mẫu ngắn hoặc không phải toàn MCQ).
-        final templateQuestionsForCheck =
-            notifier.getTemplateQuestionsForIds(selectedIds);
+        final templateQuestionsForCheck = notifier.getTemplateQuestionsForIds(
+          selectedIds,
+        );
         final effectiveTemplateMode = templateMode;
         // Lưu state để dùng ở các call site sau (similarity verify, regenerate).
-        _effectiveTemplateMode = _useAsStyleTemplate ? effectiveTemplateMode : null;
+        _effectiveTemplateMode = _useAsStyleTemplate
+            ? effectiveTemplateMode
+            : null;
         _templateQuestionsForVerify =
             _useAsStyleTemplate && templateQuestionsForCheck.isNotEmpty
-                ? templateQuestionsForCheck
-                : null;
+            ? templateQuestionsForCheck
+            : null;
         // GAP-4: warn khi qty > templateSize * 3 trong sameForm
         if (effectiveTemplateMode == TemplateMode.sameForm && mounted) {
           final qty = _limitQty;
@@ -997,9 +1002,7 @@ class _TeacherAiGenerateQuestionScreenState
       // KHÔNG pop tự động - để user có thể test nhiều lần
       // User sẽ click "Xác nhận" để pop và trả về questions
     } on AiUncertaintyException catch (e) {
-      AppLogger.warning(
-        '[Generate] AI uncertainty: ${e.code} — ${e.reason}',
-      );
+      AppLogger.warning('[Generate] AI uncertainty: ${e.code} — ${e.reason}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1015,10 +1018,7 @@ class _TeacherAiGenerateQuestionScreenState
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  e.reason,
-                  style: const TextStyle(color: Colors.white),
-                ),
+                Text(e.reason, style: const TextStyle(color: Colors.white)),
               ],
             ),
             backgroundColor: DesignColors.warning,
@@ -1305,7 +1305,9 @@ class _TeacherAiGenerateQuestionScreenState
               f.parsedQuestions!.isNotEmpty &&
               f.effectiveRole == FileRole.template,
         );
-        regenTemplateMode = regenUseAsStyleTemplate ? aiSettings.templateMode : null;
+        regenTemplateMode = regenUseAsStyleTemplate
+            ? aiSettings.templateMode
+            : null;
         final docText = regenUseAsStyleTemplate
             ? notifier.getKnowledgeContextForIds(
                 selectedIds,
@@ -1343,8 +1345,12 @@ class _TeacherAiGenerateQuestionScreenState
         documentContext: documentContext,
         useAsStyleTemplate: regenUseAsStyleTemplate,
         templateMode: regenTemplateMode,
-        templateQuestions: regenUseAsStyleTemplate ? _templateQuestionsForVerify : null,
-        templateCount: regenUseAsStyleTemplate ? _templateQuestionsForVerify?.length : null,
+        templateQuestions: regenUseAsStyleTemplate
+            ? _templateQuestionsForVerify
+            : null,
+        templateCount: regenUseAsStyleTemplate
+            ? _templateQuestionsForVerify?.length
+            : null,
         highAccuracyMode: aiSettings.highAccuracyMode,
       );
       if (result.isNotEmpty && mounted) {
@@ -1485,14 +1491,17 @@ class _TeacherAiGenerateQuestionScreenState
     // GAP-7: disable Generate khi tất cả file đã chọn không có nội dung
     final allFiles = ref.watch(localTempFilesProvider);
     final selectedFileIds = aiSettings.selectedFileIds.toSet();
-    final allSelectedFilesEmpty = mode == ProcessingMode.ragGeneration &&
+    final allSelectedFilesEmpty =
+        mode == ProcessingMode.ragGeneration &&
         selectedFileIds.isNotEmpty &&
         allFiles
             .where((f) => selectedFileIds.contains(f.id))
-            .every((f) =>
-                !f.isExtracting &&
-                (f.extractedText?.isEmpty ?? true) &&
-                (f.parsedQuestions?.isEmpty ?? true));
+            .every(
+              (f) =>
+                  !f.isExtracting &&
+                  (f.extractedText?.isEmpty ?? true) &&
+                  (f.parsedQuestions?.isEmpty ?? true),
+            );
 
     return Scaffold(
       key: _scaffoldKey,
@@ -1771,7 +1780,8 @@ class _TeacherAiGenerateQuestionScreenState
                           height: 44,
                           child: ElevatedButton(
                             key: const ValueKey('btn_generate'),
-                            onPressed: (_isGenerating ||
+                            onPressed:
+                                (_isGenerating ||
                                     _isQtyMismatch ||
                                     allSelectedFilesEmpty)
                                 ? null
@@ -1800,10 +1810,9 @@ class _TeacherAiGenerateQuestionScreenState
                                     children: [
                                       Icon(
                                         mode == ProcessingMode.extraction
-                                            ? Icons
-                                                .content_paste_search_rounded
+                                            ? Icons.content_paste_search_rounded
                                             : mode ==
-                                                ProcessingMode.ragGeneration
+                                                  ProcessingMode.ragGeneration
                                             ? Icons.auto_stories_rounded
                                             : Icons.auto_awesome,
                                         size: 18,
@@ -1813,7 +1822,7 @@ class _TeacherAiGenerateQuestionScreenState
                                         mode == ProcessingMode.extraction
                                             ? 'Trích xuất câu hỏi'
                                             : mode ==
-                                                ProcessingMode.ragGeneration
+                                                  ProcessingMode.ragGeneration
                                             ? 'Sinh từ tài liệu'
                                             : 'Tạo câu hỏi',
                                         style: const TextStyle(
@@ -1855,22 +1864,66 @@ class _TeacherAiGenerateQuestionScreenState
                                       },
                                       style: OutlinedButton.styleFrom(
                                         padding: EdgeInsets.zero,
+                                        foregroundColor: DesignColors.error,
                                         side: BorderSide(
-                                          color: isDark
-                                              ? Colors.grey[700]!
-                                              : Colors.grey[300]!,
+                                          color: DesignColors.error.withValues(
+                                            alpha: 0.4,
+                                          ),
                                         ),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                         ),
                                       ),
-                                      child: Icon(
+                                      child: const Icon(
                                         Icons.delete_outline_rounded,
                                         size: 18,
-                                        color: isDark
-                                            ? Colors.grey[400]
-                                            : Colors.grey[500],
+                                        color: DesignColors.error,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Xuất ra Word — icon-only
+                                  Tooltip(
+                                    message:
+                                        'Xuất danh sách câu hỏi ra file Word .docx',
+                                    child: Semantics(
+                                      label: 'Xuất ra Word',
+                                      button: true,
+                                      child: SizedBox(
+                                        width: 38,
+                                        height: 38,
+                                        child: OutlinedButton(
+                                          key: const ValueKey(
+                                            'btn_export_word',
+                                          ),
+                                          onPressed:
+                                              (_generatedQuestions == null ||
+                                                  _generatedQuestions!
+                                                      .isEmpty ||
+                                                  _isSavingToBank ||
+                                                  _isGenerating)
+                                              ? null
+                                              : _handleExportToWord,
+                                          style: OutlinedButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            foregroundColor:
+                                                DesignColors.primary,
+                                            side: BorderSide(
+                                              color: DesignColors.primary
+                                                  .withValues(alpha: 0.4),
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.file_download_rounded,
+                                            size: 18,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -1880,8 +1933,11 @@ class _TeacherAiGenerateQuestionScreenState
                                     child: SizedBox(
                                       height: 38,
                                       child: OutlinedButton.icon(
-                                        key: const ValueKey('btn_regenerate_all'),
-                                        onPressed: (_isGenerating ||
+                                        key: const ValueKey(
+                                          'btn_regenerate_all',
+                                        ),
+                                        onPressed:
+                                            (_isGenerating ||
                                                 _isQtyMismatch ||
                                                 allSelectedFilesEmpty)
                                             ? null
@@ -1909,8 +1965,9 @@ class _TeacherAiGenerateQuestionScreenState
                                                 .withValues(alpha: 0.4),
                                           ),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -1955,8 +2012,9 @@ class _TeacherAiGenerateQuestionScreenState
                                                 .withValues(alpha: 0.4),
                                           ),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -1982,64 +2040,19 @@ class _TeacherAiGenerateQuestionScreenState
                                           ),
                                         ),
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              DesignColors.success,
+                                          backgroundColor: DesignColors.success,
                                           foregroundColor: Colors.white,
                                           elevation: 0,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ],
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            // Hàng 3: Xuất ra Word
-                            SizedBox(
-                              height: 38,
-                              child: Tooltip(
-                                message:
-                                    'Xuất danh sách câu hỏi ra file Word .docx (math LaTeX hiện đúng)',
-                                child: Semantics(
-                                  label: 'Xuất ra Word',
-                                  button: true,
-                                  child: OutlinedButton.icon(
-                                    key: const ValueKey('btn_export_word'),
-                                    onPressed:
-                                        (_generatedQuestions == null ||
-                                            _generatedQuestions!.isEmpty ||
-                                            _isSavingToBank ||
-                                            _isGenerating)
-                                        ? null
-                                        : _handleExportToWord,
-                                    icon: Icon(
-                                      Icons.file_download_rounded,
-                                      size: DesignIcons.smSize,
-                                    ),
-                                    label: const Text(
-                                      'Xuất ra Word',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: DesignColors.primary,
-                                      side: BorderSide(
-                                        color: DesignColors.primary
-                                            .withValues(alpha: 0.4),
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                  ),
-                                ),
                               ),
                             ),
                           ],
@@ -3001,10 +3014,7 @@ class _TeacherAiGenerateQuestionScreenState
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: DesignColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
@@ -3044,11 +3054,7 @@ class _TeacherAiGenerateQuestionScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Header: "CÂU N • Trắc nghiệm"
-                      Container(
-                        width: 120,
-                        height: 12,
-                        color: baseColor,
-                      ),
+                      Container(width: 120, height: 12, color: baseColor),
                       SizedBox(height: DesignSpacing.md),
                       // Question text — 2 dòng
                       Container(
@@ -3057,35 +3063,31 @@ class _TeacherAiGenerateQuestionScreenState
                         color: baseColor,
                       ),
                       const SizedBox(height: 6),
-                      Container(
-                        width: 220,
-                        height: 14,
-                        color: baseColor,
-                      ),
+                      Container(width: 220, height: 14, color: baseColor),
                       SizedBox(height: DesignSpacing.md),
                       // 4 options
-                      ...List.generate(4, (j) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: baseColor,
-                                    shape: BoxShape.circle,
-                                  ),
+                      ...List.generate(
+                        4,
+                        (j) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 16,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: baseColor,
+                                  shape: BoxShape.circle,
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Container(
-                                    height: 12,
-                                    color: baseColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Container(height: 12, color: baseColor),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -3101,6 +3103,7 @@ class _TeacherAiGenerateQuestionScreenState
     final questions = _generatedQuestions ?? [];
     final mode = ref.watch(aiGenerationSettingsNotifierProvider).processingMode;
     return Column(
+      key: const ValueKey('ai_response_section'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
@@ -3359,8 +3362,7 @@ class _TeacherAiGenerateQuestionScreenState
                                       icon: Icons.close_rounded,
                                       color: DesignColors.error,
                                       tooltip: 'Xóa câu này',
-                                      onTap: () =>
-                                          _handleRemoveQuestion(index),
+                                      onTap: () => _handleRemoveQuestion(index),
                                     ),
                                   ],
                                 ),
@@ -3368,38 +3370,44 @@ class _TeacherAiGenerateQuestionScreenState
                       ],
                     ),
                     // Badge cảnh báo similarity — bên dưới card, không chèn lên nội dung
-                    if (q['_similarityWarning'] is Map) ...() {
-                      final sw =
-                          q['_similarityWarning'] as Map<String, dynamic>;
-                      final score = ((sw['score'] as num?) ?? 0) * 100;
-                      final tplIdx =
-                          (sw['matchedTemplateIdx'] as int? ?? -1) + 1;
-                      return [
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: DesignColors.warning.withValues(alpha: 0.15),
-                            borderRadius:
-                                BorderRadius.circular(DesignRadius.md),
-                            border: Border.all(
-                              color: DesignColors.warning.withValues(alpha: 0.4),
+                    if (q['_similarityWarning'] is Map)
+                      ...() {
+                        final sw =
+                            q['_similarityWarning'] as Map<String, dynamic>;
+                        final score = ((sw['score'] as num?) ?? 0) * 100;
+                        final tplIdx =
+                            (sw['matchedTemplateIdx'] as int? ?? -1) + 1;
+                        return [
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: DesignColors.warning.withValues(
+                                alpha: 0.15,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                DesignRadius.md,
+                              ),
+                              border: Border.all(
+                                color: DesignColors.warning.withValues(
+                                  alpha: 0.4,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              '⚠ Tương tự mẫu #$tplIdx (${score.toStringAsFixed(0)}%)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: DesignColors.warning,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
-                          child: Text(
-                            '⚠ Tương tự mẫu #$tplIdx (${score.toStringAsFixed(0)}%)',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: DesignColors.warning,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ];
-                    }(),
+                        ];
+                      }(),
                   ],
                 ),
               ),
@@ -4353,9 +4361,7 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
               ),
               const SizedBox(height: 8),
               MathText(
-                _textCtrl.text.isEmpty
-                    ? '(chưa có nội dung)'
-                    : _textCtrl.text,
+                _textCtrl.text.isEmpty ? '(chưa có nội dung)' : _textCtrl.text,
                 style: textStyle,
               ),
               const SizedBox(height: 16),
@@ -4387,8 +4393,8 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                             color: isCorrect
                                 ? DesignColors.success
                                 : (isDark
-                                    ? Colors.grey[700]!
-                                    : Colors.grey[200]!),
+                                      ? Colors.grey[700]!
+                                      : Colors.grey[200]!),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -4400,8 +4406,8 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                                 color: isCorrect
                                     ? Colors.white
                                     : (isDark
-                                        ? Colors.grey[300]
-                                        : Colors.grey[600]),
+                                          ? Colors.grey[300]
+                                          : Colors.grey[600]),
                               ),
                             ),
                           ),
@@ -4416,8 +4422,8 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                               color: isCorrect
                                   ? DesignColors.success
                                   : (isDark
-                                      ? Colors.white
-                                      : DesignColors.textPrimary),
+                                        ? Colors.white
+                                        : DesignColors.textPrimary),
                               fontWeight: isCorrect
                                   ? FontWeight.w600
                                   : FontWeight.normal,
@@ -4461,443 +4467,460 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
     return DefaultTabController(
       length: 2,
       child: Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
-      child: Container(
-        constraints: BoxConstraints(maxHeight: screenH * 0.88),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0F1923) : Colors.white,
-          borderRadius: BorderRadius.circular(DesignRadius.lg * 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ── Header ─────────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
-              decoration: BoxDecoration(
-                color: typeColor.withValues(alpha: isDark ? 0.15 : 0.07),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(DesignRadius.lg * 2),
-                ),
-                border: Border(
-                  bottom: BorderSide(
-                    color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-                  ),
-                ),
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
+        child: Container(
+          constraints: BoxConstraints(maxHeight: screenH * 0.88),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F1923) : Colors.white,
+            borderRadius: BorderRadius.circular(DesignRadius.lg * 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: typeColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(DesignRadius.lg),
-                    ),
-                    child: Icon(Icons.edit_rounded, size: 18, color: typeColor),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Header ─────────────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+                decoration: BoxDecoration(
+                  color: typeColor.withValues(alpha: isDark ? 0.15 : 0.07),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(DesignRadius.lg * 2),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Chỉnh sửa câu hỏi',
-                          style: DesignTypography.titleSmall.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: isDark
-                                ? Colors.white
-                                : DesignColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: typeColor.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(
-                              DesignRadius.full,
-                            ),
-                          ),
-                          child: Text(
-                            widget.questionType.label,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: typeColor,
-                            ),
-                          ),
-                        ),
-                      ],
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(
-                      Icons.close_rounded,
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ── TabBar ──────────────────────────────────────────────────
-            Container(
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F1923) : Colors.white,
-                border: Border(
-                  bottom: BorderSide(
-                    color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-                  ),
                 ),
-              ),
-              child: TabBar(
-                labelColor: DesignColors.primary,
-                unselectedLabelColor: isDark
-                    ? Colors.grey[400]
-                    : Colors.grey[600],
-                indicatorColor: DesignColors.primary,
-                tabs: const [
-                  Tab(icon: Icon(Icons.edit_rounded, size: 18), text: 'Sửa'),
-                  Tab(
-                    icon: Icon(Icons.visibility_rounded, size: 18),
-                    text: 'Xem trước',
-                  ),
-                ],
-              ),
-            ),
-
-            // ── TabBarView ──────────────────────────────────────────────
-            Flexible(
-              child: TabBarView(
-                children: [
-                  // Tab 1: Sửa
-                  SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Section: Nội dung câu hỏi
-                        _buildSectionLabel(
-                          icon: Icons.help_outline_rounded,
-                          label: 'NỘI DUNG CÂU HỎI',
-                          isDark: isDark,
-                        ),
-                        const SizedBox(height: 8),
-                        // Math toolbar trên _textCtrl
-                        Text(
-                          'Chèn công thức:',
-                          style: DesignTypography.labelSmall.copyWith(
-                            color: isDark
-                                ? Colors.grey[400]
-                                : Colors.grey[600],
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        _buildMathToolbar(_textCtrl, isDark: isDark),
-                        const SizedBox(height: 10),
-                        _buildTextField(
-                          controller: _textCtrl,
-                          hintText: 'Nhập nội dung câu hỏi...',
-                          maxLines: 4,
-                          isDark: isDark,
-                        ),
-
-                        const SizedBox(height: 20),
-
-                    // Section: Đáp án
-                    if (_isChoiceType && _choiceControllers.isNotEmpty) ...[
-                      Row(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: typeColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(DesignRadius.lg),
+                      ),
+                      child: Icon(
+                        Icons.edit_rounded,
+                        size: 18,
+                        color: typeColor,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildSectionLabelWidget(
-                            icon: Icons.radio_button_checked_rounded,
-                            label: 'CÁC ĐÁP ÁN',
-                            isDark: isDark,
+                          Text(
+                            'Chỉnh sửa câu hỏi',
+                            style: DesignTypography.titleSmall.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? Colors.white
+                                  : DesignColors.textPrimary,
+                            ),
                           ),
-                          const Spacer(),
+                          const SizedBox(height: 2),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
+                              horizontal: 8,
+                              vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: DesignColors.success.withValues(
-                                alpha: 0.1,
-                              ),
+                              color: typeColor.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(
                                 DesignRadius.full,
                               ),
-                              border: Border.all(
-                                color: DesignColors.success.withValues(
-                                  alpha: 0.3,
-                                ),
-                              ),
                             ),
                             child: Text(
-                              'Tap ✓ để chọn đúng',
+                              widget.questionType.label,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: DesignColors.success,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.bold,
+                                color: typeColor,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      ...List.generate(_choiceControllers.length, (i) {
-                        final isCorrect = i == _correctIndex;
-                        final label = String.fromCharCode(65 + i); // A,B,C,D
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: GestureDetector(
-                            onTap: () => setState(() => _correctIndex = i),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              decoration: BoxDecoration(
-                                color: isCorrect
-                                    ? DesignColors.success.withValues(
-                                        alpha: isDark ? 0.12 : 0.07,
-                                      )
-                                    : (isDark
-                                          ? const Color(0xFF1A2632)
-                                          : Colors.grey[50]),
-                                borderRadius: BorderRadius.circular(
-                                  DesignRadius.lg * 1.2,
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── TabBar ──────────────────────────────────────────────────
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF0F1923) : Colors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+                    ),
+                  ),
+                ),
+                child: TabBar(
+                  labelColor: DesignColors.primary,
+                  unselectedLabelColor: isDark
+                      ? Colors.grey[400]
+                      : Colors.grey[600],
+                  indicatorColor: DesignColors.primary,
+                  tabs: const [
+                    Tab(icon: Icon(Icons.edit_rounded, size: 18), text: 'Sửa'),
+                    Tab(
+                      icon: Icon(Icons.visibility_rounded, size: 18),
+                      text: 'Xem trước',
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── TabBarView ──────────────────────────────────────────────
+              Flexible(
+                child: TabBarView(
+                  children: [
+                    // Tab 1: Sửa
+                    SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Section: Nội dung câu hỏi
+                          _buildSectionLabel(
+                            icon: Icons.help_outline_rounded,
+                            label: 'NỘI DUNG CÂU HỎI',
+                            isDark: isDark,
+                          ),
+                          const SizedBox(height: 8),
+                          // Math toolbar trên _textCtrl
+                          Text(
+                            'Chèn công thức:',
+                            style: DesignTypography.labelSmall.copyWith(
+                              color: isDark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[600],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          _buildMathToolbar(_textCtrl, isDark: isDark),
+                          const SizedBox(height: 10),
+                          _buildTextField(
+                            controller: _textCtrl,
+                            hintText: 'Nhập nội dung câu hỏi...',
+                            maxLines: 4,
+                            isDark: isDark,
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Section: Đáp án
+                          if (_isChoiceType &&
+                              _choiceControllers.isNotEmpty) ...[
+                            Row(
+                              children: [
+                                _buildSectionLabelWidget(
+                                  icon: Icons.radio_button_checked_rounded,
+                                  label: 'CÁC ĐÁP ÁN',
+                                  isDark: isDark,
                                 ),
-                                border: Border.all(
-                                  color: isCorrect
-                                      ? DesignColors.success
-                                      : (isDark
-                                            ? Colors.grey[700]!
-                                            : Colors.grey[200]!),
-                                  width: isCorrect ? 1.5 : 1,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  // Check icon
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 12),
-                                    child: Icon(
-                                      isCorrect
-                                          ? Icons.check_circle_rounded
-                                          : Icons.check_circle_outline_rounded,
-                                      color: isCorrect
-                                          ? DesignColors.success
-                                          : (isDark
-                                                ? Colors.grey[600]
-                                                : Colors.grey[400]),
-                                      size: 22,
+                                const Spacer(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: DesignColors.success.withValues(
+                                      alpha: 0.1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      DesignRadius.full,
+                                    ),
+                                    border: Border.all(
+                                      color: DesignColors.success.withValues(
+                                        alpha: 0.3,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  // Label badge
-                                  Container(
-                                    width: 26,
-                                    height: 26,
+                                  child: Text(
+                                    'Tap ✓ để chọn đúng',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: DesignColors.success,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            ...List.generate(_choiceControllers.length, (i) {
+                              final isCorrect = i == _correctIndex;
+                              final label = String.fromCharCode(
+                                65 + i,
+                              ); // A,B,C,D
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: GestureDetector(
+                                  onTap: () =>
+                                      setState(() => _correctIndex = i),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
                                     decoration: BoxDecoration(
                                       color: isCorrect
-                                          ? DesignColors.success
+                                          ? DesignColors.success.withValues(
+                                              alpha: isDark ? 0.12 : 0.07,
+                                            )
                                           : (isDark
-                                                ? Colors.grey[700]!
-                                                : Colors.grey[200]!),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        label,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: isCorrect
-                                              ? Colors.white
-                                              : (isDark
-                                                    ? Colors.grey[300]
-                                                    : Colors.grey[600]),
-                                        ),
+                                                ? const Color(0xFF1A2632)
+                                                : Colors.grey[50]),
+                                      borderRadius: BorderRadius.circular(
+                                        DesignRadius.lg * 1.2,
+                                      ),
+                                      border: Border.all(
+                                        color: isCorrect
+                                            ? DesignColors.success
+                                            : (isDark
+                                                  ? Colors.grey[700]!
+                                                  : Colors.grey[200]!),
+                                        width: isCorrect ? 1.5 : 1,
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  // Text input
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _choiceControllers[i],
-                                      style: DesignTypography.bodyMedium
-                                          .copyWith(
-                                            color: isDark
-                                                ? Colors.white
-                                                : DesignColors.textPrimary,
-                                            fontWeight: isCorrect
-                                                ? FontWeight.w600
-                                                : FontWeight.normal,
+                                    child: Row(
+                                      children: [
+                                        // Check icon
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 12,
                                           ),
-                                      decoration: InputDecoration(
-                                        hintText: 'Đáp án $label...',
-                                        hintStyle: TextStyle(
-                                          color: isDark
-                                              ? Colors.grey[600]
-                                              : Colors.grey[400],
+                                          child: Icon(
+                                            isCorrect
+                                                ? Icons.check_circle_rounded
+                                                : Icons
+                                                      .check_circle_outline_rounded,
+                                            color: isCorrect
+                                                ? DesignColors.success
+                                                : (isDark
+                                                      ? Colors.grey[600]
+                                                      : Colors.grey[400]),
+                                            size: 22,
+                                          ),
                                         ),
-                                        border: InputBorder.none,
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                              vertical: 14,
+                                        const SizedBox(width: 10),
+                                        // Label badge
+                                        Container(
+                                          width: 26,
+                                          height: 26,
+                                          decoration: BoxDecoration(
+                                            color: isCorrect
+                                                ? DesignColors.success
+                                                : (isDark
+                                                      ? Colors.grey[700]!
+                                                      : Colors.grey[200]!),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              label,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: isCorrect
+                                                    ? Colors.white
+                                                    : (isDark
+                                                          ? Colors.grey[300]
+                                                          : Colors.grey[600]),
+                                              ),
                                             ),
-                                      ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        // Text input
+                                        Expanded(
+                                          child: TextField(
+                                            controller: _choiceControllers[i],
+                                            style: DesignTypography.bodyMedium
+                                                .copyWith(
+                                                  color: isDark
+                                                      ? Colors.white
+                                                      : DesignColors
+                                                            .textPrimary,
+                                                  fontWeight: isCorrect
+                                                      ? FontWeight.w600
+                                                      : FontWeight.normal,
+                                                ),
+                                            decoration: InputDecoration(
+                                              hintText: 'Đáp án $label...',
+                                              hintStyle: TextStyle(
+                                                color: isDark
+                                                    ? Colors.grey[600]
+                                                    : Colors.grey[400],
+                                              ),
+                                              border: InputBorder.none,
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 14,
+                                                  ),
+                                            ),
+                                          ),
+                                        ),
+                                        // Math wrap helper cho từng choice (Task 7c)
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.functions,
+                                            size: 18,
+                                          ),
+                                          color: DesignColors.primary,
+                                          tooltip: r'Bọc bằng $...$',
+                                          onPressed: () => setState(
+                                            () => _wrapMath(
+                                              _choiceControllers[i],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
                                     ),
                                   ),
-                                  // Math wrap helper cho từng choice (Task 7c)
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.functions,
-                                      size: 18,
-                                    ),
-                                    color: DesignColors.primary,
-                                    tooltip: r'Bọc bằng $...$',
-                                    onPressed: () => setState(
-                                      () =>
-                                          _wrapMath(_choiceControllers[i]),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                ],
+                                ),
+                              );
+                            }),
+                          ] else ...[
+                            _buildSectionLabel(
+                              icon: Icons.task_alt_rounded,
+                              label: 'ĐÁP ÁN MẪU',
+                              isDark: isDark,
+                            ),
+                            const SizedBox(height: 8),
+                            // Math toolbar cho expected answer
+                            _buildMathToolbar(
+                              _expectedAnswerCtrl,
+                              isDark: isDark,
+                              compact: true,
+                            ),
+                            const SizedBox(height: 8),
+                            _buildTextField(
+                              controller: _expectedAnswerCtrl,
+                              hintText: 'Nhập đáp án mẫu...',
+                              maxLines: 4,
+                              isDark: isDark,
+                              fillColor: DesignColors.success.withValues(
+                                alpha: 0.05,
+                              ),
+                              borderColor: DesignColors.success.withValues(
+                                alpha: 0.3,
                               ),
                             ),
-                          ),
-                        );
-                      }),
-                    ] else ...[
-                      _buildSectionLabel(
-                        icon: Icons.task_alt_rounded,
-                        label: 'ĐÁP ÁN MẪU',
-                        isDark: isDark,
-                      ),
-                      const SizedBox(height: 8),
-                      // Math toolbar cho expected answer
-                      _buildMathToolbar(
-                        _expectedAnswerCtrl,
-                        isDark: isDark,
-                        compact: true,
-                      ),
-                      const SizedBox(height: 8),
-                      _buildTextField(
-                        controller: _expectedAnswerCtrl,
-                        hintText: 'Nhập đáp án mẫu...',
-                        maxLines: 4,
-                        isDark: isDark,
-                        fillColor: DesignColors.success.withValues(alpha: 0.05),
-                        borderColor: DesignColors.success.withValues(
-                          alpha: 0.3,
-                        ),
-                      ),
-                    ],
+                          ],
 
-                        const SizedBox(height: 4),
-                      ],
-                    ),
-                  ),
-                  // Tab 2: Xem trước (Task 7a)
-                  _buildPreviewTab(isDark),
-                ],
-              ),
-            ),
-
-            // ── Footer buttons ───────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F1923) : Colors.white,
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(DesignRadius.lg * 2),
-                ),
-                border: Border(
-                  top: BorderSide(
-                    color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        foregroundColor: isDark
-                            ? Colors.grey[400]
-                            : Colors.grey[600],
-                        side: BorderSide(
-                          color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            DesignRadius.lg * 1.5,
-                          ),
-                        ),
-                      ),
-                      child: Text(
-                        'Hủy',
-                        style: DesignTypography.bodyMedium.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: _save,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: DesignColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        elevation: 4,
-                        shadowColor: DesignColors.primary.withValues(
-                          alpha: 0.3,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            DesignRadius.lg * 1.5,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.save_rounded, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Lưu thay đổi',
-                            style: DesignTypography.bodyMedium.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
+                          const SizedBox(height: 4),
                         ],
                       ),
                     ),
-                  ),
-                ],
+                    // Tab 2: Xem trước (Task 7a)
+                    _buildPreviewTab(isDark),
+                  ],
+                ),
               ),
-            ),
-          ],
+
+              // ── Footer buttons ───────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF0F1923) : Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(DesignRadius.lg * 2),
+                  ),
+                  border: Border(
+                    top: BorderSide(
+                      color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          foregroundColor: isDark
+                              ? Colors.grey[400]
+                              : Colors.grey[600],
+                          side: BorderSide(
+                            color: isDark
+                                ? Colors.grey[700]!
+                                : Colors.grey[300]!,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              DesignRadius.lg * 1.5,
+                            ),
+                          ),
+                        ),
+                        child: Text(
+                          'Hủy',
+                          style: DesignTypography.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: _save,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: DesignColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          elevation: 4,
+                          shadowColor: DesignColors.primary.withValues(
+                            alpha: 0.3,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              DesignRadius.lg * 1.5,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.save_rounded, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Lưu thay đổi',
+                              style: DesignTypography.bodyMedium.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }

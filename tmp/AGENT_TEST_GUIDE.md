@@ -573,20 +573,21 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 
 ## 9. Checklist hoàn thành
 
-- [ ] TC-01 PASS: Mode 1 tạo N câu, có đủ nội dung
-- [ ] TC-02 PASS: Mode 2 Excel — 5 câu load không gọi AI
-- [ ] TC-03 PASS: Mode 2 Word — AI generate từ text
-- [ ] TC-04 PASS: Mode 3 KT only — `useAsStyleTemplate=false`
-- [ ] TC-05 PASS: Mode 3 styleOnly — `branch=styleOnly`, câu mới
-- [ ] TC-06 PASS: Mode 3 sameForm — `branch=sameForm`, có/không similarity badge
-- [ ] TC-07 PASS: Mode 3 Mixed — context có cả 2 phần
-- [ ] TC-08 PASS: GAP-2 — auto-downgrade Mẫu cũ
-- [ ] TC-09a PASS: GAP-6 — chip enabled với 2 MCQ
-- [ ] TC-09b PASS: GAP-6 — chip disabled với 1 MCQ
-- [ ] TC-10 PASS: auto-downgrade khi không có số liệu
-- [ ] TC-11 PASS: badge dưới card, không che content
-- [ ] TC-12 PASS: regenerate single — chỉ 1 câu thay đổi
-- [ ] TC-13 PASS: save to bank thành công
+- [x] TC-01 PASS: Mode 1 tạo N câu, có đủ nội dung — Session 2026-05-14 verified live (Đạo hàm + Diện tích hình tròn, 10/10 câu LaTeX render đẹp)
+- [x] TC-02 PASS: Mode 2 Excel — 5 câu load không gọi AI _(F-010 fix: dùng xlsxwriter thay openpyxl; F-011: UI overflow 1292px → visual content blocked, functional PASS qua log + action bar)_
+- [ ] TC-03 PASS: Mode 2 Word — AI generate từ text _(thiếu file mẫu)_
+- [ ] TC-04 PASS: Mode 3 KT only — `useAsStyleTemplate=false` _(thiếu file kienthuc.docx)_
+- [ ] TC-05 PASS: Mode 3 styleOnly — `branch=styleOnly`, câu mới _(thiếu file)_
+- [ ] TC-06 PASS: Mode 3 sameForm — `branch=sameForm`, có/không similarity badge _(thiếu file)_
+- [ ] TC-07 PASS: Mode 3 Mixed — context có cả 2 phần _(thiếu file)_
+- [ ] TC-08 PASS: GAP-2 — auto-downgrade Mẫu cũ _(thiếu file)_
+- [ ] TC-09a PASS: GAP-6 — chip enabled với 2 MCQ _(thiếu file)_
+- [ ] TC-09b PASS: GAP-6 — chip disabled với 1 MCQ _(thiếu file)_
+- [ ] TC-10 PASS: auto-downgrade khi không có số liệu _(thiếu file)_
+- [ ] TC-11 PASS: badge dưới card, không che content _(cần Mode 3 + file)_
+- [ ] TC-12 PASS: regenerate single — chỉ 1 câu thay đổi _(BLOCKED: marionette không tap được icon refresh trên card qua coordinates — manual test)_
+- [B] TC-13 BLOCKED: save to bank — code logic verified OK (`_handleSaveToQuestionBank` → confirm dialog → `questionRepo.createQuestion()` cho mỗi câu). Marionette KHÔNG tương tác được với Flutter web AlertDialog overlay → cần manual test
+- [x] S5 (Export Word) PASS — 2026-05-14: file `de_ai_<timestamp>.docx` 2258 bytes, có Câu N + A/B/C/D options + `Đáp án: X` italic. Bug F-009 fixed (enum.toString())
 
 ---
 
@@ -990,6 +991,15 @@ Chạy TC-01 trước để verify API key hoạt động. Nếu TC-01 lỗi, c�
 | 2026-05-09 | **V-002 P0** | 2af9503 | Force toggle dư thừa + auto-downgrade sameForm→styleOnly. **FIXED** in `c0679c4`: bỏ Force, bỏ downgrade, role=Mẫu auto-imply. | RESOLVED |
 | 2026-05-09 | **V-003 P0** | 2af9503 | AI tự gen sai khi thiếu info → tốn token. **FIXED** in `c0679c4`: AiUncertaintyException + prompt rule AN TOÀN + UI snackbar. | RESOLVED |
 | 2026-05-09 | **V-004 P1** | 2af9503 | Tooltip chip chưa rõ. **FIXED** in `c0679c4`: tooltip dài giải thích anti-leak vs clone. | RESOLVED |
+| 2026-05-14 | **F-001 P0** | 3bf5eeb | Flutter web crash `String.fromEnvironment can only be used as a const constructor` ở `ai_service.dart:111`. **FIXED**: đổi `final envFile` → `const envFile`. | RESOLVED |
+| 2026-05-14 | **F-002 P0** | 3bf5eeb | JSON parser `_tryParseJson` throw khi AI gen LaTeX (`\frac`, `\cdot`...) không escape backslash → fallback 10 câu placeholder. **FIXED**: thêm `_sanitizeLatexInJson` regex escape `\\` trước 2+ chữ cái HOẶC char không phải JSON escape hợp lệ. | RESOLVED |
+| 2026-05-14 | **F-002b P0** | 3bf5eeb | Regex v1 bỏ sót `\frac`, `\theta`, `\to`, `\nabla` (LaTeX command bắt đầu bằng `\f` `\t` `\n` `\r` `\b` — JSON valid escapes). Regex v1 whitelist để qua → `jsonDecode` ăn `\f` thành form-feed → render `rac{...}` đỏ literal. **FIXED**: regex v2 `\\(?=[a-zA-Z]{2,}\|[^"\\/bfnrtu])` catch 2+ letters bất kể first char. | RESOLVED |
+| 2026-05-14 | **F-004 P1** | 3bf5eeb | OpenRouter default model `gemma-3-4b-it:free` bị remove (404 "No endpoints found") — mỗi user gen mới đều fail. **FIXED**: đổi default sang `gemma-4-31b-it:free` + thêm `_resolveLiveOpenRouterModel()` fetch live model list khi 404 → pick :free đầu tiên → save vào profile metadata → retry. Lần sau không lỗi. | RESOLVED |
+| 2026-05-14 | **F-005 P1** | 3bf5eeb | Cache `ProfileMetadataService` 5 phút TTL giữ giá trị cũ sau khi save model — user chọn model mới qua Settings → save → gen vẫn dùng model cũ. **FIXED**: thêm `forceRefresh: true` param cho `getAiProvider/getAiModel/getActiveModelFor`, áp dụng vào 4 chỗ gen call (Gemini/Groq/OpenRouter/Ollama). | RESOLVED |
+| 2026-05-14 | **F-006 P1** | 3bf5eeb | `_testQuestionApi` ở `api_key_setup_screen.dart` thiếu `openRouterModel:` param khi gọi `_resolveModel` → nút Test luôn dùng default hardcoded `gemma-3-4b-it:free` → 404. **FIXED**: thêm param + đổi `_resolveModel` signature tất cả model params bắt buộc `required` (chống silent fallback tương lai). | RESOLVED |
+| 2026-05-14 | **F-007 P2** | 3bf5eeb | UX overlay đen full-screen + spinner trắng → màn hình bị khóa, không scroll được trong khi AI gen 5-15s. **FIXED**: bỏ overlay → render inline skeleton (`_buildSkeletonResponseSection`) với N shimmer card + phase text rotate mỗi 3s ("Đang chuẩn bị... → AI đang phân tích... → ...→ Sắp hoàn tất..."). Bonus: bug "Tạo lại không có hiệu ứng load" — fix priority condition `if (_isGenerating) skeleton else if (_generatedQuestions != null) result`. | RESOLVED |
+| 2026-05-14 | **F-008 P0** | 3bf5eeb | Parser fragile với schema variants từ các AI model khác nhau (Gemini / Groq / OpenRouter / DeepSeek-R1 reasoning). **FIXED**: refactor `_tryParseJson` multi-stage repair (preClean strip BOM/ZWSP/`<think>`/markdown fence/smart quotes → 6 attempts raw/LaTeX/trailing comma/auto-close brackets stack-based/combos). Schema discovery với nhiều key fallbacks (question text: text→question→question_text→prompt→body→statement→query→q; choices: choices→options→answers→alternatives; isCorrect: is_correct→isCorrect→correct→correctAnswer; derive từ correct_answer letter "A"/"B"). Wrapper keys: questions→data→results→items→list→output. | RESOLVED |
+| 2026-05-14 | **F-009 P1** | local-pending | Export Word `_handleExportToWord` chỉ xuất đề bài, không có A/B/C/D choices + đáp án. Root cause: sau parser normalize, `q['type']` là **`QuestionType` enum** (vd `QuestionType.multipleChoice`). Code `q['type'].toString().toLowerCase()` → `"questiontype.multiplechoice"` ≠ `"multiple_choice"` → skip `_renderChoices`. **FIXED** in `word_template_generator.dart`: detect enum, extract `.dbValue` ("multiple_choice"); fallback string với `.replaceAll(' ', '_')` cho legacy. Verified: file Word output 2258 bytes (cũ 1632), có đủ 4 choices + "Đáp án: X" italic. | RESOLVED |
 
 ---
 

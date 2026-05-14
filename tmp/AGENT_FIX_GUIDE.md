@@ -436,3 +436,233 @@ Edge case còn tồn đọng (low priority):
 - Multi-line text với real `\n` newline — preserved (single `n` không match Match 1, `n` trong whitelist Match 2).
 
 **END OF ADDENDUM.**
+
+---
+
+# 🔧 ADDENDUM 2 — F-008/F-009 + UX Skeleton + OpenRouter live-resolve (2026-05-14)
+
+## Tổng kết các fix session này
+
+### F-008: Robust JSON parser cho mọi AI model
+
+**Vấn đề**: AI model trả schema/format khác nhau (Gemini vs Groq vs OpenRouter vs DeepSeek-R1 reasoning) → parser fragile, có model fail có model pass.
+
+**Fix** trong `lib/data/repositories/ai_repository_impl.dart`:
+
+1. **`_tryParseJson` multi-stage repair** (thay vì 1-pass):
+   - `_preCleanResponse`: strip BOM/ZWSP/NBSP, `<think>...</think>` blocks, markdown fences (multi-fence — keep longest), smart quotes `" " ' '` → ASCII `" '`.
+   - 6 attempts tăng dần: raw → `_sanitizeLatexInJson` → `_removeTrailingCommas` → combo → `_autoCloseBrackets` (stack-based, đóng đúng thứ tự nesting `}]}]`) → all-in.
+   - Fallback: `_extractJsonSubstring` (first `{`/`[` đến last `}`/`]`) + retry 6 attempts.
+
+2. **Schema discovery mạnh hơn** trong `_mapAiQuestionToStandardFormat`:
+   - Question text: `_extractQuestionText` thử 9 keys (`text`, `question`, `question_text`, `questionText`, `prompt`, `body`, `statement`, `query`, `q`, `content` if string).
+   - Choices: `choices` → `options` → `answers` → `alternatives`.
+   - Choice text: `content.text` → `text` → `label` → `value` → `option` → `content` (string).
+   - Correct flag: `is_correct` → `isCorrect` → `correct` → `correctAnswer`.
+   - **Derive `is_correct` từ top-level**: nếu KHÔNG choice nào có flag → đọc `correct_answer`/`correctAnswer`/`answer_letter`/`answer` (chấp nhận letter "A"/"B"/"C"/"D" hoặc số 0/1/2/3) → set flag cho choice tương ứng.
+
+3. **Wrapper keys mở rộng**: `questions` → `data` → `results` → `items` → `list` → `output`.
+
+4. **Better error reporting**: khi không parse được, log raw 300 chars preview + số skipped non-Map/empty-text.
+
+### F-009: Word Export bỏ choices + đáp án
+
+**Vấn đề** (file `lib/core/utils/word_template_generator.dart`):
+
+Sau parser normalize, `q['type']` là **`QuestionType` enum** (vd `QuestionType.multipleChoice`). Code cũ:
+
+```dart
+final type = (q['type']?.toString() ?? '').toLowerCase();
+// → "questiontype.multiplechoice" ≠ "multiple_choice"
+if (type == 'multiple_choice' ...) { renderChoices() } // FAIL → skip choices
+```
+
+→ File Word output **chỉ có đề bài**, KHÔNG có A/B/C/D + "Đáp án: X".
+
+**Fix**:
+
+```dart
+import 'package:ai_mls/domain/entities/question_type.dart';
+
+final rawType = q['type'];
+final String type;
+if (rawType is QuestionType) {
+  type = rawType.dbValue; // → "multiple_choice"
+} else {
+  type = rawType.toString().toLowerCase().replaceAll(' ', '_');
+}
+```
+
+**Verified live**: file output 2258 bytes (cũ 1632 bytes — chứng tỏ thêm content). Document.xml có:
+- `Câu 1: Tính diện tích...`
+- `A. 3π cm²`, `B. 6π cm²`, `C. 9π cm²`, `D. 12π cm²`
+- `Đáp án: C` (italic)
+- Math `<m:oMath>` render đúng `π`, `r`, số.
+
+### F-007: UX Skeleton + skeleton priority
+
+**Vấn đề ban đầu**: Overlay đen full-screen `Positioned.fill` (line 2127-2163 cũ) che màn không scroll được trong khi AI gen 5-15s.
+
+**Fix bước 1**: Bỏ overlay → thêm inline skeleton `_buildSkeletonResponseSection`:
+- Header card: spinner + phase text rotate (AnimatedSwitcher fade) + badge "N câu"
+- N shimmer placeholder cards với layout giống question card (header line + 2 dòng question + 4 lines option có radio bullet)
+- Timer rotate phase mỗi 3s: "Đang chuẩn bị... → AI đang phân tích... → Đang sinh câu hỏi... → Đang kiểm tra... → Sắp hoàn tất..."
+- `_batchProgress` (vd "Đang tạo lô 2/3...") override phase text nếu có
+
+**Vấn đề bước 2** (user phát hiện): bấm "Tạo lại" không có skeleton — vẫn show data cũ rồi "đơ".
+
+**Root cause**: condition order:
+```dart
+if (_generatedQuestions != null) result_section
+else if (_isGenerating) skeleton  // ← never hit khi đã có data cũ
+```
+
+**Fix bước 2**: đảo priority — skeleton ưu tiên hơn data cũ:
+```dart
+if (_isGenerating) skeleton  // ẩn data cũ ngay khi gen mới
+else if (_generatedQuestions != null) result_section
+```
+
+### F-004: OpenRouter live-resolve khi 404
+
+**Vấn đề**: OpenRouter remove model `:free` định kỳ. Saved model trong profile metadata bị stuck.
+
+**Fix** trong `lib/core/services/ai_service.dart`:
+
+```dart
+// callOpenRouterChat: validateStatus < 500 để bắt 404
+if (response.statusCode == 404) {
+  final resolved = await _resolveLiveOpenRouterModel(exclude: usedModel);
+  if (resolved != null) {
+    usedModel = resolved;
+    await ProfileMetadataService.setAiConfig(provider, model: resolved);
+    response = await retry();
+  }
+}
+```
+
+Helper `_resolveLiveOpenRouterModel`: fetch live list từ OpenRouter API (`ApiKeyService.fetchOpenRouterModels`), pick `:free` đầu tiên khác model đang gãy, save lại vào metadata.
+
+→ User CHƯA cần làm gì. Lần gen sau, nếu model bị remove: 404 → fetch live → resolve → save → retry → success. Lần thứ 2 trở đi không bị 404 nữa.
+
+### F-005: Force refresh metadata cache
+
+**Vấn đề**: `ProfileMetadataService` cache 5 phút TTL → user save model mới qua Settings → gen vẫn dùng model cũ.
+
+**Fix**: thêm `forceRefresh` param, áp dụng `forceRefresh: true` trong 4 chỗ gen call (Gemini/Groq/OpenRouter/Ollama) — cost +50ms/gen nhưng đảm bảo luôn fresh.
+
+### F-006: Nút Test luôn dùng default const
+
+**Vấn đề**: `_testQuestionApi` (`api_key_setup_screen.dart`) thiếu `openRouterModel:` param khi gọi `_resolveModel` → `_resolveModel` default value silent fallback về `ApiKeyService.defaultOpenRouterModel` → nút Test cho OpenRouter luôn test với default const bất kể user pick model gì.
+
+**Fix**: thêm `openRouterModel: _selectedOpenRouterModel` + đổi `_resolveModel` signature: tất cả model params bắt buộc `required` (xóa default value) → defensive coding chống lỗi tương tự tái diễn khi thêm provider mới.
+
+### Backend prompt strict (ai_service.dart)
+
+Thêm section "JSON HỢP LỆ — BẮT BUỘC" trong `getGenerateQuestionsPrompt`:
+- Output PHẢI bắt đầu `[` kết thúc `]`, KHÔNG markdown fence
+- KHÔNG smart quotes
+- KHÔNG trailing comma `,]` `,}`
+- LaTeX escape `\\\\frac` (double backslash trong JSON)
+- KHÔNG truncate giữa chừng — giảm số câu nếu hết token
+
+→ Cải thiện compliance cho model yếu (gemma-4 free, llama small) nhưng parser tolerant đã handle nếu vẫn fail.
+
+## Test status sau session
+
+| Test | Status | Note |
+|------|--------|------|
+| TC-01 Mode 1 prompt | ✅ PASS | 10/10 câu LaTeX render đẹp (Đạo hàm, Diện tích hình tròn) |
+| TC-02 → TC-11 | ⏸️ skip | Thiếu file mẫu mau_excel_mcq.xlsx, mau_word_mcq.docx, kienthuc.docx |
+| TC-12 regenerate single | ⏸️ blocked | Marionette không tap được icon refresh trên card |
+| TC-13 save bank | ⏸️ blocked | Marionette không tương tác được Flutter web AlertDialog overlay — manual test |
+| S5 Export Word | ✅ PASS | File 2258 bytes, có Câu + A/B/C/D + Đáp án italic |
+| Skeleton lần đầu | ✅ PASS | Shimmer + phase text rotate |
+| Skeleton "Tạo lại" | ✅ PASS | Sau fix priority condition, data cũ ẩn → skeleton hiện |
+
+## Limitations marionette discovered
+
+1. **AlertDialog Flutter web**: overlay không expose qua VM service widget tree → tap coordinates không trigger button. Manual test needed.
+2. **Scroll_to text fail** với 1 số patterns (`KẾT QUẢ AI`, `Câu N`, math text) — marionette throws "Server error". Fallback: scroll bằng coordinates hoặc scroll element interactive.
+3. **Reasoning model logs `<think>` block** rất dài (~5000 chars) → tail log thường bị skip. Workaround: dump full log file rồi grep.
+
+**END OF ADDENDUM 2.**
+
+---
+
+## ADDENDUM 3 — Sample Files + Excel parser compat + RenderFlex overflow (2026-05-14, Phase TC-02)
+
+### F-010 — Excel parser "Unexpected null value" cho file openpyxl
+
+**Severity:** P1 — Block test với sample files do agent generate
+
+**Root cause:** Dart `excel` v4.0.6 package không đọc được file `.xlsx` do `openpyxl` (Python) tạo ra. Log app:
+```
+[LocalTempFile] Extraction failed for mau_excel_*.xlsx: Unexpected null value.
+```
+
+`openpyxl` ghi xlsx ở định dạng thiếu trường mà `excel`v4 expect (có thể là `<sheetFormatPr>` defaults hoặc inline strings).
+
+**Fix:** Đổi sang `xlsxwriter` — output xlsx chuẩn hơn, `excel` v4.0.6 parse OK.
+
+**Verify:**
+```bash
+cd tmp
+python -c "import xlsxwriter; ..."  # See _gen_samples.py
+python _gen_samples.py
+```
+
+App log sau fix:
+```
+[LocalTempFile] Template parsed: 1 câu hỏi + 179 chars text từ mau_excel_1mcq.xlsx
+[LocalTempFile] Template parsed: 2 câu hỏi + 274 chars text từ mau_excel_2mcq.xlsx
+[LocalTempFile] Template parsed: 5 câu hỏi + 594 chars text từ mau_excel_mcq.xlsx
+[LocalTempFile] Template parsed: 5 câu hỏi + 575 chars text từ mau_excel_nonum.xlsx
+```
+
+**File**: `tmp/_gen_samples.py` — đã commit dùng xlsxwriter.
+
+---
+
+### F-011 — RenderFlex overflow 1292px khi result + 6 files
+
+**Severity:** P2 — UI bug, không block functional
+
+**Trigger:** Mode 2 (Trích xuất) với 1 file selected + 5 file khác trong list → kết quả render xong, action bar hiện (Tạo lại / Lưu vào Bank / Xác nhận) **NHƯNG** questions không thấy do `RenderFlex#896f3 OVERFLOWING by 1292px`.
+
+**Console error:**
+```
+══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞════════
+The following assertion was thrown during layout:
+A RenderFlex overflowed by 1292 pixels on the bottom.
+The overflowing RenderFlex has an orientation of Axis.vertical.
+```
+
+**Suggested fix:** Wrap kết quả + file list trong `Expanded` hoặc `Flexible` thay vì để `Column` tự stretch. Hoặc dùng `ListView.builder` cho cả 2 sections.
+
+**File:** `lib/presentation/views/assignment/teacher/teacher_ai_generate_question_screen.dart` — tab "Trích xuất" layout.
+
+---
+
+### TC-02 Test Status
+
+**FUNCTIONAL PASS** với caveat:
+- ✅ `processingMode=extraction` (đúng)
+- ✅ KHÔNG có `🤖 [AI Service] Calling Gemini` (đúng — Mode 2 không gọi AI)
+- ✅ Action bar Tạo lại/Xác nhận/Lưu vào Bank xuất hiện → kết quả đã có trong state
+- ⚠️ Visual question content **KHÔNG verify được** qua marionette do F-011 overflow
+
+### Sample Files (đã generate)
+
+| File | Size | Nội dung |
+|---|---|---|
+| `mau_excel_mcq.xlsx` | 5.7 KB | 5 câu MCQ mixed (vận tốc, tam giác, lực…) |
+| `mau_excel_2mcq.xlsx` | 5.4 KB | 2 câu MCQ |
+| `mau_excel_1mcq.xlsx` | 5.3 KB | 1 câu MCQ |
+| `mau_excel_nonum.xlsx` | 5.8 KB | 5 câu MCQ KHÔNG có số liệu |
+| `mau_word_mcq.docx` | 35.8 KB | 5 câu MCQ "Câu N:" + marker `[ TRẮC NGHIỆM — Toán học ]` |
+| `kienthuc.docx` | 36.5 KB | Bài giảng "Quang hợp ở thực vật", 5 mục, ~600 từ |
+
+Generator: `tmp/_gen_samples.py` (Python + xlsxwriter + python-docx).
+
+**END OF ADDENDUM 3.**

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:ai_mls/core/utils/excel_template_generator.dart';
 import 'package:ai_mls/core/utils/latex_to_omml.dart';
+import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:archive/archive.dart';
 
 enum WordDocType {
@@ -134,7 +135,15 @@ class WordTemplateGenerator {
     required bool includeAnswerKey,
   }) {
     final buf = StringBuffer();
-    final type = (q['type']?.toString() ?? '').toLowerCase();
+    // Type có thể là QuestionType enum (sau parser normalize) HOẶC string
+    // (legacy/raw AI response). Convert cả 2 case về dbValue string.
+    final rawType = q['type'];
+    final String type;
+    if (rawType is QuestionType) {
+      type = rawType.dbValue;
+    } else {
+      type = (rawType?.toString() ?? '').toLowerCase().replaceAll(' ', '_');
+    }
     final text = _extractQuestionText(q);
 
     // Question text với "Câu N: " prefix.
