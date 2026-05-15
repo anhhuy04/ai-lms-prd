@@ -1940,6 +1940,18 @@ class AssignmentDataSource {
             }
           }
 
+          // Cấp 4: fill_blank — extract `blanks` từ customContent
+          // Schema: customContent.blanks = [{id, correct_values: [...], case_sensitive}]
+          if (questionType == 'fill_blank' && customContent != null) {
+            final blanks = customContent['blanks'] as List<dynamic>?;
+            if (blanks != null && blanks.isNotEmpty) {
+              correctAnswer = {
+                ...?correctAnswer,
+                'blanks': blanks,
+              };
+            }
+          }
+
           questionInfoMap[aqId] = {
             'type': questionType,
             'points': points,
@@ -1950,7 +1962,14 @@ class AssignmentDataSource {
     }
 
     // Classify assignment type from ALL questions (not just answered ones)
-    const essayTypes = {'essay', 'short_answer', 'fill_blank', 'problem_solving'};
+    // 'math' chấm như problem_solving (upload ảnh + AI/GV review)
+    const essayTypes = {
+      'essay',
+      'short_answer',
+      'fill_blank',
+      'math',
+      'problem_solving',
+    };
     const mcqTypes = {'multiple_choice', 'true_false', 'matching'};
 
     bool hasEssay = false;
@@ -1986,6 +2005,7 @@ class AssignmentDataSource {
         'short_answer',
         'fill_blank',
         'matching',
+        'math',
         'problem_solving',
       ].contains(questionType)) {
         AppLogger.warning(
@@ -1993,15 +2013,19 @@ class AssignmentDataSource {
         );
       }
 
-      // Auto-grade for objective questions
-      // fill_blank also needs AI grading (keyword matching)
+      // Auto-grade for objective questions.
+      // fill_blank: auto-grade qua correct_values (trim + case_sensitive flag).
+      // Không cần AI vì là exact match có whitelist nhiều biến thể correct_values.
       double? finalScore;
       bool needsAIGrading =
           questionType == 'essay' ||
           questionType == 'short_answer' ||
-          questionType == 'fill_blank';
+          questionType == 'math' ||
+          questionType == 'problem_solving';
       if (studentAnswer != null &&
-          (questionType == 'multiple_choice' || questionType == 'true_false')) {
+          (questionType == 'multiple_choice' ||
+              questionType == 'true_false' ||
+              questionType == 'fill_blank')) {
         // Validation: Kiểm tra answer format
         // Tử Huyệt 5: đọc format mới (selected_choice_ids) trước, fallback cũ (selected_choices)
         final selectedChoices =
@@ -2412,6 +2436,59 @@ class AssignmentDataSource {
         final isCorrect = selectedChoices.first == correctChoices.first;
 
         return isCorrect ? maxPoints : 0;
+      }
+
+      // Fill_blank: chấm từng ô qua correct_values, ăn điểm pro-rata.
+      // Student answer format: {<qId>_blank_<index>: "value", ...}
+      // Correct answer format: {blanks: [{id, correct_values: [...], case_sensitive}]}
+      if (questionType == 'fill_blank') {
+        final blanks = correctAnswer['blanks'] as List<dynamic>?;
+        if (blanks == null || blanks.isEmpty) {
+          AppLogger.warning('⚠️ [GRADING] FillBlank: No blanks data');
+          return null;
+        }
+
+        int correctCount = 0;
+        for (var i = 0; i < blanks.length; i++) {
+          final blank = blanks[i] as Map<String, dynamic>;
+          final correctValues =
+              (blank['correct_values'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              const <String>[];
+          final caseSensitive = blank['case_sensitive'] == true;
+
+          // Match student answer bằng index hoặc bất kỳ key nào kết thúc bằng _blank_$i
+          String? studentValue;
+          final exactKey = studentAnswer.keys.firstWhere(
+            (k) => k.endsWith('_blank_$i'),
+            orElse: () => '',
+          );
+          if (exactKey.isNotEmpty) {
+            studentValue = studentAnswer[exactKey]?.toString();
+          }
+
+          if (studentValue == null) continue;
+
+          // Trim leading/trailing whitespace (ô trống = 0 điểm)
+          final normalizedStudent = studentValue.trim();
+          if (normalizedStudent.isEmpty) continue;
+
+          // So sánh với từng correct_value, áp dụng trim + case_sensitive
+          final isMatch = correctValues.any((cv) {
+            final normalizedCv = cv.trim();
+            if (caseSensitive) {
+              return normalizedStudent == normalizedCv;
+            }
+            return normalizedStudent.toLowerCase() ==
+                normalizedCv.toLowerCase();
+          });
+
+          if (isMatch) correctCount++;
+        }
+
+        if (blanks.isEmpty) return 0;
+        return maxPoints * (correctCount / blanks.length);
       }
     } catch (e) {
       // Log error but don't fail the submission
