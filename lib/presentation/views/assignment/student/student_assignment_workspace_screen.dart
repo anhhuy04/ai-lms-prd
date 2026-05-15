@@ -850,12 +850,10 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   Widget _buildFillInBlank(QuestionState question, dynamic answer) {
-    // For fill in blank, answer can be a map with blank indices
     final answersMap = answer is Map
         ? answer as Map<String, dynamic>
         : <String, dynamic>{};
 
-    // Ưu tiên question.blanks (đúng schema), fallback choices (legacy)
     final blankCount =
         question.blanks?.length ?? question.choices.length;
     if (blankCount == 0) {
@@ -871,6 +869,49 @@ class _StudentAssignmentWorkspaceScreenState
       );
     }
 
+    // Inline render: tách override_text bằng regex [___N], chèn TextField
+    // tại đúng vị trí. Sanitize trường hợp AI gen [___N] BÊN TRONG $...$
+    // (legacy bad data) bằng cách đóng $ trước [___N] và mở lại $ sau.
+    final rawText = question.content;
+    final sanitized = _sanitizeFillBlankText(rawText);
+    final regex = RegExp(r'\[___(\d+)\]');
+    final matches = regex.allMatches(sanitized).toList();
+
+    if (matches.isNotEmpty) {
+      final widgets = <Widget>[];
+      int cursor = 0;
+      for (final m in matches) {
+        if (m.start > cursor) {
+          final chunk = sanitized.substring(cursor, m.start);
+          if (chunk.trim().isNotEmpty) {
+            widgets.add(_inlineMathChunk(chunk));
+          } else if (chunk.contains(' ')) {
+            widgets.add(const SizedBox(width: 4));
+          }
+        }
+        final blankIdx = int.parse(m.group(1)!) - 1;
+        widgets.add(_inlineBlankField(question, blankIdx, answersMap));
+        cursor = m.end;
+      }
+      if (cursor < sanitized.length) {
+        final tail = sanitized.substring(cursor);
+        if (tail.trim().isNotEmpty) {
+          widgets.add(_inlineMathChunk(tail));
+        }
+      }
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: DesignSpacing.md),
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 6,
+          runSpacing: 10,
+          children: widgets,
+        ),
+      );
+    }
+
+    // Fallback: không tìm thấy [___N] trong text → render input field list
     return Column(
       children: List.generate(blankCount, (index) {
         final blankId = '${question.id}_blank_$index';
@@ -967,6 +1008,97 @@ class _StudentAssignmentWorkspaceScreenState
   /// Short Answer - tương tự essay nhưng ngắn gọn hơn
   Widget _buildShortAnswer(QuestionState question, dynamic answer) {
     return _buildEssay(question, answer);
+  }
+
+  /// Sanitize override_text fill_blank: nếu AI gen sai bằng cách đặt
+  /// `[___N]` BÊN TRONG `$...$` (vd `$x = [___1]$`), tách thành 2 chunk
+  /// LaTeX riêng kẹp blank ở giữa (`$x = $ [___1] $$`).
+  String _sanitizeFillBlankText(String text) {
+    // Pattern: $ ... [___N] ... $ (cùng 1 cặp $)
+    final pattern = RegExp(r'\$([^$]*?)\[___(\d+)\]([^$]*?)\$');
+    return text.replaceAllMapped(pattern, (m) {
+      final before = (m.group(1) ?? '').trim();
+      final n = m.group(2);
+      final after = (m.group(3) ?? '').trim();
+      final left = before.isEmpty ? '' : '\$$before\$';
+      final right = after.isEmpty ? '' : '\$$after\$';
+      return [left, '[___$n]', right]
+          .where((s) => s.isNotEmpty)
+          .join(' ');
+    });
+  }
+
+  /// Render 1 chunk text (có thể chứa LaTeX `$...$`) qua MathText.
+  Widget _inlineMathChunk(String text) {
+    return MathText(
+      text,
+      style: DesignTypography.bodyMedium.copyWith(
+        height: 1.5,
+        color: DesignColors.textPrimary,
+      ),
+    );
+  }
+
+  /// TextField inline cho 1 blank ở vị trí blankIdx (0-based).
+  Widget _inlineBlankField(
+    QuestionState question,
+    int blankIdx,
+    Map<String, dynamic> answersMap,
+  ) {
+    final blankId = '${question.id}_blank_$blankIdx';
+    final initialValue = answersMap[blankId] as String? ?? '';
+    final controller = _fillInBlankControllers.putIfAbsent(
+      blankId,
+      () => TextEditingController(text: initialValue),
+    );
+    if (controller.text.isEmpty && initialValue.isNotEmpty) {
+      controller.value = TextEditingValue(
+        text: initialValue,
+        selection: TextSelection.collapsed(offset: initialValue.length),
+      );
+    }
+
+    return IntrinsicWidth(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 80, maxWidth: 200),
+        child: TextField(
+          controller: controller,
+          readOnly: widget.isReadOnly,
+          textAlign: TextAlign.center,
+          style: DesignTypography.bodyMedium.copyWith(
+            color: DesignColors.primary,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: '____',
+            hintStyle: TextStyle(color: Colors.grey[400]),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 6,
+            ),
+            border: UnderlineInputBorder(
+              borderSide: BorderSide(color: DesignColors.primary, width: 1.5),
+            ),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey[400]!, width: 1),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: DesignColors.primary, width: 2),
+            ),
+          ),
+          onChanged: (value) {
+            final newAnswers = Map<String, dynamic>.from(answersMap);
+            newAnswers[blankId] = value;
+            ref
+                .read(
+                  workspaceNotifierProvider(widget.distributionId).notifier,
+                )
+                .updateAnswer(question.id, newAnswers);
+          },
+        ),
+      ),
+    );
   }
 
   /// Matching - dropdown chọn cặp tương ứng cho mỗi mục bên trái.

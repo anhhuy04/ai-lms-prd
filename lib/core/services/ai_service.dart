@@ -391,7 +391,7 @@ RÀNG BUỘC FORMAT:
 - multiple_choice: override_text + 4 choices (id 0,1,2,3), đúng 1 cái isCorrect=true, 3 cái isCorrect=false.
 - true_false: override_text + 2 choices: {"id":0,"text":"Đúng","isCorrect":true/false} và {"id":1,"text":"Sai","isCorrect":false/true}.
 - essay/short_answer: override_text (nội dung câu hỏi) + expected_answer (chuỗi văn bản đáp án mẫu).
-- fill_blank: override_text dùng [___1], [___2]... để đánh dấu chỗ trống. blanks liệt kê đáp án đúng với id khớp.
+- fill_blank: override_text dùng [___1], [___2]... để đánh dấu chỗ trống. blanks liệt kê đáp án đúng với id khớp. **TUYỆT ĐỐI KHÔNG đặt [___N] BÊN TRONG \$...\$** — phải ĐÓNG \$ trước [___N] và mở lại \$ sau. Ví dụ ĐÚNG: "Giá trị của \$x\$ là [___1]." — Ví dụ SAI: "\$x = [___1]\$".
 - tags: 1-3 từ khóa liên quan topic.
 - KHÔNG tạo field "explanation" — giáo viên sẽ tự tạo gợi ý riêng cho từng câu.
 
@@ -533,7 +533,7 @@ RÀNG BUỘC FORMAT:
 - multiple_choice: override_text + 4 choices (id 0,1,2,3), đúng 1 isCorrect=true.
 - true_false: override_text + 2 choices id 0/1 với text "Đúng"/"Sai".
 - essay/short_answer: override_text + expected_answer.
-- fill_blank: override_text dùng [___1], [___2]…; blanks liệt kê đáp án.
+- fill_blank: override_text dùng [___1], [___2]…; blanks liệt kê đáp án. KHÔNG đặt [___N] trong \$...\$ — phải ngoài LaTeX.
 - tags: 1-3 từ khóa chủ đề.
 - KHÔNG tạo field "explanation".
 
