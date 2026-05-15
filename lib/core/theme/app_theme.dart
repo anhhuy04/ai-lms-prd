@@ -1,6 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 // App theme and shared color palette (moon + blue-green)
 class AppColors {
@@ -50,11 +49,14 @@ final ThemeData appTheme = ThemeData(
     },
   ),
   textTheme: TextTheme(
+    // KHÔNG dùng `.sp` ở theme global — screenutil designSize=375 nhân
+    // scale 4.5× trên desktop/web (1700px wide) gây font khổng lồ. Dùng
+    // raw double (px) để fontSize giữ chuẩn 14/18 px trên mọi platform.
     titleLarge: DesignTypography.titleLarge.copyWith(
-      fontSize: DesignTypography.titleLargeSize.sp,
+      fontSize: DesignTypography.titleLargeSize,
     ),
     bodyMedium: DesignTypography.bodyMedium.copyWith(
-      fontSize: DesignTypography.bodyMediumSize.sp,
+      fontSize: DesignTypography.bodyMediumSize,
     ),
   ),
   switchTheme: SwitchThemeData(

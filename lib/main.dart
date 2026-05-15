@@ -303,13 +303,25 @@ class MyApp extends ConsumerWidget {
                 theme: AppTheme.lightTheme,
                 routerConfig: router,
                 builder: (context, child) {
-                  return GestureDetector(
-                    onTap: () {
-                      // Đảm bảo keyboard ẩn khi tap bất kỳ đâu
-                      FocusScope.of(context).unfocus();
-                    },
-                    behavior: HitTestBehavior.opaque,
-                    child: child,
+                  // Cap textScaler [0.85, 1.15] để chặn font scale quá lớn
+                  // trên web/desktop (ScreenUtil designSize=375 → .sp scale
+                  // tới ~4.5× trên màn 1700px gây UI overflow nghiêm trọng).
+                  final mq = MediaQuery.of(context);
+                  return MediaQuery(
+                    data: mq.copyWith(
+                      textScaler: mq.textScaler.clamp(
+                        minScaleFactor: 0.85,
+                        maxScaleFactor: 1.15,
+                      ),
+                    ),
+                    child: GestureDetector(
+                      onTap: () {
+                        // Đảm bảo keyboard ẩn khi tap bất kỳ đâu
+                        FocusScope.of(context).unfocus();
+                      },
+                      behavior: HitTestBehavior.opaque,
+                      child: child,
+                    ),
                   );
                 },
               ),

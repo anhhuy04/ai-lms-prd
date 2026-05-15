@@ -350,71 +350,50 @@ class _TeacherAiGenerateQuestionScreenState
         ),
       ),
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 8,
-              ),
-              child: Text(
-                'Chọn định dạng tải về',
-                style: DesignTypography.titleMedium.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: Container(
+        child: MediaQuery(
+          // Reset textScaler về 1.0 — bottom sheet content có font size chuẩn,
+          // không bị scale theo Accessibility setting toàn app.
+          data: MediaQuery.of(ctx).copyWith(textScaler: TextScaler.noScaling),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
                 width: 40,
-                height: 40,
+                height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(DesignRadius.md),
-                ),
-                child: const Icon(
-                  Icons.description_rounded,
-                  color: Colors.blue,
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              title: const Text('Word (.docx)'),
-              subtitle: const Text(
-                'In ấn đề kiểm tra với LaTeX render đẹp',
-              ),
-              onTap: () => Navigator.pop(ctx, 'word'),
-            ),
-            ListTile(
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(DesignRadius.md),
-                ),
-                child: const Icon(
-                  Icons.table_chart_rounded,
-                  color: Colors.green,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                child: Text(
+                  'Chọn định dạng tải về',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-              title: const Text('Excel (.xlsx)'),
-              subtitle: const Text(
-                'Bảng dữ liệu — STT, loại, nội dung, đáp án, tags',
+              const Divider(height: 1),
+              _ExportSheetTile(
+                icon: Icons.description_rounded,
+                color: Colors.blue,
+                title: 'Word (.docx)',
+                subtitle: 'In ấn đề với LaTeX render đẹp',
+                onTap: () => Navigator.pop(ctx, 'word'),
               ),
-              onTap: () => Navigator.pop(ctx, 'excel'),
-            ),
-            const SizedBox(height: 8),
-          ],
+              _ExportSheetTile(
+                icon: Icons.table_chart_rounded,
+                color: Colors.green,
+                title: 'Excel (.xlsx)',
+                subtitle: 'Bảng dữ liệu — STT, loại, nội dung, đáp án',
+                onTap: () => Navigator.pop(ctx, 'excel'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -4977,6 +4956,74 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(DesignRadius.lg * 1.2),
           borderSide: BorderSide(color: DesignColors.primary, width: 2),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tile cho bottom sheet "Tải xuống" — font size explicit để KHÔNG bị
+/// theme typography hoặc textScaler ảnh hưởng (đã thấy ListTile inherit
+/// font lớn gây overflow trên web).
+class _ExportSheetTile extends StatelessWidget {
+  const _ExportSheetTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
