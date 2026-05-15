@@ -7,6 +7,7 @@ import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/services/ai_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/file_exporter.dart';
+import 'package:ai_mls/core/utils/excel_template_generator.dart';
 import 'package:ai_mls/core/utils/word_template_generator.dart';
 import 'package:ai_mls/data/models/local_temp_file.dart' show FileRole;
 import 'package:ai_mls/domain/entities/create_question_params.dart';
@@ -328,6 +329,151 @@ class _TeacherAiGenerateQuestionScreenState
 
   /// Xuất danh sách câu hỏi đã generate ra file Word .docx.
   /// LaTeX inline (`$...$`) được convert sang OMML để Word render đúng phân số/mũ/căn.
+  /// Hiển thị bottom sheet chọn định dạng tải về (Word/Excel).
+  Future<void> _showExportSheet() async {
+    final questions = _generatedQuestions;
+    if (questions == null || questions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chưa có câu hỏi để xuất. Hãy tạo trước.'),
+          backgroundColor: DesignColors.warning,
+        ),
+      );
+      return;
+    }
+
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(DesignRadius.lg * 1.5),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 8,
+              ),
+              child: Text(
+                'Chọn định dạng tải về',
+                style: DesignTypography.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(DesignRadius.md),
+                ),
+                child: const Icon(
+                  Icons.description_rounded,
+                  color: Colors.blue,
+                ),
+              ),
+              title: const Text('Word (.docx)'),
+              subtitle: const Text(
+                'In ấn đề kiểm tra với LaTeX render đẹp',
+              ),
+              onTap: () => Navigator.pop(ctx, 'word'),
+            ),
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(DesignRadius.md),
+                ),
+                child: const Icon(
+                  Icons.table_chart_rounded,
+                  color: Colors.green,
+                ),
+              ),
+              title: const Text('Excel (.xlsx)'),
+              subtitle: const Text(
+                'Bảng dữ liệu — STT, loại, nội dung, đáp án, tags',
+              ),
+              onTap: () => Navigator.pop(ctx, 'excel'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || choice == null) return;
+    if (choice == 'word') {
+      await _handleExportToWord();
+    } else if (choice == 'excel') {
+      await _handleExportToExcel();
+    }
+  }
+
+  Future<void> _handleExportToExcel() async {
+    final questions = _generatedQuestions;
+    if (questions == null || questions.isEmpty) return;
+
+    try {
+      AppLogger.info('[ExportExcel] Bắt đầu xuất ${questions.length} câu');
+      final topic = _topicController.text.trim();
+      final title = topic.isNotEmpty ? topic : 'Đề kiểm tra AI';
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'de_ai_$timestamp.xlsx';
+
+      final bytes = ExcelTemplateGenerator.exportQuestions(
+        questions,
+        title: title,
+      );
+      if (bytes == null) {
+        throw Exception('Không tạo được file Excel');
+      }
+
+      final saved = await exportFile(Uint8List.fromList(bytes), fileName);
+      if (!mounted) return;
+
+      if (saved) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã xuất $fileName (${questions.length} câu)'),
+            backgroundColor: DesignColors.success,
+          ),
+        );
+        AppLogger.info(
+          '[ExportExcel] Saved: $fileName, ${bytes.length} bytes',
+        );
+      } else {
+        AppLogger.info('[ExportExcel] User canceled save dialog');
+      }
+    } catch (e, st) {
+      AppLogger.error('[ExportExcel] Failed: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi xuất Excel: $e'),
+          backgroundColor: DesignColors.error,
+        ),
+      );
+    }
+  }
+
   Future<void> _handleExportToWord() async {
     final questions = _generatedQuestions;
     if (questions == null || questions.isEmpty) {
@@ -1887,12 +2033,12 @@ class _TeacherAiGenerateQuestionScreenState
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  // Xuất ra Word — icon-only
+                                  // Tải xuống — icon-only, mở bottom sheet chọn Word/Excel
                                   Tooltip(
                                     message:
-                                        'Xuất danh sách câu hỏi ra file Word .docx',
+                                        'Tải xuống danh sách câu hỏi (Word hoặc Excel)',
                                     child: Semantics(
-                                      label: 'Xuất ra Word',
+                                      label: 'Tải xuống',
                                       button: true,
                                       child: SizedBox(
                                         width: 38,
@@ -1908,7 +2054,7 @@ class _TeacherAiGenerateQuestionScreenState
                                                   _isSavingToBank ||
                                                   _isGenerating)
                                               ? null
-                                              : _handleExportToWord,
+                                              : _showExportSheet,
                                           style: OutlinedButton.styleFrom(
                                             padding: EdgeInsets.zero,
                                             foregroundColor:

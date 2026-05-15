@@ -426,4 +426,181 @@ class ExcelTemplateGenerator {
     cell.value = TextCellValue(value);
     if (style != null) cell.cellStyle = style;
   }
+
+  /// Xuất các câu hỏi đã có sẵn ra Excel (đối lập với `generate` — gen template
+  /// rỗng cho AI fill). Mỗi câu 1 dòng, columns: STT | Loại | Nội dung | Đáp án
+  /// | Tags. Tự luận / fill_blank / math gộp đáp án xuống cùng cell.
+  static List<int>? exportQuestions(
+    List<Map<String, dynamic>> questions, {
+    String title = 'Đề kiểm tra',
+  }) {
+    final excel = Excel.createExcel();
+    final sheet = excel['Đề kiểm tra'];
+
+    final titleStyle = CellStyle(
+      bold: true,
+      fontSize: 14,
+      backgroundColorHex: _headerBg,
+      fontColorHex: _headerFg,
+    );
+    final headerStyle = CellStyle(
+      bold: true,
+      backgroundColorHex: _sectionBg,
+    );
+
+    _writeCell(sheet, 'A1', 'ĐỀ KIỂM TRA — $title', style: titleStyle);
+    sheet.merge(
+      CellIndex.indexByString('A1'),
+      CellIndex.indexByString('E1'),
+    );
+
+    const headers = ['STT', 'Loại', 'Nội dung câu hỏi', 'Đáp án', 'Tags'];
+    for (var i = 0; i < headers.length; i++) {
+      final col = String.fromCharCode(65 + i);
+      _writeCell(sheet, '${col}3', headers[i], style: headerStyle);
+    }
+
+    for (var i = 0; i < questions.length; i++) {
+      final q = questions[i];
+      final row = i + 4;
+      final type = _extractType(q);
+      final text = _extractText(q);
+      final answer = _extractAnswer(q, type);
+      final tags = (q['tags'] as List?)?.join(', ') ?? '';
+
+      _writeCell(sheet, 'A$row', '${i + 1}');
+      _writeCell(sheet, 'B$row', _typeLabel(type));
+      _writeCell(sheet, 'C$row', text);
+      _writeCell(sheet, 'D$row', answer);
+      _writeCell(sheet, 'E$row', tags);
+    }
+
+    // Set column widths
+    sheet.setColumnWidth(0, 6); // STT
+    sheet.setColumnWidth(1, 14); // Loại
+    sheet.setColumnWidth(2, 60); // Nội dung
+    sheet.setColumnWidth(3, 40); // Đáp án
+    sheet.setColumnWidth(4, 25); // Tags
+
+    excel.delete('Sheet1');
+    return excel.save();
+  }
+
+  static String _extractType(Map<String, dynamic> q) {
+    final raw = q['type'];
+    if (raw == null) return 'multiple_choice';
+    final s = raw.toString().toLowerCase().replaceAll(' ', '_');
+    // QuestionType.multipleChoice → 'questiontype.multiplechoice' nếu enum
+    if (s.contains('multiplechoice') || s.contains('multiple_choice')) {
+      return 'multiple_choice';
+    }
+    if (s.contains('truefalse') || s.contains('true_false')) return 'true_false';
+    if (s.contains('shortanswer') || s.contains('short_answer')) {
+      return 'short_answer';
+    }
+    if (s.contains('fillblank') || s.contains('fill_blank')) return 'fill_blank';
+    if (s.contains('essay')) return 'essay';
+    if (s.contains('math')) return 'math';
+    if (s.contains('matching')) return 'matching';
+    if (s.contains('problemsolving') || s.contains('problem_solving')) {
+      return 'problem_solving';
+    }
+    return 'multiple_choice';
+  }
+
+  static String _typeLabel(String type) {
+    switch (type) {
+      case 'multiple_choice':
+        return 'Trắc nghiệm';
+      case 'true_false':
+        return 'Đúng/Sai';
+      case 'short_answer':
+        return 'Trả lời ngắn';
+      case 'essay':
+        return 'Tự luận';
+      case 'fill_blank':
+        return 'Điền khuyết';
+      case 'matching':
+        return 'Nối khớp';
+      case 'math':
+        return 'Bài toán';
+      case 'problem_solving':
+        return 'Giải bài';
+      default:
+        return type;
+    }
+  }
+
+  static String _extractText(Map<String, dynamic> q) {
+    final overrideText = q['override_text']?.toString().trim();
+    if (overrideText != null && overrideText.isNotEmpty) return overrideText;
+    final content = q['content'];
+    if (content is Map) {
+      final t = content['text']?.toString().trim();
+      if (t != null && t.isNotEmpty) return t;
+    }
+    return q['text']?.toString().trim() ??
+        q['question']?.toString().trim() ??
+        '';
+  }
+
+  static String _extractAnswer(Map<String, dynamic> q, String type) {
+    // Choices cho MCQ / true_false / math
+    if (type == 'multiple_choice' ||
+        type == 'true_false' ||
+        type == 'math') {
+      final choices = (q['choices'] ?? q['options']) as List?;
+      if (choices == null) return '';
+      final correctIdx = <int>[];
+      final lines = <String>[];
+      for (var i = 0; i < choices.length; i++) {
+        final c = choices[i];
+        final cText = (c is Map)
+            ? (c['text'] ?? c['content']?.toString() ?? '').toString()
+            : c.toString();
+        final isCorrect = (c is Map) &&
+            (c['isCorrect'] == true || c['is_correct'] == true);
+        final label = String.fromCharCode(65 + i); // A, B, C, D
+        lines.add('$label. $cText${isCorrect ? '  ✓' : ''}');
+        if (isCorrect) correctIdx.add(i);
+      }
+      final correctLabel = correctIdx.isEmpty
+          ? ''
+          : '\n→ Đáp án đúng: ${correctIdx.map((i) => String.fromCharCode(65 + i)).join(', ')}';
+      return '${lines.join('\n')}$correctLabel';
+    }
+
+    final answer = q['answer'];
+    if (answer is Map) {
+      // expected_answer cho essay/short_answer/math/problem_solving
+      final expected = answer['expected_answer']?.toString().trim();
+      if (expected != null && expected.isNotEmpty) return expected;
+
+      // blanks cho fill_blank
+      final blanks = answer['blanks'] as List?;
+      if (blanks != null && blanks.isNotEmpty) {
+        final lines = <String>[];
+        for (var i = 0; i < blanks.length; i++) {
+          final b = blanks[i];
+          if (b is Map) {
+            final values =
+                (b['correct_values'] ?? b['correctValues'] ?? const [])
+                    as List;
+            lines.add('[${i + 1}] ${values.join(' / ')}');
+          }
+        }
+        return lines.join('\n');
+      }
+
+      // pairs cho matching
+      final pairs = answer['pairs'] as List?;
+      if (pairs != null) {
+        return pairs
+            .map((p) =>
+                '${p['left_text'] ?? ''} → ${p['right_text'] ?? ''}')
+            .join('\n');
+      }
+    }
+    return '';
+  }
 }
