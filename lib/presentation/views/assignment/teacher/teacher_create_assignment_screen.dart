@@ -17,6 +17,7 @@ import 'package:ai_mls/presentation/views/assignment/teacher/teacher_preview_ass
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/dialog/delete_question_dialog.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/drawer/create_assignment_drawer.dart';
 import 'package:ai_mls/widgets/dialogs/warning_dialog.dart';
+import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:ai_mls/widgets/forms/date_time_picker_field.dart';
 import 'package:ai_mls/widgets/forms/labeled_text_field.dart';
 import 'package:ai_mls/widgets/forms/labeled_textarea.dart';
@@ -666,9 +667,34 @@ class _TeacherCreateAssignmentScreenState
         customContent['choices'] = choicesWithId;
       }
 
-      // Add AI grading keywords for essay/short_answer
-      if (questionType == QuestionType.essay || questionType == QuestionType.shortAnswer) {
-        final keywords = q['aiGradingKeywords'] as List<dynamic>?;
+      // Đọc expected_answer / blanks / keywords từ q['answer'] map (AI repo format)
+      // hoặc top-level q['expectedAnswer'] (manual edit dialog format)
+      final answerMap = q['answer'] is Map
+          ? Map<String, dynamic>.from(q['answer'] as Map)
+          : <String, dynamic>{};
+
+      // expected_answer (essay / short_answer / math / problem_solving / fill_blank)
+      final expectedAnswer =
+          answerMap['expected_answer'] as String? ??
+          q['expectedAnswer'] as String?;
+      if (expectedAnswer != null && expectedAnswer.trim().isNotEmpty) {
+        customContent['expected_answer'] = expectedAnswer.trim();
+      }
+
+      // general_explanation (mọi loại)
+      final generalExplanation =
+          answerMap['general_explanation'] as String? ??
+          q['explanation'] as String?;
+      if (generalExplanation != null && generalExplanation.trim().isNotEmpty) {
+        customContent['general_explanation'] = generalExplanation.trim();
+      }
+
+      // AI grading keywords (essay / short_answer)
+      if (questionType == QuestionType.essay ||
+          questionType == QuestionType.shortAnswer) {
+        final keywords =
+            answerMap['ai_grading_keywords'] as List<dynamic>? ??
+            q['aiGradingKeywords'] as List<dynamic>?;
         if (keywords != null && keywords.isNotEmpty) {
           final keywordsWithId = keywords.asMap().entries.map((entry) {
             final idx = entry.key;
@@ -681,15 +707,13 @@ class _TeacherCreateAssignmentScreenState
           }).toList();
           customContent['ai_grading_keywords'] = keywordsWithId;
         }
-        // Add expected_answer if provided
-        if (q['expectedAnswer'] != null) {
-          customContent['expected_answer'] = q['expectedAnswer'];
-        }
       }
 
-      // Add blanks for fill_in_blank questions
+      // Blanks (fill_blank)
       if (questionType == QuestionType.fillBlank) {
-        final blanks = q['blanks'] as List<dynamic>?;
+        final blanks =
+            answerMap['blanks'] as List<dynamic>? ??
+            q['blanks'] as List<dynamic>?;
         if (blanks != null && blanks.isNotEmpty) {
           final blanksWithId = blanks.asMap().entries.map((entry) {
             final idx = entry.key;
@@ -697,8 +721,10 @@ class _TeacherCreateAssignmentScreenState
             return {
               'id': 'blank_$idx',
               'original_id': blank['id'] ?? 'original_blank_$idx',
-              'correct_values': blank['correctValues'] ?? blank['correct_values'] ?? [],
-              'case_sensitive': blank['caseSensitive'] ?? blank['case_sensitive'] ?? false,
+              'correct_values':
+                  blank['correctValues'] ?? blank['correct_values'] ?? [],
+              'case_sensitive':
+                  blank['caseSensitive'] ?? blank['case_sensitive'] ?? false,
             };
           }).toList();
           customContent['blanks'] = blanksWithId;
@@ -1190,24 +1216,17 @@ class _TeacherCreateAssignmentScreenState
         generatedQuestions.isNotEmpty &&
         mounted) {
       // Thêm các câu hỏi đã generate vào danh sách
+      // Preserve TOÀN BỘ keys từ AI repo (answer.expected_answer, answer.blanks,
+      // answer.ai_grading_keywords, pairs, distractors, ...) — không bỏ field nào.
       final next = List<Map<String, dynamic>>.from(_questions);
       for (var i = 0; i < generatedQuestions.length; i++) {
         final q = generatedQuestions[i];
+        final type = q['type'] as QuestionType? ?? QuestionType.multipleChoice;
         next.add({
+          ...q,
           'number': next.length + 1,
-          'type': q['type'] as QuestionType? ?? QuestionType.multipleChoice,
-          'text': q['text'] as String? ?? '',
-          'images': q['images'] as List<String>?,
-          'options': q['options'] as List<Map<String, dynamic>>?,
-          'difficulty': q['difficulty'] as int?,
-          'tags': q['tags'] as List<String>?,
-          'learningObjectives': q['learningObjectives'] as List<String>?,
-          'explanation': q['explanation'] as String?,
-          'hints': q['hints'] as List<String>?,
-          'points': _getPointsForQuestion(
-            q['type'] as QuestionType? ?? QuestionType.multipleChoice,
-          ),
-          if (q['questionId'] != null) 'questionId': q['questionId'],
+          'type': type,
+          'points': _getPointsForQuestion(type),
         });
       }
       _setQuestions(next);
@@ -2528,6 +2547,19 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                                       options: _getOptionsAsMapList(
                                         q['options'],
                                       ),
+                                      expectedAnswer:
+                                          (q['answer'] is Map
+                                              ? (q['answer']
+                                                    as Map)['expected_answer']
+                                              : null) as String? ??
+                                          q['expectedAnswer'] as String?,
+                                      blanks:
+                                          (q['answer'] is Map
+                                                  ? (q['answer']
+                                                        as Map)['blanks']
+                                                  : null)
+                                              as List<dynamic>? ??
+                                          q['blanks'] as List<dynamic>?,
                                       tags: (q['tags'] as List<String>?) ?? [],
                                       onEdit: () => _editQuestion(index),
                                       onHotfix: _isPublished && _assignmentId != null
@@ -3085,6 +3117,8 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
     required String questionText,
     required double points,
     List<Map<String, dynamic>>? options,
+    String? expectedAnswer,
+    List<dynamic>? blanks,
     List<String> tags = const [],
     VoidCallback? onEdit,
     VoidCallback? onDelete,
@@ -3205,10 +3239,10 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                   ),
                   const SizedBox(height: 12),
 
-                  // Question text
+                  // Question text (render LaTeX qua MathText)
                   Padding(
                     padding: const EdgeInsets.only(left: 4),
-                    child: Text(
+                    child: MathText(
                       questionText,
                       style: DesignTypography.bodyMedium.copyWith(
                         fontWeight: FontWeight.w500,
@@ -3217,6 +3251,106 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                       ),
                     ),
                   ),
+
+                  // Expected answer (essay / short_answer / math / problem_solving)
+                  if (expectedAnswer != null && expectedAnswer.trim().isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: DesignColors.success.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(DesignRadius.md),
+                          border: Border.all(
+                            color: DesignColors.success.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'ĐÁP ÁN MẪU',
+                              style: TextStyle(
+                                fontSize: DesignTypography.labelSmallSize,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                                color: DesignColors.success,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            MathText(
+                              expectedAnswer,
+                              style: DesignTypography.bodySmall.copyWith(
+                                color: isDark
+                                    ? Colors.white
+                                    : DesignColors.textPrimary,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  // Blanks answers (fill_blank)
+                  if (blanks != null && blanks.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: DesignColors.success.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(DesignRadius.md),
+                          border: Border.all(
+                            color: DesignColors.success.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'ĐÁP ÁN CÁC Ô TRỐNG',
+                              style: TextStyle(
+                                fontSize: DesignTypography.labelSmallSize,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                                color: DesignColors.success,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            ...blanks.asMap().entries.map((entry) {
+                              final i = entry.key;
+                              final b = entry.value;
+                              final values = b is Map
+                                  ? (b['correct_values'] ??
+                                            b['correctValues'] ??
+                                            const [])
+                                        as List
+                                  : const [];
+                              final label = values.isEmpty
+                                  ? '(trống)'
+                                  : values.join(' / ');
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: MathText(
+                                  '[${i + 1}] $label',
+                                  style: DesignTypography.bodySmall.copyWith(
+                                    color: isDark
+                                        ? Colors.white
+                                        : DesignColors.textPrimary,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
 
                   // Options (cho trắc nghiệm)
                   if (options != null && options.isNotEmpty) ...[
@@ -3264,7 +3398,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: Text(
+                                  child: MathText(
                                     optionText,
                                     style: DesignTypography.bodySmall.copyWith(
                                       color: isCorrect
