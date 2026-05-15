@@ -397,6 +397,8 @@ RÀNG BUỘC FORMAT:
 
 JSON HỢP LỆ — BẮT BUỘC:
 - Output PHẢI bắt đầu bằng `[` và kết thúc bằng `]`. KHÔNG có chữ trước/sau, KHÔNG có ```markdown fence```.
+- **TUYỆT ĐỐI KHÔNG bọc trong object** như `{"questions": [...]}` hay `{"fill_blank": [...]}`. Root PHẢI là ARRAY thuần.
+- fill_blank PHẢI có cả 2 field: `override_text` (chứa [___N]) VÀ `blanks` (list correct_values cho từng N). Thiếu blanks → câu hỏi VÔ DỤNG.
 - KHÔNG dùng smart quotes (“ ” ‘ ’) — chỉ dùng dấu nháy thẳng " và '.
 - KHÔNG có trailing comma trước `]` hoặc `}` (vd `,]` `,}` SAI).
 - LaTeX trong text: escape backslash thành `\\\\` để JSON hợp lệ (vd viết `\\\\frac{1}{2}` chứ không phải `\\frac{1}{2}`).

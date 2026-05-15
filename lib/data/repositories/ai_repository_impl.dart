@@ -230,7 +230,9 @@ class AiRepositoryImpl implements AiRepository {
     try {
       List<dynamic>? questionsList;
 
-      // Handle different response formats — wrapper keys phổ biến cho mọi model
+      // Handle different response formats — wrapper keys phổ biến cho mọi model.
+      // Bao gồm cả tên type (multiple_choice, fill_blank...) vì AI thỉnh thoảng
+      // bọc nested theo type vd `{"fill_blank": [...]}`.
       const wrapperKeys = [
         'questions',
         'data',
@@ -238,12 +240,25 @@ class AiRepositoryImpl implements AiRepository {
         'items',
         'list',
         'output',
+        'multiple_choice',
+        'true_false',
+        'short_answer',
+        'essay',
+        'fill_blank',
+        'matching',
+        'math',
+        'problem_solving',
       ];
 
       List<dynamic>? findListInMap(Map<String, dynamic> m) {
+        // Đầu tiên thử wrapper keys explicit
         for (final k in wrapperKeys) {
           final v = m[k];
           if (v is List<dynamic>) return v;
+        }
+        // Fallback: lấy List đầu tiên trong map (giúp khi AI dùng key tự đặt)
+        for (final v in m.values) {
+          if (v is List<dynamic> && v.isNotEmpty) return v;
         }
         return null;
       }
@@ -426,9 +441,43 @@ class AiRepositoryImpl implements AiRepository {
       answer['general_explanation'] = explanationStr.trim();
     }
 
-    // Parse fill_blank: blanks → answer
+    // Parse fill_blank: blanks → answer.
+    // Nếu AI gen miss blanks field, auto-derive từ [___N] markers trong
+    // override_text để câu hỏi không bị vô dụng (correct_values rỗng,
+    // teacher phải fill manual nhưng ít nhất số ô đúng).
     if (questionType == QuestionType.fillBlank) {
-      final blanks = aiQuestion['blanks'] as List<dynamic>?;
+      List<dynamic>? blanks = aiQuestion['blanks'] as List<dynamic>?;
+
+      if (blanks == null || blanks.isEmpty) {
+        // Scan override_text tìm [___N] markers
+        final text = (aiQuestion['override_text'] ??
+                aiQuestion['question'] ??
+                aiQuestion['text'] ??
+                '')
+            .toString();
+        final markers = RegExp(r'\[___(\d+)\]')
+            .allMatches(text)
+            .map((m) => int.tryParse(m.group(1) ?? '') ?? 0)
+            .where((n) => n > 0)
+            .toSet()
+            .toList()
+          ..sort();
+        if (markers.isNotEmpty) {
+          blanks = markers
+              .map((n) => {
+                    'id': '[___$n]',
+                    'correct_values': <String>[],
+                    'case_sensitive': false,
+                  })
+              .toList();
+          AppLogger.warning(
+            '⚠️ [AI REPO] fill_blank Q$index: AI miss `blanks` field — '
+            'auto-derived ${blanks.length} blanks từ markers trong text. '
+            'Teacher cần fill correct_values thủ công.',
+          );
+        }
+      }
+
       if (blanks != null) {
         answer ??= {};
         answer['blanks'] = blanks;
