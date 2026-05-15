@@ -20,6 +20,7 @@ import 'package:ai_mls/presentation/providers/local_temp_file_notifier.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/ai_settings_drawer.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/context_sources_section.dart';
+import 'package:ai_mls/widgets/editor/rich_text_toolbar.dart';
 import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -1622,6 +1623,8 @@ class _TeacherAiGenerateQuestionScreenState
                             ),
                           ),
                           SizedBox(height: DesignSpacing.xs),
+                          RichTextToolbar(controller: _focusHintController),
+                          SizedBox(height: DesignSpacing.sm),
                           TextFormField(
                             controller: _focusHintController,
                             maxLines: 2,
@@ -2104,6 +2107,8 @@ class _TeacherAiGenerateQuestionScreenState
               ).copyWith(color: isDark ? Colors.grey[400] : Colors.grey[600]),
             ),
           ),
+          RichTextToolbar(controller: _topicController),
+          SizedBox(height: DesignSpacing.sm),
           TextFormField(
             controller: _topicController,
             minLines: 5,
