@@ -2389,14 +2389,13 @@ class _TeacherAiGenerateQuestionScreenState
   }
 
   // Danh sách loại câu hỏi có thể chọn
-  // TODO: Tạm ẩn các loại chưa hỗ trợ — chỉ giữ Trắc nghiệm
   static const _kTypeOptions = [
     ('multiple_choice', 'Trắc nghiệm', Icons.check_box_outlined),
-    // ('true_false', 'Đúng / Sai', Icons.toggle_on_outlined),
-    // ('essay', 'Tự luận', Icons.edit_note_outlined),
-    // ('short_answer', 'Trả lời ngắn', Icons.short_text_rounded),
-    // ('fill_blank', 'Điền khuyết', Icons.text_fields_rounded),
-    // ('math', 'Bài toán', Icons.calculate_outlined),
+    ('true_false', 'Đúng / Sai', Icons.toggle_on_outlined),
+    ('essay', 'Tự luận', Icons.edit_note_outlined),
+    ('short_answer', 'Trả lời ngắn', Icons.short_text_rounded),
+    ('fill_blank', 'Điền khuyết', Icons.text_fields_rounded),
+    ('math', 'Bài toán', Icons.calculate_outlined),
   ];
 
   String _typeLabel(String key) {
