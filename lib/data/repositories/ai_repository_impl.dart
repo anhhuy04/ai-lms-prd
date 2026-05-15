@@ -815,7 +815,7 @@ class AiRepositoryImpl implements AiRepository {
 
     for (final fn in attempts) {
       try {
-        return jsonDecode(fn(s));
+        return _restoreLatexEscapes(jsonDecode(fn(s)));
       } catch (_) {
         // try next
       }
@@ -829,7 +829,7 @@ class AiRepositoryImpl implements AiRepository {
     }
     for (final fn in attempts) {
       try {
-        return jsonDecode(fn(candidate));
+        return _restoreLatexEscapes(jsonDecode(fn(candidate)));
       } catch (_) {
         // try next
       }
@@ -837,6 +837,41 @@ class AiRepositoryImpl implements AiRepository {
 
     _logParseFailure(s);
     return null;
+  }
+
+  /// Khôi phục các LaTeX escape bị JSON parser ăn mất khi AI gen single
+  /// backslash thay vì double escape:
+  /// - `\f` (formfeed U+000C) → `\f` (LaTeX literal)
+  /// - `\b` (backspace U+0008) → `\b`
+  /// - `\v` (vertical tab U+000B) → `\v`
+  ///
+  /// AI thường gen `"$\frac{1}{2}$"` (sai) thay vì `"$\\frac{1}{2}$"` (đúng).
+  /// `\f` là valid JSON escape (formfeed) → decode thành character U+000C
+  /// → LaTeX `\frac` mất backslash → MathText render lỗi.
+  ///
+  /// 3 ký tự control này (formfeed, backspace, vertical tab) thực tế KHÔNG
+  /// có trong text giáo dục VN → an toàn để convert ngược về LaTeX escape.
+  ///
+  /// KHÔNG convert `\n` `\r` `\t` vì đó là newline/tab thật user muốn.
+  dynamic _restoreLatexEscapes(dynamic obj) {
+    if (obj is String) {
+      return obj
+          .replaceAll('', r'\f')
+          .replaceAll('', r'\b')
+          .replaceAll('', r'\v');
+    }
+    if (obj is Map) {
+      // Preserve Map<String, dynamic> typing (NOT Map<dynamic, dynamic>
+      // default cua .map()) de downstream `is Map<String, dynamic>` pass.
+      return <String, dynamic>{
+        for (final entry in obj.entries)
+          entry.key.toString(): _restoreLatexEscapes(entry.value),
+      };
+    }
+    if (obj is List) {
+      return <dynamic>[for (final item in obj) _restoreLatexEscapes(item)];
+    }
+    return obj;
   }
 
   /// Tiền xử lý response: strip thinking blocks, code fences, BOM, smart quotes.
@@ -991,7 +1026,9 @@ class AiRepositoryImpl implements AiRepository {
     return input.replaceAllMapped(
       // Match 1: \\ followed by 2+ letters (LaTeX command like \frac, \beta)
       // Match 2: \\ followed by char NOT in JSON escape whitelist (\, \; \!)
-      RegExp(r'\\(?=[a-zA-Z]{2,}|[^"\\/bfnrtu])'),
+      // Negative lookbehind `(?<!\\)`: KHÔNG match nếu đã được escape (`\\frac`)
+      // → tránh double-escape thành `\\\\frac` (decode ra `\\frac` 2 bs literal).
+      RegExp(r'(?<!\\)\\(?=[a-zA-Z]{2,}|[^"\\/bfnrtu])'),
       (_) => r'\\',
     );
   }
