@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/presentation/providers/workspace_provider.dart';
 import 'package:ai_mls/presentation/views/assignment/student/widgets/essay_answer_field.dart';
+import 'package:ai_mls/widgets/editor/rich_text_toolbar.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/rubric/read_only_rubric_viewer.dart';
+import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 /// Màn hình workspace để học sinh làm bài tập.
 /// [isReadOnly] = true: chỉ xem lại bài đã nộp, không cho sửa.
@@ -851,8 +855,24 @@ class _StudentAssignmentWorkspaceScreenState
         ? answer as Map<String, dynamic>
         : <String, dynamic>{};
 
+    // Ưu tiên question.blanks (đúng schema), fallback choices (legacy)
+    final blankCount =
+        question.blanks?.length ?? question.choices.length;
+    if (blankCount == 0) {
+      return Padding(
+        padding: const EdgeInsets.all(DesignSpacing.md),
+        child: Text(
+          'Câu hỏi điền khuyết chưa có ô trống',
+          style: TextStyle(
+            color: DesignColors.textSecondary,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      );
+    }
+
     return Column(
-      children: List.generate(question.choices.length, (index) {
+      children: List.generate(blankCount, (index) {
         final blankId = '${question.id}_blank_$index';
         final initialValue = answersMap[blankId] as String? ?? '';
 
@@ -949,85 +969,480 @@ class _StudentAssignmentWorkspaceScreenState
     return _buildEssay(question, answer);
   }
 
-  /// Matching - kéo thả để nối cặp
+  /// Matching - dropdown chọn cặp tương ứng cho mỗi mục bên trái.
+  /// Student answer format: `{<qId>_match_<leftIdx>: rightIdx}`
   Widget _buildMatching(QuestionState question, dynamic answer) {
-    // TODO: Implement matching UI with drag-drop
-    return Container(
+    final pairs = question.pairs ?? const <Map<String, dynamic>>[];
+    if (pairs.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(DesignSpacing.md),
+        child: Text(
+          'Câu hỏi nối khớp chưa có cặp',
+          style: TextStyle(
+            color: DesignColors.textSecondary,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      );
+    }
+
+    final answersMap = answer is Map
+        ? answer as Map<String, dynamic>
+        : <String, dynamic>{};
+
+    // Build right options: lấy right_text từ pairs + distractors (nếu có)
+    final rightOptions = <String>[];
+    for (final p in pairs) {
+      final t = p['right_text']?.toString() ?? '';
+      if (t.isNotEmpty) rightOptions.add(t);
+    }
+    final distractors = question.distractors ?? const <Map<String, dynamic>>[];
+    for (final d in distractors) {
+      final t = d['right_text']?.toString() ?? d['text']?.toString() ?? '';
+      if (t.isNotEmpty) rightOptions.add(t);
+    }
+
+    return Padding(
       padding: const EdgeInsets.all(DesignSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Nối các mục bên trái với bên phải',
+            'Chọn mục bên phải tương ứng với mỗi mục bên trái',
             style: TextStyle(
               color: DesignColors.textSecondary,
               fontStyle: FontStyle.italic,
+              fontSize: DesignTypography.bodySmallSize,
             ),
           ),
-          const SizedBox(height: DesignSpacing.md),
-          // Render pairs
-          if (question.pairs != null)
-            ...question.pairs!.map(
-              (pair) => Padding(
-                padding: const EdgeInsets.only(bottom: DesignSpacing.sm),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(pair['left_text']?.toString() ?? '')),
-                    const Icon(Icons.arrow_forward, size: 20),
-                    Expanded(child: Text(pair['right_text']?.toString() ?? '')),
-                  ],
-                ),
+          SizedBox(height: DesignSpacing.md),
+          ...pairs.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final pair = entry.value;
+            final key = '${question.id}_match_$idx';
+            final selected = answersMap[key]?.toString();
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: DesignSpacing.md),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: MathText(
+                      pair['left_text']?.toString() ?? '',
+                      style: DesignTypography.bodyMedium,
+                    ),
+                  ),
+                  SizedBox(width: DesignSpacing.sm),
+                  Icon(Icons.arrow_forward, size: 18, color: DesignColors.primary),
+                  SizedBox(width: DesignSpacing.sm),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(DesignRadius.md),
+                        color: Colors.grey[50],
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selected,
+                          isExpanded: true,
+                          hint: Text(
+                            'Chọn...',
+                            style: TextStyle(color: Colors.grey[500]),
+                          ),
+                          items: rightOptions
+                              .map(
+                                (opt) => DropdownMenuItem<String>(
+                                  value: opt,
+                                  child: Text(
+                                    opt,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: widget.isReadOnly
+                              ? null
+                              : (value) {
+                                  final newAnswers =
+                                      Map<String, dynamic>.from(answersMap);
+                                  if (value == null) {
+                                    newAnswers.remove(key);
+                                  } else {
+                                    newAnswers[key] = value;
+                                  }
+                                  ref
+                                      .read(
+                                        workspaceNotifierProvider(
+                                          widget.distributionId,
+                                        ).notifier,
+                                      )
+                                      .updateAnswer(question.id, newAnswers);
+                                },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
+            );
+          }),
         ],
       ),
     );
   }
 
-  /// Problem Solving / Math - nộp file ảnh/ghi chép
+  /// Problem Solving / Math - 3-section workspace:
+  /// 1. Ô đáp số ngắn (auto-check)
+  /// 2. Ô lời giải LaTeX (AI/GV chấm)
+  /// 3. Ảnh đính kèm tuỳ chọn (giấy nháp)
+  ///
+  /// Student answer format:
+  /// `{final_answer: "x = 3", solution_text: "...", image_urls: [...]}`
   Widget _buildProblemSolving(QuestionState question, dynamic answer) {
-    return _buildFileUpload(question, answer);
+    final answerMap = answer is Map
+        ? answer as Map<String, dynamic>
+        : <String, dynamic>{};
+
+    final finalAnswerCtrlKey = '${question.id}_final';
+    final solutionCtrlKey = '${question.id}_solution';
+
+    final finalAnswerCtrl = _fillInBlankControllers.putIfAbsent(
+      finalAnswerCtrlKey,
+      () => TextEditingController(text: answerMap['final_answer'] as String? ?? ''),
+    );
+    final solutionCtrl = _fillInBlankControllers.putIfAbsent(
+      solutionCtrlKey,
+      () => TextEditingController(text: answerMap['solution_text'] as String? ?? ''),
+    );
+
+    final imageUrls = (answerMap['image_urls'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        <String>[];
+
+    void update(Map<String, dynamic> patch) {
+      final next = Map<String, dynamic>.from(answerMap)..addAll(patch);
+      ref
+          .read(workspaceNotifierProvider(widget.distributionId).notifier)
+          .updateAnswer(question.id, next);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(DesignSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildRubricButton(question),
+          // ── Section 1: Đáp số ngắn ────────────────────────────────────────
+          _sectionLabel('ĐÁP SỐ', Icons.flag_outlined),
+          SizedBox(height: DesignSpacing.xs),
+          TextField(
+            controller: finalAnswerCtrl,
+            readOnly: widget.isReadOnly,
+            decoration: InputDecoration(
+              hintText: 'VD: x = 3 hoặc \$x = \\frac{1}{2}\$',
+              hintStyle: TextStyle(color: Colors.grey[400]),
+              filled: true,
+              fillColor: Colors.grey[50],
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(DesignRadius.md),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: DesignSpacing.md,
+                vertical: DesignSpacing.sm,
+              ),
+            ),
+            onChanged: (v) => update({'final_answer': v}),
+          ),
+          SizedBox(height: DesignSpacing.md),
+          // ── Section 2: Lời giải LaTeX ─────────────────────────────────────
+          _sectionLabel('LỜI GIẢI', Icons.edit_note),
+          SizedBox(height: DesignSpacing.xs),
+          if (!widget.isReadOnly)
+            RichTextToolbar(controller: solutionCtrl),
+          SizedBox(height: DesignSpacing.xs),
+          TextField(
+            controller: solutionCtrl,
+            readOnly: widget.isReadOnly,
+            minLines: 4,
+            maxLines: 12,
+            textInputAction: TextInputAction.newline,
+            keyboardType: TextInputType.multiline,
+            decoration: InputDecoration(
+              hintText: 'Trình bày lời giải chi tiết...',
+              hintStyle: TextStyle(color: Colors.grey[400]),
+              filled: true,
+              fillColor: Colors.grey[50],
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(DesignRadius.md),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              contentPadding: const EdgeInsets.all(DesignSpacing.md),
+            ),
+            onChanged: (v) => update({'solution_text': v}),
+          ),
+          SizedBox(height: DesignSpacing.md),
+          // ── Section 3: Ảnh đính kèm ───────────────────────────────────────
+          _sectionLabel('ẢNH ĐÍNH KÈM (tuỳ chọn)', Icons.image_outlined),
+          SizedBox(height: DesignSpacing.xs),
+          _buildImageAttachments(
+            urls: imageUrls,
+            onAdd: widget.isReadOnly
+                ? null
+                : () => _pickAndUploadImage(
+                      onUrl: (url) => update({
+                        'image_urls': [...imageUrls, url],
+                      }),
+                    ),
+            onRemove: widget.isReadOnly
+                ? null
+                : (url) => update({
+                      'image_urls':
+                          imageUrls.where((u) => u != url).toList(),
+                    }),
+          ),
+        ],
+      ),
+    );
   }
 
-  /// File Upload - chụp ảnh/ghi chép bài giải
+  /// File Upload - chụp ảnh / chọn từ thư viện bài giải.
+  /// Student answer format: `{image_urls: [...]}`
   Widget _buildFileUpload(QuestionState question, dynamic answer) {
-    return Container(
+    final answerMap = answer is Map
+        ? answer as Map<String, dynamic>
+        : <String, dynamic>{};
+    final imageUrls = (answerMap['image_urls'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        <String>[];
+
+    return Padding(
       padding: const EdgeInsets.all(DesignSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Chụp ảnh bài làm của bạn',
+            'Chụp ảnh hoặc tải lên bài làm của bạn',
             style: TextStyle(
               fontWeight: FontWeight.w500,
               color: DesignColors.textPrimary,
             ),
           ),
-          const SizedBox(height: DesignSpacing.md),
-          Container(
-            padding: const EdgeInsets.all(DesignSpacing.lg),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[300]!),
-              borderRadius: BorderRadius.circular(DesignRadius.md),
-            ),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.camera_alt_outlined,
-                  size: 48,
-                  color: DesignColors.primary,
-                ),
-                const SizedBox(height: DesignSpacing.sm),
-                Text(
-                  'Chạm để chụp ảnh hoặc tải lên',
-                  style: TextStyle(color: DesignColors.textSecondary),
-                ),
-              ],
-            ),
+          SizedBox(height: DesignSpacing.md),
+          _buildImageAttachments(
+            urls: imageUrls,
+            onAdd: widget.isReadOnly
+                ? null
+                : () => _pickAndUploadImage(
+                      onUrl: (url) {
+                        final newUrls = [...imageUrls, url];
+                        ref
+                            .read(
+                              workspaceNotifierProvider(
+                                widget.distributionId,
+                              ).notifier,
+                            )
+                            .updateAnswer(question.id, {'image_urls': newUrls});
+                      },
+                    ),
+            onRemove: widget.isReadOnly
+                ? null
+                : (url) {
+                    final newUrls =
+                        imageUrls.where((u) => u != url).toList();
+                    ref
+                        .read(
+                          workspaceNotifierProvider(
+                            widget.distributionId,
+                          ).notifier,
+                        )
+                        .updateAnswer(question.id, {'image_urls': newUrls});
+                  },
           ),
         ],
       ),
     );
+  }
+
+  // ── Helpers: section label + image attachments + picker ──────────────────
+
+  Widget _sectionLabel(String label, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: DesignColors.primary),
+        SizedBox(width: DesignSpacing.xs),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: DesignTypography.labelSmallSize,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+            color: DesignColors.primary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImageAttachments({
+    required List<String> urls,
+    VoidCallback? onAdd,
+    void Function(String url)? onRemove,
+  }) {
+    return Wrap(
+      spacing: DesignSpacing.sm,
+      runSpacing: DesignSpacing.sm,
+      children: [
+        ...urls.map(
+          (url) => Stack(
+            children: [
+              Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(DesignRadius.md),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(DesignRadius.md),
+                  child: Image.network(
+                    url,
+                    width: 96,
+                    height: 96,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: Colors.grey[200],
+                      child: const Icon(Icons.broken_image, size: 32),
+                    ),
+                  ),
+                ),
+              ),
+              if (onRemove != null)
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: GestureDetector(
+                    onTap: () => onRemove(url),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (onAdd != null)
+          GestureDetector(
+            onTap: onAdd,
+            child: Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(DesignRadius.md),
+                border: Border.all(
+                  color: DesignColors.primary,
+                  style: BorderStyle.solid,
+                  width: 2,
+                ),
+                color: DesignColors.primary.withValues(alpha: 0.05),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_a_photo_outlined,
+                    color: DesignColors.primary,
+                    size: 32,
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Thêm ảnh',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: DesignColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _pickAndUploadImage({
+    required void Function(String url) onUrl,
+  }) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: const Text('Chọn từ thư viện'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded),
+              title: const Text('Chụp ảnh'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final xfile = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+      if (xfile == null || !mounted) return;
+
+      final url = await ref
+          .read(workspaceNotifierProvider(widget.distributionId).notifier)
+          .uploadFile(File(xfile.path));
+
+      if (!mounted) return;
+      if (url != null) {
+        onUrl(url);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tải ảnh lên thất bại. Thử lại?'),
+            backgroundColor: DesignColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi: $e'),
+          backgroundColor: DesignColors.error,
+        ),
+      );
+    }
   }
 
   Widget _buildBottomActionBar(BuildContext context, WorkspaceState workspace) {
