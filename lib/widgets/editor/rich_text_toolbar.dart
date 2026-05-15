@@ -221,6 +221,17 @@ class RichTextToolbar extends StatelessWidget {
     );
   }
 
+  /// Public helper: mở math symbol sheet cho 1 controller (dùng cho icon Σ
+  /// đặt rời lẻ — vd nút Σ nhỏ bên cạnh từng đáp án MCQ).
+  static void showMathPickerFor(
+    BuildContext context,
+    TextEditingController controller,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final widget = RichTextToolbar(controller: controller);
+    widget._showMathSymbolDialog(context, isDark);
+  }
+
   // ── Math symbol bottom sheet ──────────────────────────────────────────────
   void _showMathSymbolDialog(BuildContext context, bool isDark) {
     // Mở rộng từ list gốc, thêm vài ký tự LaTeX thường gặp ở dạng Unicode.

@@ -4170,175 +4170,6 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
     Navigator.of(context).pop();
   }
 
-  // ─── Math toolbar helpers (Task 7b) ────────────────────────────────────
-
-  void _insert(
-    TextEditingController c,
-    String snippet, {
-    int? cursorOffsetFromStart,
-  }) {
-    final sel = c.selection;
-    final text = c.text;
-    final hasValidSel = sel.isValid && sel.start >= 0;
-    final start = hasValidSel ? sel.start.clamp(0, text.length) : text.length;
-    final end = hasValidSel ? sel.end.clamp(0, text.length) : text.length;
-    final newText = text.replaceRange(start, end, snippet);
-    final newCursor = start + (cursorOffsetFromStart ?? snippet.length);
-    c.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newCursor),
-    );
-  }
-
-  void _wrapMath(TextEditingController c) {
-    final sel = c.selection;
-    if (!sel.isValid || sel.start < 0) {
-      _insert(c, r'$  $', cursorOffsetFromStart: 2);
-      return;
-    }
-    final selected = c.text.substring(sel.start, sel.end);
-    final wrapped = selected.isEmpty ? r'$  $' : '\$$selected\$';
-    c.value = TextEditingValue(
-      text: c.text.replaceRange(sel.start, sel.end, wrapped),
-      selection: TextSelection.collapsed(offset: sel.start + wrapped.length),
-    );
-  }
-
-  /// Insert blank placeholder `[___N]` cho fill_blank (Task 7d).
-  void _insertBlank(TextEditingController c) {
-    final existing = RegExp(r'\[___(\d+)\]').allMatches(c.text);
-    final n = existing.length + 1;
-    _insert(c, '[___$n]');
-  }
-
-  Widget _buildToolbarButton({
-    required String label,
-    required VoidCallback onTap,
-    required bool isDark,
-    String? tooltip,
-  }) {
-    final btn = Material(
-      color: isDark
-          ? const Color(0xFF1A2632)
-          : DesignColors.primary.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(DesignRadius.sm),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(DesignRadius.sm),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(DesignRadius.sm),
-            border: Border.all(
-              color: DesignColors.primary.withValues(alpha: 0.3),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white : DesignColors.primary,
-            ),
-          ),
-        ),
-      ),
-    );
-    if (tooltip != null) return Tooltip(message: tooltip, child: btn);
-    return btn;
-  }
-
-  Widget _buildMathToolbar(
-    TextEditingController controller, {
-    required bool isDark,
-    bool compact = false,
-  }) {
-    final isFillBlank = widget.questionType == QuestionType.fillBlank;
-    final buttons = <Widget>[
-      _buildToolbarButton(
-        label: 'f(x)',
-        tooltip: r'Bọc bằng $...$',
-        onTap: () => setState(() => _wrapMath(controller)),
-        isDark: isDark,
-      ),
-      _buildToolbarButton(
-        label: '√',
-        tooltip: r'\sqrt{}',
-        onTap: () => setState(
-          () => _insert(controller, r'\sqrt{}', cursorOffsetFromStart: 6),
-        ),
-        isDark: isDark,
-      ),
-      _buildToolbarButton(
-        label: 'x²',
-        tooltip: '^{}',
-        onTap: () => setState(
-          () => _insert(controller, '^{}', cursorOffsetFromStart: 2),
-        ),
-        isDark: isDark,
-      ),
-      _buildToolbarButton(
-        label: 'x_n',
-        tooltip: '_{}',
-        onTap: () => setState(
-          () => _insert(controller, '_{}', cursorOffsetFromStart: 2),
-        ),
-        isDark: isDark,
-      ),
-      _buildToolbarButton(
-        label: '½',
-        tooltip: r'\frac{}{}',
-        onTap: () => setState(
-          () => _insert(controller, r'\frac{}{}', cursorOffsetFromStart: 6),
-        ),
-        isDark: isDark,
-      ),
-      if (!compact) ...[
-        _buildToolbarButton(
-          label: 'Σ',
-          tooltip: r'\sum_{}^{}',
-          onTap: () => setState(
-            () => _insert(controller, r'\sum_{}^{}', cursorOffsetFromStart: 6),
-          ),
-          isDark: isDark,
-        ),
-        _buildToolbarButton(
-          label: '∫',
-          tooltip: r'\int_{}^{}',
-          onTap: () => setState(
-            () => _insert(controller, r'\int_{}^{}', cursorOffsetFromStart: 6),
-          ),
-          isDark: isDark,
-        ),
-        _buildToolbarButton(
-          label: '≤',
-          tooltip: r'\leq',
-          onTap: () => setState(() => _insert(controller, r'\leq ')),
-          isDark: isDark,
-        ),
-        _buildToolbarButton(
-          label: '≥',
-          tooltip: r'\geq',
-          onTap: () => setState(() => _insert(controller, r'\geq ')),
-          isDark: isDark,
-        ),
-        _buildToolbarButton(
-          label: '±',
-          tooltip: r'\pm',
-          onTap: () => setState(() => _insert(controller, r'\pm ')),
-          isDark: isDark,
-        ),
-      ],
-      if (isFillBlank && !compact)
-        _buildToolbarButton(
-          label: '[___N]',
-          tooltip: 'Thêm ô trống',
-          onTap: () => setState(() => _insertBlank(controller)),
-          isDark: isDark,
-        ),
-    ];
-    return Wrap(spacing: 6, runSpacing: 6, children: buttons);
-  }
 
   /// Tab Xem trước (Task 7a) — render live preview dùng MathText.
   Widget _buildPreviewTab(bool isDark) {
@@ -4621,7 +4452,7 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                             ),
                           ),
                           const SizedBox(height: 6),
-                          _buildMathToolbar(_textCtrl, isDark: isDark),
+                          RichTextToolbar(controller: _textCtrl),
                           const SizedBox(height: 10),
                           _buildTextField(
                             controller: _textCtrl,
@@ -4783,19 +4614,19 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                                             ),
                                           ),
                                         ),
-                                        // Math wrap helper cho từng choice (Task 7c)
+                                        // Math picker cho từng choice
                                         IconButton(
                                           icon: const Icon(
                                             Icons.functions,
                                             size: 18,
                                           ),
                                           color: DesignColors.primary,
-                                          tooltip: r'Bọc bằng $...$',
-                                          onPressed: () => setState(
-                                            () => _wrapMath(
-                                              _choiceControllers[i],
-                                            ),
-                                          ),
+                                          tooltip: 'Chèn ký tự toán học',
+                                          onPressed: () =>
+                                              RichTextToolbar.showMathPickerFor(
+                                                context,
+                                                _choiceControllers[i],
+                                              ),
                                         ),
                                         const SizedBox(width: 8),
                                       ],
@@ -4811,12 +4642,7 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                               isDark: isDark,
                             ),
                             const SizedBox(height: 8),
-                            // Math toolbar cho expected answer
-                            _buildMathToolbar(
-                              _expectedAnswerCtrl,
-                              isDark: isDark,
-                              compact: true,
-                            ),
+                            RichTextToolbar(controller: _expectedAnswerCtrl),
                             const SizedBox(height: 8),
                             _buildTextField(
                               controller: _expectedAnswerCtrl,

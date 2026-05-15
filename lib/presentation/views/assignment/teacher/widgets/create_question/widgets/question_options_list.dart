@@ -1,5 +1,6 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_question_screen.dart';
+import 'package:ai_mls/widgets/editor/rich_text_toolbar.dart';
 import 'package:flutter/material.dart';
 
 /// Widget quản lý danh sách options cho câu hỏi Multiple Choice
@@ -481,6 +482,17 @@ class _QuestionOptionsListState extends State<QuestionOptionsList> {
                 }
                 return null;
               },
+            ),
+          ),
+
+          // Math picker icon
+          IconButton(
+            tooltip: 'Chèn ký tự toán học',
+            icon: const Icon(Icons.functions, size: 18),
+            color: DesignColors.primary,
+            onPressed: () => RichTextToolbar.showMathPickerFor(
+              context,
+              option.controller,
             ),
           ),
 
