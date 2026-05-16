@@ -176,7 +176,32 @@ class WordTemplateGenerator {
         }
       }
     }
-    // matching: render text only (TODO mở rộng sau).
+    // matching: render pairs (basic).
+    if (type == 'matching') {
+      final answer = q['answer'];
+      final pairs = answer is Map ? (answer['pairs'] as List?) : null;
+      if (pairs != null && pairs.isNotEmpty) {
+        for (final p in pairs) {
+          if (p is! Map) continue;
+          final left = p['left_text']?.toString() ?? '';
+          final right = p['right_text']?.toString() ?? '';
+          buf.write(_pMath('• $left → $right'));
+        }
+      }
+    }
+
+    // Tags: hiển thị danh sách tag italic màu xám nhỏ cuối câu.
+    // Hỗ trợ cả List<String> và List<dynamic> từ AI gen.
+    final tagsRaw = q['tags'];
+    if (tagsRaw is List && tagsRaw.isNotEmpty) {
+      final tagsList = tagsRaw
+          .map((t) => t.toString().trim())
+          .where((t) => t.isNotEmpty)
+          .toList();
+      if (tagsList.isNotEmpty) {
+        buf.write(_p('Tags: ${tagsList.join(', ')}', italic: true, sizePt: 10));
+      }
+    }
 
     buf.write(_blank);
     return buf.toString();
