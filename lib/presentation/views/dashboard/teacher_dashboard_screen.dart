@@ -3,6 +3,7 @@ import 'package:ai_mls/domain/entities/profile.dart';
 import 'package:ai_mls/presentation/providers/teacher_ai_queue_provider.dart';
 import 'package:ai_mls/presentation/views/class/teacher/teacher_class_list_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/home/teacher_home_content_screen.dart';
+import 'package:ai_mls/presentation/views/dashboard/widgets/dashboard_top_bar.dart';
 import 'package:ai_mls/presentation/views/profile/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -111,15 +112,34 @@ class _TeacherDashboardScreenState
     }
   }
 
+  static const _titles = [
+    'Trang chủ',
+    'Bài tập',
+    'Lớp học',
+    'Cá nhân',
+  ];
+
+  static const _subtitles = [
+    'Chào mừng trở lại!',
+    'Quản lý bài tập',
+    'Lớp học của tôi',
+    'Thông tin tài khoản',
+  ];
+
   @override
   Widget build(BuildContext context) {
     final currentSelectedIndex = _getSelectedIndexFromRoute(context);
     final isShellRoute = widget.child != null;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWide = screenWidth >= DesignBreakpoints.tabletSmall;
+
+    // Trang Profile đã có AppBar riêng — không cần DashboardTopBar
+    final showTopBar = !isWide && currentSelectedIndex != 3;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent, // Hoàn toàn trong suốt
+        statusBarColor: Colors.transparent,
         statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
         systemNavigationBarColor: Colors.transparent,
@@ -127,19 +147,103 @@ class _TeacherDashboardScreenState
       ),
       child: Scaffold(
         backgroundColor: DesignColors.moonLight,
-        extendBody: true, // Cho phép body extend lên status bar
-        body: SafeArea(
-          top: true,
-          bottom: false,
-          minimum: EdgeInsets.zero,
-          child: isShellRoute
-              ? widget.child!
-              : IndexedStack(index: _selectedIndex, children: _pages),
-        ),
-        bottomNavigationBar: _buildBottomBar(currentSelectedIndex),
+        extendBody: !isWide,
+        body: isWide
+            ? _buildWideLayout(context, currentSelectedIndex, isShellRoute)
+            : _buildMobileLayout(
+                context, currentSelectedIndex, isShellRoute, showTopBar),
+        bottomNavigationBar:
+            isWide ? null : _buildBottomBar(currentSelectedIndex),
       ),
     );
   }
+
+  /// Layout mobile: SafeArea + DashboardTopBar + content
+  Widget _buildMobileLayout(
+    BuildContext context,
+    int currentIdx,
+    bool isShellRoute,
+    bool showTopBar,
+  ) {
+    final content = isShellRoute
+        ? widget.child!
+        : IndexedStack(index: _selectedIndex, children: _pages);
+
+    if (!showTopBar) {
+      return SafeArea(
+        top: false,
+        bottom: false,
+        child: content,
+      );
+    }
+
+    return Column(
+      children: [
+        // Shared top bar — tự handle topPadding bên trong
+        DashboardTopBar(
+          title: _titles[currentIdx],
+          subtitle: _subtitles[currentIdx],
+          profile: widget.userProfile,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined, size: 22),
+              onPressed: () {},
+              tooltip: 'Thông báo',
+            ),
+          ],
+        ),
+        Expanded(child: content),
+      ],
+    );
+  }
+
+  /// Layout 2 cột: sidebar cố định bên trái + content area bên phải.
+  Widget _buildWideLayout(
+      BuildContext context, int currentIdx, bool isShellRoute) {
+    
+    Widget content = isShellRoute
+        ? widget.child!
+        : IndexedStack(index: _selectedIndex, children: _pages);
+
+    return Row(
+      children: [
+        // ── Sidebar ────────────────────────────────────────────────────────
+        _WideNavSidebar(
+          selectedIndex: currentIdx,
+          onItemTapped: _onItemTapped,
+          userProfile: widget.userProfile,
+        ),
+
+        // ── Divider ────────────────────────────────────────────────────────
+        Container(width: 1, color: DesignColors.dividerLight),
+
+        // ── Main Content ───────────────────────────────────────────────────
+        Expanded(
+          child: currentIdx != 3
+              ? Column(
+                  children: [
+                    DashboardTopBar(
+                      title: _titles[currentIdx],
+                      subtitle: _subtitles[currentIdx],
+                      profile: widget.userProfile,
+                      showAvatar: false, // Sidebar đã có avatar
+                      actions: [
+                        IconButton(
+                          icon: const Icon(Icons.notifications_outlined, size: 22),
+                          onPressed: () {},
+                          tooltip: 'Thông báo',
+                        ),
+                      ],
+                    ),
+                    Expanded(child: content),
+                  ],
+                )
+              : content, // ProfileScreen tự render TopBar của nó
+        ),
+      ],
+    );
+  }
+
 
   Widget _buildBottomBar(int currentSelectedIndex) {
     return Container(
@@ -254,4 +358,163 @@ class _TeacherDashboardScreenState
       ),
     );
   }
+}
+
+// ── Wide Navigation Sidebar ───────────────────────────────────────────────────
+class _WideNavSidebar extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onItemTapped;
+  final Profile userProfile;
+
+  const _WideNavSidebar({
+    required this.selectedIndex,
+    required this.onItemTapped,
+    required this.userProfile,
+  });
+
+  static const _items = [
+    _SidebarItem(
+      activeIcon: Icons.home,
+      inactiveIcon: Icons.home_outlined,
+      label: 'Trang chủ',
+    ),
+    _SidebarItem(
+      activeIcon: Icons.assignment_turned_in,
+      inactiveIcon: Icons.assignment_turned_in_outlined,
+      label: 'Bài tập',
+    ),
+    _SidebarItem(
+      activeIcon: Icons.school,
+      inactiveIcon: Icons.school_outlined,
+      label: 'Lớp học',
+    ),
+    _SidebarItem(
+      activeIcon: Icons.person,
+      inactiveIcon: Icons.person_outline,
+      label: 'Cá nhân',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final name = userProfile.fullName ?? 'Giáo viên';
+    final initial =
+        name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+    return Container(
+      width: 220,
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Profile header ────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.all(DesignSpacing.xl),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor:
+                      DesignColors.primary.withValues(alpha: 0.12),
+                  child: Text(
+                    initial,
+                    style: const TextStyle(
+                        color: DesignColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18),
+                  ),
+                ),
+                const SizedBox(width: DesignSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Chào giáo viên,',
+                          style: TextStyle(
+                              color: DesignColors.textSecondary,
+                              fontSize: 11)),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 14),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Divider(height: 1, color: DesignColors.dividerLight),
+          const SizedBox(height: DesignSpacing.sm),
+
+          // ── Nav items ─────────────────────────────────────────────────
+          for (int i = 0; i < _items.length; i++)
+            _buildNavItem(context, _items[i], i),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(
+      BuildContext context, _SidebarItem item, int index) {
+    final isActive = selectedIndex == index;
+    final color =
+        isActive ? DesignColors.primary : DesignColors.textSecondary;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DesignSpacing.sm, vertical: 2),
+      child: InkWell(
+        onTap: () => onItemTapped(index),
+        borderRadius: BorderRadius.circular(DesignRadius.sm),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(
+              horizontal: DesignSpacing.md, vertical: DesignSpacing.sm),
+          decoration: BoxDecoration(
+            color: isActive
+                ? DesignColors.primary.withValues(alpha: 0.08)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(DesignRadius.sm),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isActive ? item.activeIcon : item.inactiveIcon,
+                color: color,
+                size: 20,
+              ),
+              const SizedBox(width: DesignSpacing.md),
+              Expanded(
+                child: Text(
+                  item.label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 14,
+                    fontWeight: isActive
+                        ? FontWeight.bold
+                        : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarItem {
+  final IconData activeIcon;
+  final IconData inactiveIcon;
+  final String label;
+
+  const _SidebarItem({
+    required this.activeIcon,
+    required this.inactiveIcon,
+    required this.label,
+  });
 }

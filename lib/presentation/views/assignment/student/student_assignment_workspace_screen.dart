@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/presentation/providers/workspace_provider.dart';
 import 'package:ai_mls/presentation/views/assignment/student/widgets/essay_answer_field.dart';
-import 'package:ai_mls/widgets/editor/rich_text_toolbar.dart';
+import 'package:ai_mls/widgets/editor/math_input_field.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/rubric/read_only_rubric_viewer.dart';
 import 'package:ai_mls/widgets/text/math_text.dart';
@@ -1293,27 +1293,12 @@ class _StudentAssignmentWorkspaceScreenState
           // ── Section 2: Lời giải LaTeX ─────────────────────────────────────
           _sectionLabel('LỜI GIẢI', Icons.edit_note),
           SizedBox(height: DesignSpacing.xs),
-          if (!widget.isReadOnly)
-            RichTextToolbar(controller: solutionCtrl),
-          SizedBox(height: DesignSpacing.xs),
-          TextField(
+          MathInputField(
             controller: solutionCtrl,
-            readOnly: widget.isReadOnly,
+            hintText: 'Trình bày lời giải chi tiết...',
             minLines: 4,
             maxLines: 12,
-            textInputAction: TextInputAction.newline,
-            keyboardType: TextInputType.multiline,
-            decoration: InputDecoration(
-              hintText: 'Trình bày lời giải chi tiết...',
-              hintStyle: TextStyle(color: Colors.grey[400]),
-              filled: true,
-              fillColor: Colors.grey[50],
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(DesignRadius.md),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              contentPadding: const EdgeInsets.all(DesignSpacing.md),
-            ),
+            readOnly: widget.isReadOnly,
             onChanged: (v) => update({'solution_text': v}),
           ),
           SizedBox(height: DesignSpacing.md),

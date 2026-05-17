@@ -11,6 +11,7 @@ import 'package:ai_mls/core/utils/excel_template_generator.dart';
 import 'package:ai_mls/core/utils/word_template_generator.dart';
 import 'package:ai_mls/data/models/local_temp_file.dart' show FileRole;
 import 'package:ai_mls/domain/entities/create_question_params.dart';
+import 'package:ai_mls/domain/entities/learning_objective.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/domain/entities/template_mode.dart';
 import 'package:ai_mls/presentation/providers/ai_generation_settings_notifier.dart';
@@ -22,6 +23,7 @@ import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/ai_settings_drawer.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/context_sources_section.dart';
 import 'package:ai_mls/widgets/editor/rich_text_toolbar.dart';
+import 'package:ai_mls/widgets/objective_selector/objective_selector_sheet.dart';
 import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -1406,6 +1408,19 @@ class _TeacherAiGenerateQuestionScreenState
     return null; // auto
   }
 
+  /// Nếu [fresh] thiếu/null/empty cho [key] thì copy từ [old] (giữ user edit).
+  void _carryOverIfMissing(
+    Map<String, dynamic> fresh,
+    Map<String, dynamic> old,
+    String key,
+    bool Function(dynamic) hasValue,
+  ) {
+    final freshVal = fresh[key];
+    if (!hasValue(freshVal) && hasValue(old[key])) {
+      fresh[key] = old[key];
+    }
+  }
+
   Future<void> _handleRegenerateSingle(int index) async {
     final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
     final currentMode = aiSettings.processingMode;
@@ -1482,7 +1497,20 @@ class _TeacherAiGenerateQuestionScreenState
       if (result.isNotEmpty && mounted) {
         setState(() {
           final updated = List<Map<String, dynamic>>.from(_generatedQuestions!);
-          updated[index] = result.first;
+          final old = updated[index];
+          final fresh = Map<String, dynamic>.from(result.first);
+          // Merge: AI có thể bỏ qua metadata (tags/difficulty/learningObjectives/hints)
+          // → giữ lại giá trị user đã đặt thay vì xoá sạch.
+          _carryOverIfMissing(fresh, old, 'tags', (v) => v is List && v.isNotEmpty);
+          _carryOverIfMissing(fresh, old, 'difficulty', (v) => v is num);
+          _carryOverIfMissing(
+            fresh,
+            old,
+            'learningObjectives',
+            (v) => v is List && v.isNotEmpty,
+          );
+          _carryOverIfMissing(fresh, old, 'hints', (v) => v is List && v.isNotEmpty);
+          updated[index] = fresh;
           _generatedQuestions = updated;
         });
       }
@@ -4182,7 +4210,7 @@ class _TeacherAiGenerateQuestionScreenState
 // ─────────────────────────────────────────────────────────────────────────────
 // Dialog chỉnh sửa câu hỏi inline
 // ─────────────────────────────────────────────────────────────────────────────
-class _EditQuestionDialog extends StatefulWidget {
+class _EditQuestionDialog extends ConsumerStatefulWidget {
   final Map<String, dynamic> question;
   final QuestionType questionType;
   final void Function(Map<String, dynamic> updated) onSave;
@@ -4194,16 +4222,31 @@ class _EditQuestionDialog extends StatefulWidget {
   });
 
   @override
-  State<_EditQuestionDialog> createState() => _EditQuestionDialogState();
+  ConsumerState<_EditQuestionDialog> createState() =>
+      _EditQuestionDialogState();
 }
 
-class _EditQuestionDialogState extends State<_EditQuestionDialog> {
+class _EditQuestionDialogState extends ConsumerState<_EditQuestionDialog> {
   late TextEditingController _textCtrl;
   late TextEditingController _expectedAnswerCtrl;
+  late TextEditingController _explanationCtrl;
+  late TextEditingController _tagInputCtrl;
   // Persistent controllers cho từng choice (tránh bug tạo lại mỗi rebuild)
   late List<TextEditingController> _choiceControllers;
   late List<bool> _choiceCorrect;
   int _correctIndex = 0;
+
+  // Metadata mở rộng (đồng bộ với teacher_create_question_screen)
+  int? _difficulty; // 1..5
+  List<String> _tags = [];
+  List<String> _learningObjectiveIds = [];
+  List<LearningObjective> _selectedObjectives = [];
+  bool _objectivesLoading = false;
+  late List<TextEditingController> _hintControllers;
+
+  /// Toggle split-view (chỉ có ý nghĩa trên web/PC rộng).
+  /// null = auto (theo screen width). Khi user bấm nút sẽ thành true/false.
+  bool? _splitView;
 
   bool get _isChoiceType =>
       widget.questionType == QuestionType.multipleChoice ||
@@ -4244,13 +4287,123 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
     final ans = q['answer'];
     final ea = (ans is Map) ? (ans['expected_answer'] as String? ?? '') : '';
     _expectedAnswerCtrl = TextEditingController(text: ea);
+
+    // Explanation: ưu tiên top-level, fallback answer.general_explanation
+    final topExpl = (q['explanation'] as String?)?.trim();
+    final ansExpl = (ans is Map)
+        ? (ans['general_explanation'] as String?)?.trim()
+        : null;
+    final initialExpl =
+        (topExpl != null && topExpl.isNotEmpty) ? topExpl : (ansExpl ?? '');
+    _explanationCtrl = TextEditingController(text: initialExpl);
+
+    // Difficulty (int 1..5) — chấp nhận int hoặc num
+    final rawDiff = q['difficulty'];
+    if (rawDiff is int) {
+      _difficulty = rawDiff;
+    } else if (rawDiff is num) {
+      _difficulty = rawDiff.toInt();
+    }
+
+    // Tags — đảm bảo List<String>
+    final rawTags = q['tags'];
+    if (rawTags is List) {
+      _tags = rawTags.map((e) => e.toString()).toList();
+    }
+    _tagInputCtrl = TextEditingController();
+
+    // Hints
+    final rawHints = q['hints'];
+    final hintsList = rawHints is List
+        ? rawHints.map((e) => e.toString()).toList()
+        : <String>[];
+    _hintControllers = hintsList
+        .map((h) => TextEditingController(text: h))
+        .toList();
+
+    // Learning objectives — AI có thể trả về dạng List<Map> (description/code/subject_code)
+    // hoặc List<String> (ids). Chỉ chấp nhận id để selector hoạt động đúng.
+    final rawLos = q['learningObjectives'];
+    if (rawLos is List) {
+      for (final item in rawLos) {
+        if (item is String) {
+          _learningObjectiveIds.add(item);
+        } else if (item is Map) {
+          // AI trả về dạng object — chưa có id thật, bỏ qua (selector chỉ làm việc với id).
+          // Giữ nguyên để khi save vẫn passthrough cho pipeline upload.
+        }
+      }
+    }
+
+    if (_learningObjectiveIds.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadObjectives());
+    }
+  }
+
+  Future<void> _loadObjectives() async {
+    if (_objectivesLoading || !mounted) return;
+    setState(() => _objectivesLoading = true);
+    try {
+      final repo = ref.read(learningObjectiveRepositoryProvider);
+      final all = await repo.getObjectives();
+      final loaded = all
+          .where((o) => _learningObjectiveIds.contains(o.id))
+          .toList();
+      if (mounted) setState(() => _selectedObjectives = loaded);
+    } catch (_) {
+      // Bỏ qua — chips sẽ chỉ hiện id nếu load lỗi
+    } finally {
+      if (mounted) setState(() => _objectivesLoading = false);
+    }
+  }
+
+  Future<void> _openObjectiveSelector() async {
+    final selected = await ObjectiveSelectorSheet.show(
+      context,
+      selectedIds: _learningObjectiveIds,
+      allowCreate: true,
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _selectedObjectives = selected;
+      _learningObjectiveIds = selected.map((o) => o.id).toList();
+    });
+  }
+
+  void _addTag() {
+    final tag = _tagInputCtrl.text.trim();
+    if (tag.isEmpty || _tags.contains(tag)) return;
+    setState(() {
+      _tags.add(tag);
+      _tagInputCtrl.clear();
+    });
+  }
+
+  void _removeTag(String tag) {
+    setState(() => _tags.remove(tag));
+  }
+
+  void _addHint() {
+    setState(() => _hintControllers.add(TextEditingController()));
+  }
+
+  void _removeHint(int index) {
+    setState(() {
+      _hintControllers[index].dispose();
+      _hintControllers.removeAt(index);
+    });
   }
 
   @override
   void dispose() {
     _textCtrl.dispose();
     _expectedAnswerCtrl.dispose();
+    _explanationCtrl.dispose();
+    _tagInputCtrl.dispose();
     for (final c in _choiceControllers) {
+      c.dispose();
+    }
+    for (final c in _hintControllers) {
       c.dispose();
     }
     super.dispose();
@@ -4290,6 +4443,67 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
       ansMap['expected_answer'] = _expectedAnswerCtrl.text.trim();
       updated['answer'] = ansMap;
     }
+
+    // Explanation: ghi cả 2 nơi để pipeline lưu vào answer.general_explanation đọc được.
+    final newExpl = _explanationCtrl.text.trim();
+    if (newExpl.isEmpty) {
+      updated.remove('explanation');
+      if (updated['answer'] is Map) {
+        (updated['answer'] as Map).remove('general_explanation');
+      }
+    } else {
+      updated['explanation'] = newExpl;
+      final ans = updated['answer'];
+      final ansMap = ans is Map<String, dynamic>
+          ? Map<String, dynamic>.from(ans)
+          : <String, dynamic>{};
+      ansMap['general_explanation'] = newExpl;
+      updated['answer'] = ansMap;
+    }
+
+    // Difficulty
+    if (_difficulty == null) {
+      updated.remove('difficulty');
+    } else {
+      updated['difficulty'] = _difficulty;
+    }
+
+    // Tags
+    if (_tags.isEmpty) {
+      updated.remove('tags');
+    } else {
+      updated['tags'] = List<String>.from(_tags);
+    }
+
+    // Hints
+    final hints = _hintControllers
+        .map((c) => c.text.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+    if (hints.isEmpty) {
+      updated.remove('hints');
+    } else {
+      updated['hints'] = hints;
+    }
+
+    // Learning objectives: pipeline upload hỗ trợ cả List<Map>{description/code/subject_code}
+    // và List<String>{ids}. Khi user chọn từ selector, ta có objects đầy đủ — convert sang
+    // dạng Map để upstream resolve về id (đồng bộ với phần xử lý ở dòng ~595).
+    if (_selectedObjectives.isNotEmpty) {
+      updated['learningObjectives'] = _selectedObjectives
+          .map(
+            (o) => {
+              'description': o.description,
+              'code': o.code,
+              'subject_code': o.subjectCode,
+              'id': o.id,
+            },
+          )
+          .toList();
+    } else if (_learningObjectiveIds.isEmpty) {
+      updated.remove('learningObjectives');
+    }
+
     widget.onSave(updated);
     Navigator.of(context).pop();
   }
@@ -4421,14 +4635,29 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final screenH = MediaQuery.of(context).size.height;
+    final mq = MediaQuery.of(context);
+    final screenH = mq.size.height;
+    final screenW = mq.size.width;
     final typeColor = widget.questionType.color;
+
+    // Cho phép split-view khi màn đủ rộng (tablet lớn / desktop).
+    final canSplit = screenW >= DesignBreakpoints.tabletLarge;
+    // Mặc định bật split khi screen rộng; người dùng có thể tắt qua nút.
+    final useSplit = canSplit && (_splitView ?? true);
+
+    // Trên màn rộng, dialog cho phép rộng hơn để có chỗ đặt cả 2 panel.
+    final EdgeInsets insetPadding = canSplit
+        ? EdgeInsets.symmetric(
+            horizontal: (screenW * 0.06).clamp(24.0, 80.0),
+            vertical: 28,
+          )
+        : const EdgeInsets.symmetric(horizontal: 16, vertical: 28);
 
     return DefaultTabController(
       length: 2,
       child: Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
+        insetPadding: insetPadding,
         child: Container(
           constraints: BoxConstraints(maxHeight: screenH * 0.88),
           decoration: BoxDecoration(
@@ -4511,6 +4740,25 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                         ],
                       ),
                     ),
+                    if (canSplit)
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            // Toggle giữa split và single (tabbed). Lưu giá trị
+                            // tường minh để không bị override bởi default.
+                            _splitView = !useSplit;
+                          });
+                        },
+                        icon: Icon(
+                          useSplit
+                              ? Icons.view_stream_rounded
+                              : Icons.view_column_rounded,
+                          color: DesignColors.primary,
+                        ),
+                        tooltip: useSplit
+                            ? 'Chuyển sang 1 panel (tab)'
+                            : 'Hiển thị Sửa + Xem trước song song',
+                      ),
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
                       icon: Icon(
@@ -4522,275 +4770,67 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
                 ),
               ),
 
-              // ── TabBar ──────────────────────────────────────────────────
-              Container(
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F1923) : Colors.white,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-                    ),
-                  ),
-                ),
-                child: TabBar(
-                  labelColor: DesignColors.primary,
-                  unselectedLabelColor: isDark
-                      ? Colors.grey[400]
-                      : Colors.grey[600],
-                  indicatorColor: DesignColors.primary,
-                  tabs: const [
-                    Tab(icon: Icon(Icons.edit_rounded, size: 18), text: 'Sửa'),
-                    Tab(
-                      icon: Icon(Icons.visibility_rounded, size: 18),
-                      text: 'Xem trước',
-                    ),
-                  ],
-                ),
-              ),
-
-              // ── TabBarView ──────────────────────────────────────────────
-              Flexible(
-                child: TabBarView(
-                  children: [
-                    // Tab 1: Sửa
-                    SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Section: Nội dung câu hỏi
-                          _buildSectionLabel(
-                            icon: Icons.help_outline_rounded,
-                            label: 'NỘI DUNG CÂU HỎI',
-                            isDark: isDark,
-                          ),
-                          const SizedBox(height: 8),
-                          // Math toolbar trên _textCtrl
-                          Text(
-                            'Chèn công thức:',
-                            style: DesignTypography.labelSmall.copyWith(
-                              color: isDark
-                                  ? Colors.grey[400]
-                                  : Colors.grey[600],
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          RichTextToolbar(controller: _textCtrl),
-                          const SizedBox(height: 10),
-                          _buildTextField(
-                            controller: _textCtrl,
-                            hintText: 'Nhập nội dung câu hỏi...',
-                            maxLines: 4,
-                            isDark: isDark,
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // Section: Đáp án
-                          if (_isChoiceType &&
-                              _choiceControllers.isNotEmpty) ...[
-                            Row(
-                              children: [
-                                _buildSectionLabelWidget(
-                                  icon: Icons.radio_button_checked_rounded,
-                                  label: 'CÁC ĐÁP ÁN',
-                                  isDark: isDark,
-                                ),
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: DesignColors.success.withValues(
-                                      alpha: 0.1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(
-                                      DesignRadius.full,
-                                    ),
-                                    border: Border.all(
-                                      color: DesignColors.success.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Tap ✓ để chọn đúng',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: DesignColors.success,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            ...List.generate(_choiceControllers.length, (i) {
-                              final isCorrect = i == _correctIndex;
-                              final label = String.fromCharCode(
-                                65 + i,
-                              ); // A,B,C,D
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: GestureDetector(
-                                  onTap: () =>
-                                      setState(() => _correctIndex = i),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 180),
-                                    decoration: BoxDecoration(
-                                      color: isCorrect
-                                          ? DesignColors.success.withValues(
-                                              alpha: isDark ? 0.12 : 0.07,
-                                            )
-                                          : (isDark
-                                                ? const Color(0xFF1A2632)
-                                                : Colors.grey[50]),
-                                      borderRadius: BorderRadius.circular(
-                                        DesignRadius.lg * 1.2,
-                                      ),
-                                      border: Border.all(
-                                        color: isCorrect
-                                            ? DesignColors.success
-                                            : (isDark
-                                                  ? Colors.grey[700]!
-                                                  : Colors.grey[200]!),
-                                        width: isCorrect ? 1.5 : 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        // Check icon
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            left: 12,
-                                          ),
-                                          child: Icon(
-                                            isCorrect
-                                                ? Icons.check_circle_rounded
-                                                : Icons
-                                                      .check_circle_outline_rounded,
-                                            color: isCorrect
-                                                ? DesignColors.success
-                                                : (isDark
-                                                      ? Colors.grey[600]
-                                                      : Colors.grey[400]),
-                                            size: 22,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        // Label badge
-                                        Container(
-                                          width: 26,
-                                          height: 26,
-                                          decoration: BoxDecoration(
-                                            color: isCorrect
-                                                ? DesignColors.success
-                                                : (isDark
-                                                      ? Colors.grey[700]!
-                                                      : Colors.grey[200]!),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Center(
-                                            child: Text(
-                                              label,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                                color: isCorrect
-                                                    ? Colors.white
-                                                    : (isDark
-                                                          ? Colors.grey[300]
-                                                          : Colors.grey[600]),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        // Text input
-                                        Expanded(
-                                          child: TextField(
-                                            controller: _choiceControllers[i],
-                                            style: DesignTypography.bodyMedium
-                                                .copyWith(
-                                                  color: isDark
-                                                      ? Colors.white
-                                                      : DesignColors
-                                                            .textPrimary,
-                                                  fontWeight: isCorrect
-                                                      ? FontWeight.w600
-                                                      : FontWeight.normal,
-                                                ),
-                                            decoration: InputDecoration(
-                                              hintText: 'Đáp án $label...',
-                                              hintStyle: TextStyle(
-                                                color: isDark
-                                                    ? Colors.grey[600]
-                                                    : Colors.grey[400],
-                                              ),
-                                              border: InputBorder.none,
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 14,
-                                                  ),
-                                            ),
-                                          ),
-                                        ),
-                                        // Math picker cho từng choice
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.functions,
-                                            size: 18,
-                                          ),
-                                          color: DesignColors.primary,
-                                          tooltip: 'Chèn ký tự toán học',
-                                          onPressed: () =>
-                                              RichTextToolbar.showMathPickerFor(
-                                                context,
-                                                _choiceControllers[i],
-                                              ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }),
-                          ] else ...[
-                            _buildSectionLabel(
-                              icon: Icons.task_alt_rounded,
-                              label: 'ĐÁP ÁN MẪU',
-                              isDark: isDark,
-                            ),
-                            const SizedBox(height: 8),
-                            RichTextToolbar(controller: _expectedAnswerCtrl),
-                            const SizedBox(height: 8),
-                            _buildTextField(
-                              controller: _expectedAnswerCtrl,
-                              hintText: 'Nhập đáp án mẫu...',
-                              maxLines: 4,
-                              isDark: isDark,
-                              fillColor: DesignColors.success.withValues(
-                                alpha: 0.05,
-                              ),
-                              borderColor: DesignColors.success.withValues(
-                                alpha: 0.3,
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(height: 4),
-                        ],
+              // ── TabBar (chỉ hiện khi KHÔNG split-view) ─────────────────
+              if (!useSplit)
+                Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0F1923) : Colors.white,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
                       ),
                     ),
-                    // Tab 2: Xem trước (Task 7a)
-                    _buildPreviewTab(isDark),
-                  ],
+                  ),
+                  child: TabBar(
+                    labelColor: DesignColors.primary,
+                    unselectedLabelColor: isDark
+                        ? Colors.grey[400]
+                        : Colors.grey[600],
+                    indicatorColor: DesignColors.primary,
+                    tabs: const [
+                      Tab(icon: Icon(Icons.edit_rounded, size: 18), text: 'Sửa'),
+                      Tab(
+                        icon: Icon(Icons.visibility_rounded, size: 18),
+                        text: 'Xem trước',
+                      ),
+                    ],
+                  ),
                 ),
+
+              // ── Body: split-view (6:4) hoặc TabBarView ────────────────
+              Flexible(
+                child: useSplit
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(flex: 6, child: _buildEditTabContent(isDark)),
+                          VerticalDivider(
+                            width: 1,
+                            thickness: 1,
+                            color: isDark
+                                ? Colors.grey[800]
+                                : Colors.grey[200],
+                          ),
+                          Expanded(
+                            flex: 4,
+                            child: Container(
+                              color: isDark
+                                  ? Colors.black.withValues(alpha: 0.15)
+                                  : Colors.grey[50],
+                              child: _buildPreviewTab(isDark),
+                            ),
+                          ),
+                        ],
+                      )
+                    : TabBarView(
+                        children: [
+                          _buildEditTabContent(isDark),
+                          // Tab 2: Xem trước
+                          _buildPreviewTab(isDark),
+                        ],
+                      ),
               ),
+
 
               // ── Footer buttons ───────────────────────────────────────────
               Container(
@@ -4877,6 +4917,600 @@ class _EditQuestionDialogState extends State<_EditQuestionDialog> {
           ),
         ),
       ),
+    );
+  }
+
+  // ─── Edit Tab Content ──────────────────────────────────────────────────
+  Widget _buildEditTabContent(bool isDark) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section: Nội dung câu hỏi
+          _buildSectionLabel(
+            icon: Icons.help_outline_rounded,
+            label: 'NỘI DUNG CÂU HỎI',
+            isDark: isDark,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Chèn công thức:',
+            style: DesignTypography.labelSmall.copyWith(
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          RichTextToolbar(controller: _textCtrl),
+          const SizedBox(height: 10),
+          _buildTextField(
+            controller: _textCtrl,
+            hintText: 'Nhập nội dung câu hỏi...',
+            maxLines: 4,
+            isDark: isDark,
+          ),
+
+          const SizedBox(height: 20),
+
+          // Section: Đáp án (choices) hoặc Đáp án mẫu
+          if (_isChoiceType && _choiceControllers.isNotEmpty) ...[
+            Row(
+              children: [
+                _buildSectionLabelWidget(
+                  icon: Icons.radio_button_checked_rounded,
+                  label: 'CÁC ĐÁP ÁN',
+                  isDark: isDark,
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: DesignColors.success.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(DesignRadius.full),
+                    border: Border.all(
+                      color: DesignColors.success.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    'Tap ✓ để chọn đúng',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: DesignColors.success,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ...List.generate(_choiceControllers.length, (i) {
+              final isCorrect = i == _correctIndex;
+              final label = String.fromCharCode(65 + i); // A,B,C,D
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: GestureDetector(
+                  onTap: () => setState(() => _correctIndex = i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    decoration: BoxDecoration(
+                      color: isCorrect
+                          ? DesignColors.success.withValues(
+                              alpha: isDark ? 0.12 : 0.07,
+                            )
+                          : (isDark
+                              ? const Color(0xFF1A2632)
+                              : Colors.grey[50]),
+                      borderRadius: BorderRadius.circular(
+                        DesignRadius.lg * 1.2,
+                      ),
+                      border: Border.all(
+                        color: isCorrect
+                            ? DesignColors.success
+                            : (isDark
+                                ? Colors.grey[700]!
+                                : Colors.grey[200]!),
+                        width: isCorrect ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 12),
+                          child: Icon(
+                            isCorrect
+                                ? Icons.check_circle_rounded
+                                : Icons.check_circle_outline_rounded,
+                            color: isCorrect
+                                ? DesignColors.success
+                                : (isDark
+                                    ? Colors.grey[600]
+                                    : Colors.grey[400]),
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: isCorrect
+                                ? DesignColors.success
+                                : (isDark
+                                    ? Colors.grey[700]!
+                                    : Colors.grey[200]!),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: isCorrect
+                                    ? Colors.white
+                                    : (isDark
+                                        ? Colors.grey[300]
+                                        : Colors.grey[600]),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: _choiceControllers[i],
+                            style: DesignTypography.bodyMedium.copyWith(
+                              color: isDark
+                                  ? Colors.white
+                                  : DesignColors.textPrimary,
+                              fontWeight: isCorrect
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Đáp án $label...',
+                              hintStyle: TextStyle(
+                                color: isDark
+                                    ? Colors.grey[600]
+                                    : Colors.grey[400],
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.functions, size: 18),
+                          color: DesignColors.primary,
+                          tooltip: 'Chèn ký tự toán học',
+                          onPressed: () =>
+                              RichTextToolbar.showMathPickerFor(
+                                context,
+                                _choiceControllers[i],
+                              ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ] else ...[
+            _buildSectionLabel(
+              icon: Icons.task_alt_rounded,
+              label: 'ĐÁP ÁN MẪU',
+              isDark: isDark,
+            ),
+            const SizedBox(height: 8),
+            RichTextToolbar(controller: _expectedAnswerCtrl),
+            const SizedBox(height: 8),
+            _buildTextField(
+              controller: _expectedAnswerCtrl,
+              hintText: 'Nhập đáp án mẫu...',
+              maxLines: 4,
+              isDark: isDark,
+              fillColor: DesignColors.success.withValues(alpha: 0.05),
+              borderColor: DesignColors.success.withValues(alpha: 0.3),
+            ),
+          ],
+
+          const SizedBox(height: 20),
+          _buildDifficultySection(isDark),
+          const SizedBox(height: 20),
+          _buildTagsSection(isDark),
+          const SizedBox(height: 20),
+          _buildObjectivesSection(isDark),
+          const SizedBox(height: 20),
+          _buildExplanationSection(isDark),
+          const SizedBox(height: 20),
+          _buildHintsSection(isDark),
+
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
+  // ─── Section: Độ khó ─────────────────────────────────────────────────────
+  Widget _buildDifficultySection(bool isDark) {
+    const labels = ['Rất dễ', 'Dễ', 'Trung bình', 'Khó', 'Rất khó'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(
+          icon: Icons.bar_chart_rounded,
+          label: 'ĐỘ KHÓ',
+          isDark: isDark,
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            ...List.generate(5, (i) {
+              final level = i + 1;
+              final isActive = _difficulty != null && _difficulty! >= level;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _difficulty = _difficulty == level ? null : level;
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    Icons.star_rounded,
+                    size: 28,
+                    color: isActive
+                        ? Colors.amber[400]
+                        : (isDark ? Colors.grey[600] : Colors.grey[300]),
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(width: 8),
+            Text(
+              _difficulty != null ? labels[_difficulty! - 1] : 'Chưa chọn',
+              style: DesignTypography.bodySmall.copyWith(
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ─── Section: Tags ──────────────────────────────────────────────────────
+  Widget _buildTagsSection(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(
+          icon: Icons.local_offer_rounded,
+          label: 'THẺ (TAGS)',
+          isDark: isDark,
+        ),
+        const SizedBox(height: 8),
+        if (_tags.isNotEmpty) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _tags.map((tag) {
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: DesignColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(DesignRadius.full),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      tag,
+                      style: DesignTypography.bodySmall.copyWith(
+                        color: DesignColors.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    GestureDetector(
+                      onTap: () => _removeTag(tag),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: DesignColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _tagInputCtrl,
+                onSubmitted: (_) => _addTag(),
+                style: DesignTypography.bodyMedium.copyWith(
+                  color: isDark ? Colors.white : DesignColors.textPrimary,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Thêm tag (vd: chương 1, lý thuyết)...',
+                  hintStyle: TextStyle(
+                    color: isDark ? Colors.grey[600] : Colors.grey[400],
+                  ),
+                  filled: true,
+                  fillColor: isDark
+                      ? Colors.grey[800]!.withValues(alpha: 0.5)
+                      : Colors.grey[50],
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(DesignRadius.lg * 1.2),
+                    borderSide: BorderSide(
+                      color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(DesignRadius.lg * 1.2),
+                    borderSide: BorderSide(
+                      color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(DesignRadius.lg * 1.2),
+                    borderSide: BorderSide(
+                      color: DesignColors.primary,
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: _addTag,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: DesignColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(DesignRadius.lg * 1.2),
+                ),
+              ),
+              child: const Text('Thêm'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ─── Section: Learning Objectives ───────────────────────────────────────
+  Widget _buildObjectivesSection(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _buildSectionLabel(
+              icon: Icons.school_rounded,
+              label: 'MỤC TIÊU HỌC TẬP',
+              isDark: isDark,
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _openObjectiveSelector,
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: const Text('Chọn'),
+              style: TextButton.styleFrom(
+                foregroundColor: DesignColors.primary,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_objectivesLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: SizedBox(
+              height: 14,
+              width: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else if (_selectedObjectives.isEmpty && _learningObjectiveIds.isEmpty)
+          Text(
+            'Chưa có mục tiêu nào. Bấm "Chọn" để thêm.',
+            style: DesignTypography.bodySmall.copyWith(
+              color: isDark ? Colors.grey[500] : Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          )
+        else if (_selectedObjectives.isNotEmpty)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _selectedObjectives.map((o) {
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: DesignColors.info.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(DesignRadius.full),
+                  border: Border.all(
+                    color: DesignColors.info.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.flag_outlined,
+                      size: 14,
+                      color: DesignColors.info,
+                    ),
+                    const SizedBox(width: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 220),
+                      child: Text(
+                        o.description,
+                        overflow: TextOverflow.ellipsis,
+                        style: DesignTypography.bodySmall.copyWith(
+                          color: DesignColors.info,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          )
+        else
+          Text(
+            '${_learningObjectiveIds.length} mục tiêu (đang tải tên...)',
+            style: DesignTypography.bodySmall.copyWith(
+              color: isDark ? Colors.grey[500] : Colors.grey[600],
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ─── Section: Explanation ───────────────────────────────────────────────
+  Widget _buildExplanationSection(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(
+          icon: Icons.lightbulb_outline_rounded,
+          label: 'GỢI Ý / GIẢI THÍCH',
+          isDark: isDark,
+        ),
+        const SizedBox(height: 8),
+        RichTextToolbar(controller: _explanationCtrl),
+        const SizedBox(height: 8),
+        _buildTextField(
+          controller: _explanationCtrl,
+          hintText: 'Gợi ý cách làm hoặc giải thích đáp án...',
+          maxLines: 3,
+          isDark: isDark,
+          fillColor: Colors.amber.withValues(alpha: 0.05),
+          borderColor: Colors.amber.withValues(alpha: 0.3),
+        ),
+      ],
+    );
+  }
+
+  // ─── Section: Hints (nhiều bậc) ────────────────────────────────────────
+  Widget _buildHintsSection(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _buildSectionLabel(
+              icon: Icons.tips_and_updates_rounded,
+              label: 'GỢI Ý THEO BẬC',
+              isDark: isDark,
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _addHint,
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: const Text('Thêm gợi ý'),
+              style: TextButton.styleFrom(
+                foregroundColor: DesignColors.primary,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_hintControllers.isEmpty)
+          Text(
+            'Chưa có gợi ý nào.',
+            style: DesignTypography.bodySmall.copyWith(
+              color: isDark ? Colors.grey[500] : Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          )
+        else
+          ...List.generate(_hintControllers.length, (i) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    margin: const EdgeInsets.only(top: 12),
+                    decoration: BoxDecoration(
+                      color: DesignColors.primary.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${i + 1}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: DesignColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _hintControllers[i],
+                      hintText: 'Gợi ý bậc ${i + 1}...',
+                      maxLines: 2,
+                      isDark: isDark,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => _removeHint(i),
+                    icon: Icon(
+                      Icons.delete_outline_rounded,
+                      color: DesignColors.error,
+                      size: 20,
+                    ),
+                    tooltip: 'Xoá',
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
     );
   }
 

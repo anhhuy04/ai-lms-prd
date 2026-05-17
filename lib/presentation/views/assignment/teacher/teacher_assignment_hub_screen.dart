@@ -55,8 +55,6 @@ class _TeacherAssignmentHubScreenState
       },
       child: CustomScrollView(
         slivers: [
-          SliverToBoxAdapter(child: _buildHeader(context, isDark)),
-
           // Gradient overview card
           SliverToBoxAdapter(
             child: Padding(
@@ -103,32 +101,6 @@ class _TeacherAssignmentHubScreenState
     );
   }
 
-  // ── Header ─────────────────────────────────────────────────────────────────
-
-  Widget _buildHeader(BuildContext context, bool isDark) {
-    return Container(
-      color: isDark ? const Color(0xFF1A2632) : Colors.white,
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 4,
-        top: MediaQuery.of(context).padding.top + 8,
-        bottom: 8,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Assignment Hub',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, size: 20),
-            onPressed: () {},
-          ),
-        ],
-      ),
-    );
-  }
 
   // ── Gradient Overview Card ─────────────────────────────────────────────────
 
@@ -537,21 +509,6 @@ class _TeacherAssignmentHubScreenState
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
-          child: Container(
-            color: isDark ? const Color(0xFF1A2632) : Colors.white,
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: MediaQuery.of(context).padding.top + 8,
-              bottom: 8,
-            ),
-            child: const Text(
-              'Assignment Hub',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.all(DesignSpacing.lg),
             child: Shimmer.fromColors(
@@ -613,21 +570,6 @@ class _TeacherAssignmentHubScreenState
 
     return CustomScrollView(
       slivers: [
-        SliverToBoxAdapter(
-          child: Container(
-            color: isDark ? const Color(0xFF1A2632) : Colors.white,
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: MediaQuery.of(context).padding.top + 8,
-              bottom: 8,
-            ),
-            child: const Text(
-              'Assignment Hub',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
         SliverFillRemaining(
           hasScrollBody: false,
           child: Center(

@@ -7,7 +7,6 @@ import 'package:ai_mls/domain/entities/class.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/class_providers.dart';
 import 'package:ai_mls/presentation/views/class/widgets/class_primary_action_card.dart';
-import 'package:ai_mls/presentation/views/class/widgets/class_screen_header.dart';
 import 'package:ai_mls/widgets/dialogs/class_sort_bottom_sheet.dart';
 import 'package:ai_mls/widgets/list_item/class/class_item_widget.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
@@ -267,8 +266,8 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
       backgroundColor: Colors.transparent,
       body: Column(
           children: [
-            // Header
-            _buildHeader(context, currentUserAsync.value),
+            // Search + sort bar (title/avatar đã có trên DashboardTopBar)
+            _buildSearchBar(context),
             const SizedBox(height: 12),
             // Card tạo lớp học mới
             _buildCreateClassCard(context),
@@ -287,16 +286,81 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
     );
   }
 
-  /// Header với tiêu đề và avatar
-  Widget _buildHeader(BuildContext context, profile) {
-    return ClassScreenHeader(
-      onSearch: () {
-        context.pushNamed(AppRoute.teacherClassSearch);
+  /// Search + sort bar thay thế ClassScreenHeader cũ.
+  /// Title và avatar đã được DashboardTopBar xử lý ở tầng dashboard.
+  Widget _buildSearchBar(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => context.pushNamed(AppRoute.teacherClassSearch),
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white10
+                      : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white12
+                        : Colors.grey.shade200,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 10),
+                    Icon(
+                      Icons.search_rounded,
+                      size: 18,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white54
+                          : Colors.grey.shade500,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Tìm kiếm lớp học...',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white54
+                            : Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.sort_rounded, size: 22),
+            onPressed: () => _showSortOptions(context),
+            tooltip: 'Sắp xếp',
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white70
+                : Colors.grey.shade600,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSortOptions(BuildContext context) {
+    final currentSort = ref.read(sortOptionProvider);
+    ClassSortBottomSheet.show(
+      context,
+      currentSortOption: currentSort,
+      onSortOptionSelected: (newOption) {
+        ref.read(sortOptionProvider.notifier).state = newOption;
+        // Phải reset page key để load lại list với thứ tự mới
+        final teacherId = ref.read(currentUserIdProvider);
+        if (teacherId != null) {
+          ref.read(pagingControllerProvider(teacherId)).refresh();
+        }
       },
-      onNotifications: () {
-        // TODO: Implement notifications
-      },
-      profile: profile,
     );
   }
 

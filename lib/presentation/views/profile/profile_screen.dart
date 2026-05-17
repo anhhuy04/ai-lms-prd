@@ -5,6 +5,7 @@ import 'package:ai_mls/core/services/api_key_service.dart';
 import 'package:ai_mls/domain/entities/profile.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
+import 'package:ai_mls/presentation/views/dashboard/widgets/dashboard_top_bar.dart';
 import 'package:ai_mls/widgets/loading/profile_shimmer_loading.dart';
 import 'package:ai_mls/widgets/refresh/app_refresh_indicator.dart';
 import 'package:flutter/material.dart';
@@ -212,6 +213,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWide = screenWidth >= DesignBreakpoints.tabletSmall;
 
     authState.whenData((user) {
       if (user != null && user != _lastSyncedUser && !_isEditing) {
@@ -223,64 +226,66 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
-      appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF1A2632) : Colors.white,
-        elevation: 0,
-        title: Text(
-          'Hồ sơ',
-          style: DesignTypography.titleLarge.copyWith(
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : DesignColors.textPrimary,
+      body: Column(
+        children: [
+          DashboardTopBar(
+            title: 'Cá nhân',
+            subtitle: 'Thông tin tài khoản',
+            profile: authState.value,
+            showAvatar: !isWide,
+            actions: [
+              Builder(
+                builder: (context) {
+                  final currentUser = authState.value;
+                  if (!_isEditing && currentUser != null) {
+                    return IconButton(
+                      icon: const Icon(Icons.edit_rounded, size: 22),
+                      onPressed: () => setState(() => _isEditing = true),
+                      tooltip: 'Chỉnh sửa',
+                      color: isDark ? Colors.white70 : DesignColors.textSecondary,
+                    );
+                  }
+                  if (_isEditing) {
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            if (!mounted) return;
+                            setState(() {
+                              _isEditing = false;
+                              _lastSyncedUser = null;
+                            });
+                            _updateControllersFromUser();
+                          },
+                          child: const Text('Hủy'),
+                        ),
+                        TextButton(
+                          onPressed: _handleUpdateProfile,
+                          child: const Text(
+                            'Lưu',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+            ],
           ),
-        ),
-        actions: [
-          Builder(
-            builder: (context) {
-              final currentUser = authState.value;
-              if (!_isEditing && currentUser != null) {
-                return IconButton(
-                  icon: const Icon(Icons.edit_rounded),
-                  onPressed: () => setState(() => _isEditing = true),
-                  tooltip: 'Chỉnh sửa',
-                );
-              }
-              if (_isEditing) {
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextButton(
-                      onPressed: () {
-                        if (!mounted) return;
-                        setState(() {
-                          _isEditing = false;
-                          _lastSyncedUser = null;
-                        });
-                        _updateControllersFromUser();
-                      },
-                      child: const Text('Hủy'),
-                    ),
-                    TextButton(
-                      onPressed: _handleUpdateProfile,
-                      child: const Text(
-                        'Lưu',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                );
-              }
-              return const SizedBox.shrink();
-            },
+          Expanded(
+            child: authState.when(
+              data: (user) {
+                if (user == null) return _buildNotLoggedInState();
+                return _buildProfileContent(user, isDark);
+              },
+              loading: () => const ProfileShimmerLoading(),
+              error: (error, _) => _buildErrorState(error),
+            ),
           ),
         ],
-      ),
-      body: authState.when(
-        data: (user) {
-          if (user == null) return _buildNotLoggedInState();
-          return _buildProfileContent(user, isDark);
-        },
-        loading: () => const ProfileShimmerLoading(),
-        error: (error, _) => _buildErrorState(error),
       ),
     );
   }

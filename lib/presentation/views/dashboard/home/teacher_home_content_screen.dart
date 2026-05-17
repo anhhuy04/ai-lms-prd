@@ -2,17 +2,16 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/assignment_distribution.dart';
 import 'package:ai_mls/domain/entities/class.dart';
-import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/teacher_assignment_hub_notifier.dart';
 import 'package:ai_mls/presentation/providers/teacher_dashboard_notifier.dart';
 import 'package:ai_mls/presentation/providers/teacher_dashboard_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_grading_hub_screen.dart';
+import 'package:ai_mls/presentation/views/dashboard/home/widgets/teacher_home_wide_layout.dart';
 import 'package:ai_mls/presentation/views/recommendation/widgets/intervention_badge.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
-import 'package:ai_mls/widgets/text/smart_marquee_text.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class TeacherHomeContentScreen extends ConsumerWidget {
   const TeacherHomeContentScreen({super.key});
@@ -24,7 +23,9 @@ class TeacherHomeContentScreen extends ConsumerWidget {
   }
 
   static int _pendingForClass(
-      List<AssignmentDistribution> dists, String classId) {
+    List<AssignmentDistribution> dists,
+    String classId,
+  ) {
     int total = 0;
     for (final d in dists) {
       if (d.classId == classId) {
@@ -36,7 +37,9 @@ class TeacherHomeContentScreen extends ConsumerWidget {
   }
 
   static int _totalAssignmentsForClass(
-      List<AssignmentDistribution> dists, String classId) {
+    List<AssignmentDistribution> dists,
+    String classId,
+  ) {
     // Đếm distributions — mỗi lần giao (cả lớp / nhóm / cá nhân) tính riêng
     return dists.where((d) => d.classId == classId).length;
   }
@@ -52,6 +55,21 @@ class TeacherHomeContentScreen extends ConsumerWidget {
       return const ShimmerTeacherHomeLoading();
     }
 
+    // ── Responsive: wide screen dùng layout mới theo mẫu HTML ──
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWide = screenWidth >= DesignBreakpoints.tabletSmall;
+
+    if (isWide) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: RefreshIndicator(
+          onRefresh: () =>
+              ref.read(teacherDashboardNotifierProvider.notifier).refresh(),
+          child: const TeacherHomeWideLayout(),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: RefreshIndicator(
@@ -63,8 +81,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(context, ref),
-              SizedBox(height: DesignSpacing.lg),
+              SizedBox(height: DesignSpacing.md),
               _buildQuickStats(context, ref),
               SizedBox(height: DesignSpacing.lg),
               _buildPriorityCard(context, ref),
@@ -72,17 +89,20 @@ class TeacherHomeContentScreen extends ConsumerWidget {
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: DesignSpacing.lg),
                 child: const Row(
-                    children: [Expanded(child: InterventionBadge())]),
+                  children: [Expanded(child: InterventionBadge())],
+                ),
               ),
               SizedBox(height: DesignSpacing.xxl),
-              _buildSectionHeader(context, 'Lớp học của tôi', 'Xem tất cả',
-                  onAction: () =>
-                      context.goNamed(AppRoute.teacherClassList)),
+              _buildSectionHeader(
+                context,
+                'Lớp học của tôi',
+                'Xem tất cả',
+                onAction: () => context.goNamed(AppRoute.teacherClassList),
+              ),
               SizedBox(height: DesignSpacing.md),
               _buildClassList(context, ref),
               SizedBox(height: DesignSpacing.xxl),
-              _buildSectionHeader(
-                  context, 'Bài tập sắp hết hạn', 'Xem lịch'),
+              _buildSectionHeader(context, 'Bài tập sắp hết hạn', 'Xem lịch'),
               SizedBox(height: DesignSpacing.md),
               _buildUpcomingAssignments(context, ref),
               const SizedBox(height: 80),
@@ -90,59 +110,6 @@ class TeacherHomeContentScreen extends ConsumerWidget {
           ),
         ),
       ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  Widget _buildHeader(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(authNotifierProvider).value;
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: DesignComponents.avatarMedium / 2,
-          backgroundColor: DesignColors.primary.withValues(alpha: 0.1),
-          child: Text(
-            (profile?.fullName?.isNotEmpty ?? false)
-                ? profile!.fullName![0].toUpperCase()
-                : '?',
-            style: const TextStyle(
-                fontSize: 22,
-                color: DesignColors.primary,
-                fontWeight: FontWeight.bold),
-          ),
-        ),
-        SizedBox(width: DesignSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Chào giáo viên,',
-                  style: TextStyle(
-                      color: DesignColors.textSecondary, fontSize: 14)),
-              SizedBox(height: DesignSpacing.xs),
-              SmartMarqueeText(
-                  text: profile?.fullName ?? 'Giáo viên',
-                  style: DesignTypography.titleLarge),
-            ],
-          ),
-        ),
-        SizedBox(width: DesignSpacing.md),
-        Container(
-          width: DesignComponents.avatarMedium,
-          height: DesignComponents.avatarMedium,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(DesignRadius.md),
-            border: Border.all(color: DesignColors.dividerLight),
-          ),
-          child: IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none_outlined),
-            color: DesignColors.primary,
-          ),
-        ),
-      ],
     );
   }
 
@@ -161,15 +128,26 @@ class TeacherHomeContentScreen extends ConsumerWidget {
 
     final classes = classesAsync.valueOrNull ?? [];
     final classCount = classes.length;
-    final totalFromClasses =
-        classes.fold<int>(0, (sum, c) => sum + (c.studentCount ?? 0));
-    final pendingLabel = 'Chờ chấm: ${pendingAsync.valueOrNull?.toString() ?? '_'}';
-    final uniqueLabel = 'tổng/hs thực: $totalFromClasses/${uniqueAsync.valueOrNull?.toString() ?? '_'}';
+    final totalFromClasses = classes.fold<int>(
+      0,
+      (sum, c) => sum + (c.studentCount ?? 0),
+    );
+    final pendingLabel =
+        'Chờ chấm: ${pendingAsync.valueOrNull?.toString() ?? '_'}';
+    final uniqueLabel =
+        'tổng/hs thực: $totalFromClasses/${uniqueAsync.valueOrNull?.toString() ?? '_'}';
 
-    Widget chip({required IconData icon, required Color color, required String label}) {
+    Widget chip({
+      required IconData icon,
+      required Color color,
+      required String label,
+    }) {
       return Chip(
         avatar: Icon(icon, color: color, size: 18),
-        label: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
@@ -187,9 +165,21 @@ class TeacherHomeContentScreen extends ConsumerWidget {
         itemCount: 3,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) => switch (i) {
-          0 => chip(icon: Icons.assignment_late_outlined, color: colorScheme.primary, label: pendingLabel),
-          1 => chip(icon: Icons.groups_outlined, color: colorScheme.secondary, label: uniqueLabel),
-          _ => chip(icon: Icons.school_outlined, color: colorScheme.tertiary, label: 'Số lớp: $classCount'),
+          0 => chip(
+            icon: Icons.assignment_late_outlined,
+            color: colorScheme.primary,
+            label: pendingLabel,
+          ),
+          1 => chip(
+            icon: Icons.groups_outlined,
+            color: colorScheme.secondary,
+            label: uniqueLabel,
+          ),
+          _ => chip(
+            icon: Icons.school_outlined,
+            color: colorScheme.tertiary,
+            label: 'Số lớp: $classCount',
+          ),
         },
       ),
     );
@@ -209,9 +199,7 @@ class TeacherHomeContentScreen extends ConsumerWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(DesignRadius.lg),
         border: Border.all(color: DesignColors.dividerLight),
-        boxShadow: [
-          BoxShadow(color: DesignColors.shadowLight, blurRadius: 10),
-        ],
+        boxShadow: [BoxShadow(color: DesignColors.shadowLight, blurRadius: 10)],
       ),
       child: Row(
         children: [
@@ -225,21 +213,27 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                       width: 8,
                       height: 8,
                       decoration: const BoxDecoration(
-                          shape: BoxShape.circle, color: DesignColors.error),
+                        shape: BoxShape.circle,
+                        color: DesignColors.error,
+                      ),
                     ),
                     const SizedBox(width: 8),
-                    const Text('ƯU TIÊN',
-                        style: TextStyle(
-                            color: DesignColors.error,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5)),
+                    const Text(
+                      'ƯU TIÊN',
+                      style: TextStyle(
+                        color: DesignColors.error,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text('Bài tập cần chấm',
-                    style: TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Bài tập cần chấm',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 4),
                 if (isPendingLoading)
                   const Padding(
@@ -250,16 +244,18 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                   RichText(
                     text: TextSpan(
                       style: const TextStyle(
-                          color: DesignColors.textSecondary,
-                          fontSize: 14,
-                          fontFamily: 'Lexend'),
+                        color: DesignColors.textSecondary,
+                        fontSize: 14,
+                        fontFamily: 'Lexend',
+                      ),
                       children: [
                         const TextSpan(text: 'Bạn có '),
                         TextSpan(
                           text: pendingValue,
                           style: TextStyle(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.bold),
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const TextSpan(text: ' bài nộp đang chờ duyệt.'),
                       ],
@@ -278,14 +274,16 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                     elevation: 5,
-                    shadowColor: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.3),
+                    shadowColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.3),
                   ),
                 ),
               ],
@@ -320,16 +318,20 @@ class TeacherHomeContentScreen extends ConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title,
-            style: const TextStyle(
-                fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         TextButton(
           onPressed: onAction,
-          child: Text(actionText,
-              style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14)),
+          child: Text(
+            actionText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
         ),
       ],
     );
@@ -345,19 +347,25 @@ class TeacherHomeContentScreen extends ConsumerWidget {
     return classesAsync.when(
       loading: () => const ShimmerAssignmentListLoading(itemCount: 3),
       error: (_, __) => Center(
-          child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text('Không thể tải danh sách lớp',
-                  style:
-                      TextStyle(color: DesignColors.textSecondary)))),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            'Không thể tải danh sách lớp',
+            style: TextStyle(color: DesignColors.textSecondary),
+          ),
+        ),
+      ),
       data: (all) {
         if (all.isEmpty) {
           return Center(
-              child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text('Chưa có lớp học nào',
-                      style: TextStyle(
-                          color: DesignColors.textSecondary))));
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Chưa có lớp học nào',
+                style: TextStyle(color: DesignColors.textSecondary),
+              ),
+            ),
+          );
         }
         // Chỉ hiển thị 5 lớp mới nhất
         final display = all.take(5).toList();
@@ -415,9 +423,10 @@ class TeacherHomeContentScreen extends ConsumerWidget {
           border: Border.all(color: DesignColors.dividerLight),
           boxShadow: [
             BoxShadow(
-                color: DesignColors.shadowLight,
-                blurRadius: 5,
-                offset: const Offset(0, 2)),
+              color: DesignColors.shadowLight,
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
         child: Row(
@@ -431,17 +440,21 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(DesignRadius.sm),
                 boxShadow: [
                   BoxShadow(
-                      color: gradient.colors.first.withValues(alpha: 0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4)),
+                    color: gradient.colors.first.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
                 ],
               ),
               child: Center(
-                child: Text(badge,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold)),
+                child: Text(
+                  badge,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 16),
@@ -449,23 +462,32 @@ class TeacherHomeContentScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(cls.name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    cls.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   if (infoLine.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(infoLine,
-                        style: TextStyle(
-                            color: DesignColors.textSecondary,
-                            fontSize: 13),
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      infoLine,
+                      style: TextStyle(
+                        color: DesignColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                   const SizedBox(height: 4),
                   Text(
                     '$studentCount học sinh',
                     style: TextStyle(
-                        color: DesignColors.textSecondary, fontSize: 14),
+                      color: DesignColors.textSecondary,
+                      fontSize: 14,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
@@ -476,7 +498,10 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                         const ShimmerInlineChips()
                       else ...[
                         if (totalAssignments > 0)
-                          _chip('$totalAssignments bài tập', DesignColors.primary),
+                          _chip(
+                            '$totalAssignments bài tập',
+                            DesignColors.primary,
+                          ),
                         if (pendingCount > 0)
                           _chip('$pendingCount chờ chấm', DesignColors.warning)
                         else
@@ -496,9 +521,14 @@ class TeacherHomeContentScreen extends ConsumerWidget {
 
   Widget _chip(String label, Color color) {
     return Chip(
-      label: Text(label,
-          style: TextStyle(
-              color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+      label: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
       backgroundColor: color.withValues(alpha: 0.1),
       side: BorderSide(color: color.withValues(alpha: 0.2)),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
@@ -517,19 +547,25 @@ class TeacherHomeContentScreen extends ConsumerWidget {
     return upcomingAsync.when(
       loading: () => const ShimmerAssignmentListLoading(itemCount: 3),
       error: (_, __) => Center(
-          child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text('Không thể tải dữ liệu',
-                  style:
-                      TextStyle(color: DesignColors.textSecondary)))),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            'Không thể tải dữ liệu',
+            style: TextStyle(color: DesignColors.textSecondary),
+          ),
+        ),
+      ),
       data: (distributions) {
         if (distributions.isEmpty) {
           return Center(
-              child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text('Không có bài tập nào sắp hết hạn',
-                      style: TextStyle(
-                          color: DesignColors.textSecondary))));
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Không có bài tập nào sắp hết hạn',
+                style: TextStyle(color: DesignColors.textSecondary),
+              ),
+            ),
+          );
         }
         return Column(
           children: [
@@ -544,7 +580,9 @@ class TeacherHomeContentScreen extends ConsumerWidget {
   }
 
   Widget _buildAssignmentTile(
-      BuildContext context, AssignmentDistribution dist) {
+    BuildContext context,
+    AssignmentDistribution dist,
+  ) {
     final dueAt = dist.dueAt;
     final now = DateTime.now();
     final diff = dueAt?.difference(now);
@@ -577,8 +615,9 @@ class TeacherHomeContentScreen extends ConsumerWidget {
     final className = dist.className ?? 'Lớp học';
     final submitted = dist.submittedCount ?? 0;
     final total = dist.recipientCount ?? 0;
-    final submissionStatus =
-        total > 0 ? '$submitted/$total đã nộp' : 'Chưa có bài nộp';
+    final submissionStatus = total > 0
+        ? '$submitted/$total đã nộp'
+        : 'Chưa có bài nộp';
 
     return InkWell(
       onTap: () {
@@ -606,9 +645,10 @@ class TeacherHomeContentScreen extends ConsumerWidget {
           border: Border.all(color: DesignColors.dividerLight),
           boxShadow: const [
             BoxShadow(
-                color: Color(0x08000000),
-                blurRadius: 5,
-                offset: Offset(0, 2)),
+              color: Color(0x08000000),
+              blurRadius: 5,
+              offset: Offset(0, 2),
+            ),
           ],
         ),
         child: Row(
@@ -624,18 +664,24 @@ class TeacherHomeContentScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(dayOfWeek,
-                      style: TextStyle(
-                          color: timeColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5)),
-                  Text(dayNum,
-                      style: TextStyle(
-                          color: timeColor,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          height: 1.2)),
+                  Text(
+                    dayOfWeek,
+                    style: TextStyle(
+                      color: timeColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Text(
+                    dayNum,
+                    style: TextStyle(
+                      color: timeColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      height: 1.2,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -648,21 +694,27 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: Text(title,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 14),
-                            overflow: TextOverflow.ellipsis),
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       Chip(
-                        label: Text(timeText,
-                            style: TextStyle(
-                                color: timeColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold)),
+                        label: Text(
+                          timeText,
+                          style: TextStyle(
+                            color: timeColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         backgroundColor: timeColor.withValues(alpha: 0.1),
                         padding: EdgeInsets.zero,
-                        labelPadding:
-                            const EdgeInsets.symmetric(horizontal: 8),
+                        labelPadding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
                     ],
                   ),
@@ -670,26 +722,32 @@ class TeacherHomeContentScreen extends ConsumerWidget {
                   Row(
                     children: [
                       Chip(
-                        label: Text(className,
-                            style: TextStyle(
-                                color: DesignColors.textPrimary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold)),
+                        label: Text(
+                          className,
+                          style: TextStyle(
+                            color: DesignColors.textPrimary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         backgroundColor: DesignColors.moonLight,
                         side: BorderSide.none,
                         padding: EdgeInsets.zero,
-                        labelPadding:
-                            const EdgeInsets.symmetric(horizontal: 6),
+                        labelPadding: const EdgeInsets.symmetric(horizontal: 6),
                       ),
                       const SizedBox(width: 4),
-                      Text('•',
-                          style:
-                              TextStyle(color: DesignColors.textSecondary)),
+                      Text(
+                        '•',
+                        style: TextStyle(color: DesignColors.textSecondary),
+                      ),
                       const SizedBox(width: 4),
-                      Text(submissionStatus,
-                          style: TextStyle(
-                              color: DesignColors.textSecondary,
-                              fontSize: 12)),
+                      Text(
+                        submissionStatus,
+                        style: TextStyle(
+                          color: DesignColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ),
                 ],

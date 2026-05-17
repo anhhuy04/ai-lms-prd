@@ -94,6 +94,7 @@ dependencies:
 
   # Math/LaTeX rendering
   flutter_math_fork: ^0.7.2
+  google_fonts: ^8.1.0
 
 dev_dependencies:
 
