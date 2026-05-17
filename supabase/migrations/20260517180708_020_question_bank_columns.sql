@@ -20,7 +20,9 @@ UPDATE public.questions
   WHERE is_global IS DISTINCT FROM is_public;
 
 CREATE OR REPLACE FUNCTION public.questions_bridge_is_global_is_public()
-RETURNS trigger LANGUAGE plpgsql AS $$
+RETURNS trigger LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
 BEGIN
   IF NEW.is_global IS DISTINCT FROM OLD.is_global THEN
     NEW.is_public := NEW.is_global;
