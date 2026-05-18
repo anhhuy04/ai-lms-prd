@@ -17,6 +17,9 @@ import 'package:ai_mls/presentation/views/assignment/teacher/teacher_preview_ass
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/dialog/delete_question_dialog.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/drawer/create_assignment_drawer.dart';
 import 'package:ai_mls/widgets/dialogs/warning_dialog.dart';
+import 'package:ai_mls/widgets/question_bank/question_bank_picker_sheet.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/widgets/ghost_questions_banner.dart';
+import 'package:ai_mls/domain/entities/question.dart' as qbe;
 import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:ai_mls/widgets/forms/date_time_picker_field.dart';
 import 'package:ai_mls/widgets/forms/labeled_text_field.dart';
@@ -433,6 +436,98 @@ class _TeacherCreateAssignmentScreenState
 
     _setQuestions(next);
     _updateQuestionPoints();
+  }
+
+  // ── Question Bank picker integration ──────────────────────────────────────
+
+  /// Open Question Bank picker sheet, then append selected questions to
+  /// current `_questions` list. Mirrors the persistence pattern used by
+  /// `_addQuestionFromScreen`.
+  Future<void> _openQuestionBankPicker() async {
+    final existingIds = _questions
+        .map((q) => q['questionId'] as String?)
+        .whereType<String>()
+        .toList();
+    final picked = await QuestionBankPickerSheet.show(
+      context,
+      excludeQuestionIds: existingIds,
+    );
+    if (picked == null || picked.isEmpty || !mounted) return;
+
+    final next = List<Map<String, dynamic>>.from(_questions);
+    for (var i = 0; i < picked.length; i++) {
+      final q = picked[i];
+      next.add(_mapBankQuestionToFormData(q, number: next.length + 1));
+    }
+    _setQuestions(next);
+    _updateQuestionPoints();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Đã thêm ${picked.length} câu hỏi từ kho')),
+    );
+
+    // Persist to draft + reload questions section (silent on failure;
+    // user can still Save Draft manually) — same pattern as add-question.
+    try {
+      await _persistQuestionsToDraft();
+      await _reloadQuestionsSection();
+      _captureOriginalValues();
+    } catch (_) {
+      // silent
+    }
+  }
+
+  /// Map a Question Bank entity into the inline `_questions` form data shape
+  /// used throughout this screen. Notes:
+  /// - `type` is stored as the QuestionType enum (not dbValue string).
+  /// - `questionId` carries the canonical bank link (bank-first).
+  /// - `options` is left empty for now — bank-first questions render preview;
+  ///   full content (choices/answer) will be loaded on demand later.
+  Map<String, dynamic> _mapBankQuestionToFormData(
+    qbe.Question q, {
+    required int number,
+  }) {
+    final preview = _extractBankText(q.content);
+    return <String, dynamic>{
+      'number': number,
+      'questionId': q.id,
+      'type': q.type,
+      'text': preview,
+      'difficulty': q.difficulty,
+      'tags': List<String>.from(q.tags),
+      'options': const <Map<String, dynamic>>[],
+      'explanation': '',
+      'customContent': null,
+      'source': 'bank',
+      'points': _getPointsForQuestion(q.type),
+    };
+  }
+
+  /// Plain-text preview from Quill Delta or plain content JSON.
+  String _extractBankText(Map<String, dynamic> content) {
+    if (content['ops'] is List) {
+      return (content['ops'] as List)
+          .where((op) => op is Map && op['insert'] is String)
+          .map((op) => (op as Map)['insert'] as String)
+          .join();
+    }
+    if (content['text'] is String) return content['text'] as String;
+    return '';
+  }
+
+  /// Reload questions list after Ghost sync — picks up new `question_id`s.
+  Future<void> _reloadAssignmentQuestions() async {
+    if (!mounted) return;
+    try {
+      await _reloadQuestionsSection();
+    } catch (_) {
+      // silent
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Đã đồng bộ — danh sách câu hỏi đã cập nhật')),
+    );
   }
 
   // Map để lưu trữ điểm cho từng loại câu hỏi (nguồn gốc của điểm)
@@ -2471,6 +2566,14 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                           _buildSettingsCard(context, isDark),
                           SizedBox(height: DesignSpacing.xxl),
 
+                          // Ghost Questions Banner (draft + assignment exists)
+                          if (_assignmentId != null && !_isPublished)
+                            GhostQuestionsBanner(
+                              assignmentId: _assignmentId!,
+                              isDraft: !_isPublished,
+                              onSyncSuccess: _reloadAssignmentQuestions,
+                            ),
+
                           // Questions Section
                           ValueListenableBuilder<List<Map<String, dynamic>>>(
                             valueListenable: _questionsNotifier,
@@ -2697,9 +2800,9 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                   setState(() => _isDrawerOpen = false);
                   await _handleAiGenerateQuestion();
                 },
-                onOpenQuestionBank: () {
-                  // TODO: Open question bank
+                onOpenQuestionBank: () async {
                   setState(() => _isDrawerOpen = false);
+                  await _openQuestionBankPicker();
                 },
                 onUploadFile: () {
                   // TODO: Upload file
