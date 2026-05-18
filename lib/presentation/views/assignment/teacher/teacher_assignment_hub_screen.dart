@@ -1,6 +1,7 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/assignment_statistics.dart';
+import 'package:ai_mls/presentation/providers/question_bank_summary_provider.dart';
 import 'package:ai_mls/presentation/providers/teacher_assignment_hub_notifier.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/ass_hub/assignment_management_card.dart';
 import 'package:flutter/material.dart';
@@ -379,6 +380,9 @@ class _TeacherAssignmentHubScreenState
     bool isDark,
     AssignmentStatistics stats,
   ) {
+    final qbCount =
+        ref.watch(questionBankSummaryProvider).valueOrNull?.totalMine ?? 0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -433,6 +437,34 @@ class _TeacherAssignmentHubScreenState
                 },
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: AssignmentManagementCard(
+                label: 'Kho câu hỏi',
+                count: qbCount,
+                backgroundColor: isDark
+                    ? const Color(0xFF134E4A).withValues(alpha: 0.4)
+                    : const Color(0xFFCCFBF1),
+                iconColor: isDark
+                    ? Colors.teal.shade200
+                    : Colors.teal.shade700,
+                textColor: isDark
+                    ? const Color(0xFFCCFBF1)
+                    : Colors.teal.shade700,
+                icon: Icons.quiz_outlined,
+                onTap: () async {
+                  await context.pushNamed(AppRoute.teacherQuestionBank);
+                  if (!mounted) return;
+                  ref.invalidate(questionBankSummaryProvider);
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Expanded(child: SizedBox.shrink()),
           ],
         ),
       ],
