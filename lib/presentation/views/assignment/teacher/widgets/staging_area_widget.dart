@@ -14,6 +14,7 @@ void showStagingArea(
   required List<QuestionDTO> questions,
   required String? assignmentId, // null nếu không trong ngữ cảnh đề thi
   required VoidCallback onComplete,
+  String entrySource = 'ai_generated',
 }) {
   showModalBottomSheet(
     context: context,
@@ -28,6 +29,7 @@ void showStagingArea(
         assignmentId: assignmentId,
         onComplete: onComplete,
         scrollController: scrollController,
+        entrySource: entrySource,
       ),
     ),
   );
@@ -43,12 +45,18 @@ class StagingAreaWidget extends ConsumerStatefulWidget {
   final VoidCallback onComplete;
   final ScrollController scrollController;
 
+  /// Nguồn gốc câu hỏi cho RPC `save_questions_to_assignment` (D-24/D-25).
+  /// Mặc định `'ai_generated'` vì staging area thường được mở sau khi
+  /// AI generate/extract trả về. Có thể override khi gọi từ flow khác.
+  final String entrySource;
+
   const StagingAreaWidget({
     super.key,
     required this.questions,
     required this.assignmentId,
     required this.onComplete,
     required this.scrollController,
+    this.entrySource = 'ai_generated',
   });
 
   @override
@@ -69,8 +77,9 @@ class _StagingAreaWidgetState extends ConsumerState<StagingAreaWidget> {
       await Supabase.instance.client.rpc(
         'save_questions_to_assignment',
         params: {
-          'p_questions':
-              questions.map((q) => q.toDbInsert()).toList(),
+          'p_questions': questions
+              .map((q) => q.copyWith(source: widget.entrySource).toDbInsert())
+              .toList(),
           'p_assignment_id': null, // Bank only — no orphan data possible
         },
       );
@@ -108,8 +117,9 @@ class _StagingAreaWidgetState extends ConsumerState<StagingAreaWidget> {
       await Supabase.instance.client.rpc(
         'save_questions_to_assignment',
         params: {
-          'p_questions':
-              questions.map((q) => q.toDbInsert()).toList(),
+          'p_questions': questions
+              .map((q) => q.copyWith(source: widget.entrySource).toDbInsert())
+              .toList(),
           'p_assignment_id': widget.assignmentId, // Atomic: save + link
         },
       );
