@@ -1,34 +1,26 @@
-import 'package:ai_mls/domain/entities/create_question_params.dart';
-import 'package:ai_mls/domain/entities/question.dart';
-import 'package:ai_mls/domain/entities/question_choice.dart';
-import 'package:ai_mls/domain/entities/question_type.dart';
+import '../entities/create_question_params.dart';
+import '../entities/ghost_report.dart';
+import '../entities/question.dart';
+import '../entities/question_choice.dart';
+import '../entities/question_filter.dart';
+import '../entities/sync_result.dart';
 
-/// Contract cho Question Bank.
 abstract class QuestionRepository {
-  /// Tạo câu hỏi (kèm choices/objectives nếu có).
+  // CRUD
   Future<Question> createQuestion(CreateQuestionParams params);
-
-  /// Cập nhật câu hỏi (kèm replace choices/objectives nếu có).
-  /// Lưu ý: update sẽ "replace" toàn bộ choices/objectives hiện tại của câu hỏi.
   Future<Question> updateQuestion(String id, CreateQuestionParams params);
-
-  /// Lấy câu hỏi theo id.
   Future<Question?> getQuestionById(String id);
+  Future<List<QuestionChoice>> getChoicesByQuestionId(String id);
 
-  /// Lấy danh sách câu hỏi của 1 giáo viên (option include public).
-  Future<List<Question>> getQuestionsByAuthor(
-    String authorId, {
-    bool includePublic = true,
-    QuestionType? type,
-    int? difficulty,
-    List<String>? tags,
-    int page = 0,
-    int pageSize = 20,
-  });
+  // List / search
+  Future<List<Question>> getQuestions(QuestionFilter filter);
 
-  /// Lấy choices cho 1 câu hỏi (order by id asc).
-  Future<List<QuestionChoice>> getChoicesByQuestionId(String questionId);
+  // Soft delete
+  Future<void> softDeleteQuestion(String id);
+  Future<void> restoreQuestion(String id);
 
-  /// Xóa câu hỏi (teacher own / admin).
-  Future<void> deleteQuestion(String id);
+  // Smart Sync
+  Future<Question?> checkDuplicate(String authorId, String contentHash);
+  Future<GhostReport> detectGhostQuestions(String assignmentId);
+  Future<SyncResult> syncAssignmentToBank(String assignmentId);
 }
