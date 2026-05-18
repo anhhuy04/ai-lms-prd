@@ -3,6 +3,7 @@ import 'package:ai_mls/domain/entities/question.dart';
 import 'package:ai_mls/domain/entities/question_choice.dart';
 import 'package:ai_mls/domain/usecases/question_bank_usecases.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
+import 'package:ai_mls/presentation/providers/question_stats_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -188,19 +189,115 @@ class _ChoiceRow extends StatelessWidget {
   }
 }
 
-class _StatsTab extends StatelessWidget {
-  // ignore: unused_element_parameter
+class _StatsTab extends ConsumerWidget {
   final String questionId;
   const _StatsTab({required this.questionId});
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(questionStatsProvider(questionId));
+    return statsAsync.when(
+      data: (stats) {
+        if (stats.totalAttempts == 0) {
+          return Center(
+            child: Padding(
+              padding: EdgeInsets.all(DesignSpacing.lg),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.bar_chart, size: 64, color: Colors.grey),
+                  SizedBox(height: DesignSpacing.md),
+                  const Text('Câu hỏi chưa được dùng — chưa có thống kê'),
+                ],
+              ),
+            ),
+          );
+        }
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(DesignSpacing.lg),
+          child: GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            childAspectRatio: 1.8,
+            mainAxisSpacing: DesignSpacing.md,
+            crossAxisSpacing: DesignSpacing.md,
+            children: [
+              _StatCard(
+                label: 'Lượt làm',
+                value: '${stats.totalAttempts}',
+                icon: Icons.bar_chart,
+              ),
+              _StatCard(
+                label: 'Đúng',
+                value: '${stats.correctCount}',
+                icon: Icons.check_circle,
+                color: DesignColors.success,
+              ),
+              _StatCard(
+                label: 'Tỉ lệ đúng',
+                value: '${(stats.correctRate * 100).toStringAsFixed(1)}%',
+                icon: Icons.percent,
+                color: stats.correctRate >= 0.5
+                    ? DesignColors.success
+                    : DesignColors.warning,
+              ),
+              _StatCard(
+                label: 'Cập nhật gần nhất',
+                value: stats.lastAttempted == null
+                    ? '—'
+                    : _formatDate(stats.lastAttempted!),
+                icon: Icons.update,
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Lỗi: $e')),
+    );
+  }
+
+  String _formatDate(DateTime dt) {
+    final d = dt.toLocal();
+    return '${d.day}/${d.month}/${d.year}';
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color? color;
+
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.color,
+  });
+
+  @override
   Widget build(BuildContext context) {
-    return Center(
+    final c = color ?? DesignColors.primary;
+    return Card(
       child: Padding(
-        padding: EdgeInsets.all(DesignSpacing.lg),
-        child: Text(
-          'Thống kê — wire ở Task 5.11',
-          style: DesignTypography.bodyMedium,
+        padding: EdgeInsets.all(DesignSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: c, size: 24),
+            SizedBox(height: DesignSpacing.xs),
+            Text(label, style: DesignTypography.bodySmall),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: DesignTypography.titleMedium.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
       ),
     );
