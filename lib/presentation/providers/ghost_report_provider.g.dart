@@ -6,7 +6,7 @@ part of 'ghost_report_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$ghostReportHash() => r'a42a4499f9112d9a34470426cbb234a55e0744b7';
+String _$ghostReportHash() => r'893ec116a6b845baccb67cf4af7f78cfc9a63f82';
 
 /// Copied from Dart SDK
 class _SystemHash {
