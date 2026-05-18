@@ -15,28 +15,28 @@ final _privateConstructorUsedError = UnsupportedError(
   'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
 );
 
-CreateQuestionParams _$CreateQuestionParamsFromJson(Map<String, dynamic> json) {
-  return _CreateQuestionParams.fromJson(json);
-}
-
 /// @nodoc
 mixin _$CreateQuestionParams {
   QuestionType get type => throw _privateConstructorUsedError;
   Map<String, dynamic> get content => throw _privateConstructorUsedError;
+  QuestionSource get source => throw _privateConstructorUsedError;
   Map<String, dynamic>? get answer => throw _privateConstructorUsedError;
   double get defaultPoints => throw _privateConstructorUsedError;
   int? get difficulty => throw _privateConstructorUsedError;
-  List<String>? get tags => throw _privateConstructorUsedError;
+  List<String> get tags => throw _privateConstructorUsedError;
+  bool get isGlobal => throw _privateConstructorUsedError;
+
+  /// **Deprecated:** dùng [isGlobal]. Giữ tạm cho repository_impl backward-compat,
+  /// Phase 6 sẽ migrate.
+  @Deprecated('Use isGlobal — Phase 6 migration')
   bool get isPublic => throw _privateConstructorUsedError;
 
-  /// Danh sách objective_ids để link vào `question_objectives`
-  List<String>? get objectiveIds => throw _privateConstructorUsedError;
+  /// Danh sách objective_ids để link vào `question_objectives`.
+  List<String> get objectiveIds => throw _privateConstructorUsedError;
 
-  /// Choices cho MCQ (id 0..n)
-  List<Map<String, dynamic>>? get choices => throw _privateConstructorUsedError;
-
-  /// Serializes this CreateQuestionParams to a JSON map.
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  /// Choices cho MCQ (id 0..n). Raw map dạng:
+  /// `{'id': int, 'content': {...}, 'is_correct': bool}`.
+  List<Map<String, dynamic>> get choices => throw _privateConstructorUsedError;
 
   /// Create a copy of CreateQuestionParams
   /// with the given fields replaced by the non-null parameter values.
@@ -55,13 +55,15 @@ abstract class $CreateQuestionParamsCopyWith<$Res> {
   $Res call({
     QuestionType type,
     Map<String, dynamic> content,
+    QuestionSource source,
     Map<String, dynamic>? answer,
     double defaultPoints,
     int? difficulty,
-    List<String>? tags,
-    bool isPublic,
-    List<String>? objectiveIds,
-    List<Map<String, dynamic>>? choices,
+    List<String> tags,
+    bool isGlobal,
+    @Deprecated('Use isGlobal — Phase 6 migration') bool isPublic,
+    List<String> objectiveIds,
+    List<Map<String, dynamic>> choices,
   });
 }
 
@@ -85,13 +87,15 @@ class _$CreateQuestionParamsCopyWithImpl<
   $Res call({
     Object? type = null,
     Object? content = null,
+    Object? source = null,
     Object? answer = freezed,
     Object? defaultPoints = null,
     Object? difficulty = freezed,
-    Object? tags = freezed,
+    Object? tags = null,
+    Object? isGlobal = null,
     Object? isPublic = null,
-    Object? objectiveIds = freezed,
-    Object? choices = freezed,
+    Object? objectiveIds = null,
+    Object? choices = null,
   }) {
     return _then(
       _value.copyWith(
@@ -103,6 +107,10 @@ class _$CreateQuestionParamsCopyWithImpl<
                 ? _value.content
                 : content // ignore: cast_nullable_to_non_nullable
                       as Map<String, dynamic>,
+            source: null == source
+                ? _value.source
+                : source // ignore: cast_nullable_to_non_nullable
+                      as QuestionSource,
             answer: freezed == answer
                 ? _value.answer
                 : answer // ignore: cast_nullable_to_non_nullable
@@ -115,22 +123,26 @@ class _$CreateQuestionParamsCopyWithImpl<
                 ? _value.difficulty
                 : difficulty // ignore: cast_nullable_to_non_nullable
                       as int?,
-            tags: freezed == tags
+            tags: null == tags
                 ? _value.tags
                 : tags // ignore: cast_nullable_to_non_nullable
-                      as List<String>?,
+                      as List<String>,
+            isGlobal: null == isGlobal
+                ? _value.isGlobal
+                : isGlobal // ignore: cast_nullable_to_non_nullable
+                      as bool,
             isPublic: null == isPublic
                 ? _value.isPublic
                 : isPublic // ignore: cast_nullable_to_non_nullable
                       as bool,
-            objectiveIds: freezed == objectiveIds
+            objectiveIds: null == objectiveIds
                 ? _value.objectiveIds
                 : objectiveIds // ignore: cast_nullable_to_non_nullable
-                      as List<String>?,
-            choices: freezed == choices
+                      as List<String>,
+            choices: null == choices
                 ? _value.choices
                 : choices // ignore: cast_nullable_to_non_nullable
-                      as List<Map<String, dynamic>>?,
+                      as List<Map<String, dynamic>>,
           )
           as $Val,
     );
@@ -149,13 +161,15 @@ abstract class _$$CreateQuestionParamsImplCopyWith<$Res>
   $Res call({
     QuestionType type,
     Map<String, dynamic> content,
+    QuestionSource source,
     Map<String, dynamic>? answer,
     double defaultPoints,
     int? difficulty,
-    List<String>? tags,
-    bool isPublic,
-    List<String>? objectiveIds,
-    List<Map<String, dynamic>>? choices,
+    List<String> tags,
+    bool isGlobal,
+    @Deprecated('Use isGlobal — Phase 6 migration') bool isPublic,
+    List<String> objectiveIds,
+    List<Map<String, dynamic>> choices,
   });
 }
 
@@ -175,13 +189,15 @@ class __$$CreateQuestionParamsImplCopyWithImpl<$Res>
   $Res call({
     Object? type = null,
     Object? content = null,
+    Object? source = null,
     Object? answer = freezed,
     Object? defaultPoints = null,
     Object? difficulty = freezed,
-    Object? tags = freezed,
+    Object? tags = null,
+    Object? isGlobal = null,
     Object? isPublic = null,
-    Object? objectiveIds = freezed,
-    Object? choices = freezed,
+    Object? objectiveIds = null,
+    Object? choices = null,
   }) {
     return _then(
       _$CreateQuestionParamsImpl(
@@ -193,6 +209,10 @@ class __$$CreateQuestionParamsImplCopyWithImpl<$Res>
             ? _value._content
             : content // ignore: cast_nullable_to_non_nullable
                   as Map<String, dynamic>,
+        source: null == source
+            ? _value.source
+            : source // ignore: cast_nullable_to_non_nullable
+                  as QuestionSource,
         answer: freezed == answer
             ? _value._answer
             : answer // ignore: cast_nullable_to_non_nullable
@@ -205,48 +225,51 @@ class __$$CreateQuestionParamsImplCopyWithImpl<$Res>
             ? _value.difficulty
             : difficulty // ignore: cast_nullable_to_non_nullable
                   as int?,
-        tags: freezed == tags
+        tags: null == tags
             ? _value._tags
             : tags // ignore: cast_nullable_to_non_nullable
-                  as List<String>?,
+                  as List<String>,
+        isGlobal: null == isGlobal
+            ? _value.isGlobal
+            : isGlobal // ignore: cast_nullable_to_non_nullable
+                  as bool,
         isPublic: null == isPublic
             ? _value.isPublic
             : isPublic // ignore: cast_nullable_to_non_nullable
                   as bool,
-        objectiveIds: freezed == objectiveIds
+        objectiveIds: null == objectiveIds
             ? _value._objectiveIds
             : objectiveIds // ignore: cast_nullable_to_non_nullable
-                  as List<String>?,
-        choices: freezed == choices
+                  as List<String>,
+        choices: null == choices
             ? _value._choices
             : choices // ignore: cast_nullable_to_non_nullable
-                  as List<Map<String, dynamic>>?,
+                  as List<Map<String, dynamic>>,
       ),
     );
   }
 }
 
 /// @nodoc
-@JsonSerializable()
+
 class _$CreateQuestionParamsImpl implements _CreateQuestionParams {
   const _$CreateQuestionParamsImpl({
     required this.type,
     required final Map<String, dynamic> content,
+    required this.source,
     final Map<String, dynamic>? answer,
-    this.defaultPoints = 1,
+    this.defaultPoints = 1.0,
     this.difficulty,
-    final List<String>? tags,
-    this.isPublic = false,
-    final List<String>? objectiveIds,
-    final List<Map<String, dynamic>>? choices,
+    final List<String> tags = const <String>[],
+    this.isGlobal = false,
+    @Deprecated('Use isGlobal — Phase 6 migration') this.isPublic = false,
+    final List<String> objectiveIds = const <String>[],
+    final List<Map<String, dynamic>> choices = _kEmptyChoices,
   }) : _content = content,
        _answer = answer,
        _tags = tags,
        _objectiveIds = objectiveIds,
        _choices = choices;
-
-  factory _$CreateQuestionParamsImpl.fromJson(Map<String, dynamic> json) =>
-      _$$CreateQuestionParamsImplFromJson(json);
 
   @override
   final QuestionType type;
@@ -258,6 +281,8 @@ class _$CreateQuestionParamsImpl implements _CreateQuestionParams {
     return EqualUnmodifiableMapView(_content);
   }
 
+  @override
+  final QuestionSource source;
   final Map<String, dynamic>? _answer;
   @override
   Map<String, dynamic>? get answer {
@@ -273,49 +298,55 @@ class _$CreateQuestionParamsImpl implements _CreateQuestionParams {
   final double defaultPoints;
   @override
   final int? difficulty;
-  final List<String>? _tags;
+  final List<String> _tags;
   @override
-  List<String>? get tags {
-    final value = _tags;
-    if (value == null) return null;
+  @JsonKey()
+  List<String> get tags {
     if (_tags is EqualUnmodifiableListView) return _tags;
     // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(value);
+    return EqualUnmodifiableListView(_tags);
   }
 
   @override
   @JsonKey()
+  final bool isGlobal;
+
+  /// **Deprecated:** dùng [isGlobal]. Giữ tạm cho repository_impl backward-compat,
+  /// Phase 6 sẽ migrate.
+  @override
+  @JsonKey()
+  @Deprecated('Use isGlobal — Phase 6 migration')
   final bool isPublic;
 
-  /// Danh sách objective_ids để link vào `question_objectives`
-  final List<String>? _objectiveIds;
+  /// Danh sách objective_ids để link vào `question_objectives`.
+  final List<String> _objectiveIds;
 
-  /// Danh sách objective_ids để link vào `question_objectives`
+  /// Danh sách objective_ids để link vào `question_objectives`.
   @override
-  List<String>? get objectiveIds {
-    final value = _objectiveIds;
-    if (value == null) return null;
+  @JsonKey()
+  List<String> get objectiveIds {
     if (_objectiveIds is EqualUnmodifiableListView) return _objectiveIds;
     // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(value);
+    return EqualUnmodifiableListView(_objectiveIds);
   }
 
-  /// Choices cho MCQ (id 0..n)
-  final List<Map<String, dynamic>>? _choices;
+  /// Choices cho MCQ (id 0..n). Raw map dạng:
+  /// `{'id': int, 'content': {...}, 'is_correct': bool}`.
+  final List<Map<String, dynamic>> _choices;
 
-  /// Choices cho MCQ (id 0..n)
+  /// Choices cho MCQ (id 0..n). Raw map dạng:
+  /// `{'id': int, 'content': {...}, 'is_correct': bool}`.
   @override
-  List<Map<String, dynamic>>? get choices {
-    final value = _choices;
-    if (value == null) return null;
+  @JsonKey()
+  List<Map<String, dynamic>> get choices {
     if (_choices is EqualUnmodifiableListView) return _choices;
     // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(value);
+    return EqualUnmodifiableListView(_choices);
   }
 
   @override
   String toString() {
-    return 'CreateQuestionParams(type: $type, content: $content, answer: $answer, defaultPoints: $defaultPoints, difficulty: $difficulty, tags: $tags, isPublic: $isPublic, objectiveIds: $objectiveIds, choices: $choices)';
+    return 'CreateQuestionParams(type: $type, content: $content, source: $source, answer: $answer, defaultPoints: $defaultPoints, difficulty: $difficulty, tags: $tags, isGlobal: $isGlobal, isPublic: $isPublic, objectiveIds: $objectiveIds, choices: $choices)';
   }
 
   @override
@@ -325,12 +356,15 @@ class _$CreateQuestionParamsImpl implements _CreateQuestionParams {
             other is _$CreateQuestionParamsImpl &&
             (identical(other.type, type) || other.type == type) &&
             const DeepCollectionEquality().equals(other._content, _content) &&
+            (identical(other.source, source) || other.source == source) &&
             const DeepCollectionEquality().equals(other._answer, _answer) &&
             (identical(other.defaultPoints, defaultPoints) ||
                 other.defaultPoints == defaultPoints) &&
             (identical(other.difficulty, difficulty) ||
                 other.difficulty == difficulty) &&
             const DeepCollectionEquality().equals(other._tags, _tags) &&
+            (identical(other.isGlobal, isGlobal) ||
+                other.isGlobal == isGlobal) &&
             (identical(other.isPublic, isPublic) ||
                 other.isPublic == isPublic) &&
             const DeepCollectionEquality().equals(
@@ -340,16 +374,17 @@ class _$CreateQuestionParamsImpl implements _CreateQuestionParams {
             const DeepCollectionEquality().equals(other._choices, _choices));
   }
 
-  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
     runtimeType,
     type,
     const DeepCollectionEquality().hash(_content),
+    source,
     const DeepCollectionEquality().hash(_answer),
     defaultPoints,
     difficulty,
     const DeepCollectionEquality().hash(_tags),
+    isGlobal,
     isPublic,
     const DeepCollectionEquality().hash(_objectiveIds),
     const DeepCollectionEquality().hash(_choices),
@@ -366,33 +401,29 @@ class _$CreateQuestionParamsImpl implements _CreateQuestionParams {
         this,
         _$identity,
       );
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$CreateQuestionParamsImplToJson(this);
-  }
 }
 
 abstract class _CreateQuestionParams implements CreateQuestionParams {
   const factory _CreateQuestionParams({
     required final QuestionType type,
     required final Map<String, dynamic> content,
+    required final QuestionSource source,
     final Map<String, dynamic>? answer,
     final double defaultPoints,
     final int? difficulty,
-    final List<String>? tags,
-    final bool isPublic,
-    final List<String>? objectiveIds,
-    final List<Map<String, dynamic>>? choices,
+    final List<String> tags,
+    final bool isGlobal,
+    @Deprecated('Use isGlobal — Phase 6 migration') final bool isPublic,
+    final List<String> objectiveIds,
+    final List<Map<String, dynamic>> choices,
   }) = _$CreateQuestionParamsImpl;
-
-  factory _CreateQuestionParams.fromJson(Map<String, dynamic> json) =
-      _$CreateQuestionParamsImpl.fromJson;
 
   @override
   QuestionType get type;
   @override
   Map<String, dynamic> get content;
+  @override
+  QuestionSource get source;
   @override
   Map<String, dynamic>? get answer;
   @override
@@ -400,17 +431,24 @@ abstract class _CreateQuestionParams implements CreateQuestionParams {
   @override
   int? get difficulty;
   @override
-  List<String>? get tags;
+  List<String> get tags;
   @override
+  bool get isGlobal;
+
+  /// **Deprecated:** dùng [isGlobal]. Giữ tạm cho repository_impl backward-compat,
+  /// Phase 6 sẽ migrate.
+  @override
+  @Deprecated('Use isGlobal — Phase 6 migration')
   bool get isPublic;
 
-  /// Danh sách objective_ids để link vào `question_objectives`
+  /// Danh sách objective_ids để link vào `question_objectives`.
   @override
-  List<String>? get objectiveIds;
+  List<String> get objectiveIds;
 
-  /// Choices cho MCQ (id 0..n)
+  /// Choices cho MCQ (id 0..n). Raw map dạng:
+  /// `{'id': int, 'content': {...}, 'is_correct': bool}`.
   @override
-  List<Map<String, dynamic>>? get choices;
+  List<Map<String, dynamic>> get choices;
 
   /// Create a copy of CreateQuestionParams
   /// with the given fields replaced by the non-null parameter values.
