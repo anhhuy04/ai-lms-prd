@@ -1,186 +1,77 @@
-import 'package:ai_mls/domain/entities/create_question_params.dart';
-import 'package:ai_mls/domain/entities/question.dart';
-import 'package:ai_mls/domain/entities/question_filter.dart';
-import 'package:ai_mls/domain/entities/question_type.dart';
-import 'package:ai_mls/domain/repositories/question_repository.dart';
-import 'package:ai_mls/domain/usecases/question_bank_usecases.dart';
-import 'package:ai_mls/presentation/providers/auth_providers.dart';
-import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
-import 'package:easy_debounce/easy_debounce.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../../domain/entities/create_question_params.dart';
+import '../../domain/entities/question.dart';
+import '../../domain/entities/question_filter.dart';
+import '../../domain/failures/question_failure.dart';
+import 'question_bank_providers.dart';
+import 'question_bank_state.dart';
 
 part 'question_bank_notifier.g.dart';
 
-/// State cho Question Bank.
-class QuestionBankState {
-  final List<Question> questions;
-  final bool isLoading;
-  final bool hasMore;
-  final int page;
-  final QuestionType? filterType;
-  final int? filterDifficulty;
-  final List<String> filterTags;
-  final bool isSearching;
-
-  const QuestionBankState({
-    required this.questions,
-    required this.isLoading,
-    required this.hasMore,
-    required this.page,
-    required this.filterType,
-    required this.filterDifficulty,
-    required this.filterTags,
-    required this.isSearching,
-  });
-
-  factory QuestionBankState.initial() => const QuestionBankState(
-    questions: <Question>[],
-    isLoading: false,
-    hasMore: true,
-    page: 0,
-    filterType: null,
-    filterDifficulty: null,
-    filterTags: <String>[],
-    isSearching: false,
-  );
-
-  QuestionBankState copyWith({
-    List<Question>? questions,
-    bool? isLoading,
-    bool? hasMore,
-    int? page,
-    QuestionType? filterType,
-    int? filterDifficulty,
-    List<String>? filterTags,
-    bool? isSearching,
-  }) {
-    return QuestionBankState(
-      questions: questions ?? this.questions,
-      isLoading: isLoading ?? this.isLoading,
-      hasMore: hasMore ?? this.hasMore,
-      page: page ?? this.page,
-      filterType: filterType ?? this.filterType,
-      filterDifficulty: filterDifficulty ?? this.filterDifficulty,
-      filterTags: filterTags ?? this.filterTags,
-      isSearching: isSearching ?? this.isSearching,
-    );
-  }
-}
-
-/// AsyncNotifier quản lý Question Bank.
 @riverpod
 class QuestionBankNotifier extends _$QuestionBankNotifier {
-  late final QuestionRepository _questionRepository;
-  late final CreateQuestionUseCase _createQuestionUseCase;
-  late final GetQuestionBankUseCase _getQuestionBankUseCase;
-
   @override
-  Future<QuestionBankState> build() async {
-    _questionRepository = ref.read(questionRepositoryProvider);
-    _createQuestionUseCase = CreateQuestionUseCase(_questionRepository);
-    _getQuestionBankUseCase = GetQuestionBankUseCase(_questionRepository);
-
-    // Load initial data.
-    return _loadInitialInternal();
-  }
-
-  Future<QuestionBankState> _loadInitialInternal() async {
-    final userId = ref.read(currentUserIdProvider);
-    if (userId == null) {
-      return QuestionBankState.initial();
+  Future<QuestionBankState> build({QuestionFilter? filter}) async {
+    final repo = ref.watch(questionRepositoryProvider);
+    if (filter == null) {
+      return const QuestionBankState();
     }
-
-    final filter = QuestionFilter(
-      authorId: userId,
-      type: state.value?.filterType,
-      difficulty: state.value?.filterDifficulty,
-      tags: state.value?.filterTags,
-      page: 0,
-      pageSize: 20,
-    );
-
-    final questions = await _getQuestionBankUseCase(filter);
-    return QuestionBankState.initial().copyWith(
-      questions: questions,
-      hasMore: questions.length == filter.pageSize,
-      page: 0,
+    final qs = await repo.getQuestions(filter);
+    return QuestionBankState(
+      questions: qs,
+      activeFilter: filter,
+      hasMore: qs.length >= filter.pageSize,
     );
   }
 
-  /// Public API: reload toàn bộ Question Bank với filter hiện tại.
-  Future<void> loadInitial() async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(_loadInitialInternal);
-  }
+  /// Optimistic soft delete với rollback on failure.
+  Future<void> softDelete(String id) async {
+    final s = state.value;
+    if (s == null || s.mutatingIds.contains(id)) return;
+    final idx = s.questions.indexWhere((q) => q.id == id);
+    if (idx < 0) return;
+    final removed = s.questions[idx];
 
-  /// Tải thêm (paging) dựa trên filter hiện tại.
-  Future<void> loadMore() async {
-    final current = state.value;
-    if (current == null || current.isLoading || !current.hasMore) return;
-
-    final userId = ref.read(currentUserIdProvider);
-    if (userId == null) return;
-
-    final nextPage = current.page + 1;
-
-    state = AsyncValue.data(current.copyWith(isLoading: true));
+    // Optimistic remove
+    state = AsyncValue.data(s.copyWith(
+      questions: [...s.questions]..removeAt(idx),
+      mutatingIds: {...s.mutatingIds, id},
+    ));
 
     try {
-      final filter = QuestionFilter(
-        authorId: userId,
-        type: current.filterType,
-        difficulty: current.filterDifficulty,
-        tags: current.filterTags,
-        page: nextPage,
-        pageSize: 20,
-      );
-      final nextItems = await _getQuestionBankUseCase(filter);
-
-      state = AsyncValue.data(
-        current.copyWith(
-          isLoading: false,
-          page: nextPage,
-          hasMore: nextItems.length == filter.pageSize,
-          questions: <Question>[...current.questions, ...nextItems],
-        ),
-      );
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      await ref.read(questionRepositoryProvider).softDeleteQuestion(id);
+    } on QuestionFailure {
+      // Rollback: re-insert at original index
+      final cur = state.value!;
+      state = AsyncValue.data(cur.copyWith(
+        questions: [...cur.questions]
+          ..insert(idx.clamp(0, cur.questions.length), removed),
+        mutatingIds: cur.mutatingIds.difference({id}),
+      ));
+      rethrow;
+    } finally {
+      final cur = state.value;
+      if (cur != null && cur.mutatingIds.contains(id)) {
+        state = AsyncValue.data(cur.copyWith(
+          mutatingIds: cur.mutatingIds.difference({id}),
+        ));
+      }
     }
   }
 
-  /// Áp dụng filter và reload (debounced).
-  void applyFilter({QuestionType? type, int? difficulty, List<String>? tags}) {
-    final current = state.value ?? QuestionBankState.initial();
-
-    final newState = current.copyWith(
-      filterType: type ?? current.filterType,
-      filterDifficulty: difficulty ?? current.filterDifficulty,
-      filterTags: tags ?? current.filterTags,
-      isSearching: true,
-    );
-
-    state = AsyncValue.data(newState);
-
-    EasyDebounce.debounce(
-      'question_bank_filter',
-      const Duration(milliseconds: 400),
-      () async {
-        await loadInitial();
-      },
-    );
-  }
-
-  /// Tạo câu hỏi mới rồi refresh bank.
-  Future<void> createQuestion(CreateQuestionParams params) async {
+  Future<void> restore(String id) async {
     try {
-      await _createQuestionUseCase(params);
-      await loadInitial();
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      await ref.read(questionRepositoryProvider).restoreQuestion(id);
+      ref.invalidateSelf();
+    } on QuestionFailure {
+      rethrow;
     }
   }
 
-  /// Refresh thủ công.
-  Future<void> refresh() => loadInitial();
+  Future<Question> create(CreateQuestionParams params) async {
+    final q = await ref.read(questionRepositoryProvider).createQuestion(params);
+    ref.invalidateSelf();
+    return q;
+  }
 }
