@@ -39,7 +39,30 @@ mixin _$Question {
 
   /// 1..5 (nullable)
   int? get difficulty => throw _privateConstructorUsedError;
-  List<String>? get tags => throw _privateConstructorUsedError;
+  List<String> get tags => throw _privateConstructorUsedError;
+
+  /// V2: Question Bank visibility. `true` = global (visible to all teachers),
+  /// `false` = private (only owner). Replaces deprecated `isPublic`.
+  ///
+  /// Bridge v1 → v2: nếu row DB cũ chỉ có `is_public` (chưa migrate),
+  /// readValue fallback sang `is_public`. Nếu row mới đã có `is_global`,
+  /// giữ nguyên (precedence).
+  @JsonKey(name: 'is_global', readValue: _readIsGlobal)
+  bool get isGlobal => throw _privateConstructorUsedError;
+
+  /// V2: Origin of question — `teacher` | `ai_generated` | `imported` | ...
+  String get source => throw _privateConstructorUsedError;
+
+  /// V2: SHA-256 hash của normalized content (for dedup).
+  @JsonKey(name: 'content_hash')
+  String? get contentHash => throw _privateConstructorUsedError;
+
+  /// V2: Soft delete timestamp. `null` = active.
+  @JsonKey(name: 'deleted_at')
+  DateTime? get deletedAt => throw _privateConstructorUsedError;
+
+  /// Legacy v1 column — kept for backward compat reads. Use [isGlobal] instead.
+  @Deprecated('Use isGlobal — removed in migration 030+')
   @JsonKey(name: 'is_public')
   bool get isPublic => throw _privateConstructorUsedError;
   @JsonKey(name: 'created_at')
@@ -71,8 +94,14 @@ abstract class $QuestionCopyWith<$Res> {
     Map<String, dynamic>? answer,
     @JsonKey(name: 'default_points') double defaultPoints,
     int? difficulty,
-    List<String>? tags,
-    @JsonKey(name: 'is_public') bool isPublic,
+    List<String> tags,
+    @JsonKey(name: 'is_global', readValue: _readIsGlobal) bool isGlobal,
+    String source,
+    @JsonKey(name: 'content_hash') String? contentHash,
+    @JsonKey(name: 'deleted_at') DateTime? deletedAt,
+    @Deprecated('Use isGlobal — removed in migration 030+')
+    @JsonKey(name: 'is_public')
+    bool isPublic,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
   });
@@ -100,7 +129,11 @@ class _$QuestionCopyWithImpl<$Res, $Val extends Question>
     Object? answer = freezed,
     Object? defaultPoints = null,
     Object? difficulty = freezed,
-    Object? tags = freezed,
+    Object? tags = null,
+    Object? isGlobal = null,
+    Object? source = null,
+    Object? contentHash = freezed,
+    Object? deletedAt = freezed,
     Object? isPublic = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
@@ -135,10 +168,26 @@ class _$QuestionCopyWithImpl<$Res, $Val extends Question>
                 ? _value.difficulty
                 : difficulty // ignore: cast_nullable_to_non_nullable
                       as int?,
-            tags: freezed == tags
+            tags: null == tags
                 ? _value.tags
                 : tags // ignore: cast_nullable_to_non_nullable
-                      as List<String>?,
+                      as List<String>,
+            isGlobal: null == isGlobal
+                ? _value.isGlobal
+                : isGlobal // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            source: null == source
+                ? _value.source
+                : source // ignore: cast_nullable_to_non_nullable
+                      as String,
+            contentHash: freezed == contentHash
+                ? _value.contentHash
+                : contentHash // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            deletedAt: freezed == deletedAt
+                ? _value.deletedAt
+                : deletedAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
             isPublic: null == isPublic
                 ? _value.isPublic
                 : isPublic // ignore: cast_nullable_to_non_nullable
@@ -175,8 +224,14 @@ abstract class _$$QuestionImplCopyWith<$Res>
     Map<String, dynamic>? answer,
     @JsonKey(name: 'default_points') double defaultPoints,
     int? difficulty,
-    List<String>? tags,
-    @JsonKey(name: 'is_public') bool isPublic,
+    List<String> tags,
+    @JsonKey(name: 'is_global', readValue: _readIsGlobal) bool isGlobal,
+    String source,
+    @JsonKey(name: 'content_hash') String? contentHash,
+    @JsonKey(name: 'deleted_at') DateTime? deletedAt,
+    @Deprecated('Use isGlobal — removed in migration 030+')
+    @JsonKey(name: 'is_public')
+    bool isPublic,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
   });
@@ -203,7 +258,11 @@ class __$$QuestionImplCopyWithImpl<$Res>
     Object? answer = freezed,
     Object? defaultPoints = null,
     Object? difficulty = freezed,
-    Object? tags = freezed,
+    Object? tags = null,
+    Object? isGlobal = null,
+    Object? source = null,
+    Object? contentHash = freezed,
+    Object? deletedAt = freezed,
     Object? isPublic = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
@@ -238,10 +297,26 @@ class __$$QuestionImplCopyWithImpl<$Res>
             ? _value.difficulty
             : difficulty // ignore: cast_nullable_to_non_nullable
                   as int?,
-        tags: freezed == tags
+        tags: null == tags
             ? _value._tags
             : tags // ignore: cast_nullable_to_non_nullable
-                  as List<String>?,
+                  as List<String>,
+        isGlobal: null == isGlobal
+            ? _value.isGlobal
+            : isGlobal // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        source: null == source
+            ? _value.source
+            : source // ignore: cast_nullable_to_non_nullable
+                  as String,
+        contentHash: freezed == contentHash
+            ? _value.contentHash
+            : contentHash // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        deletedAt: freezed == deletedAt
+            ? _value.deletedAt
+            : deletedAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
         isPublic: null == isPublic
             ? _value.isPublic
             : isPublic // ignore: cast_nullable_to_non_nullable
@@ -261,7 +336,7 @@ class __$$QuestionImplCopyWithImpl<$Res>
 
 /// @nodoc
 @JsonSerializable()
-class _$QuestionImpl implements _Question {
+class _$QuestionImpl extends _Question {
   const _$QuestionImpl({
     required this.id,
     @JsonKey(name: 'author_id') required this.authorId,
@@ -269,15 +344,22 @@ class _$QuestionImpl implements _Question {
     required this.type,
     required final Map<String, dynamic> content,
     final Map<String, dynamic>? answer,
-    @JsonKey(name: 'default_points') this.defaultPoints = 1,
+    @JsonKey(name: 'default_points') this.defaultPoints = 1.0,
     this.difficulty,
-    final List<String>? tags,
-    @JsonKey(name: 'is_public') this.isPublic = false,
+    final List<String> tags = const <String>[],
+    @JsonKey(name: 'is_global', readValue: _readIsGlobal) this.isGlobal = false,
+    this.source = 'teacher',
+    @JsonKey(name: 'content_hash') this.contentHash,
+    @JsonKey(name: 'deleted_at') this.deletedAt,
+    @Deprecated('Use isGlobal — removed in migration 030+')
+    @JsonKey(name: 'is_public')
+    this.isPublic = false,
     @JsonKey(name: 'created_at') this.createdAt,
     @JsonKey(name: 'updated_at') this.updatedAt,
   }) : _content = content,
        _answer = answer,
-       _tags = tags;
+       _tags = tags,
+       super._();
 
   factory _$QuestionImpl.fromJson(Map<String, dynamic> json) =>
       _$$QuestionImplFromJson(json);
@@ -324,17 +406,43 @@ class _$QuestionImpl implements _Question {
   /// 1..5 (nullable)
   @override
   final int? difficulty;
-  final List<String>? _tags;
+  final List<String> _tags;
   @override
-  List<String>? get tags {
-    final value = _tags;
-    if (value == null) return null;
+  @JsonKey()
+  List<String> get tags {
     if (_tags is EqualUnmodifiableListView) return _tags;
     // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(value);
+    return EqualUnmodifiableListView(_tags);
   }
 
+  /// V2: Question Bank visibility. `true` = global (visible to all teachers),
+  /// `false` = private (only owner). Replaces deprecated `isPublic`.
+  ///
+  /// Bridge v1 → v2: nếu row DB cũ chỉ có `is_public` (chưa migrate),
+  /// readValue fallback sang `is_public`. Nếu row mới đã có `is_global`,
+  /// giữ nguyên (precedence).
   @override
+  @JsonKey(name: 'is_global', readValue: _readIsGlobal)
+  final bool isGlobal;
+
+  /// V2: Origin of question — `teacher` | `ai_generated` | `imported` | ...
+  @override
+  @JsonKey()
+  final String source;
+
+  /// V2: SHA-256 hash của normalized content (for dedup).
+  @override
+  @JsonKey(name: 'content_hash')
+  final String? contentHash;
+
+  /// V2: Soft delete timestamp. `null` = active.
+  @override
+  @JsonKey(name: 'deleted_at')
+  final DateTime? deletedAt;
+
+  /// Legacy v1 column — kept for backward compat reads. Use [isGlobal] instead.
+  @override
+  @Deprecated('Use isGlobal — removed in migration 030+')
   @JsonKey(name: 'is_public')
   final bool isPublic;
   @override
@@ -346,7 +454,7 @@ class _$QuestionImpl implements _Question {
 
   @override
   String toString() {
-    return 'Question(id: $id, authorId: $authorId, type: $type, content: $content, answer: $answer, defaultPoints: $defaultPoints, difficulty: $difficulty, tags: $tags, isPublic: $isPublic, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Question(id: $id, authorId: $authorId, type: $type, content: $content, answer: $answer, defaultPoints: $defaultPoints, difficulty: $difficulty, tags: $tags, isGlobal: $isGlobal, source: $source, contentHash: $contentHash, deletedAt: $deletedAt, isPublic: $isPublic, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -365,6 +473,13 @@ class _$QuestionImpl implements _Question {
             (identical(other.difficulty, difficulty) ||
                 other.difficulty == difficulty) &&
             const DeepCollectionEquality().equals(other._tags, _tags) &&
+            (identical(other.isGlobal, isGlobal) ||
+                other.isGlobal == isGlobal) &&
+            (identical(other.source, source) || other.source == source) &&
+            (identical(other.contentHash, contentHash) ||
+                other.contentHash == contentHash) &&
+            (identical(other.deletedAt, deletedAt) ||
+                other.deletedAt == deletedAt) &&
             (identical(other.isPublic, isPublic) ||
                 other.isPublic == isPublic) &&
             (identical(other.createdAt, createdAt) ||
@@ -385,6 +500,10 @@ class _$QuestionImpl implements _Question {
     defaultPoints,
     difficulty,
     const DeepCollectionEquality().hash(_tags),
+    isGlobal,
+    source,
+    contentHash,
+    deletedAt,
     isPublic,
     createdAt,
     updatedAt,
@@ -404,7 +523,7 @@ class _$QuestionImpl implements _Question {
   }
 }
 
-abstract class _Question implements Question {
+abstract class _Question extends Question {
   const factory _Question({
     required final String id,
     @JsonKey(name: 'author_id') required final String authorId,
@@ -414,11 +533,18 @@ abstract class _Question implements Question {
     final Map<String, dynamic>? answer,
     @JsonKey(name: 'default_points') final double defaultPoints,
     final int? difficulty,
-    final List<String>? tags,
-    @JsonKey(name: 'is_public') final bool isPublic,
+    final List<String> tags,
+    @JsonKey(name: 'is_global', readValue: _readIsGlobal) final bool isGlobal,
+    final String source,
+    @JsonKey(name: 'content_hash') final String? contentHash,
+    @JsonKey(name: 'deleted_at') final DateTime? deletedAt,
+    @Deprecated('Use isGlobal — removed in migration 030+')
+    @JsonKey(name: 'is_public')
+    final bool isPublic,
     @JsonKey(name: 'created_at') final DateTime? createdAt,
     @JsonKey(name: 'updated_at') final DateTime? updatedAt,
   }) = _$QuestionImpl;
+  const _Question._() : super._();
 
   factory _Question.fromJson(Map<String, dynamic> json) =
       _$QuestionImpl.fromJson;
@@ -449,8 +575,35 @@ abstract class _Question implements Question {
   @override
   int? get difficulty;
   @override
-  List<String>? get tags;
+  List<String> get tags;
+
+  /// V2: Question Bank visibility. `true` = global (visible to all teachers),
+  /// `false` = private (only owner). Replaces deprecated `isPublic`.
+  ///
+  /// Bridge v1 → v2: nếu row DB cũ chỉ có `is_public` (chưa migrate),
+  /// readValue fallback sang `is_public`. Nếu row mới đã có `is_global`,
+  /// giữ nguyên (precedence).
   @override
+  @JsonKey(name: 'is_global', readValue: _readIsGlobal)
+  bool get isGlobal;
+
+  /// V2: Origin of question — `teacher` | `ai_generated` | `imported` | ...
+  @override
+  String get source;
+
+  /// V2: SHA-256 hash của normalized content (for dedup).
+  @override
+  @JsonKey(name: 'content_hash')
+  String? get contentHash;
+
+  /// V2: Soft delete timestamp. `null` = active.
+  @override
+  @JsonKey(name: 'deleted_at')
+  DateTime? get deletedAt;
+
+  /// Legacy v1 column — kept for backward compat reads. Use [isGlobal] instead.
+  @override
+  @Deprecated('Use isGlobal — removed in migration 030+')
   @JsonKey(name: 'is_public')
   bool get isPublic;
   @override
