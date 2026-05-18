@@ -12,6 +12,7 @@ import 'package:ai_mls/core/utils/word_template_generator.dart';
 import 'package:ai_mls/data/models/local_temp_file.dart' show FileRole;
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/learning_objective.dart';
+import 'package:ai_mls/domain/entities/question_source.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/domain/entities/template_mode.dart';
 import 'package:ai_mls/presentation/providers/ai_generation_settings_notifier.dart';
@@ -658,13 +659,14 @@ class _TeacherAiGenerateQuestionScreenState
     return CreateQuestionParams(
       type: type,
       content: content,
+      source: QuestionSource.aiGenerated, // ← BẮT BUỘC track AI provenance
       answer: answer,
       difficulty: difficulty,
-      tags: tags,
-      objectiveIds: objectiveIds.isEmpty ? null : objectiveIds,
-      choices: choices,
-      isPublic: false,
-      defaultPoints: 1,
+      tags: tags ?? const <String>[],
+      objectiveIds: objectiveIds,
+      choices: choices ?? const <Map<String, dynamic>>[],
+      isGlobal: false,
+      defaultPoints: 1.0,
     );
   }
 
