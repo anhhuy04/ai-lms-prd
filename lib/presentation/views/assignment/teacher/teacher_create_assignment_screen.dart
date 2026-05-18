@@ -13,6 +13,7 @@ import 'package:ai_mls/domain/entities/assignment_question.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/presentation/providers/assignment_providers.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
+import 'package:ai_mls/presentation/providers/question_bank_summary_provider.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_preview_assignment_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/dialog/delete_question_dialog.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/drawer/create_assignment_drawer.dart';
@@ -2829,6 +2830,12 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                         await _handleSaveAndPublish();
                       },
                 isLoading: _isSaving || _isPublishing,
+                bankCount:
+                    ref
+                        .watch(questionBankSummaryProvider)
+                        .valueOrNull
+                        ?.totalMine ??
+                    0,
               ),
             ),
           ],

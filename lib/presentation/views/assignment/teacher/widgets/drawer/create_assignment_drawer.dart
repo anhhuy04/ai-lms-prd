@@ -17,6 +17,7 @@ class ToolsDrawer extends StatelessWidget {
   final VoidCallback? onSaveDraft;
   final VoidCallback? onSaveAndPublish;
   final bool isLoading;
+  final int bankCount;
 
   const ToolsDrawer({
     super.key,
@@ -33,6 +34,7 @@ class ToolsDrawer extends StatelessWidget {
     this.onSaveDraft,
     this.onSaveAndPublish,
     this.isLoading = false,
+    this.bankCount = 0,
   });
 
   @override
@@ -153,9 +155,11 @@ class ToolsDrawer extends StatelessWidget {
                   _buildSectionHeader('NGUỒN TÀI LIỆU', isDark),
                   const SizedBox(height: 12),
                   _buildResourceButton(
-                    icon: Icons.library_add,
+                    icon: Icons.bookmarks_outlined,
                     title: 'Ngân hàng câu hỏi',
-                    subtitle: 'Chọn từ kho dữ liệu',
+                    subtitle: bankCount > 0
+                        ? 'Chọn từ $bankCount câu trong kho của bạn'
+                        : 'Kho trống — tạo câu hỏi mới trước',
                     onTap: onOpenQuestionBank,
                     isDark: isDark,
                   ),
