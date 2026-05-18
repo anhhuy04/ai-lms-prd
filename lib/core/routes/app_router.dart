@@ -15,6 +15,9 @@ import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_assi
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_question_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_distribute_assignment_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_assignment_bank_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_question_bank_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_question_bank_detail_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/teacher_question_trash_screen.dart';
 import 'package:ai_mls/widgets/dialogs/assignment_filter_bottom_sheet.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_class_submission_list_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_submission_detail_screen.dart';
@@ -542,6 +545,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: AppRoute.teacherAssignmentBank,
         builder: (context, state) => const TeacherAssignmentBankScreen(
           initialStatus: AssignmentStatusFilter.all,
+        ),
+      ),
+      // Question Bank routes — CRITICAL ORDERING: specific routes (/trash) MUST come
+      // BEFORE the param route (/:questionId). Nếu đổi thứ tự, '/trash' sẽ bị match
+      // thành questionId='trash'. Xem CLAUDE.md mục 6.
+      GoRoute(
+        path: AppRoute.teacherQuestionBankPath,
+        name: AppRoute.teacherQuestionBank,
+        builder: (context, state) => const TeacherQuestionBankScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.teacherQuestionTrashPath,
+        name: AppRoute.teacherQuestionTrash,
+        builder: (context, state) => const TeacherQuestionTrashScreen(),
+      ),
+      GoRoute(
+        path: '/teacher/question-bank/:questionId',
+        name: AppRoute.teacherQuestionBankDetail,
+        builder: (context, state) => TeacherQuestionBankDetailScreen(
+          questionId: state.pathParameters['questionId']!,
         ),
       ),
       // Route assignment selection (chọn nhiều bài tập để giao)

@@ -211,6 +211,20 @@ class AppRoute {
   static const String teacherAssignmentBankPath =
       '/teacher/assignments/bank';
 
+  // Question Bank
+  /// Teacher - Question Bank (ngân hàng câu hỏi - danh sách)
+  static const String teacherQuestionBank = 'teacher-question-bank';
+  static const String teacherQuestionBankPath = '/teacher/question-bank';
+
+  /// Teacher - Question Bank Trash (thùng rác câu hỏi)
+  static const String teacherQuestionTrash = 'teacher-question-trash';
+  static const String teacherQuestionTrashPath = '/teacher/question-bank/trash';
+
+  /// Teacher - Question Bank Detail (chi tiết câu hỏi)
+  static const String teacherQuestionBankDetail = 'teacher-question-bank-detail';
+  static String teacherQuestionBankDetailPath(String questionId) =>
+      '/teacher/question-bank/$questionId';
+
   /// Teacher - Select multiple assignments
   static const String teacherAssignmentSelection =
       'teacher-assignment-selection';
@@ -440,6 +454,9 @@ class AppRoute {
       teacherDraftAssignments,
       teacherPublishedAssignments,
       teacherAssignmentBank,
+      teacherQuestionBank,
+      teacherQuestionTrash,
+      teacherQuestionBankDetail,
       teacherDistributeAssignment,
       teacherCreateQuestion,
       teacherEditAssignment,
