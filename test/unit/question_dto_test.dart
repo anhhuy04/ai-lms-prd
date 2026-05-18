@@ -93,9 +93,36 @@ void main() {
         expect(insert['difficulty'], 4);
         expect(insert['tags'], ['tag1', 'tag2']);
         expect(insert['default_points'], 2);
-        expect(insert['is_public'], false);
+        expect(insert['is_global'], false);
         // author_id NOT included — added server-side by RPC
         expect(insert.containsKey('author_id'), false);
+      });
+
+      test('toDbInsert sets is_global=false (not is_public) and source from param', () {
+        final dto = QuestionDTO(
+          type: 'multiple_choice',
+          content: const {'text': 'Q'},
+          answer: const {'correct_index': 0},
+          defaultPoints: 1,
+          source: 'ai_generated',
+          choices: const [],
+        );
+        final insert = dto.toDbInsert();
+        expect(insert['is_global'], false);
+        expect(insert['source'], 'ai_generated');
+        expect(insert.containsKey('is_public'), false);
+      });
+
+      test('toDbInsert with source teacher default', () {
+        final dto = QuestionDTO(
+          type: 'short_answer',
+          content: const {'text': 'Q2'},
+          answer: const {'sample_response': ''},
+          defaultPoints: 2,
+          choices: const [],
+        );
+        final insert = dto.toDbInsert();
+        expect(insert['source'], 'teacher');
       });
     });
 

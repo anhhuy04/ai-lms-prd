@@ -21,6 +21,7 @@ _$QuestionDTOImpl _$$QuestionDTOImplFromJson(Map<String, dynamic> json) =>
           (json['tags'] as List<dynamic>?)?.map((e) => e as String).toList() ??
           const [],
       defaultPoints: (json['defaultPoints'] as num?)?.toInt() ?? 1,
+      source: json['source'] as String? ?? 'teacher',
     );
 
 Map<String, dynamic> _$$QuestionDTOImplToJson(_$QuestionDTOImpl instance) =>
@@ -32,6 +33,7 @@ Map<String, dynamic> _$$QuestionDTOImplToJson(_$QuestionDTOImpl instance) =>
       'difficulty': instance.difficulty,
       'tags': instance.tags,
       'defaultPoints': instance.defaultPoints,
+      'source': instance.source,
     };
 
 _$ChoiceDTOImpl _$$ChoiceDTOImplFromJson(Map<String, dynamic> json) =>

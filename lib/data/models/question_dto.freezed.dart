@@ -33,7 +33,11 @@ mixin _$QuestionDTO {
   int get difficulty => throw _privateConstructorUsedError;
   List<String> get tags =>
       throw _privateConstructorUsedError; // Maps to questions.default_points
-  int get defaultPoints => throw _privateConstructorUsedError;
+  int get defaultPoints =>
+      throw _privateConstructorUsedError; // Question source — maps to questions.source enum column (migration 020).
+  // Values: 'teacher' | 'ai_generated' | 'library' | 'imported' | 'system' | 'admin'.
+  // Domain layer `QuestionSource` enum handles type-safety; DTO carries string.
+  String get source => throw _privateConstructorUsedError;
 
   /// Serializes this QuestionDTO to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -60,6 +64,7 @@ abstract class $QuestionDTOCopyWith<$Res> {
     int difficulty,
     List<String> tags,
     int defaultPoints,
+    String source,
   });
 }
 
@@ -85,6 +90,7 @@ class _$QuestionDTOCopyWithImpl<$Res, $Val extends QuestionDTO>
     Object? difficulty = null,
     Object? tags = null,
     Object? defaultPoints = null,
+    Object? source = null,
   }) {
     return _then(
       _value.copyWith(
@@ -116,6 +122,10 @@ class _$QuestionDTOCopyWithImpl<$Res, $Val extends QuestionDTO>
                 ? _value.defaultPoints
                 : defaultPoints // ignore: cast_nullable_to_non_nullable
                       as int,
+            source: null == source
+                ? _value.source
+                : source // ignore: cast_nullable_to_non_nullable
+                      as String,
           )
           as $Val,
     );
@@ -139,6 +149,7 @@ abstract class _$$QuestionDTOImplCopyWith<$Res>
     int difficulty,
     List<String> tags,
     int defaultPoints,
+    String source,
   });
 }
 
@@ -163,6 +174,7 @@ class __$$QuestionDTOImplCopyWithImpl<$Res>
     Object? difficulty = null,
     Object? tags = null,
     Object? defaultPoints = null,
+    Object? source = null,
   }) {
     return _then(
       _$QuestionDTOImpl(
@@ -194,6 +206,10 @@ class __$$QuestionDTOImplCopyWithImpl<$Res>
             ? _value.defaultPoints
             : defaultPoints // ignore: cast_nullable_to_non_nullable
                   as int,
+        source: null == source
+            ? _value.source
+            : source // ignore: cast_nullable_to_non_nullable
+                  as String,
       ),
     );
   }
@@ -210,6 +226,7 @@ class _$QuestionDTOImpl implements _QuestionDTO {
     this.difficulty = 3,
     final List<String> tags = const [],
     this.defaultPoints = 1,
+    this.source = 'teacher',
   }) : _content = content,
        _choices = choices,
        _answer = answer,
@@ -270,10 +287,16 @@ class _$QuestionDTOImpl implements _QuestionDTO {
   @override
   @JsonKey()
   final int defaultPoints;
+  // Question source — maps to questions.source enum column (migration 020).
+  // Values: 'teacher' | 'ai_generated' | 'library' | 'imported' | 'system' | 'admin'.
+  // Domain layer `QuestionSource` enum handles type-safety; DTO carries string.
+  @override
+  @JsonKey()
+  final String source;
 
   @override
   String toString() {
-    return 'QuestionDTO(type: $type, content: $content, choices: $choices, answer: $answer, difficulty: $difficulty, tags: $tags, defaultPoints: $defaultPoints)';
+    return 'QuestionDTO(type: $type, content: $content, choices: $choices, answer: $answer, difficulty: $difficulty, tags: $tags, defaultPoints: $defaultPoints, source: $source)';
   }
 
   @override
@@ -289,7 +312,8 @@ class _$QuestionDTOImpl implements _QuestionDTO {
                 other.difficulty == difficulty) &&
             const DeepCollectionEquality().equals(other._tags, _tags) &&
             (identical(other.defaultPoints, defaultPoints) ||
-                other.defaultPoints == defaultPoints));
+                other.defaultPoints == defaultPoints) &&
+            (identical(other.source, source) || other.source == source));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -303,6 +327,7 @@ class _$QuestionDTOImpl implements _QuestionDTO {
     difficulty,
     const DeepCollectionEquality().hash(_tags),
     defaultPoints,
+    source,
   );
 
   /// Create a copy of QuestionDTO
@@ -328,6 +353,7 @@ abstract class _QuestionDTO implements QuestionDTO {
     final int difficulty,
     final List<String> tags,
     final int defaultPoints,
+    final String source,
   }) = _$QuestionDTOImpl;
 
   factory _QuestionDTO.fromJson(Map<String, dynamic> json) =
@@ -347,7 +373,11 @@ abstract class _QuestionDTO implements QuestionDTO {
   @override
   List<String> get tags; // Maps to questions.default_points
   @override
-  int get defaultPoints;
+  int get defaultPoints; // Question source — maps to questions.source enum column (migration 020).
+  // Values: 'teacher' | 'ai_generated' | 'library' | 'imported' | 'system' | 'admin'.
+  // Domain layer `QuestionSource` enum handles type-safety; DTO carries string.
+  @override
+  String get source;
 
   /// Create a copy of QuestionDTO
   /// with the given fields replaced by the non-null parameter values.

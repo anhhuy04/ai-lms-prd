@@ -31,6 +31,11 @@ class QuestionDTO with _$QuestionDTO {
 
     // Maps to questions.default_points
     @Default(1) int defaultPoints,
+
+    // Question source — maps to questions.source enum column (migration 020).
+    // Values: 'teacher' | 'ai_generated' | 'library' | 'imported' | 'system' | 'admin'.
+    // Domain layer `QuestionSource` enum handles type-safety; DTO carries string.
+    @Default('teacher') String source,
   }) = _QuestionDTO;
 
   factory QuestionDTO.fromJson(Map<String, dynamic> json) =>
@@ -60,7 +65,10 @@ extension QuestionDTODbExtension on QuestionDTO {
         'default_points': defaultPoints,
         'difficulty': difficulty,
         'tags': tags,
-        'is_public': false,
+        // Schema v2 (migration 020): use is_global directly. DB trigger bridges
+        // to is_public for backward compat, but new code MUST write is_global.
+        'is_global': false,
+        'source': source,
         // Gửi choices để RPC lưu vào question_choices (format: {id, content:{text}, is_correct})
         if (choices.isNotEmpty)
           'choices': choices
