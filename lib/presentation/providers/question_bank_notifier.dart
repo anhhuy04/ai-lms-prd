@@ -1,5 +1,6 @@
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/question.dart';
+import 'package:ai_mls/domain/entities/question_filter.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/domain/repositories/question_repository.dart';
 import 'package:ai_mls/domain/usecases/question_bank_usecases.dart';
@@ -89,7 +90,7 @@ class QuestionBankNotifier extends _$QuestionBankNotifier {
       return QuestionBankState.initial();
     }
 
-    final params = GetQuestionBankParams(
+    final filter = QuestionFilter(
       authorId: userId,
       type: state.value?.filterType,
       difficulty: state.value?.filterDifficulty,
@@ -98,10 +99,10 @@ class QuestionBankNotifier extends _$QuestionBankNotifier {
       pageSize: 20,
     );
 
-    final questions = await _getQuestionBankUseCase(params);
+    final questions = await _getQuestionBankUseCase(filter);
     return QuestionBankState.initial().copyWith(
       questions: questions,
-      hasMore: questions.length == params.pageSize,
+      hasMore: questions.length == filter.pageSize,
       page: 0,
     );
   }
@@ -125,7 +126,7 @@ class QuestionBankNotifier extends _$QuestionBankNotifier {
     state = AsyncValue.data(current.copyWith(isLoading: true));
 
     try {
-      final params = GetQuestionBankParams(
+      final filter = QuestionFilter(
         authorId: userId,
         type: current.filterType,
         difficulty: current.filterDifficulty,
@@ -133,13 +134,13 @@ class QuestionBankNotifier extends _$QuestionBankNotifier {
         page: nextPage,
         pageSize: 20,
       );
-      final nextItems = await _getQuestionBankUseCase(params);
+      final nextItems = await _getQuestionBankUseCase(filter);
 
       state = AsyncValue.data(
         current.copyWith(
           isLoading: false,
           page: nextPage,
-          hasMore: nextItems.length == params.pageSize,
+          hasMore: nextItems.length == filter.pageSize,
           questions: <Question>[...current.questions, ...nextItems],
         ),
       );
