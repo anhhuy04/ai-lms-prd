@@ -1,18 +1,317 @@
+import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/domain/entities/question.dart';
+import 'package:ai_mls/domain/entities/question_choice.dart';
+import 'package:ai_mls/domain/usecases/question_bank_usecases.dart';
+import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-/// Placeholder for Question Bank detail screen.
-///
-/// Real implementation comes in Task 5.7 of the Question Bank phase.
-class TeacherQuestionBankDetailScreen extends StatelessWidget {
+part 'teacher_question_bank_detail_screen.g.dart';
+
+@riverpod
+Future<QuestionDetail?> _questionDetail(Ref ref, String id) {
+  final repo = ref.watch(questionRepositoryProvider);
+  return GetQuestionDetailUseCase(repo).call(id);
+}
+
+class TeacherQuestionBankDetailScreen extends ConsumerWidget {
   final String questionId;
   const TeacherQuestionBankDetailScreen({super.key, required this.questionId});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Text('Detail: $questionId — coming in Task 5.7'),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final detailAsync = ref.watch(_questionDetailProvider(questionId));
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Chi tiết câu hỏi'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Xem trước'),
+              Tab(text: 'Thống kê'),
+              Tab(text: 'Lịch sử dùng'),
+            ],
+          ),
+        ),
+        body: detailAsync.when(
+          data: (detail) {
+            if (detail == null) {
+              return const Center(child: Text('Không tìm thấy câu hỏi.'));
+            }
+            return TabBarView(
+              children: [
+                _PreviewTab(detail: detail),
+                _StatsTab(questionId: questionId),
+                _UsageTab(questionId: questionId),
+              ],
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Lỗi: $e')),
+        ),
+        bottomNavigationBar: detailAsync.maybeWhen(
+          data: (detail) =>
+              detail == null ? null : _ActionBar(question: detail.question),
+          orElse: () => null,
+        ),
       ),
     );
+  }
+}
+
+class _PreviewTab extends StatelessWidget {
+  final QuestionDetail detail;
+  const _PreviewTab({required this.detail});
+
+  @override
+  Widget build(BuildContext context) {
+    final q = detail.question;
+    final text = _extractText(q.content);
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(DesignSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _MetaRow(question: q),
+          SizedBox(height: DesignSpacing.md),
+          const Divider(),
+          SizedBox(height: DesignSpacing.md),
+          Text(
+            text.isEmpty ? '(Không có nội dung)' : text,
+            style: DesignTypography.bodyLarge,
+          ),
+          if (detail.choices.isNotEmpty) ...[
+            SizedBox(height: DesignSpacing.lg),
+            ...detail.choices.map((c) => _ChoiceRow(choice: c)),
+          ],
+          if (q.answer != null) ...[
+            SizedBox(height: DesignSpacing.lg),
+            Text('Giải thích:', style: DesignTypography.titleSmall),
+            SizedBox(height: DesignSpacing.xs),
+            Text(_extractText(q.answer!)),
+          ],
+          if (q.tags.isNotEmpty) ...[
+            SizedBox(height: DesignSpacing.lg),
+            Wrap(
+              spacing: DesignSpacing.xs,
+              children: q.tags.map((t) => Chip(label: Text('#$t'))).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _extractText(Map<String, dynamic> content) {
+    if (content['ops'] is List) {
+      return (content['ops'] as List)
+          .where((op) => op is Map && op['insert'] is String)
+          .map((op) => (op as Map)['insert'] as String)
+          .join();
+    }
+    if (content['text'] is String) return content['text'] as String;
+    return '';
+  }
+}
+
+class _MetaRow extends StatelessWidget {
+  final Question question;
+  const _MetaRow({required this.question});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: DesignSpacing.sm,
+      runSpacing: DesignSpacing.xs,
+      children: [
+        Chip(
+          label: Text(question.type.label),
+          backgroundColor: question.type.color.withValues(alpha: 0.15),
+        ),
+        if (question.difficulty != null)
+          Chip(label: Text('★ ${question.difficulty}')),
+        Chip(label: Text('Nguồn: ${_sourceLabel(question.source)}')),
+        if (question.isGlobal) const Chip(label: Text('🌐 Toàn cầu')),
+      ],
+    );
+  }
+
+  String _sourceLabel(String s) => switch (s) {
+    'teacher' => 'Giáo viên',
+    'ai_generated' => 'AI',
+    'library' => 'Thư viện',
+    'imported' => 'Nhập từ ngoài',
+    'system' => 'Hệ thống',
+    'admin' => 'Quản trị',
+    _ => s,
+  };
+}
+
+class _ChoiceRow extends StatelessWidget {
+  final QuestionChoice choice;
+  const _ChoiceRow({required this.choice});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = choice.content['text'] as String? ?? '';
+    return Container(
+      margin: EdgeInsets.only(bottom: DesignSpacing.xs),
+      padding: EdgeInsets.all(DesignSpacing.sm),
+      decoration: BoxDecoration(
+        color: choice.isCorrect
+            ? DesignColors.success.withValues(alpha: 0.1)
+            : Colors.transparent,
+        border: Border.all(
+          color: choice.isCorrect
+              ? DesignColors.success
+              : Colors.grey.shade300,
+        ),
+        borderRadius: BorderRadius.circular(DesignRadius.sm),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            choice.isCorrect
+                ? Icons.check_circle
+                : Icons.radio_button_unchecked,
+            color: choice.isCorrect ? DesignColors.success : Colors.grey,
+            size: 20,
+          ),
+          SizedBox(width: DesignSpacing.sm),
+          Expanded(child: Text(text)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatsTab extends StatelessWidget {
+  // ignore: unused_element_parameter
+  final String questionId;
+  const _StatsTab({required this.questionId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(DesignSpacing.lg),
+        child: Text(
+          'Thống kê — wire ở Task 5.11',
+          style: DesignTypography.bodyMedium,
+        ),
+      ),
+    );
+  }
+}
+
+class _UsageTab extends StatelessWidget {
+  // ignore: unused_element_parameter
+  final String questionId;
+  const _UsageTab({required this.questionId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(DesignSpacing.lg),
+        child: Text(
+          'Lịch sử dùng — implement sau (cần query assignment_questions)',
+          style: DesignTypography.bodyMedium,
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionBar extends ConsumerWidget {
+  final Question question;
+  const _ActionBar({required this.question});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.all(DesignSpacing.md),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Sao chép — implement sau')),
+                  );
+                },
+                icon: const Icon(Icons.copy_outlined),
+                label: const Text('Sao chép'),
+              ),
+            ),
+            SizedBox(width: DesignSpacing.sm),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Sửa — wire Phase 6')),
+                  );
+                },
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Sửa'),
+              ),
+            ),
+            SizedBox(width: DesignSpacing.sm),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => _confirmDelete(context, ref),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: DesignColors.error,
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Xóa'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Xóa câu hỏi?'),
+        content: const Text('Câu hỏi sẽ vào "Thùng rác".'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await ref
+          .read(questionRepositoryProvider)
+          .softDeleteQuestion(question.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Đã xóa câu hỏi')));
+      context.pop();
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi: $e'), backgroundColor: DesignColors.error),
+      );
+    }
   }
 }
