@@ -1,13 +1,16 @@
 import 'dart:io';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/data/utils/content_hasher.dart';
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/learning_objective.dart';
+import 'package:ai_mls/domain/entities/question_source.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/presentation/providers/learning_objective_providers.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/create_question/widgets/question_list_drawer.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/create_question/widgets/question_options_list.dart';
+import 'package:ai_mls/widgets/dialogs/similar_question_dialog.dart';
 import 'package:ai_mls/widgets/dialogs/warning_dialog.dart';
 import 'package:ai_mls/widgets/editor/math_input_field.dart';
 import 'package:ai_mls/widgets/objective_selector/objective_selector_sheet.dart';
@@ -15,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Màn hình tạo/chỉnh sửa câu hỏi
 class TeacherCreateQuestionScreen extends ConsumerStatefulWidget {
@@ -304,13 +308,14 @@ class _TeacherCreateQuestionScreenState
     return CreateQuestionParams(
       type: type,
       content: content,
+      source: QuestionSource.teacher,
       answer: answer,
       difficulty: difficulty,
-      tags: tags,
-      objectiveIds: objectiveIds,
-      choices: choices,
-      isPublic: false,
-      defaultPoints: 1,
+      tags: tags ?? const <String>[],
+      objectiveIds: objectiveIds ?? const <String>[],
+      choices: choices ?? const <Map<String, dynamic>>[],
+      isGlobal: false,
+      defaultPoints: 1.0,
     );
   }
 
@@ -322,13 +327,34 @@ class _TeacherCreateQuestionScreenState
     try {
       final repo = ref.read(questionRepositoryProvider);
       final params = _mapToCreateQuestionParams(questionData);
-      if (_editingQuestionId != null && _editingQuestionId!.isNotEmpty) {
+      final isEditing =
+          _editingQuestionId != null && _editingQuestionId!.isNotEmpty;
+      if (isEditing) {
         final updated = await repo.updateQuestion(_editingQuestionId!, params);
         return updated.id;
-      } else {
-        final created = await repo.createQuestion(params);
-        return created.id;
       }
+
+      // Pre-check duplicate (only on create flow)
+      final hash = ContentHasher.compute(params.content);
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final similar = await repo.checkDuplicate(userId, hash);
+        if (similar != null) {
+          if (!mounted) return null;
+          final action = await SimilarQuestionDialog.show(context, similar);
+          if (!mounted) return null;
+          if (action == SimilarQuestionAction.cancel) {
+            return null;
+          }
+          if (action == SimilarQuestionAction.useExisting) {
+            return similar.id;
+          }
+          // createAnyway: fallthrough to normal insert
+        }
+      }
+
+      final created = await repo.createQuestion(params);
+      return created.id;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
