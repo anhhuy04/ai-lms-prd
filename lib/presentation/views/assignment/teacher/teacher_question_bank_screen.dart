@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,17 +13,19 @@ import 'package:ai_mls/presentation/providers/question_bank_notifier.dart';
 import 'package:ai_mls/presentation/view_models/question_vm.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/question_bank/question_bank_card.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/question_bank/question_source_chip_bar.dart';
+import 'package:ai_mls/widgets/dialogs/question_filter_bottom_sheet.dart';
+import 'package:ai_mls/widgets/dialogs/question_sort_bottom_sheet.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/widgets/search/shared/search_field.dart';
 
 /// Question Bank list screen (teacher).
 ///
 /// Hiển thị danh sách câu hỏi của teacher (+ global nếu chọn), với:
-/// - Source chip bar (Tất cả / Của tôi / AI tạo / Toàn cầu)
-/// - Search box
+/// - Source chip bar (Tất cả / Của tôi / AI tạo)
+/// - SearchField widget (debounced 300ms)
+/// - Filter + Sort actions trong AppBar (bottom sheets)
 /// - Card list với menu Sửa/Sao chép/Xóa (theo quyền VM)
 /// - Pull-to-refresh, optimistic delete + Undo SnackBar
-///
-/// Edit / duplicate / create FAB wire vào create_question_screen ở Phase 6.
 class TeacherQuestionBankScreen extends ConsumerStatefulWidget {
   const TeacherQuestionBankScreen({super.key});
 
@@ -33,8 +37,12 @@ class TeacherQuestionBankScreen extends ConsumerStatefulWidget {
 class _TeacherQuestionBankScreenState
     extends ConsumerState<TeacherQuestionBankScreen> {
   SourceChipFilter _source = SourceChipFilter.all;
-  final _searchCtrl = TextEditingController();
   String _searchQuery = '';
+  Timer? _debounce;
+
+  // Filter/sort state
+  QuestionFilterValue _filterValue = const QuestionFilterValue();
+  QuestionSortKey _sortKey = QuestionSortKey.recentlyCreated;
 
   QuestionFilter _buildFilter(String userId) {
     QuestionSource? sourceFilter;
@@ -50,18 +58,48 @@ class _TeacherQuestionBankScreenState
         includeGlobal = false;
         sourceFilter = QuestionSource.aiGenerated;
         break;
-      case SourceChipFilter.global:
-        // Show global + own — filter UI nâng cao sẽ refine sau.
-        includeGlobal = true;
-        break;
     }
     return QuestionFilter(
       authorId: userId,
       includeGlobal: includeGlobal,
       searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
       sourceFilter: sourceFilter,
+      type: _filterValue.type,
+      difficulty: _filterValue.difficulty,
+      tags: _filterValue.tags.isEmpty ? null : _filterValue.tags,
+      sortBy: _sortKey,
     );
   }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() => _searchQuery = value);
+    });
+  }
+
+  Future<void> _openFilterSheet() async {
+    final result = await QuestionFilterBottomSheet.show(
+      context,
+      _filterValue,
+    );
+    if (result != null) {
+      setState(() => _filterValue = result);
+    }
+  }
+
+  Future<void> _openSortSheet() async {
+    final result = await QuestionSortBottomSheet.show(context, _sortKey);
+    if (result != null) {
+      setState(() => _sortKey = result);
+    }
+  }
+
+  bool get _hasActiveFilter =>
+      _filterValue.type != null ||
+      _filterValue.difficulty != null ||
+      _filterValue.tags.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -72,8 +110,6 @@ class _TeacherQuestionBankScreenState
       );
     }
 
-    // Admin detection — derive từ profile role (currentUserIsAdminProvider
-    // không tồn tại trong codebase hiện tại).
     final profileAsync = ref.watch(currentUserProvider);
     final isAdmin = profileAsync.value?.role == 'admin';
 
@@ -82,24 +118,52 @@ class _TeacherQuestionBankScreenState
         ref.watch(questionBankNotifierProvider(filter: filter));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Ngân hàng câu hỏi')),
+      appBar: AppBar(
+        title: const Text('Ngân hàng câu hỏi'),
+        actions: [
+          IconButton(
+            tooltip: 'Bộ lọc',
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.filter_list),
+                if (_hasActiveFilter)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: DesignColors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            onPressed: _openFilterSheet,
+          ),
+          IconButton(
+            tooltip: 'Sắp xếp',
+            icon: const Icon(Icons.sort),
+            onPressed: _openSortSheet,
+          ),
+        ],
+      ),
       body: Column(
         children: [
           QuestionSourceChipBar(
             selected: _source,
             onChanged: (f) => setState(() => _source = f),
           ),
-          Padding(
-            padding: EdgeInsets.all(DesignSpacing.md),
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: const InputDecoration(
-                hintText: 'Tìm câu hỏi...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: (v) => setState(() => _searchQuery = v),
-            ),
+          SearchField(
+            hintText: 'Tìm câu hỏi...',
+            onChanged: _onSearchChanged,
+            onClear: () {
+              _debounce?.cancel();
+              setState(() => _searchQuery = '');
+            },
           ),
           Expanded(
             child: stateAsync.when(
@@ -201,7 +265,7 @@ class _TeacherQuestionBankScreenState
           const Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
           SizedBox(height: DesignSpacing.md),
           Text(
-            _searchQuery.isEmpty
+            _searchQuery.isEmpty && !_hasActiveFilter
                 ? 'Kho câu hỏi trống'
                 : 'Không tìm thấy câu hỏi phù hợp',
             style: DesignTypography.bodyLarge,
@@ -262,7 +326,7 @@ class _TeacherQuestionBankScreenState
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 }

@@ -3,6 +3,7 @@ import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_question_bank_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -23,7 +24,13 @@ void main() {
         questionRepositoryProvider.overrideWithValue(repo),
         currentUserProvider.overrideWith(() => FakeAuthNotifier(makeProfile())),
       ],
-      child: const MaterialApp(home: TeacherQuestionBankScreen()),
+      child: ScreenUtilInit(
+        designSize: const Size(375, 812),
+        minTextAdapt: true,
+        splitScreenMode: true,
+        builder: (_, _) =>
+            const MaterialApp(home: TeacherQuestionBankScreen()),
+      ),
     );
   }
 

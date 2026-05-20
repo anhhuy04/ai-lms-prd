@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
 
-enum SourceChipFilter { all, mine, aiGenerated, global }
+enum SourceChipFilter { all, mine, aiGenerated }
 
 class QuestionSourceChipBar extends StatelessWidget {
   final SourceChipFilter selected;
@@ -44,6 +44,5 @@ class QuestionSourceChipBar extends StatelessWidget {
     SourceChipFilter.all => 'Tất cả',
     SourceChipFilter.mine => 'Của tôi',
     SourceChipFilter.aiGenerated => 'AI tạo',
-    SourceChipFilter.global => 'Toàn cầu',
   };
 }
