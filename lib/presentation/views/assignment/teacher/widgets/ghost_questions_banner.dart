@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/domain/entities/sync_result.dart';
 import 'package:ai_mls/presentation/providers/ghost_report_provider.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
@@ -138,10 +139,13 @@ class _GhostQuestionsBannerState extends ConsumerState<GhostQuestionsBanner> {
     if (confirmed != true || !mounted) return;
 
     setState(() => _isSyncing = true);
+    AppLogger.info('[QuestionBank][Sync] rpc_start aid=${widget.assignmentId}');
     try {
       final SyncResult result = await ref
           .read(questionRepositoryProvider)
           .syncAssignmentToBank(widget.assignmentId);
+      AppLogger.info(
+          '[QuestionBank][Sync] rpc_done created=${result.created} linked=${result.linked}');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -154,6 +158,7 @@ class _GhostQuestionsBannerState extends ConsumerState<GhostQuestionsBanner> {
       ref.invalidate(ghostReportProvider(widget.assignmentId));
       widget.onSyncSuccess?.call();
     } catch (e) {
+      AppLogger.error('[QuestionBank][Sync] rpc_failed', error: e);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

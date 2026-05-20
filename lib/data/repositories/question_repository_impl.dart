@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/utils/app_logger.dart';
 import '../../domain/entities/create_question_params.dart';
 import '../../domain/entities/ghost_report.dart';
 import '../../domain/entities/question.dart';
@@ -51,20 +52,25 @@ class QuestionRepositoryImpl implements QuestionRepository {
   }
 
   /// Wrap a datasource call, normalising errors to [QuestionFailure].
-  Future<T> _guard<T>(Future<T> Function() op) async {
+  Future<T> _guard<T>(String op, Future<T> Function() task) async {
+    AppLogger.info('[QuestionBank][Repo:$op] enter');
     try {
-      return await op();
+      final result = await task();
+      AppLogger.info('[QuestionBank][Repo:$op] exit');
+      return result;
     } on QuestionFailure {
       rethrow;
     } on PostgrestException catch (e) {
+      AppLogger.warning('[QuestionBank][Repo:$op] postgrest code=${e.code}');
       throw QuestionFailure.fromPostgrest(e);
     } catch (e) {
+      AppLogger.error('[QuestionBank][Repo:$op] error', error: e);
       throw QuestionFailure.fromAny(e);
     }
   }
 
   @override
-  Future<Question> createQuestion(CreateQuestionParams params) => _guard(() async {
+  Future<Question> createQuestion(CreateQuestionParams params) => _guard('Create', () async {
         final userId = _currentUserId();
         if (userId == null) {
           throw PermissionDenied();
@@ -119,7 +125,7 @@ class QuestionRepositoryImpl implements QuestionRepository {
 
   @override
   Future<Question> updateQuestion(String id, CreateQuestionParams params) =>
-      _guard(() async {
+      _guard('Update', () async {
         // `source` immutable post-create — không update.
         final payload = <String, dynamic>{
           'type': params.type.dbValue,
@@ -168,49 +174,49 @@ class QuestionRepositoryImpl implements QuestionRepository {
       });
 
   @override
-  Future<Question?> getQuestionById(String id) => _guard(() async {
+  Future<Question?> getQuestionById(String id) => _guard('GetById', () async {
         final row = await _ds.getQuestionById(id);
         return row == null ? null : Question.fromJson(row);
       });
 
   @override
   Future<List<QuestionChoice>> getChoicesByQuestionId(String id) =>
-      _guard(() async {
+      _guard('GetChoices', () async {
         final rows = await _ds.getChoicesByQuestionId(id);
         return rows.map(QuestionChoice.fromJson).toList();
       });
 
   @override
-  Future<List<Question>> getQuestions(QuestionFilter filter) => _guard(() async {
+  Future<List<Question>> getQuestions(QuestionFilter filter) => _guard('GetList', () async {
         final rows = await _ds.getQuestions(filter);
         return rows.map(Question.fromJson).toList();
       });
 
   @override
   Future<void> softDeleteQuestion(String id) =>
-      _guard(() => _ds.softDeleteQuestion(id));
+      _guard('SoftDelete', () => _ds.softDeleteQuestion(id));
 
   @override
   Future<void> restoreQuestion(String id) =>
-      _guard(() => _ds.restoreQuestion(id));
+      _guard('Restore', () => _ds.restoreQuestion(id));
 
   @override
   Future<Question?> checkDuplicate(String authorId, String contentHash) =>
-      _guard(() async {
+      _guard('CheckDup', () async {
         final row = await _ds.findByContentHash(authorId, contentHash);
         return row == null ? null : Question.fromJson(row);
       });
 
   @override
   Future<GhostReport> detectGhostQuestions(String assignmentId) =>
-      _guard(() async {
+      _guard('DetectGhost', () async {
         final json = await _ds.detectGhostQuestions(assignmentId);
         return GhostReport.fromJson(json);
       });
 
   @override
   Future<SyncResult> syncAssignmentToBank(String assignmentId) =>
-      _guard(() async {
+      _guard('Sync', () async {
         final json = await _ds.syncAssignmentToBank(assignmentId);
         return SyncResult.fromJson(json);
       });

@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/utils/app_logger.dart';
 import '../../domain/entities/create_question_params.dart';
 import '../../domain/entities/question.dart';
 import '../../domain/entities/question_filter.dart';
@@ -34,6 +35,8 @@ class QuestionBankNotifier extends _$QuestionBankNotifier {
     final removed = s.questions[idx];
 
     // Optimistic remove
+    AppLogger.info(
+        '[QuestionBank][Notifier:SoftDelete] optimistic_remove id=$id idx=$idx');
     state = AsyncValue.data(s.copyWith(
       questions: [...s.questions]..removeAt(idx),
       mutatingIds: {...s.mutatingIds, id},
@@ -41,8 +44,10 @@ class QuestionBankNotifier extends _$QuestionBankNotifier {
 
     try {
       await ref.read(questionRepositoryProvider).softDeleteQuestion(id);
+      AppLogger.info('[QuestionBank][Notifier:SoftDelete] confirmed id=$id');
     } on QuestionFailure {
       // Rollback: re-insert at original index
+      AppLogger.warning('[QuestionBank][Notifier:SoftDelete] rollback id=$id');
       final cur = state.value!;
       state = AsyncValue.data(cur.copyWith(
         questions: [...cur.questions]
@@ -61,6 +66,7 @@ class QuestionBankNotifier extends _$QuestionBankNotifier {
   }
 
   Future<void> restore(String id) async {
+    AppLogger.info('[QuestionBank][Notifier:Restore] id=$id');
     try {
       await ref.read(questionRepositoryProvider).restoreQuestion(id);
       ref.invalidateSelf();
@@ -70,6 +76,8 @@ class QuestionBankNotifier extends _$QuestionBankNotifier {
   }
 
   Future<Question> create(CreateQuestionParams params) async {
+    AppLogger.info(
+        '[QuestionBank][Notifier:Create] source=${params.source.dbValue}');
     final q = await ref.read(questionRepositoryProvider).createQuestion(params);
     ref.invalidateSelf();
     return q;
