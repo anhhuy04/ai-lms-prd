@@ -4,6 +4,7 @@ import 'package:ai_mls/domain/entities/question_choice.dart';
 import 'package:ai_mls/domain/usecases/question_bank_usecases.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/providers/question_stats_provider.dart';
+import 'package:ai_mls/presentation/providers/question_usage_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -304,23 +305,156 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _UsageTab extends StatelessWidget {
-  // ignore: unused_element_parameter
+class _UsageTab extends ConsumerWidget {
   final String questionId;
   const _UsageTab({required this.questionId});
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(DesignSpacing.lg),
-        child: Text(
-          'Lịch sử dùng — implement sau (cần query assignment_questions)',
-          style: DesignTypography.bodyMedium,
-          textAlign: TextAlign.center,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final usageAsync = ref.watch(questionUsageProvider(questionId));
+    return usageAsync.when(
+      data: (items) {
+        if (items.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: EdgeInsets.all(DesignSpacing.lg),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.history_toggle_off,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
+                  SizedBox(height: DesignSpacing.md),
+                  Text(
+                    'Chưa có bài tập nào dùng câu hỏi này',
+                    style: DesignTypography.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return RefreshIndicator(
+          onRefresh: () async =>
+              ref.invalidate(questionUsageProvider(questionId)),
+          child: ListView.separated(
+            padding: EdgeInsets.all(DesignSpacing.md),
+            itemCount: items.length,
+            separatorBuilder: (_, _) => SizedBox(height: DesignSpacing.sm),
+            itemBuilder: (_, i) => _UsageItemTile(item: items[i]),
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: EdgeInsets.all(DesignSpacing.lg),
+          child: Text('Lỗi tải lịch sử: $e'),
         ),
       ),
     );
+  }
+}
+
+class _UsageItemTile extends StatelessWidget {
+  final QuestionUsageItem item;
+  const _UsageItemTile({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = item.isPublished
+        ? DesignColors.success
+        : DesignColors.warning;
+    final statusLabel = item.isPublished ? 'Đã phát hành' : 'Bản nháp';
+    final dateLabel = item.publishedAt != null
+        ? 'Phát hành ${_formatDate(item.publishedAt!)}'
+        : item.createdAt != null
+        ? 'Tạo ${_formatDate(item.createdAt!)}'
+        : '';
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Mở "${item.title}" — wire sau')),
+          );
+        },
+        borderRadius: BorderRadius.circular(DesignRadius.md),
+        child: Padding(
+          padding: EdgeInsets.all(DesignSpacing.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(DesignRadius.sm),
+                ),
+                child: Icon(
+                  item.isPublished
+                      ? Icons.public
+                      : Icons.edit_note_outlined,
+                  color: color,
+                ),
+              ),
+              SizedBox(width: DesignSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: DesignTypography.titleSmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: DesignSpacing.xs),
+                    if (item.className != null && item.className!.isNotEmpty)
+                      Text(
+                        'Lớp: ${item.className}',
+                        style: DesignTypography.bodySmall,
+                      ),
+                    if (dateLabel.isNotEmpty)
+                      Text(
+                        dateLabel,
+                        style: DesignTypography.bodySmall.copyWith(
+                          color: DesignColors.textSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              SizedBox(width: DesignSpacing.sm),
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: DesignSpacing.sm,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(DesignRadius.sm),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: DesignTypography.labelSmall.copyWith(color: color),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime dt) {
+    final d = dt.toLocal();
+    return '${d.day}/${d.month}/${d.year}';
   }
 }
 
