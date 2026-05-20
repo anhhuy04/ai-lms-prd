@@ -164,6 +164,20 @@ class _TeacherQuestionBankScreenState
               _debounce?.cancel();
               setState(() => _searchQuery = '');
             },
+            height: 48,
+            iconSize: 20,
+            borderRadius: 12,
+            horizontalPadding: 16,
+            verticalPadding: 0,
+            hintStyle: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF536270),
+              fontWeight: FontWeight.w400,
+            ),
+            textStyle: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF041F2A),
+            ),
           ),
           Expanded(
             child: stateAsync.when(

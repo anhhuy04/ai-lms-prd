@@ -73,13 +73,15 @@ class _SearchFieldState extends State<SearchField> {
 
   /// Build search bar with customizable dimensions
   Widget _buildSearchBar() {
-    // Dùng ScreenUtil để scale kích thước theo màn hình
-    final height = (widget.height ?? DesignComponents.inputFieldHeight).h;
-    final horizontalPadding = (widget.horizontalPadding ?? DesignSpacing.lg).w;
-    final verticalPadding = (widget.verticalPadding ?? DesignSpacing.md).h;
+    // Dùng ScreenUtil để scale kích thước theo màn hình.
+    // Khi caller truyền giá trị tuyệt đối → tôn trọng (không scale lại) để tránh
+    // overflow trên web (designSize 360 mobile, window ~1700px → scale ~5x).
+    final height = widget.height ?? DesignComponents.inputFieldHeight.h;
+    final horizontalPadding = widget.horizontalPadding ?? DesignSpacing.lg.w;
+    final verticalPadding = widget.verticalPadding ?? DesignSpacing.md.h;
     final backgroundColor = widget.backgroundColor ?? DesignColors.moonMedium;
-    final borderRadius = (widget.borderRadius ?? DesignRadius.full).r;
-    final iconSize = (widget.iconSize ?? DesignIcons.mdSize).sp;
+    final borderRadius = widget.borderRadius ?? DesignRadius.full.r;
+    final iconSize = widget.iconSize ?? DesignIcons.mdSize.sp;
     final hintStyle =
         widget.hintStyle ??
         DesignTypography.bodyMedium.copyWith(
