@@ -1,10 +1,7 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
-import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/question.dart';
-import 'package:ai_mls/domain/failures/question_failure.dart';
 import 'package:ai_mls/domain/entities/question_choice.dart';
-import 'package:ai_mls/domain/entities/question_source.dart';
 import 'package:ai_mls/domain/usecases/question_bank_usecases.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/providers/question_stats_provider.dart';
@@ -595,7 +592,7 @@ class _ActionBar extends ConsumerStatefulWidget {
 }
 
 class _ActionBarState extends ConsumerState<_ActionBar> {
-  bool _isDuplicating = false;
+  bool _isPreparingReplicate = false;
 
   Question get question => widget.question;
 
@@ -608,15 +605,17 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: _isDuplicating ? null : _duplicateQuestion,
-                icon: _isDuplicating
+                onPressed: _isPreparingReplicate
+                    ? null
+                    : () => _navigateToReplicate(context),
+                icon: _isPreparingReplicate
                     ? const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.copy_outlined),
-                label: const Text('Sao chép'),
+                    : const Icon(Icons.content_copy_outlined),
+                label: const Text('Nhân bản'),
               ),
             ),
             SizedBox(width: DesignSpacing.sm),
@@ -649,105 +648,76 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     );
   }
 
-  /// Sao chép câu hỏi: tạo bản sao mới với cùng content/choices/tags/...
-  /// nhưng đặt author = user hiện tại, isGlobal = false, source = teacher.
-  /// Trả về snackbar success/error và mời user mở câu mới.
-  Future<void> _duplicateQuestion() async {
-    if (_isDuplicating) return;
-    setState(() => _isDuplicating = true);
+  /// Nhân bản câu hỏi: KHÔNG insert DB ngay. Build initialData từ câu hiện
+  /// tại + choices, push sang `teacherCreateQuestion` (mode create — không
+  /// truyền questionId). User chỉnh sửa rồi tự Save → câu mới đi qua
+  /// normal create flow (bao gồm duplicate pre-check) trong create screen.
+  Future<void> _navigateToReplicate(BuildContext context) async {
+    if (_isPreparingReplicate) return;
+    setState(() => _isPreparingReplicate = true);
     try {
       final repo = ref.read(questionRepositoryProvider);
-      // Fetch choices của câu gốc (cần raw shape cho CreateQuestionParams).
       final choices = await repo.getChoicesByQuestionId(question.id);
-      final choicesRaw = ([...choices]..sort((a, b) => a.id.compareTo(b.id)))
-          .asMap()
-          .entries
-          .map((e) => <String, dynamic>{
-                'id': e.key, // re-index 0..n
-                'content': Map<String, dynamic>.from(e.value.content),
-                'is_correct': e.value.isCorrect,
-              })
+
+      // Sort choices ổn định theo id để giữ thứ tự gốc.
+      final sortedChoices = [...choices]..sort((a, b) => a.id.compareTo(b.id));
+      final optionsForForm = sortedChoices
+          .map(
+            (c) => <String, dynamic>{
+              'text': c.content['text'] as String? ?? '',
+              'isCorrect': c.isCorrect,
+            },
+          )
           .toList();
 
-      // Clone content + answer (deep enough for shallow JSON maps).
-      // Append " (Bản sao)" suffix để content_hash khác bản gốc,
-      // tránh va UNIQUE constraint idx_questions_author_hash_unique.
-      final content = Map<String, dynamic>.from(question.content);
-      if (content['text'] is String) {
-        content['text'] = '${content['text']} (Bản sao)';
-      } else if (content['ops'] is List) {
-        final ops = List<Map<String, dynamic>>.from(
-          (content['ops'] as List).map(
-            (e) => Map<String, dynamic>.from(e as Map),
-          ),
-        );
-        ops.add({'insert': ' (Bản sao)'});
-        content['ops'] = ops;
-      } else {
-        // Fallback: gắn marker tối thiểu để hash khác.
-        content['_dup_marker'] = DateTime.now().millisecondsSinceEpoch;
-      }
-      final answer = question.answer == null
-          ? null
-          : Map<String, dynamic>.from(question.answer!);
+      final text = _extractText(question.content);
+      final explanation =
+          (question.content['explanation'] as String?) ??
+          (question.answer?['explanation'] as String?) ??
+          (question.answer?['general_explanation'] as String?) ??
+          '';
 
-      final params = CreateQuestionParams(
-        type: question.type,
-        content: content,
-        source: QuestionSource.teacher,
-        answer: answer,
-        defaultPoints: question.defaultPoints,
-        difficulty: question.difficulty,
-        tags: List<String>.from(question.tags),
-        isGlobal: false,
-        objectiveIds: const <String>[],
-        choices: choicesRaw,
-      );
-
-      final created = await repo.createQuestion(params);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Đã tạo bản sao câu hỏi'),
-          action: SnackBarAction(
-            label: 'Mở',
-            onPressed: () {
-              context.pushReplacement(
-                AppRoute.teacherQuestionBankDetailPath(created.id),
-              );
-            },
-          ),
-        ),
-      );
-    } on DuplicateContentDetected catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Bản sao có nội dung trùng. Hãy chỉnh sửa bản sao trước khi lưu.',
-          ),
-          backgroundColor: DesignColors.warning,
-        ),
-      );
-    } on QuestionFailure catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.userMessage),
-          backgroundColor: DesignColors.error,
-        ),
+      if (!context.mounted) return;
+      context.pushNamed(
+        AppRoute.teacherCreateQuestion,
+        extra: <String, dynamic>{
+          'questionType': question.type,
+          // KHÔNG truyền questionId/id → create screen sẽ ở chế độ tạo mới
+          // (chạy duplicate pre-check + insert mới trong _saveQuestionToSupabase).
+          'initialData': <String, dynamic>{
+            'text': text,
+            'explanation': explanation,
+            'difficulty': question.difficulty,
+            'tags': List<String>.from(question.tags),
+            'options': optionsForForm,
+          },
+        },
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lỗi sao chép: $e'),
+          content: Text('Lỗi mở nhân bản: $e'),
           backgroundColor: DesignColors.error,
         ),
       );
     } finally {
-      if (mounted) setState(() => _isDuplicating = false);
+      if (mounted) setState(() => _isPreparingReplicate = false);
     }
+  }
+
+  String _extractText(Map<String, dynamic> content) {
+    if (content['ops'] is List) {
+      return (content['ops'] as List)
+          .where((op) => op is Map && op['insert'] is String)
+          .map((op) => (op as Map)['insert'] as String)
+          .join();
+    }
+    if (content['text'] is String) return content['text'] as String;
+    if (content['override_text'] is String) {
+      return content['override_text'] as String;
+    }
+    return '';
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
