@@ -1,10 +1,14 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/question.dart';
 import 'package:ai_mls/domain/entities/question_choice.dart';
+import 'package:ai_mls/domain/entities/question_source.dart';
 import 'package:ai_mls/domain/usecases/question_bank_usecases.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/presentation/providers/question_stats_provider.dart';
 import 'package:ai_mls/presentation/providers/question_usage_provider.dart';
+import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -72,6 +76,14 @@ class _PreviewTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final q = detail.question;
     final text = _extractText(q.content);
+    // Explanation lives in content.explanation (cùng convention với
+    // teacher_create_question_screen). Fallback sang answer.* để chịu
+    // cả format AI cũ.
+    final explanation = (q.content['explanation'] as String?) ??
+        (q.answer?['explanation'] as String?) ??
+        (q.answer?['general_explanation'] as String?) ??
+        '';
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(DesignSpacing.lg),
       child: Column(
@@ -81,19 +93,25 @@ class _PreviewTab extends StatelessWidget {
           SizedBox(height: DesignSpacing.md),
           const Divider(),
           SizedBox(height: DesignSpacing.md),
-          Text(
-            text.isEmpty ? '(Không có nội dung)' : text,
+          _RawAndRendered(
+            label: 'Đề bài',
+            text: text.isEmpty ? '(Không có nội dung)' : text,
             style: DesignTypography.bodyLarge,
           ),
           if (detail.choices.isNotEmpty) ...[
             SizedBox(height: DesignSpacing.lg),
             ...detail.choices.map((c) => _ChoiceRow(choice: c)),
           ],
-          if (q.answer != null) ...[
+          if (explanation.isNotEmpty) ...[
             SizedBox(height: DesignSpacing.lg),
             Text('Giải thích:', style: DesignTypography.titleSmall),
             SizedBox(height: DesignSpacing.xs),
-            Text(_extractText(q.answer!)),
+            _RawAndRendered(
+              label: 'Giải thích',
+              text: explanation,
+              style: DesignTypography.bodyMedium,
+              showLabel: false,
+            ),
           ],
           if (q.tags.isNotEmpty) ...[
             SizedBox(height: DesignSpacing.lg),
@@ -115,7 +133,91 @@ class _PreviewTab extends StatelessWidget {
           .join();
     }
     if (content['text'] is String) return content['text'] as String;
+    if (content['override_text'] is String) {
+      return content['override_text'] as String;
+    }
     return '';
+  }
+}
+
+/// Hiển thị 2 cột: raw text (trái) + LaTeX rendered (phải) để giáo viên
+/// thấy ngay công thức `$...$` render ra ra sao. Trên mobile (hẹp) sẽ
+/// fallback sang xếp dọc.
+class _RawAndRendered extends StatelessWidget {
+  final String label;
+  final String text;
+  final TextStyle? style;
+  final bool showLabel;
+
+  const _RawAndRendered({
+    required this.label,
+    required this.text,
+    this.style,
+    this.showLabel = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final isNarrow = c.maxWidth < 480;
+        final raw = _Column(
+          title: 'Văn bản gốc',
+          show: showLabel,
+          child: SelectableText(text, style: style),
+        );
+        final rendered = _Column(
+          title: 'Hiển thị (LaTeX)',
+          show: showLabel,
+          child: MathText(text, style: style),
+        );
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              raw,
+              SizedBox(height: DesignSpacing.sm),
+              rendered,
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: raw),
+            SizedBox(width: DesignSpacing.md),
+            Expanded(child: rendered),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _Column extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final bool show;
+  const _Column({required this.title, required this.child, this.show = true});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (show)
+          Padding(
+            padding: EdgeInsets.only(bottom: DesignSpacing.xs),
+            child: Text(
+              title,
+              style: DesignTypography.labelSmall.copyWith(
+                color: DesignColors.textSecondary,
+              ),
+            ),
+          ),
+        child,
+      ],
+    );
   }
 }
 
@@ -174,6 +276,7 @@ class _ChoiceRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(DesignRadius.sm),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
             choice.isCorrect
@@ -183,7 +286,31 @@ class _ChoiceRow extends StatelessWidget {
             size: 20,
           ),
           SizedBox(width: DesignSpacing.sm),
-          Expanded(child: Text(text)),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final isNarrow = c.maxWidth < 360;
+                if (isNarrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SelectableText(text),
+                      SizedBox(height: DesignSpacing.xs),
+                      MathText(text),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: SelectableText(text)),
+                    SizedBox(width: DesignSpacing.sm),
+                    Expanded(child: MathText(text)),
+                  ],
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
@@ -458,12 +585,21 @@ class _UsageItemTile extends StatelessWidget {
   }
 }
 
-class _ActionBar extends ConsumerWidget {
+class _ActionBar extends ConsumerStatefulWidget {
   final Question question;
   const _ActionBar({required this.question});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ActionBar> createState() => _ActionBarState();
+}
+
+class _ActionBarState extends ConsumerState<_ActionBar> {
+  bool _isDuplicating = false;
+
+  Question get question => widget.question;
+
+  @override
+  Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.all(DesignSpacing.md),
@@ -471,12 +607,14 @@ class _ActionBar extends ConsumerWidget {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Sao chép — implement sau')),
-                  );
-                },
-                icon: const Icon(Icons.copy_outlined),
+                onPressed: _isDuplicating ? null : _duplicateQuestion,
+                icon: _isDuplicating
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.copy_outlined),
                 label: const Text('Sao chép'),
               ),
             ),
@@ -495,7 +633,7 @@ class _ActionBar extends ConsumerWidget {
             SizedBox(width: DesignSpacing.sm),
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: () => _confirmDelete(context, ref),
+                onPressed: () => _confirmDelete(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: DesignColors.error,
                   foregroundColor: Colors.white,
@@ -510,7 +648,74 @@ class _ActionBar extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+  /// Sao chép câu hỏi: tạo bản sao mới với cùng content/choices/tags/...
+  /// nhưng đặt author = user hiện tại, isGlobal = false, source = teacher.
+  /// Trả về snackbar success/error và mời user mở câu mới.
+  Future<void> _duplicateQuestion() async {
+    if (_isDuplicating) return;
+    setState(() => _isDuplicating = true);
+    try {
+      final repo = ref.read(questionRepositoryProvider);
+      // Fetch choices của câu gốc (cần raw shape cho CreateQuestionParams).
+      final choices = await repo.getChoicesByQuestionId(question.id);
+      final choicesRaw = ([...choices]..sort((a, b) => a.id.compareTo(b.id)))
+          .asMap()
+          .entries
+          .map((e) => <String, dynamic>{
+                'id': e.key, // re-index 0..n
+                'content': Map<String, dynamic>.from(e.value.content),
+                'is_correct': e.value.isCorrect,
+              })
+          .toList();
+
+      // Clone content + answer (deep enough for shallow JSON maps).
+      final content = Map<String, dynamic>.from(question.content);
+      final answer = question.answer == null
+          ? null
+          : Map<String, dynamic>.from(question.answer!);
+
+      final params = CreateQuestionParams(
+        type: question.type,
+        content: content,
+        source: QuestionSource.teacher,
+        answer: answer,
+        defaultPoints: question.defaultPoints,
+        difficulty: question.difficulty,
+        tags: List<String>.from(question.tags),
+        isGlobal: false,
+        objectiveIds: const <String>[],
+        choices: choicesRaw,
+      );
+
+      final created = await repo.createQuestion(params);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Đã tạo bản sao câu hỏi'),
+          action: SnackBarAction(
+            label: 'Mở',
+            onPressed: () {
+              context.pushReplacement(
+                AppRoute.teacherQuestionBankDetailPath(created.id),
+              );
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi sao chép: $e'),
+          backgroundColor: DesignColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isDuplicating = false);
+    }
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
