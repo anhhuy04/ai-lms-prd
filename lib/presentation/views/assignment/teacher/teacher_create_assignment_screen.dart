@@ -21,6 +21,8 @@ import 'package:ai_mls/widgets/dialogs/warning_dialog.dart';
 import 'package:ai_mls/widgets/question_bank/question_bank_picker_sheet.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/ghost_questions_banner.dart';
 import 'package:ai_mls/domain/entities/question.dart' as qbe;
+import 'package:ai_mls/domain/entities/question_choice.dart' as qbe_choice;
+import 'package:ai_mls/presentation/providers/question_bank_providers.dart' as qbp;
 import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:ai_mls/widgets/forms/date_time_picker_field.dart';
 import 'package:ai_mls/widgets/forms/labeled_text_field.dart';
@@ -455,10 +457,35 @@ class _TeacherCreateAssignmentScreenState
     );
     if (picked == null || picked.isEmpty || !mounted) return;
 
+    // Fetch full choices for each picked question in PARALLEL — preserves
+    // options + answer + explanation + tags + difficulty so picker doesn't
+    // strip MC choices (BUG fix: previously options was always empty).
+    final repo = ref.read(qbp.questionRepositoryProvider);
+    List<List<qbe_choice.QuestionChoice>> choicesPerQuestion;
+    try {
+      choicesPerQuestion = await Future.wait(
+        picked.map((q) => repo.getChoicesByQuestionId(q.id)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi tải chi tiết câu hỏi: $e'),
+          backgroundColor: DesignColors.error,
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+
     final next = List<Map<String, dynamic>>.from(_questions);
     for (var i = 0; i < picked.length; i++) {
       final q = picked[i];
-      next.add(_mapBankQuestionToFormData(q, number: next.length + 1));
+      next.add(_mapBankQuestionToFormData(
+        q,
+        number: next.length + 1,
+        choices: choicesPerQuestion[i],
+      ));
     }
     _setQuestions(next);
     _updateQuestionPoints();
@@ -483,13 +510,32 @@ class _TeacherCreateAssignmentScreenState
   /// used throughout this screen. Notes:
   /// - `type` is stored as the QuestionType enum (not dbValue string).
   /// - `questionId` carries the canonical bank link (bank-first).
-  /// - `options` is left empty for now — bank-first questions render preview;
-  ///   full content (choices/answer) will be loaded on demand later.
+  /// - `options` is hydrated from `question_choices` rows — preserves correct
+  ///   answers + choice text for MC/TF. Essay/short_answer types carry
+  ///   `answer` map verbatim so expected_answer/blanks/keywords survive.
+  /// - `explanation` is read from `content.explanation` (matches the
+  ///   convention used by `teacher_create_question_screen`).
   Map<String, dynamic> _mapBankQuestionToFormData(
     qbe.Question q, {
     required int number,
+    required List<qbe_choice.QuestionChoice> choices,
   }) {
     final preview = _extractBankText(q.content);
+    // Sort choices by id to preserve original order (PK is (id, question_id)).
+    final sorted = [...choices]..sort((a, b) => a.id.compareTo(b.id));
+    final options = sorted.map((c) {
+      final text = c.content['text'] as String? ?? '';
+      return <String, dynamic>{
+        'text': text,
+        'isCorrect': c.isCorrect,
+      };
+    }).toList();
+
+    final explanation = q.content['explanation'] as String? ??
+        q.answer?['explanation'] as String? ??
+        q.answer?['general_explanation'] as String? ??
+        '';
+
     return <String, dynamic>{
       'number': number,
       'questionId': q.id,
@@ -497,8 +543,12 @@ class _TeacherCreateAssignmentScreenState
       'text': preview,
       'difficulty': q.difficulty,
       'tags': List<String>.from(q.tags),
-      'options': const <Map<String, dynamic>>[],
-      'explanation': '',
+      'options': options,
+      'explanation': explanation,
+      // Preserve full `answer` map verbatim — essay/fill_blank/etc. carry
+      // expected_answer / blanks / ai_grading_keywords here, and downstream
+      // (_buildCustomContent) reads `q['answer']` directly.
+      if (q.answer != null) 'answer': Map<String, dynamic>.from(q.answer!),
       'customContent': null,
       'source': 'bank',
       'points': _getPointsForQuestion(q.type),
