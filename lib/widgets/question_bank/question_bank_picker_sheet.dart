@@ -1,9 +1,11 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/domain/entities/question.dart';
+import 'package:ai_mls/domain/entities/question_choice.dart';
 import 'package:ai_mls/domain/entities/question_filter.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/question_bank_notifier.dart';
+import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -109,7 +111,16 @@ class _QuestionBankPickerSheetState
                   return ListView.builder(
                     controller: scrollController,
                     itemCount: available.length,
-                    itemBuilder: (_, i) => _buildItem(isDark, available[i]),
+                    itemBuilder: (_, i) {
+                      final q = available[i];
+                      return _QuestionPickerItem(
+                        key: ValueKey(q.id),
+                        question: q,
+                        isDark: isDark,
+                        isSelected: _selectedIds.contains(q.id),
+                        onToggle: (v) => _onToggle(q, v),
+                      );
+                    },
                   );
                 },
                 loading: () =>
@@ -256,101 +267,24 @@ class _QuestionBankPickerSheetState
         ),
       );
 
-  Widget _buildItem(bool isDark, Question q) {
-    final isSelected = _selectedIds.contains(q.id);
-    final preview = _extractPreview(q.content);
-    final truncated =
-        preview.length > 120 ? '${preview.substring(0, 120)}…' : preview;
-    final difficulty = q.difficulty ?? 0;
-
-    return CheckboxListTile(
-      value: isSelected,
-      controlAffinity: ListTileControlAffinity.leading,
-      activeColor: DesignColors.primary,
-      onChanged: (v) {
-        if (v == true && _selectedIds.length >= widget.maxItems) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Tối đa ${widget.maxItems} câu mỗi lần'),
-              backgroundColor: DesignColors.warning,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-          return;
-        }
-        setState(() {
-          if (v == true) {
-            _selectedIds.add(q.id);
-          } else {
-            _selectedIds.remove(q.id);
-          }
-        });
-      },
-      title: Text(
-        truncated.isEmpty ? '(Chưa có nội dung)' : truncated,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: DesignTypography.bodyMedium.copyWith(
-          color: isDark ? Colors.grey[200] : DesignColors.textPrimary,
+  void _onToggle(Question q, bool? v) {
+    if (v == true && _selectedIds.length >= widget.maxItems) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Tối đa ${widget.maxItems} câu mỗi lần'),
+          backgroundColor: DesignColors.warning,
+          duration: const Duration(seconds: 2),
         ),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: DesignSpacing.xs),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: q.type.color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(DesignRadius.xs),
-              ),
-              child: Text(
-                q.type.label,
-                style: DesignTypography.labelSmall.copyWith(
-                  fontSize: 11,
-                  color: q.type.color,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (difficulty > 0) ...[
-              const SizedBox(width: DesignSpacing.sm),
-              Text(
-                '★' * difficulty,
-                style: TextStyle(
-                  color: DesignColors.warning,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-            if (q.isGlobal) ...[
-              const SizedBox(width: DesignSpacing.sm),
-              Icon(
-                Icons.public,
-                size: 14,
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Plain-text preview từ Quill Delta hoặc plain content JSON.
-  String _extractPreview(Map<String, dynamic> content) {
-    if (content['ops'] is List) {
-      return (content['ops'] as List)
-          .where((op) => op is Map && op['insert'] is String)
-          .map((op) => (op as Map)['insert'] as String)
-          .join()
-          .replaceAll('\n', ' ')
-          .trim();
+      );
+      return;
     }
-    if (content['text'] is String) {
-      return (content['text'] as String).replaceAll('\n', ' ').trim();
-    }
-    return '';
+    setState(() {
+      if (v == true) {
+        _selectedIds.add(q.id);
+      } else {
+        _selectedIds.remove(q.id);
+      }
+    });
   }
 
   Widget _buildEmpty(bool isDark) => Center(
@@ -453,5 +387,332 @@ class _QuestionBankPickerSheetState
     final selected =
         s.questions.where((q) => _selectedIds.contains(q.id)).toList();
     Navigator.of(context).pop(selected);
+  }
+}
+
+/// Item card cho picker — hiển thị đầy đủ:
+/// type badge + difficulty stars + source icon, question text,
+/// choices preview (cho MC/TrueFalse), tags.
+class _QuestionPickerItem extends ConsumerStatefulWidget {
+  final Question question;
+  final bool isDark;
+  final bool isSelected;
+  final ValueChanged<bool?> onToggle;
+
+  const _QuestionPickerItem({
+    super.key,
+    required this.question,
+    required this.isDark,
+    required this.isSelected,
+    required this.onToggle,
+  });
+
+  @override
+  ConsumerState<_QuestionPickerItem> createState() =>
+      _QuestionPickerItemState();
+}
+
+class _QuestionPickerItemState extends ConsumerState<_QuestionPickerItem> {
+  Future<List<QuestionChoice>>? _choicesFuture;
+
+  static const _typesWithChoices = {
+    QuestionType.multipleChoice,
+    QuestionType.trueFalse,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    if (_typesWithChoices.contains(widget.question.type)) {
+      _choicesFuture = ref
+          .read(questionRepositoryProvider)
+          .getChoicesByQuestionId(widget.question.id);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = widget.question;
+    final preview = _extractPreview(q.content);
+    final difficulty = q.difficulty ?? 0;
+    final isDark = widget.isDark;
+
+    return InkWell(
+      onTap: () => widget.onToggle(!widget.isSelected),
+      child: Container(
+        margin: const EdgeInsets.symmetric(
+          horizontal: DesignSpacing.md,
+          vertical: DesignSpacing.xs,
+        ),
+        padding: const EdgeInsets.all(DesignSpacing.md),
+        decoration: BoxDecoration(
+          color: widget.isSelected
+              ? DesignColors.primary.withValues(alpha: 0.06)
+              : (isDark ? const Color(0xFF22303C) : Colors.white),
+          border: Border.all(
+            color: widget.isSelected
+                ? DesignColors.primary
+                : (isDark ? Colors.grey[700]! : Colors.grey[300]!),
+            width: widget.isSelected ? 1.4 : 1,
+          ),
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(
+                  value: widget.isSelected,
+                  activeColor: DesignColors.primary,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  onChanged: widget.onToggle,
+                ),
+              ),
+            ),
+            const SizedBox(width: DesignSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildMetaRow(q, difficulty, isDark),
+                  const SizedBox(height: DesignSpacing.xs),
+                  Text(
+                    preview.isEmpty ? '(Chưa có nội dung)' : preview,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: DesignTypography.bodyMedium.copyWith(
+                      color: isDark
+                          ? Colors.grey[100]
+                          : DesignColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (_choicesFuture != null) ...[
+                    const SizedBox(height: DesignSpacing.sm),
+                    _buildChoices(isDark),
+                  ],
+                  if (q.tags.isNotEmpty) ...[
+                    const SizedBox(height: DesignSpacing.sm),
+                    _buildTags(q.tags, isDark),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetaRow(Question q, int difficulty, bool isDark) {
+    return Wrap(
+      spacing: DesignSpacing.sm,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: q.type.color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(DesignRadius.xs),
+          ),
+          child: Text(
+            q.type.label,
+            style: DesignTypography.labelSmall.copyWith(
+              fontSize: 11,
+              color: q.type.color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        if (difficulty > 0)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(
+              5,
+              (i) => Icon(
+                i < difficulty ? Icons.star : Icons.star_border,
+                size: 13,
+                color: DesignColors.warning,
+              ),
+            ),
+          ),
+        if (q.isAiGenerated)
+          Tooltip(
+            message: 'AI tạo',
+            child: const Icon(
+              Icons.auto_awesome,
+              size: 14,
+              color: Colors.purple,
+            ),
+          )
+        else if (q.isGlobal)
+          Tooltip(
+            message: 'Toàn cầu',
+            child: Icon(
+              Icons.public,
+              size: 14,
+              color: DesignColors.success,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildChoices(bool isDark) {
+    return FutureBuilder<List<QuestionChoice>>(
+      future: _choicesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(
+              'Đang tải đáp án...',
+              style: DesignTypography.labelSmall.copyWith(
+                color: isDark ? Colors.grey[500] : Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          return Text(
+            'Không thể tải đáp án',
+            style: DesignTypography.labelSmall.copyWith(
+              color: DesignColors.error,
+            ),
+          );
+        }
+        final choices = snapshot.data ?? const <QuestionChoice>[];
+        if (choices.isEmpty) return const SizedBox.shrink();
+        final sorted = [...choices]..sort((a, b) => a.id.compareTo(b.id));
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: sorted
+              .map((c) => _buildChoiceRow(c, isDark))
+              .toList(growable: false),
+        );
+      },
+    );
+  }
+
+  Widget _buildChoiceRow(QuestionChoice choice, bool isDark) {
+    final text = choice.content['text'] as String? ?? '';
+    final label = String.fromCharCode(65 + choice.id); // A, B, C, D...
+    final correct = choice.isCorrect;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: DesignSpacing.sm,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: correct
+            ? DesignColors.success.withValues(alpha: 0.10)
+            : (isDark ? Colors.white10 : Colors.grey.shade50),
+        border: Border.all(
+          color: correct
+              ? DesignColors.success.withValues(alpha: 0.4)
+              : (isDark ? Colors.grey[700]! : Colors.grey.shade200),
+        ),
+        borderRadius: BorderRadius.circular(DesignRadius.xs),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            correct ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 14,
+            color: correct
+                ? DesignColors.success
+                : (isDark ? Colors.grey[500] : Colors.grey[500]),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$label.',
+            style: DesignTypography.labelSmall.copyWith(
+              fontWeight: FontWeight.w600,
+              color: correct
+                  ? DesignColors.success
+                  : (isDark ? Colors.grey[300] : Colors.grey[700]),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              text.isEmpty ? '(trống)' : text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: DesignTypography.labelSmall.copyWith(
+                color: correct
+                    ? DesignColors.success
+                    : (isDark ? Colors.grey[200] : DesignColors.textPrimary),
+                fontWeight: correct ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTags(List<String> tags, bool isDark) {
+    final shown = tags.take(4).toList();
+    final extra = tags.length - shown.length;
+    return Wrap(
+      spacing: DesignSpacing.xs,
+      runSpacing: 4,
+      children: [
+        ...shown.map(
+          (t) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.blueGrey.withValues(alpha: 0.25)
+                  : Colors.blueGrey.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(DesignRadius.xs),
+            ),
+            child: Text(
+              '#$t',
+              style: DesignTypography.labelSmall.copyWith(
+                fontSize: 11,
+                color: isDark ? Colors.grey[300] : Colors.blueGrey[700],
+              ),
+            ),
+          ),
+        ),
+        if (extra > 0)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            child: Text(
+              '+$extra',
+              style: DesignTypography.labelSmall.copyWith(
+                fontSize: 11,
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Plain-text preview từ Quill Delta hoặc plain content JSON.
+  String _extractPreview(Map<String, dynamic> content) {
+    if (content['ops'] is List) {
+      return (content['ops'] as List)
+          .where((op) => op is Map && op['insert'] is String)
+          .map((op) => (op as Map)['insert'] as String)
+          .join()
+          .replaceAll('\n', ' ')
+          .trim();
+    }
+    if (content['text'] is String) {
+      return (content['text'] as String).replaceAll('\n', ' ').trim();
+    }
+    return '';
   }
 }
