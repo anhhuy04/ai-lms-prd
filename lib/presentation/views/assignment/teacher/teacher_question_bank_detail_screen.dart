@@ -2,6 +2,7 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/question.dart';
+import 'package:ai_mls/domain/failures/question_failure.dart';
 import 'package:ai_mls/domain/entities/question_choice.dart';
 import 'package:ai_mls/domain/entities/question_source.dart';
 import 'package:ai_mls/domain/usecases/question_bank_usecases.dart';
@@ -669,7 +670,23 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
           .toList();
 
       // Clone content + answer (deep enough for shallow JSON maps).
+      // Append " (Bản sao)" suffix để content_hash khác bản gốc,
+      // tránh va UNIQUE constraint idx_questions_author_hash_unique.
       final content = Map<String, dynamic>.from(question.content);
+      if (content['text'] is String) {
+        content['text'] = '${content['text']} (Bản sao)';
+      } else if (content['ops'] is List) {
+        final ops = List<Map<String, dynamic>>.from(
+          (content['ops'] as List).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
+        );
+        ops.add({'insert': ' (Bản sao)'});
+        content['ops'] = ops;
+      } else {
+        // Fallback: gắn marker tối thiểu để hash khác.
+        content['_dup_marker'] = DateTime.now().millisecondsSinceEpoch;
+      }
       final answer = question.answer == null
           ? null
           : Map<String, dynamic>.from(question.answer!);
@@ -700,6 +717,24 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
               );
             },
           ),
+        ),
+      );
+    } on DuplicateContentDetected catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Bản sao có nội dung trùng. Hãy chỉnh sửa bản sao trước khi lưu.',
+          ),
+          backgroundColor: DesignColors.warning,
+        ),
+      );
+    } on QuestionFailure catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.userMessage),
+          backgroundColor: DesignColors.error,
         ),
       );
     } catch (e) {
