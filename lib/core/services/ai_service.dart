@@ -545,6 +545,7 @@ RÀNG BUỘC FORMAT:
 - fill_blank: override_text dùng [___1], [___2]…; blanks liệt kê đáp án. KHÔNG đặt [___N] trong \$...\$ — phải ngoài LaTeX.
 - tags: 1-3 từ khóa chủ đề.
 - KHÔNG tạo field "explanation".
+- Bên trong override_text/expected_answer: KHÔNG dùng dấu nháy kép thẳng (") để trích dẫn — hãy dùng nháy đơn (') hoặc « » để JSON không bị vỡ.
 
 NHẮC LẠI: Trả về JSON ARRAY $quantity object. override_text = câu hỏi thực, không phải nhãn.''';
   }
@@ -927,6 +928,10 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
         'generationConfig': {
           'responseMimeType': 'application/json',
           'temperature': 0.2,
+          // FIX-ESSAY-3: set tường minh maxOutputTokens rộng rãi để lô câu nặng
+          // (tự luận 5 câu + expected_answer dài + ai_grading_keywords) KHÔNG bị
+          // cắt cụt giữa JSON. Gemini 1.5/2.0 flash hỗ trợ tới 8192 output tokens.
+          'maxOutputTokens': 8192,
         },
       };
 
@@ -1281,11 +1286,20 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
       caseSensitive: false,
     ).firstMatch(prompt);
     final qty = int.tryParse(m?.group(1) ?? '') ?? 10;
-    // MCQ đầy đủ (override_text + 4 choices + tags): ~200-250 tokens mỗi câu.
-    // Cap 6000 để tránh truncate khi qty lớn (Groq free tier giới hạn ≈ 8k).
-    final estimated = 400 + (qty * 220);
+    // FIX-ESSAY-3: budget token THEO LOẠI CÂU. Hệ số 220 tok/câu chỉ đúng cho
+    // MCQ/true_false (nhẹ). Câu tự luận/trả lời ngắn/giải toán/nối cặp NẶNG hơn
+    // nhiều (expected_answer dài + ai_grading_keywords lồng + pairs...) → 220
+    // làm output bị CẮT CỤT → JSON hỏng → parse fail → fallback. Nhận diện loại
+    // qua type rule trong prompt ("type=\"essay\"" ...) → dùng hệ số cao hơn.
+    final isHeavyType = RegExp(
+      r'type="(essay|short_answer|math|matching|problem_solving)"',
+      caseSensitive: false,
+    ).hasMatch(prompt);
+    final perQ = isHeavyType ? 650 : 220;
+    final maxCap = isHeavyType ? 12000 : 6000;
+    final estimated = 400 + (qty * perQ);
     if (estimated < 800) return 800;
-    if (estimated > 6000) return 6000;
+    if (estimated > maxCap) return maxCap;
     return estimated;
   }
 

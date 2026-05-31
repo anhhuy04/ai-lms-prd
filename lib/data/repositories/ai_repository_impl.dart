@@ -297,11 +297,23 @@ class AiRepositoryImpl implements AiRepository {
       for (var i = 0; i < questionsList.length && i < expectedQuantity; i++) {
         final q = questionsList[i];
         if (q is Map<String, dynamic>) {
-          final mapped = _mapAiQuestionToStandardFormat(q, i + 1);
-          if (mapped != null) {
-            questions.add(mapped);
-          } else {
+          // FIX-ESSAY-1: bọc try/catch per-item — 1 câu lỗi (vd model trả
+          // field sai kiểu → TypeError ở cast) chỉ MẤT 1 CÂU, KHÔNG kéo cả lô
+          // rơi vào _generateFallbackQuestions. Trước đây exception ở 1 item
+          // làm abort toàn bộ parse → 5 placeholder (rồi bị dedup gộp còn 1).
+          try {
+            final mapped = _mapAiQuestionToStandardFormat(q, i + 1);
+            if (mapped != null) {
+              questions.add(mapped);
+            } else {
+              skippedEmptyText++;
+            }
+          } catch (e) {
             skippedEmptyText++;
+            AppLogger.warning(
+              '[AI REPO] Question ${i + 1}: lỗi map ($e), bỏ qua câu này '
+              '(không abort cả lô).',
+            );
           }
         } else {
           skippedNonMap++;
@@ -375,6 +387,26 @@ class AiRepositoryImpl implements AiRepository {
   /// - answer: {text, correct_choices, explanation}
   /// - learning_objectives: [{description, subject_code, code}]
   /// - grading_rubric: {criteria: [{name, max_points, description}], total_points}
+  /// FIX-ESSAY-2: coerce 1 field text-ish về String an toàn (không ném).
+  /// String → trim; Map/List → jsonEncode (giữ nội dung); số/bool → toString;
+  /// null/rỗng → null. Dùng cho expected_answer/explanation — tránh hard cast
+  /// `as String?` ném TypeError khi model trả kiểu lạ → abort cả lô.
+  String? _asAnswerString(dynamic v) {
+    if (v == null) return null;
+    if (v is String) {
+      final t = v.trim();
+      return t.isEmpty ? null : t;
+    }
+    if (v is Map || v is List) {
+      try {
+        return jsonEncode(v);
+      } catch (_) {
+        return v.toString();
+      }
+    }
+    return v.toString();
+  }
+
   Map<String, dynamic>? _mapAiQuestionToStandardFormat(
     Map<String, dynamic> aiQuestion,
     int index,
@@ -427,11 +459,18 @@ class AiRepositoryImpl implements AiRepository {
       }
     } else {
       // Essay/short_answer: AI outputs expected_answer + ai_grading_keywords at top level
-      final expectedAnswer = aiQuestion['expected_answer'] as String?;
-      final gradingKeywords = aiQuestion['ai_grading_keywords'] as List<dynamic>?;
+      // FIX-ESSAY-2: SAFE extract thay vì hard cast `as String?`/`as List?`.
+      // Model yếu có thể trả expected_answer là object/number, ai_grading_keywords
+      // là Map thay vì List → hard cast NÉM TypeError → abort cả lô essay →
+      // fallback. Ở đây coerce an toàn: giữ nội dung, không crash.
+      final expectedAnswer = _asAnswerString(aiQuestion['expected_answer']);
+      final gradingKeywords =
+          aiQuestion['ai_grading_keywords'] is List<dynamic>
+          ? aiQuestion['ai_grading_keywords'] as List<dynamic>
+          : null;
       final explanation =
-          aiQuestion['explanation'] as String? ??
-          aiQuestion['explanation_rich_text'] as String?;
+          _asAnswerString(aiQuestion['explanation']) ??
+          _asAnswerString(aiQuestion['explanation_rich_text']);
       if (expectedAnswer != null || gradingKeywords != null || explanation != null) {
         answer = {};
         if (expectedAnswer != null) answer['expected_answer'] = expectedAnswer;
@@ -442,9 +481,10 @@ class AiRepositoryImpl implements AiRepository {
     }
 
     // Extract explanation cho MỌI loại câu hỏi (→ general_explanation trong answer)
+    // FIX-ESSAY-2: safe extract (model có thể trả explanation là object → cast throw).
     final explanationStr =
-        aiQuestion['explanation'] as String? ??
-        aiQuestion['explanation_rich_text'] as String?;
+        _asAnswerString(aiQuestion['explanation']) ??
+        _asAnswerString(aiQuestion['explanation_rich_text']);
     if (explanationStr != null && explanationStr.trim().isNotEmpty) {
       answer ??= {};
       // Lưu vào general_explanation theo Data Contract (tách khỏi content để tránh data leakage)
@@ -912,9 +952,14 @@ class AiRepositoryImpl implements AiRepository {
       _removeTrailingCommas, // 3. fix `,}` `,]`
       (x) => _removeTrailingCommas(_sanitizeLatexInJson(x)), // 4. combo
       _autoCloseBrackets, // 5. fix unbalanced
+      _escapeInnerQuotes, // 6. FIX-ESSAY-5: escape nháy kép chưa thoát trong text
       (x) => _autoCloseBrackets(
             _removeTrailingCommas(_sanitizeLatexInJson(x)),
-          ), // 6. combo all
+          ), // 7. combo all
+      // 8. combo + escape inner quote — cứu lô essay có nháy kép trong free-text
+      (x) => _autoCloseBrackets(
+            _removeTrailingCommas(_sanitizeLatexInJson(_escapeInnerQuotes(x))),
+          ),
     ];
 
     for (final fn in attempts) {
@@ -1071,6 +1116,74 @@ class AiRepositoryImpl implements AiRepository {
     return buf.toString();
   }
 
+  /// FIX-ESSAY-5: escape các dấu nháy kép THẲNG (") CHƯA thoát nằm BÊN TRONG
+  /// giá trị string của JSON. Root-cause lô essay fail: model trả free-text
+  /// kiểu  "...chiến thuật "đốt lửa" và "đánh bất ngờ", khai thác..."  → nháy
+  /// kép trong câu làm jsonDecode vỡ ngay → cả lô rơi fallback.
+  ///
+  /// Heuristic KEY-AWARE (không phải đếm nháy ngây thơ): duyệt từng ký tự,
+  /// theo dõi inString. Khi đang inString gặp `"`, quyết định ĐÓNG hay NỘI BỘ
+  /// dựa trên ký tự cấu trúc kế tiếp (bỏ whitespace):
+  ///  • kế tiếp là `:` `}` `]`            → ĐÓNG (kết key/value/mảng).
+  ///  • kế tiếp là `,` VÀ sau `,` là `"`/`{`/`[` → ĐÓNG (có phần tử kế).
+  ///  • còn lại                            → nháy NỘI BỘ → escape thành `\"`.
+  /// Best-effort: nếu kết quả vẫn sai, jsonDecode throw → attempt khác chạy.
+  String _escapeInnerQuotes(String input) {
+    final sb = StringBuffer();
+    bool inString = false;
+    for (int i = 0; i < input.length; i++) {
+      final ch = input[i];
+      if (!inString) {
+        sb.write(ch);
+        if (ch == '"') inString = true;
+        continue;
+      }
+      // Đang trong string.
+      if (ch == r'\') {
+        // Giữ nguyên cặp escape (\" \\ \n ...).
+        sb.write(ch);
+        if (i + 1 < input.length) {
+          sb.write(input[i + 1]);
+          i++;
+        }
+        continue;
+      }
+      if (ch == '"') {
+        // Xác định ĐÓNG hay NỘI BỘ qua ký tự không-trắng kế tiếp.
+        int j = i + 1;
+        while (j < input.length && _isWs(input[j])) {
+          j++;
+        }
+        final next = j < input.length ? input[j] : '';
+        bool isClosing;
+        if (next == ':' || next == '}' || next == ']' || next == '') {
+          isClosing = true;
+        } else if (next == ',') {
+          int k = j + 1;
+          while (k < input.length && _isWs(input[k])) {
+            k++;
+          }
+          final after = k < input.length ? input[k] : '';
+          // Sau dấu `,` là đầu phần tử/key mới → đây là nháy ĐÓNG thật.
+          isClosing = after == '"' || after == '{' || after == '[' || after == '';
+        } else {
+          isClosing = false;
+        }
+        if (isClosing) {
+          sb.write(ch);
+          inString = false;
+        } else {
+          sb.write(r'\"');
+        }
+        continue;
+      }
+      sb.write(ch);
+    }
+    return sb.toString();
+  }
+
+  bool _isWs(String c) => c == ' ' || c == '\n' || c == '\r' || c == '\t';
+
   /// Extract substring từ first `{` or `[` đến last `}` or `]`.
   String? _extractJsonSubstring(String s) {
     final firstObj = s.indexOf('{');
@@ -1143,6 +1256,10 @@ class AiRepositoryImpl implements AiRepository {
       return {
         'type': QuestionType.multipleChoice,
         'text': 'Câu hỏi ${index + 1} (cần chỉnh sửa)',
+        // FIX-ESSAY-4: cờ nhận diện placeholder. Dùng để dedup KHÔNG gộp các
+        // placeholder gần-trùng thành 1 (trước đây 5 placeholder → bị dedup
+        // còn 1 → section count sai, che mức độ lỗi thật).
+        '_isFallback': true,
         'options': [
           {'text': 'Lựa chọn A (cần chỉnh sửa)', 'isCorrect': true},
           {'text': 'Lựa chọn B', 'isCorrect': false},
@@ -1374,6 +1491,13 @@ class AiRepositoryImpl implements AiRepository {
     final keptTexts = <String>[];
     final kept = <Map<String, dynamic>>[];
     for (final q in questions) {
+      // FIX-ESSAY-4: placeholder fallback luôn giữ — KHÔNG để dedup gộp 5 câu
+      // "(cần chỉnh sửa)" gần-trùng thành 1 (che số lỗi thật khỏi section count).
+      if (q['_isFallback'] == true) {
+        kept.add(q);
+        keptTexts.add('');
+        continue;
+      }
       final text = (_extractQuestionText(q) ?? '').toLowerCase().trim();
       if (text.isEmpty) {
         kept.add(q);
