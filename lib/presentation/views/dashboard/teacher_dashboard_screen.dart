@@ -183,6 +183,7 @@ class _TeacherDashboardScreenState
         if (currentIdx == 0)
           HomeGreetingBar(
             profile: widget.userProfile,
+            greeting: 'Chào giáo viên,',
             actions: [
               IconButton(
                 icon: const Icon(Icons.notifications_outlined, size: 22),

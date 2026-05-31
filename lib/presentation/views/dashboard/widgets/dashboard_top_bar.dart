@@ -118,10 +118,14 @@ class HomeGreetingBar extends StatelessWidget {
   final Profile? profile;
   final List<Widget>? actions;
 
+  /// Lời chào theo vai trò (giống PC): 'Chào bạn,' cho HS, 'Chào giáo viên,' cho GV.
+  final String greeting;
+
   const HomeGreetingBar({
     super.key,
     this.profile,
     this.actions,
+    this.greeting = 'Chào bạn,',
   });
 
   @override
@@ -169,7 +173,7 @@ class HomeGreetingBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Chào bạn,',
+                  greeting,
                   style: TextStyle(
                     fontSize: 12,
                     color:
