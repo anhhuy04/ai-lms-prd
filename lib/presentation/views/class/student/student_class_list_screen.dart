@@ -11,11 +11,12 @@ import 'package:ai_mls/presentation/providers/class_notifier.dart';
 import 'package:ai_mls/presentation/providers/class_providers.dart';
 import 'package:ai_mls/presentation/utils/student_class_interaction_handler.dart';
 import 'package:ai_mls/presentation/views/class/widgets/class_primary_action_card.dart';
-import 'package:ai_mls/presentation/views/class/widgets/class_screen_header.dart';
 import 'package:ai_mls/widgets/dialogs/class_sort_bottom_sheet.dart';
 import 'package:ai_mls/widgets/list_item/class/class_item_widget.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -54,12 +55,7 @@ class _StudentClassListScreenState
         .loadClassesByStudent(studentId)
         .catchError((error) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(error.toString()),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppToast.error(context, error.toString());
           }
         })
         .whenComplete(() {
@@ -90,7 +86,7 @@ class _StudentClassListScreenState
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+              Icon(Icons.error_outline, size: 48, color: DesignColors.error),
               const SizedBox(height: 16),
               const Text(
                 'Không tìm thấy thông tin học sinh',
@@ -108,36 +104,51 @@ class _StudentClassListScreenState
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey[50], // Nền xám nhẹ như yêu cầu
+      backgroundColor: DesignColors.moonLight,
+      appBar: AppBar(
+        title: const Text(
+          'Lớp học',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: DesignColors.textPrimary,
+          ),
+        ),
+        centerTitle: false,
+        backgroundColor: DesignColors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Tìm lớp học',
+            onPressed: () => context.pushNamed(AppRoute.studentClassSearch),
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            tooltip: 'Thông báo',
+            onPressed: () {
+              // TODO: Implement notifications
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header với tiêu đề nhỏ gọn
-            _buildHeader(context),
-            const SizedBox(height: 12),
-            // Card tham gia lớp học mới với thiết kế nhỏ hơn
-            _buildJoinClassCard(context),
-            const SizedBox(height: 16),
-            // Danh sách lớp học với Consumer
-            Expanded(child: _buildClassList(context)),
-          ],
+        top: false,
+        child: WideContentWrapper(
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              // Card tham gia lớp học mới với thiết kế nhỏ hơn
+              _buildJoinClassCard(context),
+              const SizedBox(height: 16),
+              // Danh sách lớp học với Consumer
+              Expanded(child: _buildClassList(context)),
+            ],
+          ),
         ),
       ),
-    );
-  }
-
-  /// Header nhỏ gọn với tiêu đề và avatar
-  Widget _buildHeader(BuildContext context) {
-    final auth = ref.watch(authNotifierProvider);
-    final profile = auth.value;
-    return ClassScreenHeader(
-      onSearch: () {
-        context.pushNamed(AppRoute.studentClassSearch);
-      },
-      onNotifications: () {
-        // TODO: Implement notifications
-      },
-      profile: profile,
     );
   }
 
@@ -273,12 +284,7 @@ class _StudentClassListScreenState
             ? 'Bạn đã tham gia lớp học thành công'
             : 'Đã gửi yêu cầu tham gia, vui lòng chờ giáo viên duyệt';
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: isApproved ? Colors.green : Colors.blue[800],
-          ),
-        );
+        AppToast.success(context, message);
 
         // Nếu được duyệt vào thẳng thì chuyển sang trang lớp học
         if (isApproved && classId != null && className != null) {
@@ -327,14 +333,14 @@ class _StudentClassListScreenState
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+              Icon(Icons.error_outline, size: 48, color: DesignColors.error),
               const SizedBox(height: 16),
               Text(
                 'Đã xảy ra lỗi',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.red[700],
+                  color: DesignColors.error,
                 ),
               ),
               const SizedBox(height: 8),

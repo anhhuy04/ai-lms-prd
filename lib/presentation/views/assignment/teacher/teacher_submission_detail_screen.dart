@@ -6,6 +6,7 @@ import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/grade_audit_trail.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/grading_action_buttons.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -1378,9 +1379,7 @@ class _TeacherSubmissionDetailScreenState
           .approveAiScore(answerId);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã duyệt điểm AI')),
-        );
+        AppToast.info(context, 'Đã duyệt điểm AI');
         ref.invalidate(teacherSubmissionDetailProvider(
           submissionId: widget.submissionId,
         ));
@@ -1400,9 +1399,7 @@ class _TeacherSubmissionDetailScreenState
           );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đã cập nhật điểm: $newScore')),
-        );
+        AppToast.info(context, 'Đã cập nhật điểm: $newScore');
         // Refresh submission detail để cập nhật điểm mới
         ref.invalidate(teacherSubmissionDetailProvider(
           submissionId: widget.submissionId,
@@ -1446,17 +1443,13 @@ class _TeacherSubmissionDetailScreenState
             );
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xuất bản điểm')),
-          );
+          AppToast.info(context, 'Đã xuất bản điểm');
           context.pop();
         }
       } catch (e) {
         AppLogger.error('Error publishing grades: $e');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi xuất bản điểm: $e')),
-          );
+          AppToast.info(context, 'Lỗi xuất bản điểm: $e');
         }
       }
     }
@@ -1471,9 +1464,7 @@ class _TeacherSubmissionDetailScreenState
 
       if (mounted) {
         AppLogger.info('Auto-published grades for 100% objective assignment');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã tự động xuất bản điểm (bài trắc nghiệm)')),
-        );
+        AppToast.info(context, 'Đã tự động xuất bản điểm (bài trắc nghiệm)');
         ref.invalidate(teacherSubmissionDetailProvider(
           submissionId: widget.submissionId,
         ));
@@ -1481,9 +1472,7 @@ class _TeacherSubmissionDetailScreenState
     } catch (e) {
       AppLogger.error('Error auto publishing grades: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi xuất bản: $e')),
-        );
+        AppToast.info(context, 'Lỗi xuất bản: $e');
       }
     }
   }

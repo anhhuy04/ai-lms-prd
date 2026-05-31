@@ -2,6 +2,7 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/utils/navigation_helper.dart';
 import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,10 +33,12 @@ class StudentSubmissionHistoryScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: historyAsync.when(
-        loading: () => const ShimmerLoading(),
-        error: (error, _) => _buildErrorState(context, error),
-        data: (history) => _buildBody(context, ref, history),
+      body: WideContentWrapper(
+        child: historyAsync.when(
+          loading: () => const ShimmerLoading(),
+          error: (error, _) => _buildErrorState(context, error),
+          data: (history) => _buildBody(context, ref, history),
+        ),
       ),
     );
   }
@@ -47,7 +50,7 @@ class StudentSubmissionHistoryScreen extends ConsumerWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+            const Icon(Icons.error_outline, size: 48, color: DesignColors.error),
             const SizedBox(height: DesignSpacing.md),
             Text(
               'Lỗi khi tải lịch sử',
@@ -360,9 +363,9 @@ class StudentSubmissionHistoryScreen extends ConsumerWidget {
   }
 
   Color _getScoreColor(num score) {
-    if (score >= 8) return Colors.green;
-    if (score >= 5) return Colors.orange;
-    return Colors.red;
+    if (score >= 8) return DesignColors.success;
+    if (score >= 5) return DesignColors.warning;
+    return DesignColors.error;
   }
 
   String _formatDateTime(DateTime dateTime) {

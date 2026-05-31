@@ -4,6 +4,7 @@ import 'package:ai_mls/domain/entities/class.dart';
 import 'package:ai_mls/domain/entities/update_class_params.dart';
 import 'package:ai_mls/presentation/providers/class_notifier.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -872,17 +873,7 @@ class _EditClassScreenState extends ConsumerState<EditClassScreen> {
     if (success) {
       // Hiển thị thông báo thành công
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã cập nhật lớp học "${_classNameController.text}" thành công!'),
-            backgroundColor: DesignColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(DesignRadius.sm),
-            ),
-            margin: EdgeInsets.all(DesignSpacing.lg),
-          ),
-        );
+        AppToast.success(context, 'Đã cập nhật lớp học "${_classNameController.text}" thành công!');
 
         // Quay lại màn hình trước
         if (context.canPop()) {
@@ -898,17 +889,7 @@ class _EditClassScreenState extends ConsumerState<EditClassScreen> {
     } else {
       // Hiển thị lỗi nếu có
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Không thể cập nhật lớp học'),
-            backgroundColor: Colors.red[600],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        AppToast.error(context, 'Không thể cập nhật lớp học');
       }
     }
   }

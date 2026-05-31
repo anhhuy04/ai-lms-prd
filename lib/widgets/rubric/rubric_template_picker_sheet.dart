@@ -1,5 +1,6 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 
 /// Bottom sheet for selecting a saved rubric template.
 ///
@@ -57,9 +58,7 @@ class _RubricTemplatePickerSheetState extends State<RubricTemplatePickerSheet> {
       if (mounted) setState(() => _localTemplates.removeAt(index));
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Xóa thất bại: $e')),
-        );
+        AppToast.info(context, 'Xóa thất bại: $e');
       }
     }
   }

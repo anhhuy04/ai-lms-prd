@@ -19,7 +19,12 @@ class ActionEndDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     // Bọc nội dung drawer trong RepaintBoundary để tránh vẽ lại toàn màn khi mở
     return Drawer(
-      width: MediaQuery.of(context).size.width * 0.85, // ~85% màn hình
+      width: () {
+        final sw = MediaQuery.of(context).size.width;
+        if (sw >= 1200) return 420.0;
+        if (sw >= 600) return 380.0;
+        return sw * 0.85;
+      }(),
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       elevation: DesignElevation.level3.blurRadius,
       child: RepaintBoundary(

@@ -2,6 +2,7 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/presentation/providers/recommendation_providers.dart';
 import 'package:ai_mls/presentation/views/recommendation/widgets/recommendation_card.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
@@ -415,12 +416,7 @@ class _TeacherRecommendationsScreenState
     // Use notifier dismiss → updates local state immediately for smooth UX
     await ref.read(teacherRecommendationNotifierProvider(classId: _selectedClassId).notifier).dismiss(recommendationId);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã xóa gợi ý'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppToast.info(context, 'Đã xóa gợi ý');
     }
   }
 }

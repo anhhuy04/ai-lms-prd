@@ -4,9 +4,9 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/core/utils/redo_eligibility.dart';
-import 'package:ai_mls/data/datasources/assignment_datasource.dart';
 import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -120,6 +120,7 @@ class _StudentAssignmentDetailScreenState
         children: [
           _AppBar(title: title, isSubmitted: isSubmitted),
           Expanded(
+            child: WideContentWrapper(
             child: isSubmitted
                 ? _SubmittedView(
                     assignment: assignment,
@@ -141,6 +142,7 @@ class _StudentAssignmentDetailScreenState
                     distributionId: widget.distributionId,
                     onRefresh: _refresh,
                   ),
+            ),
           ),
         ],
       ),
@@ -165,7 +167,7 @@ class _AppBar extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: SizedBox(
-          height: 56.h,
+          height: 56.0,
           child: Row(
             children: [
               IconButton(
@@ -231,7 +233,7 @@ class _ErrorScaffold extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 48.w, color: DesignColors.error),
+              Icon(Icons.error_outline, size: 48.0, color: DesignColors.error),
               const SizedBox(height: DesignSpacing.md),
               Text(
                 'Không tải được thông tin bài tập',
@@ -328,7 +330,7 @@ class _PendingView extends StatelessWidget {
                   const SizedBox(height: DesignSpacing.sm),
                   _InstructionsCard(description: description),
                 ],
-                SizedBox(height: 88.h),
+                SizedBox(height: 88.0),
               ],
             ),
           ),
@@ -370,13 +372,13 @@ class _ProgressCard extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 64.w,
-            height: 64.w,
+            width: 64.0,
+            height: 64.0,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 CustomPaint(
-                  size: Size(64.w, 64.w),
+                  size: Size(64.0, 64.0),
                   painter: _CircularProgressPainter(
                     progress: percent,
                     trackColor: DesignColors.primary.withValues(alpha: 0.14),
@@ -387,7 +389,7 @@ class _ProgressCard extends StatelessWidget {
                 Text(
                   '${(percent * 100).round()}%',
                   style: TextStyle(
-                    fontSize: 11.sp,
+                    fontSize: 11.0,
                     fontWeight: DesignTypography.bold,
                     color: DesignColors.primary,
                   ),
@@ -423,7 +425,7 @@ class _ProgressCard extends StatelessWidget {
                       child: Text(
                         'TIẾP TỤC',
                         style: TextStyle(
-                          fontSize: 10.sp,
+                          fontSize: 10.0,
                           fontWeight: DesignTypography.bold,
                           color: DesignColors.primary,
                           letterSpacing: 0.4,
@@ -495,7 +497,7 @@ class _AssignmentInfoCard extends StatelessWidget {
         else
           _CompactInfoCard(
             icon: Icons.event_note_outlined,
-            iconColor: Colors.red.shade400,
+            iconColor: DesignColors.error,
             header: 'Lịch kiểm tra',
             lines: [
               (label: 'Hạn nộp bài: ', value: dueDateTime != null ? _fmtDate(dueDateTime!) : 'Không có', valueColor: isExpired ? DesignColors.error : null),
@@ -589,7 +591,7 @@ class _CompactInfoCard extends StatelessWidget {
                 Text(
                   header.toUpperCase(),
                   style: TextStyle(
-                    fontSize: 9.sp,
+                    fontSize: 9.0,
                     fontWeight: DesignTypography.bold,
                     color: DesignColors.textTertiary,
                     letterSpacing: 0.5,
@@ -667,7 +669,7 @@ class _PendingFooter extends StatelessWidget {
         children: [
           SizedBox(
             width: double.infinity,
-            height: 56.h,
+            height: 56.0,
             child: isClosed
                 ? _ClosedBanner()
                 : ElevatedButton.icon(
@@ -699,7 +701,7 @@ class _PendingFooter extends StatelessWidget {
             isClosed
                 ? 'Bài tập đã đóng, không thể nộp bài'
                 : 'Hệ thống sẽ tự động lưu tiến trình của bạn',
-            style: TextStyle(fontSize: 10.sp, color: DesignColors.textTertiary),
+            style: TextStyle(fontSize: 10.0, color: DesignColors.textTertiary),
           ),
         ],
       ),
@@ -1060,7 +1062,7 @@ class _SubmittedViewState extends ConsumerState<_SubmittedView> {
                         ),
                         const SizedBox(height: DesignSpacing.md),
 
-                        SizedBox(height: 88.h),
+                        SizedBox(height: 88.0),
                       ],
                     ),
                   ),
@@ -1108,7 +1110,7 @@ class _ViewingBanner extends StatelessWidget {
           Text(
             'Đang xem kết quả lần $attemptNum',
             style: TextStyle(
-              fontSize: 12.sp,
+              fontSize: 12.0,
               color: DesignColors.primary,
               fontWeight: DesignTypography.semiBold,
             ),
@@ -1119,7 +1121,7 @@ class _ViewingBanner extends StatelessWidget {
             child: Text(
               'Xem lần mới nhất',
               style: TextStyle(
-                fontSize: 11.sp,
+                fontSize: 11.0,
                 color: DesignColors.primary,
                 decoration: TextDecoration.underline,
                 decorationColor: DesignColors.primary,
@@ -1152,7 +1154,7 @@ class _HiddenResultBanner extends StatelessWidget {
         children: [
           Icon(
             Icons.check_circle_outline,
-            size: 56.w,
+            size: 56.0,
             color: DesignColors.success,
           ),
           const SizedBox(height: DesignSpacing.md),
@@ -1243,7 +1245,7 @@ class _ScoreCard extends StatelessWidget {
               right: -8,
               child: Icon(
                 Icons.assignment_turned_in_outlined,
-                size: 96.w,
+                size: 96.0,
                 color: DesignColors.white.withValues(alpha: 0.08),
               ),
             ),
@@ -1436,7 +1438,7 @@ class _StatChip extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: TextStyle(
-              fontSize: 9.sp,
+              fontSize: 9.0,
               fontWeight: DesignTypography.bold,
               color: DesignColors.textTertiary,
               letterSpacing: 0.4,
@@ -1542,26 +1544,6 @@ class _SubmittedFooter extends ConsumerStatefulWidget {
 class _SubmittedFooterState extends ConsumerState<_SubmittedFooter> {
   bool _isRedoing = false;
 
-  // TODO 5.1.5 — Map exception → Vietnamese message
-  String _redoErrorMessage(Object error) {
-    if (error is RedoBlockedException) {
-      switch (error.reason) {
-        case RedoBlockReason.closed:
-        case RedoBlockReason.pastDue:
-          return 'Bài tập đã đóng, không thể làm lại.';
-        case RedoBlockReason.notAllowed:
-          return 'Giáo viên không cho phép làm lại bài này.';
-        case RedoBlockReason.maxReached:
-          return 'Bạn đã làm đủ số lần cho phép.';
-        case RedoBlockReason.sessionInProgress:
-          return 'Bạn đang có bài làm dở. Hãy nộp bài trước khi làm lại.';
-        case RedoBlockReason.permission:
-          return 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.';
-      }
-    }
-    return 'Không thể làm lại. Vui lòng thử lại sau.';
-  }
-
   String _disabledLabel(RedoBlockedClient reason) {
     switch (reason) {
       case RedoBlockedClient.notAllowed:
@@ -1629,13 +1611,7 @@ class _SubmittedFooterState extends ConsumerState<_SubmittedFooter> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_redoErrorMessage(e)),
-          backgroundColor: DesignColors.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — AppToast.error(context, _redoErrorMessage(e); */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */;
     } finally {
       if (mounted) setState(() => _isRedoing = false);
     }
@@ -1670,7 +1646,7 @@ class _SubmittedFooterState extends ConsumerState<_SubmittedFooter> {
           if (widget.reviewMode == 'full_review') ...[
             Expanded(
               child: SizedBox(
-                height: 52.h,
+                height: 52.0,
                 child: OutlinedButton.icon(
                   onPressed: () => context.pushNamed(
                     AppRoute.studentSubmissionReview,
@@ -1703,7 +1679,7 @@ class _SubmittedFooterState extends ConsumerState<_SubmittedFooter> {
           // Làm lại — gọi RPC qua redoSessionProvider
           Expanded(
             child: SizedBox(
-              height: 52.h,
+              height: 52.0,
               child: ElevatedButton.icon(
                 onPressed: (canRetry && !_isRedoing) ? _startRedo : null,
                 style: ElevatedButton.styleFrom(
@@ -1766,7 +1742,7 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       label.toUpperCase(),
       style: TextStyle(
-        fontSize: 10.sp,
+        fontSize: 10.0,
         fontWeight: DesignTypography.bold,
         color: DesignColors.textTertiary,
         letterSpacing: 0.8,
@@ -1914,7 +1890,7 @@ class _AttemptsHistoryList extends ConsumerWidget {
                   Text(
                     'LỊCH SỬ LÀM BÀI',
                     style: TextStyle(
-                      fontSize: 10.sp,
+                      fontSize: 10.0,
                       fontWeight: DesignTypography.bold,
                       color: DesignColors.textTertiary,
                       letterSpacing: 0.5,
@@ -1924,7 +1900,7 @@ class _AttemptsHistoryList extends ConsumerWidget {
                   Text(
                     '${valid.length} lần',
                     style: TextStyle(
-                      fontSize: 10.sp,
+                      fontSize: 10.0,
                       color: DesignColors.textTertiary,
                     ),
                   ),
@@ -1989,7 +1965,7 @@ class _AttemptsHistoryList extends ConsumerWidget {
                             child: Text(
                               '$attemptNum',
                               style: TextStyle(
-                                fontSize: 13.sp,
+                                fontSize: 13.0,
                                 fontWeight: DesignTypography.bold,
                                 color: isSelected
                                     ? DesignColors.white
@@ -2035,7 +2011,7 @@ class _AttemptsHistoryList extends ConsumerWidget {
                                       child: Text(
                                         'Xem',
                                         style: TextStyle(
-                                          fontSize: 9.sp,
+                                          fontSize: 9.0,
                                           fontWeight: DesignTypography.bold,
                                           color: DesignColors.primary,
                                         ),
@@ -2061,7 +2037,7 @@ class _AttemptsHistoryList extends ConsumerWidget {
                                         ? 'Vừa nộp'
                                         : 'Không rõ',
                                 style: TextStyle(
-                                  fontSize: 11.sp,
+                                  fontSize: 11.0,
                                   color: DesignColors.textTertiary,
                                 ),
                               ),
@@ -2069,7 +2045,7 @@ class _AttemptsHistoryList extends ConsumerWidget {
                                 Text(
                                   'Thời gian: ${_fmtLimit(timeSec ~/ 60)}',
                                   style: TextStyle(
-                                    fontSize: 11.sp,
+                                    fontSize: 11.0,
                                     color: DesignColors.textTertiary,
                                   ),
                                 ),
@@ -2090,7 +2066,7 @@ class _AttemptsHistoryList extends ConsumerWidget {
                             child: Text(
                               '$score đ',
                               style: TextStyle(
-                                fontSize: 13.sp,
+                                fontSize: 13.0,
                                 fontWeight: DesignTypography.bold,
                                 color: isCounting
                                     ? DesignColors.success
@@ -2169,7 +2145,7 @@ class _ScoreRuleChip extends StatelessWidget {
             child: RichText(
               text: TextSpan(
                 style: TextStyle(
-                  fontSize: 12.sp,
+                  fontSize: 12.0,
                   color: DesignColors.textSecondary,
                 ),
                 children: [

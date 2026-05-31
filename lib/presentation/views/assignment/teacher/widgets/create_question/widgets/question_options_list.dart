@@ -2,6 +2,7 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_create_question_screen.dart';
 import 'package:ai_mls/widgets/editor/rich_text_toolbar.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 
 /// Widget quản lý danh sách options cho câu hỏi Multiple Choice
 class QuestionOptionsList extends StatefulWidget {
@@ -172,12 +173,7 @@ class _QuestionOptionsListState extends State<QuestionOptionsList> {
                   .toList();
 
               if (lines.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Vui lòng nhập ít nhất một đáp án'),
-                    backgroundColor: DesignColors.error,
-                  ),
-                );
+                AppToast.error(context, 'Vui lòng nhập ít nhất một đáp án');
                 return;
               }
 
@@ -189,22 +185,9 @@ class _QuestionOptionsListState extends State<QuestionOptionsList> {
                   widget.onOptionsChanged(_options);
                 });
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Đã thêm ${lines.length} đáp án'),
-                    backgroundColor: DesignColors.primary,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+                AppToast.info(context, 'Đã thêm ${lines.length} đáp án');
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Tối đa 8 lựa chọn. Bạn có thể thêm ${8 - _options.length} đáp án nữa.',
-                    ),
-                    backgroundColor: DesignColors.error,
-                  ),
-                );
+                AppToast.error(context, 'Tối đa 8 lựa chọn. Bạn có thể thêm ${8 - _options.length} đáp án nữa.');
               }
             },
             style: ElevatedButton.styleFrom(
@@ -415,6 +398,7 @@ class _QuestionOptionsListState extends State<QuestionOptionsList> {
         children: [
           // Radio Button
           IconButton(
+            key: ValueKey('option_correct_$index'),
             icon: Icon(
               option.isCorrect ? Icons.check_circle : Icons.check_circle_outline,
               color: option.isCorrect ? DesignColors.primary : DesignColors.textTertiary,
@@ -425,6 +409,7 @@ class _QuestionOptionsListState extends State<QuestionOptionsList> {
           // Text Field
           Expanded(
             child: TextFormField(
+              key: ValueKey('option_field_$index'),
               controller: option.controller,
               minLines: 1,
               maxLines: null,

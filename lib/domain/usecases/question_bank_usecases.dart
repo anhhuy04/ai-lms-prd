@@ -28,7 +28,12 @@ class GetQuestionBankUseCase {
 class QuestionDetail {
   final Question question;
   final List<QuestionChoice> choices;
-  const QuestionDetail({required this.question, required this.choices});
+  final List<String> objectiveIds;
+  const QuestionDetail({
+    required this.question,
+    required this.choices,
+    this.objectiveIds = const <String>[],
+  });
 }
 
 class GetQuestionDetailUseCase {
@@ -38,7 +43,12 @@ class GetQuestionDetailUseCase {
     final q = await _repo.getQuestionById(id);
     if (q == null) return null;
     final choices = await _repo.getChoicesByQuestionId(q.id);
-    return QuestionDetail(question: q, choices: choices);
+    final objectiveIds = await _repo.getObjectiveIdsByQuestionId(q.id);
+    return QuestionDetail(
+      question: q,
+      choices: choices,
+      objectiveIds: objectiveIds,
+    );
   }
 }
 

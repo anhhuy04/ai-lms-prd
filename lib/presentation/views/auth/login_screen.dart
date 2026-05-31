@@ -147,6 +147,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         const SizedBox(height: DesignSpacing.xs),
                         TextFormField(
+                          key: const ValueKey('login_email_field'),
                           controller: _emailController,
                           decoration: InputDecoration(
                             hintText: 'Nhập email của bạn',
@@ -221,6 +222,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         const SizedBox(height: DesignSpacing.xs),
                         TextFormField(
+                          key: const ValueKey('login_password_field'),
                           controller: _passwordController,
                           decoration: InputDecoration(
                             hintText: 'Nhập mật khẩu',

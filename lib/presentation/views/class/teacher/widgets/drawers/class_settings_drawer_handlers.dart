@@ -3,6 +3,7 @@ import 'package:ai_mls/domain/entities/create_class_params.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/class_notifier.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -84,12 +85,7 @@ class ClassSettingsDrawerHandlers {
                       icon: const Icon(Icons.copy, size: 20),
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: classLink));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Đã sao chép link vào clipboard'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
+                        AppToast.info(context, 'Đã sao chép link vào clipboard');
                       },
                     ),
                   ],
@@ -130,12 +126,7 @@ class ClassSettingsDrawerHandlers {
                       icon: const Icon(Icons.copy, size: 20),
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: joinCode));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Đã sao chép mã vào clipboard'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
+                        AppToast.info(context, 'Đã sao chép mã vào clipboard');
                       },
                     ),
                   ],
@@ -155,12 +146,7 @@ class ClassSettingsDrawerHandlers {
               Clipboard.setData(
                 ClipboardData(text: '$classLink\nMã: $joinCode'),
               );
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Đã sao chép thông tin lớp học'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
+              AppToast.info(context, 'Đã sao chép thông tin lớp học');
               Navigator.pop(context);
             },
             child: const Text('Sao chép tất cả'),
@@ -207,12 +193,7 @@ class ClassSettingsDrawerHandlers {
 
     if (teacherId == null) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Không tìm thấy thông tin giáo viên'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+        AppToast.error(context, 'Không tìm thấy thông tin giáo viên');
       }
       return;
     }
@@ -256,21 +237,11 @@ class ClassSettingsDrawerHandlers {
     Navigator.pop(context); // Close loading
 
     if (newClass != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã tạo lớp học "${newClass.name}" thành công!'),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-        ),
-      );
+      AppToast.info(context, 'Đã tạo lớp học "${newClass.name}" thành công!');
       // Navigate to new class detail or back
       Navigator.pop(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Không thể tạo lớp học mới'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+      AppToast.error(context, 'Không thể tạo lớp học mới');
     }
   }
 
@@ -375,22 +346,11 @@ class ClassSettingsDrawerHandlers {
       // Copy to clipboard (in production, use share_plus to save as file)
       Clipboard.setData(ClipboardData(text: csvData));
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã sao chép dữ liệu vào clipboard\nFile: $fileName'),
-          duration: const Duration(seconds: 3),
-          action: SnackBarAction(label: 'OK', onPressed: () {}),
-        ),
-      );
+      AppToast.info(context, 'Đã sao chép dữ liệu vào clipboard\nFile: $fileName');
     } catch (e) {
       if (!context.mounted) return;
       Navigator.pop(context); // Close loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi khi xuất dữ liệu: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+      AppToast.error(context, 'Lỗi khi xuất dữ liệu: $e');
     }
   }
 }

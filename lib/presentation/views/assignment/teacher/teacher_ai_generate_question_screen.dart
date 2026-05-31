@@ -28,6 +28,7 @@ import 'package:ai_mls/widgets/objective_selector/objective_selector_sheet.dart'
 import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -266,13 +267,7 @@ class _TeacherAiGenerateQuestionScreenState
 
       if (!mounted) return;
       if (errors.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Đã lưu $success câu hỏi vào Question Bank'),
-            backgroundColor: DesignColors.success,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        AppToast.success(context, '✅ Đã lưu $success câu hỏi vào Question Bank');
       } else {
         showDialog(
           context: context,
@@ -336,12 +331,7 @@ class _TeacherAiGenerateQuestionScreenState
   Future<void> _showExportSheet() async {
     final questions = _generatedQuestions;
     if (questions == null || questions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Chưa có câu hỏi để xuất. Hãy tạo trước.'),
-          backgroundColor: DesignColors.warning,
-        ),
-      );
+      AppToast.warning(context, 'Chưa có câu hỏi để xuất. Hãy tạo trước.');
       return;
     }
 
@@ -432,12 +422,7 @@ class _TeacherAiGenerateQuestionScreenState
       if (!mounted) return;
 
       if (saved) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã xuất $fileName (${questions.length} câu)'),
-            backgroundColor: DesignColors.success,
-          ),
-        );
+        AppToast.success(context, 'Đã xuất $fileName (${questions.length} câu)');
         AppLogger.info(
           '[ExportExcel] Saved: $fileName, ${bytes.length} bytes',
         );
@@ -447,24 +432,14 @@ class _TeacherAiGenerateQuestionScreenState
     } catch (e, st) {
       AppLogger.error('[ExportExcel] Failed: $e\n$st');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi xuất Excel: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Lỗi xuất Excel: $e');
     }
   }
 
   Future<void> _handleExportToWord() async {
     final questions = _generatedQuestions;
     if (questions == null || questions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Chưa có câu hỏi để xuất. Hãy tạo trước.'),
-          backgroundColor: DesignColors.warning,
-        ),
-      );
+      AppToast.warning(context, 'Chưa có câu hỏi để xuất. Hãy tạo trước.');
       return;
     }
 
@@ -485,12 +460,7 @@ class _TeacherAiGenerateQuestionScreenState
       if (!mounted) return;
 
       if (saved) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã xuất $fileName (${questions.length} câu)'),
-            backgroundColor: DesignColors.success,
-          ),
-        );
+        AppToast.success(context, 'Đã xuất $fileName (${questions.length} câu)');
         AppLogger.info('[ExportWord] Saved: $fileName, ${bytes.length} bytes');
       } else {
         AppLogger.info('[ExportWord] User canceled save dialog');
@@ -498,12 +468,7 @@ class _TeacherAiGenerateQuestionScreenState
     } catch (e, st) {
       AppLogger.error('[ExportWord] Failed: $e\n$st');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi xuất Word: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Lỗi xuất Word: $e');
     }
   }
 
@@ -687,12 +652,7 @@ class _TeacherAiGenerateQuestionScreenState
 
       if (topic.isEmpty) {
         AppLogger.warning('🟡 [Generate] EXIT: topic empty');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng nhập chủ đề câu hỏi'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Vui lòng nhập chủ đề câu hỏi');
         return;
       }
 
@@ -742,14 +702,7 @@ class _TeacherAiGenerateQuestionScreenState
       if (currentMode == ProcessingMode.extraction) {
         final selectedIds = aiSettings.selectedFileIds;
         if (selectedIds.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu trước khi trích xuất.',
-              ),
-              backgroundColor: DesignColors.warning,
-            ),
-          );
+          AppToast.warning(context, 'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu trước khi trích xuất.');
           setState(() => _isGenerating = false);
           return;
         }
@@ -766,15 +719,7 @@ class _TeacherAiGenerateQuestionScreenState
               _isGenerating = false;
               _batchProgress = null;
             });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Đã tải ${templateQuestions.length} câu hỏi từ file Excel',
-                ),
-                backgroundColor: DesignColors.success,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            AppToast.success(context, 'Đã tải ${templateQuestions.length} câu hỏi từ file Excel');
           }
           return;
         }
@@ -785,15 +730,7 @@ class _TeacherAiGenerateQuestionScreenState
             .getExtractedTextForIds(selectedIds);
 
         if (docText.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'File Excel không đúng định dạng mẫu và file Word không có nội dung đọc được. '
-                'Vui lòng dùng file mẫu Excel hoặc file Word có nội dung.',
-              ),
-              backgroundColor: DesignColors.warning,
-            ),
-          );
+          AppToast.warning(context, 'File Excel không đúng định dạng mẫu và file Word không có nội dung đọc được. ');
           setState(() => _isGenerating = false);
           return;
         }
@@ -801,16 +738,7 @@ class _TeacherAiGenerateQuestionScreenState
         // Smart truncate nếu tài liệu quá dài
         final truncated = AiService.smartTruncate(docText);
         if (truncated.wasTruncated && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Tài liệu dài (${truncated.totalChars} ký tự) — '
-                'đã dùng ${truncated.usedChars} ký tự để tránh tràn context AI.',
-              ),
-              backgroundColor: DesignColors.warning,
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          AppToast.warning(context, 'Tài liệu dài (${truncated.totalChars} ký tự) — ');
         }
         documentContext = truncated.text;
 
@@ -844,14 +772,7 @@ class _TeacherAiGenerateQuestionScreenState
         }
 
         if (selectedIds.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu.',
-              ),
-              backgroundColor: DesignColors.warning,
-            ),
-          );
+          AppToast.warning(context, 'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu.');
           setState(() => _isGenerating = false);
           return;
         }
@@ -881,15 +802,7 @@ class _TeacherAiGenerateQuestionScreenState
               'parsedQty=${f.parsedQuestions?.length ?? 0}',
             );
           }
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Tài liệu chưa có nội dung đọc được. '
-                'Hỗ trợ: Word (.docx), Excel (.xlsx), PDF (.pdf).',
-              ),
-              backgroundColor: DesignColors.warning,
-            ),
-          );
+          AppToast.warning(context, 'Tài liệu chưa có nội dung đọc được. ');
           setState(() => _isGenerating = false);
           return;
         }
@@ -964,17 +877,7 @@ class _TeacherAiGenerateQuestionScreenState
           final qty = _limitQty;
           final templateSize = templateQuestionsForCheck.length;
           if (templateSize > 0 && qty > templateSize * 3) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Yêu cầu $qty câu từ mẫu $templateSize câu '
-                  '— AI có thể bị lặp. Nên giảm xuống ≤ ${templateSize * 3} câu.',
-                ),
-                backgroundColor: DesignColors.warning,
-                duration: const Duration(seconds: 5),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            AppToast.warning(context, 'Yêu cầu $qty câu từ mẫu $templateSize câu ');
           }
         }
         // Build aiText: template-style dùng knowledge context (anti-leak), còn lại raw.
@@ -992,33 +895,12 @@ class _TeacherAiGenerateQuestionScreenState
         );
 
         if (truncated.wasTruncated && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Tài liệu dài (${truncated.totalChars} ký tự) — '
-                'đã dùng ${truncated.usedChars} ký tự để tránh tràn context AI.',
-              ),
-              backgroundColor: DesignColors.warning,
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          AppToast.warning(context, 'Tài liệu dài (${truncated.totalChars} ký tự) — ');
         }
         documentContext = truncated.text;
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                _useAsStyleTemplate
-                    ? 'Phát hiện tài liệu bài mẫu — AI sẽ tạo câu cùng dạng, nội dung mới.'
-                    : 'Phát hiện tài liệu lý thuyết — AI sẽ tạo câu dựa trên kiến thức trong tài liệu.',
-              ),
-              backgroundColor: _useAsStyleTemplate
-                  ? DesignColors.success
-                  : DesignColors.primary,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — AppToast.success(context, 'Thao tác hoàn tất'); */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */;
         }
 
         // Topic từ focus hint, fallback về tài liệu
@@ -1134,27 +1016,7 @@ class _TeacherAiGenerateQuestionScreenState
     } on AiUncertaintyException catch (e) {
       AppLogger.warning('[Generate] AI uncertainty: ${e.code} — ${e.reason}');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '⚠ AI cần thêm thông tin',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(e.reason, style: const TextStyle(color: Colors.white)),
-              ],
-            ),
-            backgroundColor: DesignColors.warning,
-            duration: const Duration(seconds: 8),
-          ),
-        );
+        AppToast.warning(context, '⚠ AI cần thêm thông tin');
       }
     } catch (e) {
       if (!mounted) return;
@@ -1240,13 +1102,7 @@ class _TeacherAiGenerateQuestionScreenState
         );
       } else {
         // Hiển thị SnackBar cho các lỗi khác
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi tạo câu hỏi: ${e.toString()}'),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        AppToast.error(context, 'Lỗi khi tạo câu hỏi: ${e.toString()}');
       }
     } finally {
       if (mounted) setState(() => _isGenerating = false);
@@ -1521,21 +1377,10 @@ class _TeacherAiGenerateQuestionScreenState
         '[RegenSingle] AI uncertainty: ${e.code} — ${e.reason}',
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('⚠ AI cần thêm thông tin: ${e.reason}'),
-          backgroundColor: DesignColors.warning,
-          duration: const Duration(seconds: 6),
-        ),
-      );
+      AppToast.warning(context, '⚠ AI cần thêm thông tin: ${e.reason}');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Tạo lại thất bại: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Tạo lại thất bại: $e');
     } finally {
       if (mounted) setState(() => _regeneratingIndex = null);
     }
@@ -1571,12 +1416,7 @@ class _TeacherAiGenerateQuestionScreenState
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Tạo lại gợi ý thất bại: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Tạo lại gợi ý thất bại: $e');
     } finally {
       if (mounted) setState(() => _regeneratingExplanationSet.remove(index));
     }
@@ -4143,13 +3983,7 @@ class _TeacherAiGenerateQuestionScreenState
                   final text = _rawApiResponsePretty ?? _rawApiResponse ?? '';
                   await Clipboard.setData(ClipboardData(text: text));
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Đã copy JSON'),
-                      backgroundColor: DesignColors.success,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
+                  AppToast.success(context, '✅ Đã copy JSON');
                 },
                 icon: Icon(
                   Icons.copy_rounded,

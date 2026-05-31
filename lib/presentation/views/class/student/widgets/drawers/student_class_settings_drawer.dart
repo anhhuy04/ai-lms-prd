@@ -1,3 +1,4 @@
+import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/widgets/drawers/drawer_action_tile.dart';
 import 'package:ai_mls/widgets/drawers/drawer_section_header.dart';
 import 'package:ai_mls/widgets/drawers/drawer_toggle_tile.dart';
@@ -249,7 +250,7 @@ class StudentClassSettingsDrawer extends StatelessWidget {
           onTap: () {
             _handleAction(context, onViewSubmittedAssignments);
           },
-          iconColor: Colors.green,
+          iconColor: DesignColors.success,
         ),
 
         DrawerActionTile(
@@ -259,7 +260,7 @@ class StudentClassSettingsDrawer extends StatelessWidget {
           onTap: () {
             _handleAction(context, onViewPendingAssignments);
           },
-          iconColor: Colors.orange,
+          iconColor: DesignColors.warning,
           showNotificationDot: pendingAssignments > 0,
         ),
 

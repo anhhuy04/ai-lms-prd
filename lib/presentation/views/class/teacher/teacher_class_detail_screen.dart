@@ -1,3 +1,4 @@
+import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/presentation/providers/assignment_providers.dart';
 import 'package:ai_mls/presentation/providers/class_notifier.dart';
@@ -7,6 +8,7 @@ import 'package:ai_mls/widgets/list/class_detail_assignment_list.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/search/dialogs/quick_search_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -72,14 +74,7 @@ class _TeacherClassDetailScreenState
               .loadClassDetails(widget.classId)
               .catchError((error, stackTrace) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Lỗi khi tải thông tin lớp học: ${error.toString()}',
-                      ),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  AppToast.error(context, 'Lỗi khi tải thông tin lớp học: ${error.toString()}');
                 }
               });
         } catch (_) {}
@@ -604,63 +599,89 @@ class _TeacherClassDetailScreenState
 
   /// Hàng 2 nút filter + sort mở bottom sheet
   Widget _buildFilterSortBar() {
-    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final filterIsActive = _selectedFilter != AssignmentDistributionFilter.all;
     final sortIsActive = _selectedSort != AssignmentSortOption.newest;
+    
     return Row(
       children: [
-        OutlinedButton.icon(
-          onPressed: () => _showFilterSheet(context),
-          icon: Icon(
-            Icons.filter_list,
-            size: 16,
-            color: filterIsActive ? colorScheme.primary : null,
-          ),
-          label: Text(
-            filterIsActive ? _selectedFilter.label : 'Phân loại',
-            style: TextStyle(
-              fontSize: 13,
-              color: filterIsActive ? colorScheme.primary : null,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(
-              color: filterIsActive
-                  ? colorScheme.primary
-                  : colorScheme.outline.withValues(alpha: 0.5),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
+        _buildChipButton(
+          icon: Icons.filter_list,
+          label: filterIsActive ? _selectedFilter.label : 'Phân loại',
+          isActive: filterIsActive,
+          isDark: isDark,
+          onTap: () => _showFilterSheet(context),
         ),
-        const SizedBox(width: 8),
-        OutlinedButton.icon(
-          onPressed: () => _showSortSheet(context),
-          icon: Icon(
-            Icons.sort,
-            size: 16,
-            color: sortIsActive ? colorScheme.primary : null,
-          ),
-          label: Text(
-            sortIsActive ? _selectedSort.label : 'Sắp xếp',
-            style: TextStyle(
-              fontSize: 13,
-              color: sortIsActive ? colorScheme.primary : null,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(
-              color: sortIsActive
-                  ? colorScheme.primary
-                  : colorScheme.outline.withValues(alpha: 0.5),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
+        const SizedBox(width: 12),
+        _buildChipButton(
+          icon: Icons.sort,
+          label: sortIsActive ? _selectedSort.label : 'Sắp xếp',
+          isActive: sortIsActive,
+          isDark: isDark,
+          onTap: () => _showSortSheet(context),
         ),
       ],
+    );
+  }
+
+  Widget _buildChipButton({
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    final primaryColor = DesignColors.primary;
+    final bgColor = isActive 
+        ? primaryColor.withValues(alpha: 0.1) 
+        : (isDark ? DesignColors.moonMedium : Colors.white);
+    final borderColor = isActive
+        ? primaryColor
+        : (isDark ? DesignColors.moonMedium : DesignColors.moonLight);
+    final textColor = isActive
+        ? primaryColor
+        : (isDark ? Colors.white70 : DesignColors.textSecondary);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(DesignRadius.full),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(DesignRadius.full),
+            border: Border.all(color: borderColor, width: 1),
+            boxShadow: isActive ? [
+              BoxShadow(
+                color: primaryColor.withValues(alpha: 0.1),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              )
+            ] : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: textColor),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: DesignTypography.bodySmall.copyWith(
+                  color: textColor,
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 4),
+              if (isActive)
+                Icon(Icons.check_circle, size: 14, color: primaryColor)
+              else
+                Icon(Icons.keyboard_arrow_down, size: 16, color: textColor),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -946,9 +967,7 @@ class _TeacherClassDetailScreenState
           if (dialogContext.canPop()) {
             dialogContext.pop();
           }
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Đã chọn: ${item['title']}')));
+          AppToast.info(context, "Đã chọn: ${item['title'] ?? ''}");
         },
       ),
     );

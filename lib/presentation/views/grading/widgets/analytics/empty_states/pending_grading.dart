@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../../../../core/constants/design_tokens.dart';
 
 class PendingGradingState extends StatelessWidget {
@@ -8,7 +7,7 @@ class PendingGradingState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 200.h,
+      height: 200.0,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

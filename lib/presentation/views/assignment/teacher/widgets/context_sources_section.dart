@@ -8,6 +8,7 @@ import 'package:ai_mls/presentation/providers/ai_generation_settings_notifier.da
 import 'package:ai_mls/presentation/providers/local_temp_file_notifier.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Danh sách card tài liệu tham khảo cho Mode 2 & 3.
@@ -68,13 +69,7 @@ class _ContextSourcesSectionState
         ref
             .read(localTempFilesProvider.notifier)
             .updateFileRole(old.id, FileRole.knowledgeSource);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('"${old.filename}" đã chuyển sang 📚 Kiến thức'),
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppToast.info(context, '"${old.filename}" đã chuyển sang 📚 Kiến thức');
       }
     }
 

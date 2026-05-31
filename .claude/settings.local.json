@@ -118,7 +118,12 @@
       "Bash(where.exe psql:*)",
       "Bash(docker run:*)",
       "mcp__supabase__list_edge_functions",
-      "mcp__supabase__get_advisors"
+      "mcp__supabase__get_advisors",
+      "Bash(node -e ' *)",
+      "Bash(node -e 'const fs=require\\(\"fs\"\\);const j=JSON.parse\\(fs.readFileSync\\(\".mcp.json\",\"utf8\"\\)\\);const ms=j.mcpServers||{};for\\(const k of Object.keys\\(ms\\)\\){const s=ms[k];console.log\\(k+\" => \"+\\(s.command||s.type||s.url||\"\"\\)+\" \"+\\(\\(s.args||[]\\).join\\(\" \"\\)\\).slice\\(0,80\\)\\);}')",
+      "Bash(node tmp/scan_bad_schema.js)",
+      "Bash(node -e 'setTimeout\\(\\(\\)=>{},1\\)')",
+      "Bash(node tmp/dump_markitdown.js)"
     ],
     "mcp": {
       "allow": [

@@ -8,8 +8,10 @@ import 'package:ai_mls/presentation/views/class/student/widgets/drawers/student_
 import 'package:ai_mls/widgets/drawers/action_end_drawer.dart';
 import 'package:ai_mls/widgets/list/class_detail_assignment_list.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
 import 'package:ai_mls/widgets/search/dialogs/quick_search_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -70,17 +72,19 @@ class _StudentClassDetailScreenState
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                 child: RepaintBoundary(
-                  child: Column(
-                    children: [
-                      // Quick Stats & Actions
-                      _buildQuickStatsSection(context),
-                      const SizedBox(height: 16),
-                      // Student Progress Section
-                      _buildStudentProgressSection(context),
-                      const SizedBox(height: 16),
-                      // Assignment List Section
-                      _buildAssignmentListSection(context),
-                    ],
+                  child: WideContentWrapper(
+                    child: Column(
+                      children: [
+                        // Quick Stats & Actions
+                        _buildQuickStatsSection(context),
+                        const SizedBox(height: 16),
+                        // Student Progress Section
+                        _buildStudentProgressSection(context),
+                        const SizedBox(height: 16),
+                        // Assignment List Section
+                        _buildAssignmentListSection(context),
+                      ],
+                    ),
                   ),
                 ),
                 ), // SingleChildScrollView
@@ -276,7 +280,7 @@ class _StudentClassDetailScreenState
           child: _buildStatCard(
             context: context,
             icon: Icons.assignment_turned_in,
-            iconColor: Colors.green,
+            iconColor: DesignColors.success,
             value: isLoading ? '--' : '$totalAssignments',
             label: 'Bài tập',
             onTap: () {},
@@ -287,7 +291,7 @@ class _StudentClassDetailScreenState
           child: _buildStatCard(
             context: context,
             icon: Icons.schedule,
-            iconColor: Colors.orange,
+            iconColor: DesignColors.warning,
             value: isLoading ? '--' : '$upcomingCount',
             label: 'Sắp hết hạn',
             onTap: () {},
@@ -584,9 +588,7 @@ class _StudentClassDetailScreenState
           if (dialogContext.canPop()) {
             dialogContext.pop();
           }
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Đã chọn: ${item['title']}')));
+          AppToast.info(context, 'Đã chọn: ${item['title'] ?? ''}');
         },
       ),
     );
@@ -610,7 +612,7 @@ class _StudentClassDetailScreenState
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: DesignColors.error),
             child: const Text('Rời lớp'),
           ),
         ],
@@ -626,13 +628,7 @@ class _StudentClassDetailScreenState
     final studentId = auth.value?.id;
     if (studentId == null) {
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Không tìm thấy thông tin học sinh'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppToast.error(context, 'Không tìm thấy thông tin học sinh');
       return;
     }
 
@@ -656,14 +652,7 @@ class _StudentClassDetailScreenState
     if (success) {
       // Hiển thị thông báo thành công
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Đã rời lớp "${widget.className}"'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      AppToast.success(context, 'Đã rời lớp "${widget.className}"');
 
       // Navigate về danh sách lớp học
       if (!mounted) return;
@@ -671,13 +660,7 @@ class _StudentClassDetailScreenState
     } else {
       // Hiển thị thông báo lỗi
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Không thể rời lớp. Vui lòng thử lại sau.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppToast.error(context, 'Không thể rời lớp. Vui lòng thử lại sau.');
     }
   }
 }

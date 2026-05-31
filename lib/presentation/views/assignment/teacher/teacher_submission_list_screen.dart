@@ -6,6 +6,7 @@ import 'package:ai_mls/presentation/providers/teacher_submission_providers.dart'
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/submission_filter_chips.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/submission_list_item.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -197,11 +198,7 @@ class _TeacherSubmissionListScreenState
                   .publishAllGrades(widget.distributionId);
 
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Đã xuất bản điểm thành công'),
-                  ),
-                );
+                AppToast.info(context, 'Đã xuất bản điểm thành công');
               }
             },
             child: const Text('Xuất bản'),

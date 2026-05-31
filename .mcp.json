@@ -39,7 +39,7 @@
         "-y",
         "@supabase/mcp-server-supabase@latest",
         "--access-token",
-        "sbp_17a0e72022dc621cee2e1c6acd168a075cf50304",
+        "sbp_a95087ee45e644475781de4fbf46e67b80bd53fd",
         "--project-ref",
         "vazhgunhcjdwlkbslroc"
       ],

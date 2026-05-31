@@ -1,13 +1,20 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/domain/entities/assignment.dart';
+import 'package:ai_mls/domain/entities/assignment_question.dart';
 import 'package:ai_mls/domain/entities/question.dart';
 import 'package:ai_mls/domain/entities/question_choice.dart';
 import 'package:ai_mls/domain/entities/question_filter.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
+import 'package:ai_mls/presentation/providers/assignment_providers.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/question_bank_notifier.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// Tab phía trên picker — chọn nguồn dữ liệu.
+enum _PickerTab { questions, assignmentFolder }
 
 /// Bottom sheet để chọn câu hỏi từ Question Bank chèn vào assignment.
 ///
@@ -50,10 +57,13 @@ class QuestionBankPickerSheet extends ConsumerStatefulWidget {
 
 class _QuestionBankPickerSheetState
     extends ConsumerState<QuestionBankPickerSheet> {
-  final Set<String> _selectedIds = {};
+  /// Lưu full Question objects (không chỉ ID) để khi user chọn từ
+  /// assignment folder vẫn return được — không phụ thuộc filter hiện tại.
+  final Map<String, Question> _selected = {};
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
   QuestionType? _typeFilter;
+  _PickerTab _tab = _PickerTab.questions;
 
   @override
   void dispose() {
@@ -99,50 +109,222 @@ class _QuestionBankPickerSheetState
             _buildHandle(isDark),
             _buildHeader(isDark),
             const Divider(height: 1),
-            _buildSearchAndFilter(isDark),
+            _buildTabBar(isDark),
             const Divider(height: 1),
+            // Search + type filter chỉ ở tab Questions.
+            if (_tab == _PickerTab.questions) ...[
+              _buildSearchAndFilter(isDark),
+              const Divider(height: 1),
+            ],
             Expanded(
-              child: stateAsync.when(
-                data: (s) {
-                  final available = s.questions
-                      .where((q) => !widget.excludeQuestionIds.contains(q.id))
-                      .toList();
-                  if (available.isEmpty) return _buildEmpty(isDark);
-                  return ListView.builder(
-                    controller: scrollController,
-                    itemCount: available.length,
-                    itemBuilder: (_, i) {
-                      final q = available[i];
-                      return _QuestionPickerItem(
-                        key: ValueKey(q.id),
-                        question: q,
-                        isDark: isDark,
-                        isSelected: _selectedIds.contains(q.id),
-                        onToggle: (v) => _onToggle(q, v),
-                      );
-                    },
-                  );
-                },
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(DesignSpacing.lg),
-                    child: Text(
-                      'Lỗi tải kho câu hỏi: $e',
-                      style: DesignTypography.bodyMedium.copyWith(
-                        color: DesignColors.error,
-                      ),
-                      textAlign: TextAlign.center,
+              child: _tab == _PickerTab.questions
+                  ? _buildQuestionsList(
+                      stateAsync,
+                      scrollController,
+                      isDark,
+                    )
+                  : _buildAssignmentFolderList(
+                      userId,
+                      scrollController,
+                      isDark,
                     ),
-                  ),
-                ),
-              ),
             ),
             _buildFooter(isDark),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTabBar(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: DesignSpacing.md,
+        vertical: DesignSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _tabChip(
+              label: 'Câu hỏi',
+              icon: Icons.quiz_outlined,
+              selected: _tab == _PickerTab.questions,
+              onTap: () => setState(() => _tab = _PickerTab.questions),
+              isDark: isDark,
+            ),
+          ),
+          const SizedBox(width: DesignSpacing.sm),
+          Expanded(
+            child: _tabChip(
+              label: 'Tệp bài tập',
+              icon: Icons.folder_open_rounded,
+              selected: _tab == _PickerTab.assignmentFolder,
+              onTap: () =>
+                  setState(() => _tab = _PickerTab.assignmentFolder),
+              isDark: isDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabChip({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(DesignRadius.sm),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? DesignColors.primary.withValues(alpha: 0.12)
+              : (isDark ? Colors.white10 : Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(DesignRadius.sm),
+          border: Border.all(
+            color: selected
+                ? DesignColors.primary
+                : (isDark ? Colors.grey[700]! : Colors.grey.shade300),
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: selected
+                  ? DesignColors.primary
+                  : (isDark ? Colors.grey[400] : Colors.grey.shade700),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: DesignTypography.bodySmall.copyWith(
+                fontWeight: FontWeight.w600,
+                color: selected
+                    ? DesignColors.primary
+                    : (isDark ? Colors.grey[300] : Colors.grey.shade700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuestionsList(
+    AsyncValue stateAsync,
+    ScrollController scrollController,
+    bool isDark,
+  ) {
+    return stateAsync.when(
+      data: (s) {
+        final available = s.questions
+            .where((q) => !widget.excludeQuestionIds.contains(q.id))
+            .toList();
+        if (available.isEmpty) return _buildEmpty(isDark);
+        return ListView.builder(
+          controller: scrollController,
+          itemCount: available.length,
+          itemBuilder: (_, i) {
+            final q = available[i];
+            return _QuestionPickerItem(
+              key: ValueKey(q.id),
+              question: q,
+              isDark: isDark,
+              isSelected: _selected.containsKey(q.id),
+              onToggle: (v) => _onToggle(q, v),
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(DesignSpacing.lg),
+          child: Text(
+            'Lỗi tải kho câu hỏi: $e',
+            style: DesignTypography.bodyMedium.copyWith(
+              color: DesignColors.error,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAssignmentFolderList(
+    String teacherId,
+    ScrollController scrollController,
+    bool isDark,
+  ) {
+    return FutureBuilder<List<Assignment>>(
+      future: ref
+          .read(assignmentRepositoryProvider)
+          .getAssignmentsByTeacher(teacherId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(DesignSpacing.lg),
+              child: Text(
+                'Lỗi tải bài tập: ${snapshot.error}',
+                style: DesignTypography.bodyMedium.copyWith(
+                  color: DesignColors.error,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+        final list = snapshot.data ?? const <Assignment>[];
+        if (list.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(DesignSpacing.xl),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.folder_open_outlined,
+                    size: DesignIcons.xxlSize,
+                    color: isDark ? Colors.grey[600] : Colors.grey[400],
+                  ),
+                  const SizedBox(height: DesignSpacing.md),
+                  Text(
+                    'Chưa có bài tập nào',
+                    style: DesignTypography.bodyMedium.copyWith(
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return ListView.builder(
+          controller: scrollController,
+          itemCount: list.length,
+          itemBuilder: (_, i) => _AssignmentExpansion(
+            assignment: list[i],
+            isDark: isDark,
+            excludeQuestionIds: widget.excludeQuestionIds,
+            isQuestionSelected: (qid) => _selected.containsKey(qid),
+            onToggleQuestion: _onToggle,
+          ),
+        );
+      },
     );
   }
 
@@ -190,9 +372,9 @@ class _QuestionBankPickerSheetState
                       color: isDark ? Colors.white : DesignColors.textPrimary,
                     ),
                   ),
-                  if (_selectedIds.isNotEmpty)
+                  if (_selected.isNotEmpty)
                     Text(
-                      'Đã chọn ${_selectedIds.length}/${widget.maxItems} câu',
+                      'Đã chọn ${_selected.length}/${widget.maxItems} câu',
                       style: DesignTypography.bodySmall.copyWith(
                         color: DesignColors.primary,
                       ),
@@ -268,21 +450,17 @@ class _QuestionBankPickerSheetState
       );
 
   void _onToggle(Question q, bool? v) {
-    if (v == true && _selectedIds.length >= widget.maxItems) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Tối đa ${widget.maxItems} câu mỗi lần'),
-          backgroundColor: DesignColors.warning,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    if (v == true &&
+        !_selected.containsKey(q.id) &&
+        _selected.length >= widget.maxItems) {
+      AppToast.warning(context, 'Tối đa ${widget.maxItems} câu mỗi lần');
       return;
     }
     setState(() {
       if (v == true) {
-        _selectedIds.add(q.id);
+        _selected[q.id] = q;
       } else {
-        _selectedIds.remove(q.id);
+        _selected.remove(q.id);
       }
     });
   }
@@ -340,12 +518,12 @@ class _QuestionBankPickerSheetState
             Expanded(
               flex: 2,
               child: ElevatedButton.icon(
-                onPressed: _selectedIds.isEmpty ? null : _confirm,
+                onPressed: _selected.isEmpty ? null : _confirm,
                 icon: const Icon(Icons.add, size: DesignIcons.smSize),
                 label: Text(
-                  _selectedIds.isEmpty
+                  _selected.isEmpty
                       ? 'Chưa chọn câu nào'
-                      : 'Thêm ${_selectedIds.length} câu',
+                      : 'Thêm ${_selected.length} câu',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
@@ -367,26 +545,9 @@ class _QuestionBankPickerSheetState
   // ── Actions ───────────────────────────────────────────────────────────────
 
   void _confirm() {
-    final userId = ref.read(currentUserIdProvider);
-    if (userId == null) return;
-
-    // Đọc state hiện tại với CÙNG filter đang hiển thị → guarantee
-    // ref nhận về danh sách đúng (đã filter type/search).
-    final currentFilter = QuestionFilter(
-      authorId: userId,
-      includeGlobal: true,
-      searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
-      type: _typeFilter,
-      pageSize: 100,
-    );
-    final stateAsync =
-        ref.read(questionBankNotifierProvider(filter: currentFilter));
-    final s = stateAsync.value;
-    if (s == null) return;
-
-    final selected =
-        s.questions.where((q) => _selectedIds.contains(q.id)).toList();
-    Navigator.of(context).pop(selected);
+    // _selected lưu full Question objects từ cả 2 mode (questions tab +
+    // assignment folder tab) → trả về trực tiếp values, không cần filter.
+    Navigator.of(context).pop(_selected.values.toList());
   }
 }
 
@@ -712,6 +873,385 @@ class _QuestionPickerItemState extends ConsumerState<_QuestionPickerItem> {
     }
     if (content['text'] is String) {
       return (content['text'] as String).replaceAll('\n', ' ').trim();
+    }
+    return '';
+  }
+}
+
+/// ExpansionTile cho 1 assignment trong tab "Tệp bài tập":
+/// - Header: folder icon + title + status badge.
+/// - Children: list câu hỏi bank-linked có checkbox để select.
+/// - Custom question (`questionId == null`): hiển thị placeholder, không
+///   select được (vì không có entry trong bank để chèn vào assignment khác).
+class _AssignmentExpansion extends ConsumerWidget {
+  final Assignment assignment;
+  final bool isDark;
+  final List<String> excludeQuestionIds;
+  final bool Function(String questionId) isQuestionSelected;
+  final void Function(Question q, bool? v) onToggleQuestion;
+
+  const _AssignmentExpansion({
+    required this.assignment,
+    required this.isDark,
+    required this.excludeQuestionIds,
+    required this.isQuestionSelected,
+    required this.onToggleQuestion,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statusColor =
+        assignment.isPublished ? DesignColors.success : DesignColors.warning;
+    final statusLabel =
+        assignment.isPublished ? 'Đã phát hành' : 'Bản nháp';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(
+        horizontal: DesignSpacing.md,
+        vertical: DesignSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF22303C) : Colors.white,
+        borderRadius: BorderRadius.circular(DesignRadius.sm),
+        border: Border.all(
+          color: isDark ? Colors.grey[700]! : Colors.grey.shade300,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+          listTileTheme: const ListTileThemeData(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+          ),
+        ),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(
+            horizontal: DesignSpacing.md,
+            vertical: 4,
+          ),
+          leading: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: DesignColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(DesignRadius.xs),
+            ),
+            child: Icon(
+              Icons.folder_rounded,
+              color: DesignColors.primary,
+              size: 18,
+            ),
+          ),
+          title: Text(
+            assignment.title,
+            style: DesignTypography.bodyMedium.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(DesignRadius.full),
+              ),
+              child: Text(
+                statusLabel,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: statusColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          childrenPadding: const EdgeInsets.only(bottom: 4),
+          children: [
+            FutureBuilder<List<AssignmentQuestion>>(
+              future: ref
+                  .read(assignmentRepositoryProvider)
+                  .getAssignmentQuestions(assignment.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: LinearProgressIndicator(minHeight: 2),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'Lỗi: ${snapshot.error}',
+                      style: TextStyle(color: DesignColors.error),
+                    ),
+                  );
+                }
+                final questions = (snapshot.data ?? []).toList()
+                  ..sort((a, b) => a.orderIdx.compareTo(b.orderIdx));
+                if (questions.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'Bài tập chưa có câu hỏi',
+                      style: DesignTypography.bodySmall.copyWith(
+                        color: DesignColors.textSecondary,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  );
+                }
+                return Column(
+                  children: List.generate(questions.length, (i) {
+                    final aq = questions[i];
+                    return _AssignmentQuestionPickerRow(
+                      order: i + 1,
+                      aq: aq,
+                      isDark: isDark,
+                      isExcluded: aq.questionId != null &&
+                          excludeQuestionIds.contains(aq.questionId),
+                      isSelected: aq.questionId != null &&
+                          isQuestionSelected(aq.questionId!),
+                      onToggle: onToggleQuestion,
+                    );
+                  }),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 1 question row trong assignment expansion:
+/// - Bank question: checkbox + preview + tap → toggle select.
+/// - Custom question: ổ khoá icon, italic placeholder, không select được.
+class _AssignmentQuestionPickerRow extends ConsumerWidget {
+  final int order;
+  final AssignmentQuestion aq;
+  final bool isDark;
+  final bool isExcluded;
+  final bool isSelected;
+  final void Function(Question q, bool? v) onToggle;
+
+  const _AssignmentQuestionPickerRow({
+    required this.order,
+    required this.aq,
+    required this.isDark,
+    required this.isExcluded,
+    required this.isSelected,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final qid = aq.questionId;
+
+    // Custom question — không có entry trong bank, không chèn lại được.
+    if (qid == null) {
+      final preview = _extractPreview(aq.customContent ?? const {});
+      return ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 0,
+        ),
+        leading: _orderCircle(
+          order,
+          DesignColors.warning,
+          isDark: isDark,
+          faded: true,
+        ),
+        title: Text(
+          preview.isEmpty ? '(Câu hỏi tuỳ chỉnh)' : preview,
+          style: DesignTypography.bodySmall.copyWith(
+            color: DesignColors.textSecondary,
+            fontStyle: FontStyle.italic,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Tooltip(
+          message: 'Câu hỏi tuỳ chỉnh trong đề — không chèn lại được',
+          child: Icon(
+            Icons.lock_outline_rounded,
+            size: 16,
+            color: DesignColors.textSecondary,
+          ),
+        ),
+      );
+    }
+
+    // Question đã có trong assignment đang edit → ẩn/disable.
+    if (isExcluded) {
+      return ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 0,
+        ),
+        leading: _orderCircle(
+          order,
+          DesignColors.success,
+          isDark: isDark,
+          faded: true,
+        ),
+        title: Text(
+          'Đã có trong bài tập này',
+          style: DesignTypography.bodySmall.copyWith(
+            color: DesignColors.success,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+        trailing: Icon(
+          Icons.check_circle_rounded,
+          size: 16,
+          color: DesignColors.success,
+        ),
+      );
+    }
+
+    // Bank question → fetch + render với checkbox.
+    return FutureBuilder<Question?>(
+      future: ref.read(questionRepositoryProvider).getQuestionById(qid),
+      builder: (context, snapshot) {
+        final q = snapshot.data;
+        final preview = q == null ? 'Đang tải...' : _extractPreview(q.content);
+        return InkWell(
+          onTap: q == null ? null : () => onToggle(q, !isSelected),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 6,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Checkbox(
+                    value: isSelected,
+                    activeColor: DesignColors.primary,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onChanged: q == null
+                        ? null
+                        : (v) => onToggle(q, v),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                _orderCircle(order, DesignColors.primary, isDark: isDark),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (q != null) ...[
+                        _buildMetaChip(q),
+                        const SizedBox(height: 2),
+                      ],
+                      Text(
+                        preview.isEmpty ? '(Chưa có nội dung)' : preview,
+                        style: DesignTypography.bodySmall,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _orderCircle(
+    int order,
+    Color color, {
+    required bool isDark,
+    bool faded = false,
+  }) {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: faded ? 0.08 : 0.15),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          '$order',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetaChip(Question q) {
+    return Wrap(
+      spacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          decoration: BoxDecoration(
+            color: q.type.color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(DesignRadius.xs),
+          ),
+          child: Text(
+            q.type.label,
+            style: DesignTypography.labelSmall.copyWith(
+              fontSize: 10,
+              color: q.type.color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        if ((q.difficulty ?? 0) > 0)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(
+              5,
+              (i) => Icon(
+                i < (q.difficulty ?? 0) ? Icons.star : Icons.star_border,
+                size: 10,
+                color: DesignColors.warning,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _extractPreview(Map<String, dynamic> content) {
+    if (content['ops'] is List) {
+      return (content['ops'] as List)
+          .where((op) => op is Map && op['insert'] is String)
+          .map((op) => (op as Map)['insert'] as String)
+          .join()
+          .replaceAll('\n', ' ')
+          .trim();
+    }
+    if (content['text'] is String) {
+      return (content['text'] as String).replaceAll('\n', ' ').trim();
+    }
+    if (content['override_text'] is String) {
+      return (content['override_text'] as String)
+          .replaceAll('\n', ' ')
+          .trim();
     }
     return '';
   }

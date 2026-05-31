@@ -1,5 +1,6 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,7 +22,8 @@ class StudentSubmissionConfirmScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
       body: SafeArea(
-        child: Padding(
+        child: WideContentWrapper(
+          child: Padding(
           padding: const EdgeInsets.all(DesignSpacing.lg),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -31,13 +33,13 @@ class StudentSubmissionConfirmScreen extends StatelessWidget {
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
-                  color: Colors.green[100],
+                  color: DesignColors.success.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.check_circle,
                   size: 80,
-                  color: Colors.green[600],
+                  color: DesignColors.success,
                 ),
               ),
 
@@ -175,6 +177,7 @@ class StudentSubmissionConfirmScreen extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

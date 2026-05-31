@@ -1,4 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:ai_mls/core/services/api_key_service.dart';
 import 'package:ai_mls/widgets/forms/select_field.dart';
 import 'package:flutter/material.dart';
@@ -290,9 +291,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         if (ollamaUrl.isEmpty) {
           if (!mounted) return;
           setState(() => _isUpdatingQuestion = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('⚠️ Vui lòng nhập Ollama URL'), backgroundColor: DesignColors.warning),
-          );
+          AppToast.warning(context, '⚠️ Vui lòng nhập Ollama URL');
           return;
         }
       } else {
@@ -304,9 +303,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         if (key.isEmpty) {
           if (!mounted) return;
           setState(() => _isUpdatingQuestion = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('⚠️ Vui lòng nhập API key'), backgroundColor: DesignColors.warning),
-          );
+          AppToast.warning(context, '⚠️ Vui lòng nhập API key');
           return;
         }
       }
@@ -365,12 +362,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       if (!mounted) return;
       if (saveResult['saved'] != true) {
         setState(() => _isUpdatingQuestion = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Lưu thất bại: ${saveResult['error'] ?? 'Unknown'}'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, '❌ Lưu thất bại: ${saveResult['error'] ?? 'Unknown'}');
         return;
       }
 
@@ -394,15 +386,11 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         }
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok
-              ? '✅ Đã cập nhật và áp dụng: $provider • $model'
-              : '⚠️ Đã lưu key nhưng không thể áp dụng cấu hình'),
-          backgroundColor: ok ? DesignColors.success : DesignColors.warning,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      if (ok) {
+        AppToast.success(context, '✅ Đã cập nhật và áp dụng: $provider • $model');
+      } else {
+        AppToast.warning(context, '⚠️ Đã lưu key nhưng không thể áp dụng cấu hình');
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -410,9 +398,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         _questionKeyStatus = 'error';
         _questionKeyError = e.toString();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Lỗi: ${e.toString()}'), backgroundColor: DesignColors.error),
-      );
+      AppToast.error(context, '❌ Lỗi: ${e.toString()}');
     }
   }
 
@@ -439,9 +425,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         if (ollamaUrl.isEmpty) {
           if (!mounted) return;
           setState(() => _isUpdatingAnalytics = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('⚠️ Vui lòng nhập Ollama URL'), backgroundColor: DesignColors.warning),
-          );
+          AppToast.warning(context, '⚠️ Vui lòng nhập Ollama URL');
           return;
         }
       } else {
@@ -453,9 +437,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         if (key.isEmpty) {
           if (!mounted) return;
           setState(() => _isUpdatingAnalytics = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('⚠️ Vui lòng nhập API key'), backgroundColor: DesignColors.warning),
-          );
+          AppToast.warning(context, '⚠️ Vui lòng nhập API key');
           return;
         }
       }
@@ -514,12 +496,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       if (!mounted) return;
       if (saveResult['saved'] != true) {
         setState(() => _isUpdatingAnalytics = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Lưu thất bại: ${saveResult['error'] ?? 'Unknown'}'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, '❌ Lưu thất bại: ${saveResult['error'] ?? 'Unknown'}');
         return;
       }
 
@@ -542,15 +519,11 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         }
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok
-              ? '✅ Đã cập nhật và áp dụng: $provider • $model'
-              : '⚠️ Đã lưu key nhưng không thể áp dụng cấu hình'),
-          backgroundColor: ok ? DesignColors.success : DesignColors.warning,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      if (ok) {
+        AppToast.success(context, '✅ Đã cập nhật và áp dụng: $provider • $model');
+      } else {
+        AppToast.warning(context, '⚠️ Đã lưu key nhưng không thể áp dụng cấu hình');
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -558,9 +531,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         _analyticsKeyStatus = 'error';
         _analyticsKeyError = e.toString();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Lỗi: ${e.toString()}'), backgroundColor: DesignColors.error),
-      );
+      AppToast.error(context, '❌ Lỗi: ${e.toString()}');
     }
   }
 
@@ -651,13 +622,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
 
       if (success) {
         if (showSuccessSnackbar) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✅ $provider • $model hoạt động bình thường'),
-              backgroundColor: DesignColors.success,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          AppToast.success(context, '✅ $provider • $model hoạt động bình thường');
         }
       } else {
         _showErrorDialog(
@@ -754,13 +719,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
 
       if (success) {
         if (showSuccessSnackbar) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✅ $provider • $model hoạt động bình thường'),
-              backgroundColor: DesignColors.success,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          AppToast.success(context, '✅ $provider • $model hoạt động bình thường');
         }
       } else {
         _showErrorDialog(
@@ -894,22 +853,12 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
             _geminiKeyStatus = null;
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Đã xóa Gemini API Key'),
-              backgroundColor: DesignColors.success,
-            ),
-          );
+          AppToast.success(context, '✅ Đã xóa Gemini API Key');
         }
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ Lỗi: ${e.toString()}'),
-              backgroundColor: DesignColors.error,
-            ),
-          );
+          AppToast.error(context, '❌ Lỗi: ${e.toString()}');
         }
       }
     }
@@ -946,22 +895,12 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
             _groqKeyStatus = null;
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Đã xóa Groq API Key'),
-              backgroundColor: DesignColors.success,
-            ),
-          );
+          AppToast.success(context, '✅ Đã xóa Groq API Key');
         }
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ Lỗi: ${e.toString()}'),
-              backgroundColor: DesignColors.error,
-            ),
-          );
+          AppToast.error(context, '❌ Lỗi: ${e.toString()}');
         }
       }
     }
@@ -998,22 +937,12 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
             _ollamaConnectionStatus = null;
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Đã xóa Ollama URL'),
-              backgroundColor: DesignColors.success,
-            ),
-          );
+          AppToast.success(context, '✅ Đã xóa Ollama URL');
         }
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ Lỗi: ${e.toString()}'),
-              backgroundColor: DesignColors.error,
-            ),
-          );
+          AppToast.error(context, '❌ Lỗi: ${e.toString()}');
         }
       }
     }
@@ -2005,9 +1934,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       _hasOpenRouterKey = false;
       _openRouterKeyStatus = null;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('✅ Đã xóa OpenRouter API key'), backgroundColor: DesignColors.success),
-    );
+    AppToast.success(context, '✅ Đã xóa OpenRouter API key');
   }
 
   // ── KEY INPUT INLINE ──────────────────────────────────────────────────

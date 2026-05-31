@@ -50,7 +50,7 @@ class _ClassBottomSheetState extends State<ClassBottomSheet> {
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.7,
+        maxHeight: (MediaQuery.of(context).size.height * 0.7).clamp(0.0, 700.0),
       ),
       decoration: BoxDecoration(
         color: widget.isDark ? const Color(0xFF1A2632) : Colors.white,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
@@ -147,25 +148,13 @@ class _GhostQuestionsBannerState extends ConsumerState<GhostQuestionsBanner> {
       AppLogger.info(
           '[QuestionBank][Sync] rpc_done created=${result.created} linked=${result.linked}');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Đã tạo ${result.created} mới, liên kết ${result.linked} câu trùng',
-          ),
-          backgroundColor: DesignColors.success,
-        ),
-      );
+      AppToast.success(context, 'Đã tạo ${result.created} mới, liên kết ${result.linked} câu trùng');
       ref.invalidate(ghostReportProvider(widget.assignmentId));
       widget.onSyncSuccess?.call();
     } catch (e) {
       AppLogger.error('[QuestionBank][Sync] rpc_failed', error: e);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi đồng bộ: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Lỗi đồng bộ: $e');
     } finally {
       if (mounted) setState(() => _isSyncing = false);
     }

@@ -9,6 +9,7 @@ import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/rubric/read_only_rubric_viewer.dart';
 import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -509,7 +510,7 @@ class _StudentAssignmentWorkspaceScreenState
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.amber[50],
+                            color: DesignColors.warning.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -517,7 +518,7 @@ class _StudentAssignmentWorkspaceScreenState
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: Colors.amber[700],
+                              color: DesignColors.warning,
                             ),
                           ),
                         ),
@@ -1544,21 +1545,11 @@ class _StudentAssignmentWorkspaceScreenState
       if (url != null) {
         onUrl(url);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tải ảnh lên thất bại. Thử lại?'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Tải ảnh lên thất bại. Thử lại?');
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Lỗi: $e');
     }
   }
 
@@ -1713,7 +1704,7 @@ class _StudentAssignmentWorkspaceScreenState
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.timer_off, color: Colors.red.shade700),
+          Icon(Icons.timer_off, color: DesignColors.error),
           const SizedBox(width: 8),
           const Text('Hết giờ!'),
         ]),
@@ -1760,7 +1751,7 @@ class _StudentAssignmentWorkspaceScreenState
               const SizedBox(height: DesignSpacing.sm),
               Text(
                 'Còn $unanswered câu chưa trả lời.',
-                style: TextStyle(color: Colors.orange[700]),
+                style: TextStyle(color: DesignColors.warning),
               ),
             ],
             const SizedBox(height: DesignSpacing.md),
@@ -1794,12 +1785,7 @@ class _StudentAssignmentWorkspaceScreenState
         // Show success screen
         _showSuccessScreen(context, workspace);
       } else if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Nộp bài thất bại. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppToast.error(context, 'Nộp bài thất bại. Vui lòng thử lại.');
       }
     }
   }
@@ -1827,13 +1813,13 @@ class _StudentAssignmentWorkspaceScreenState
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: Colors.green[50],
+                  color: DesignColors.success.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.check_circle,
                   size: 48,
-                  color: Colors.green[600],
+                  color: DesignColors.success,
                 ),
               ),
 
@@ -2125,10 +2111,14 @@ class _CountdownTimerWidgetState extends State<_CountdownTimerWidget> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: isWarning ? Colors.red.shade50 : Colors.grey.shade100,
+          color: isWarning
+              ? DesignColors.error.withValues(alpha: 0.1)
+              : DesignColors.moonMedium,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isWarning ? Colors.red.shade300 : Colors.grey.shade300,
+            color: isWarning
+                ? DesignColors.error.withValues(alpha: 0.4)
+                : DesignColors.moonMedium,
           ),
         ),
         child: Row(
@@ -2137,7 +2127,7 @@ class _CountdownTimerWidgetState extends State<_CountdownTimerWidget> {
             Icon(
               Icons.timer_outlined,
               size: 14,
-              color: isWarning ? Colors.red.shade700 : Colors.grey.shade600,
+              color: isWarning ? DesignColors.error : DesignColors.textSecondary,
             ),
             const SizedBox(width: 4),
             Text(
@@ -2145,7 +2135,7 @@ class _CountdownTimerWidgetState extends State<_CountdownTimerWidget> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: isWarning ? Colors.red.shade700 : Colors.grey.shade700,
+                color: isWarning ? DesignColors.error : DesignColors.textSecondary,
               ),
             ),
           ],

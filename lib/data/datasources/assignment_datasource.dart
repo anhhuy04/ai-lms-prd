@@ -105,16 +105,14 @@ class StudentAttemptSummary {
 class AssignmentDataSource {
   final SupabaseClient _client;
   final BaseTableDataSource _assignments;
-  final BaseTableDataSource _assignmentQuestions;
+  // _assignmentQuestions (insert trực tiếp) đã bỏ — mọi ghi assignment_questions
+  // đi qua RPC server-side (create/publish/replace/deep_clone/save_questions) để
+  // chuẩn hoá theo khế ước Delta Override (fn_normalize_aq_content, migration 025+).
   final BaseTableDataSource _assignmentVariants;
   final BaseTableDataSource _assignmentDistributions;
 
   AssignmentDataSource(this._client)
     : _assignments = BaseTableDataSource(_client, 'assignments'),
-      _assignmentQuestions = BaseTableDataSource(
-        _client,
-        'assignment_questions',
-      ),
       _assignmentVariants = BaseTableDataSource(_client, 'assignment_variants'),
       _assignmentDistributions = BaseTableDataSource(
         _client,
@@ -484,58 +482,26 @@ class AssignmentDataSource {
   ) => _assignmentDistributions.update(distributionId, patch);
 
   /// Replace toàn bộ questions của assignment (simple & predictable).
-  /// Chỉ cho phép replace nếu CHƯA có work_session.
-  /// Nếu đã có work_session → chỉ update custom_content câu hiện có + insert câu mới.
+  ///
+  /// Uỷ thác cho RPC server-side `replace_assignment_questions` (migration 026):
+  /// - Chuẩn hoá MỌI câu qua `fn_normalize_aq_content` để tuân thủ khế ước
+  ///   Delta Override (bank private → cắt link; bank global → diff; inline → full).
+  ///   Bắt buộc, vì constraint `aq_bank_linked_must_be_delta` sẽ chặn câu
+  ///   bank-linked còn full payload (có key 'type').
+  /// - Guard work_sessions ở server: đã có học sinh làm → update câu hiện có +
+  ///   insert câu mới (KHÔNG xoá, tránh vỡ FK submission_answers); chưa có →
+  ///   replace toàn bộ.
   Future<void> replaceAssignmentQuestions(
     String assignmentId,
     List<Map<String, dynamic>> items,
   ) async {
-    // Kiểm tra work_sessions qua assignment_id (trường trực tiếp trên work_sessions).
-    // Bug cũ: check submissions.assignment_distribution_id = assignmentId (sai — đó là distribution ID).
-    final ws = await _client
-        .from('work_sessions')
-        .select('id')
-        .eq('assignment_id', assignmentId)
-        .limit(1)
-        .maybeSingle();
-
-    if (ws != null) {
-      // Đã có học sinh làm bài → chỉ update câu hiện có + insert câu mới.
-      // KHÔNG xóa — submission_answers.assignment_question_id FK sẽ gây lỗi.
-      final existingRows = await _client
-          .from('assignment_questions')
-          .select('id')
-          .eq('assignment_id', assignmentId);
-      final existingIds =
-          (existingRows as List).map((q) => q['id'] as String).toSet();
-
-      for (final item in items) {
-        final itemId = item['id'] as String?;
-        if (itemId != null && existingIds.contains(itemId)) {
-          // Chỉ update custom_content và points của câu đã tồn tại
-          final patch = <String, dynamic>{};
-          if (item['custom_content'] != null) {
-            patch['custom_content'] = item['custom_content'];
-          }
-          if (item['points'] != null) patch['points'] = item['points'];
-          if (patch.isNotEmpty) {
-            await _client
-                .from('assignment_questions')
-                .update(patch)
-                .eq('id', itemId);
-          }
-        } else {
-          // Câu mới chưa tồn tại → insert
-          await _assignmentQuestions.insert(item);
-        }
-      }
-      return;
-    }
-
-    // Chưa có học sinh làm bài → được phép replace toàn bộ
-    await _assignmentQuestions.deleteWhere('assignment_id', assignmentId);
-    if (items.isEmpty) return;
-    await _assignmentQuestions.insertMany(items);
+    await _client.rpc(
+      'replace_assignment_questions',
+      params: <String, dynamic>{
+        'p_assignment_id': assignmentId,
+        'p_questions': items,
+      },
+    );
   }
 
   /// Replace toàn bộ distributions của assignment.
@@ -938,7 +904,16 @@ class AssignmentDataSource {
                   final choice = entry.value as Map<String, dynamic>;
                   return {
                     'id': choice['id'] is int ? choice['id'] : idx,
-                    'content': {'text': choice['text'] ?? ''},
+                    'content': {
+                      // AI-generate snapshot lưu choices shape {id, content:{text}, is_correct}
+                      // (từ QuestionDTO.toDbInsert) → text nằm ở content.text, không ở text.
+                      // Guard `is Map` tránh crash nếu content không phải Map.
+                      'text': choice['text'] ??
+                          (choice['content'] is Map
+                              ? (choice['content'] as Map)['text']
+                              : null) ??
+                          '',
+                    },
                     'is_correct':
                         choice['isCorrect'] ?? choice['is_correct'] ?? false,
                   };
@@ -1801,13 +1776,18 @@ class AssignmentDataSource {
 
         Map<String, List<String>> correctChoiceIdsMap = {};
         Map<String, Map<String, dynamic>> questionsAnswerMap = {};
+        // Type AUTHORITATIVE của câu bank-linked (S1/S2): custom_content KHÔNG
+        // chứa 'type' do constraint, nên phải lấy type từ bank questions.type
+        // (gương theo getDistributionDetail). Thiếu map này → mọi câu bank bị
+        // mặc định 'multiple_choice' → essay/fill_blank/matching chấm 0 điểm.
+        Map<String, String> questionsTypeMap = {};
 
         // Lấy questions.answer cho linked questions (Cấp 3 - new)
         if (questionIds2.isNotEmpty) {
-          // Lấy answer từ questions table
+          // Lấy answer + type từ questions table
           final questionsRes = await _client
               .from('questions')
-              .select('id, answer')
+              .select('id, type, answer')
               .inFilter('id', questionIds2);
 
           for (final q in questionsRes) {
@@ -1815,6 +1795,10 @@ class AssignmentDataSource {
             final answer = q['answer'] as Map<String, dynamic>?;
             if (answer != null) {
               questionsAnswerMap[qId] = answer;
+            }
+            final bankType = q['type'] as String?;
+            if (bankType != null) {
+              questionsTypeMap[qId] = bankType;
             }
           }
 
@@ -1838,17 +1822,27 @@ class AssignmentDataSource {
           final questionId = aq['question_id'] as String?;
           final customContent = aq['custom_content'] as Map<String, dynamic>?;
 
-          // Get question type - ưu tiên custom_content.type
+          // Suy question type theo khế ước Delta Override:
+          // - Câu bank-linked (question_id != null): type AUTHORITATIVE từ bank
+          //   questions.type (custom_content câu bank KHÔNG có 'type'). Mirror
+          //   getDistributionDetail.
+          // - Câu inline (question_id == null): type từ custom_content['type'].
           String questionType = 'multiple_choice';
-          if (customContent != null && customContent['type'] != null) {
-            final typeStr = customContent['type'] as String;
-            // Convert "multipleChoice" -> "multiple_choice"
-            if (typeStr == 'multipleChoice') {
+          String? rawType;
+          if (questionId != null && questionId.isNotEmpty) {
+            rawType = questionsTypeMap[questionId];
+          }
+          rawType ??= customContent?['type'] as String?;
+          if (rawType != null) {
+            // Convert camelCase -> snake_case (dữ liệu cũ)
+            if (rawType == 'multipleChoice') {
               questionType = 'multiple_choice';
-            } else if (typeStr == 'trueFalse') {
+            } else if (rawType == 'trueFalse') {
               questionType = 'true_false';
+            } else if (rawType == 'fillBlank') {
+              questionType = 'fill_blank';
             } else {
-              questionType = typeStr;
+              questionType = rawType;
             }
           }
 
@@ -2581,28 +2575,19 @@ class AssignmentDataSource {
     Map<String, dynamic> contentPatch, {
     bool lock = false,
   }) async {
-    // Đọc custom_content hiện tại
-    final existing = await _client
-        .from('assignment_questions')
-        .select('custom_content')
-        .eq('id', assignmentQuestionId)
-        .single();
-
-    final currentContent =
-        (existing['custom_content'] as Map<String, dynamic>?) ?? {};
-
-    // Merge patch vào current (Delta Override)
-    final merged = Map<String, dynamic>.from(currentContent)
-      ..addAll(contentPatch);
-
-    final res = await _client
-        .from('assignment_questions')
-        .update({'custom_content': merged})
-        .eq('id', assignmentQuestionId)
-        .select()
-        .single();
-
-    return Map<String, dynamic>.from(res);
+    // Rủi ro #5 fix: đi qua RPC `update_assignment_question_content` (migration 035,
+    // đã apply) thay vì .update() trực tiếp. RPC merge patch vào custom_content
+    // hiện tại rồi chuẩn hoá qua fn_normalize_aq_content trước khi UPDATE → đúng
+    // khế ước Delta Override (câu bank GLOBAL không sửa → S1, không sinh override
+    // thừa) và loại bỏ race read-modify-write của cách cũ.
+    final res = await _client.rpc(
+      'update_assignment_question_content',
+      params: {
+        'p_aq_id': assignmentQuestionId,
+        'p_patch': contentPatch,
+      },
+    );
+    return Map<String, dynamic>.from(res as Map);
   }
 
   /// Batch regrade: gọi RPC sau khi GV sửa đề.

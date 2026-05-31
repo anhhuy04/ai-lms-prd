@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/domain/entities/question.dart';
@@ -63,17 +64,10 @@ class TeacherQuestionTrashScreen extends ConsumerWidget {
                           .notifier)
                       .restore(s.questions[i].id);
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Đã khôi phục câu hỏi')),
-                  );
+                  AppToast.info(context, 'Đã khôi phục câu hỏi');
                 } catch (e) {
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Lỗi: $e'),
-                      backgroundColor: DesignColors.error,
-                    ),
-                  );
+                  AppToast.error(context, 'Lỗi: $e');
                 }
               },
             ),

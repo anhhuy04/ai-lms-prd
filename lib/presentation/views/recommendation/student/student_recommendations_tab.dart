@@ -1,7 +1,9 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/presentation/providers/recommendation_providers.dart';
 import 'package:ai_mls/presentation/views/recommendation/widgets/recommendation_card.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -27,7 +29,8 @@ class StudentRecommendationsTab extends ConsumerWidget {
         ),
         automaticallyImplyLeading: true,
       ),
-      body: recsAsync.when(
+      body: WideContentWrapper(
+        child: recsAsync.when(
         data: (recs) {
           if (recs.isEmpty) {
             return _buildEmptyState();
@@ -52,12 +55,7 @@ class StudentRecommendationsTab extends ConsumerWidget {
                   onDismiss: () async {
                     await _dismiss(ref, rec.id);
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Đã xóa gợi ý'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
+                      AppToast.info(context, 'Đã xóa gợi ý');
                     }
                   },
                 );
@@ -67,6 +65,7 @@ class StudentRecommendationsTab extends ConsumerWidget {
         },
         loading: () => _buildLoadingState(),
         error: (e, _) => _buildErrorState(ref, e.toString()),
+        ),
       ),
     );
   }

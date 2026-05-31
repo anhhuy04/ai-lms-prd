@@ -233,8 +233,8 @@ class _TeacherStudentAnalyticsScreenState
       children: [
         _buildSectionTitle('Tổng quan'),
         SizedBox(height: DesignSpacing.sm),
-        GridView.count(
-          crossAxisCount: 2,
+        GridView.extent(
+          maxCrossAxisExtent: 240,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: DesignSpacing.sm,

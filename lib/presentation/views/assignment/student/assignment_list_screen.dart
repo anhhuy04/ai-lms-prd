@@ -6,6 +6,7 @@ import 'package:ai_mls/presentation/providers/assignment_providers.dart';
 import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
 import 'package:ai_mls/widgets/list_item/assignment/class_detail_assignment_list_item.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -67,8 +68,21 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
 
     if (authState.hasError || profile == null) {
       return Scaffold(
+        backgroundColor: DesignColors.moonLight,
         appBar: AppBar(
-          title: const Text('Danh sách bài tập'),
+          title: const Text(
+            'Danh sách bài tập',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: DesignColors.textPrimary,
+            ),
+          ),
+          centerTitle: false,
+          backgroundColor: DesignColors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
         ),
         body: Center(
           child: Column(
@@ -99,9 +113,19 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
       appBar: AppBar(
-        title: const Text('Danh sách bài tập'),
+        title: const Text(
+          'Danh sách bài tập',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: DesignColors.textPrimary,
+          ),
+        ),
+        centerTitle: false,
         backgroundColor: DesignColors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         actions: [
           if (userRole == 'student')
             IconButton(
@@ -112,9 +136,11 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
         ],
       ),
       body: SafeArea(
-        child: userRole == 'teacher'
-            ? _buildTeacherView(profile.id)
-            : _buildStudentView(profile.id),
+        child: WideContentWrapper(
+          child: userRole == 'teacher'
+              ? _buildTeacherView(profile.id)
+              : _buildStudentView(profile.id),
+        ),
       ),
     );
   }

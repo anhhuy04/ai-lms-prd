@@ -1,11 +1,9 @@
 import 'package:ai_mls/data/datasources/question_bank_datasource.dart';
 import 'package:ai_mls/data/repositories/question_repository_impl.dart';
 import 'package:ai_mls/domain/entities/create_question_params.dart';
-import 'package:ai_mls/domain/entities/ghost_report.dart';
 import 'package:ai_mls/domain/entities/question_filter.dart';
 import 'package:ai_mls/domain/entities/question_source.dart';
 import 'package:ai_mls/domain/entities/question_type.dart';
-import 'package:ai_mls/domain/entities/sync_result.dart';
 import 'package:ai_mls/domain/failures/question_failure.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';

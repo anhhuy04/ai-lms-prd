@@ -99,8 +99,8 @@ class RecipientTreeSelectorModal extends ConsumerStatefulWidget {
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(ctx).viewInsets.bottom,
           top:
-              MediaQuery.of(ctx).size.height *
-              0.1, // Chừa khoảng trống phía trên 10%
+              (MediaQuery.of(ctx).size.height *
+              0.1).clamp(0.0, 700.0), // Chừa khoảng trống phía trên 10%
         ),
         child: RecipientTreeSelectorModal(
           data: data,

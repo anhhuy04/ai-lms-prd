@@ -212,8 +212,8 @@ class TeacherAssignmentDetailScreen extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.all(DesignSpacing.lg),
-      child: GridView.count(
-        crossAxisCount: 2,
+      child: GridView.extent(
+        maxCrossAxisExtent: 240,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         mainAxisSpacing: DesignSpacing.md,
