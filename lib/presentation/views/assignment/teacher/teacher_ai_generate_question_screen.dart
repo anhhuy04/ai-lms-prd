@@ -1734,8 +1734,10 @@ class _TeacherAiGenerateQuestionScreenState
                           SizedBox(height: DesignSpacing.xl),
                         ],
 
-                        // Mode 1 only: topic input
+                        // Mode 1 only: hint card (có icon ?) + topic input
                         if (mode == ProcessingMode.promptOnly) ...[
+                          _buildModeHintCard(context, mode, isDark),
+                          SizedBox(height: DesignSpacing.lg),
                           _buildTopicSection(context, isDark),
                           SizedBox(height: DesignSpacing.xxl),
                         ],
@@ -2880,13 +2882,26 @@ class _TeacherAiGenerateQuestionScreenState
     bool isDark,
   ) {
     final isExtraction = mode == ProcessingMode.extraction;
-    final icon = isExtraction
+    final isPrompt = mode == ProcessingMode.promptOnly;
+    final IconData icon = isExtraction
         ? Icons.content_paste_search_rounded
+        : isPrompt
+        ? Icons.edit_note_rounded
         : Icons.auto_stories_rounded;
-    final color = isExtraction ? DesignColors.warning : DesignColors.success;
-    final title = isExtraction ? 'Chế độ Trích xuất' : 'Chế độ Từ Tài liệu';
+    final Color color = isExtraction
+        ? DesignColors.warning
+        : isPrompt
+        ? DesignColors.primary
+        : DesignColors.success;
+    final title = isExtraction
+        ? 'Chế độ Trích xuất'
+        : isPrompt
+        ? 'Chế độ Nhập Prompt'
+        : 'Chế độ Từ Tài liệu';
     final subtitle = isExtraction
         ? 'AI sẽ đọc file và trích xuất câu hỏi có sẵn. Không sáng tác thêm.'
+        : isPrompt
+        ? 'AI tự sáng tác câu hỏi mới theo chủ đề bạn nhập. Không cần tài liệu.'
         : 'AI sáng tác câu hỏi dựa trên nội dung tài liệu (RAG pipeline).';
 
     return Container(
@@ -2896,43 +2911,160 @@ class _TeacherAiGenerateQuestionScreenState
         borderRadius: BorderRadius.circular(DesignRadius.md),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: color, size: DesignIcons.mdSize),
-              SizedBox(width: DesignSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: DesignTypography.bodyMedium.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                    ),
-                    SizedBox(height: DesignSpacing.xs),
-                    Text(
-                      subtitle,
-                      style: DesignTypography.bodySmall.copyWith(
-                        color: isDark
-                            ? Colors.grey[300]
-                            : DesignColors.textSecondary,
-                      ),
-                    ),
-                  ],
+          Icon(icon, color: color, size: DesignIcons.mdSize),
+          SizedBox(width: DesignSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: DesignTypography.bodyMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
                 ),
-              ),
-            ],
+                SizedBox(height: DesignSpacing.xs),
+                Text(
+                  subtitle,
+                  style: DesignTypography.bodySmall.copyWith(
+                    color: isDark
+                        ? Colors.grey[300]
+                        : DesignColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
           ),
-          // FIX-V3V2: BỎ SwitchListTile "Coi tài liệu là MẪU" — redundant.
-          // User chọn chip "Cùng dạng"/"Tạo mới" sẽ tự động kích hoạt template mode.
+          // Icon ? — mở hướng dẫn chi tiết cách dùng + lưu ý của mode.
+          IconButton(
+            key: ValueKey('mode_help_${mode.name}'),
+            tooltip: 'Hướng dẫn sử dụng',
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: Icon(Icons.help_outline_rounded, color: color, size: 20),
+            onPressed: () => _showModeHelp(context, mode, color, icon, title),
+          ),
         ],
       ),
+    );
+  }
+
+  /// Dialog hướng dẫn ngắn gọn cho từng mode: cách dùng + lưu ý.
+  void _showModeHelp(
+    BuildContext context,
+    ProcessingMode mode,
+    Color color,
+    IconData icon,
+    String title,
+  ) {
+    final (usage, notes) = switch (mode) {
+      ProcessingMode.promptOnly => (
+        <String>[
+          'Nhập chủ đề + chọn loại câu, số câu, độ khó (tùy chọn).',
+          'AI tự sáng tác câu hỏi MỚI hoàn toàn theo chủ đề.',
+          'Dùng ô "Lệnh hướng dẫn AI" để định hướng cụ thể hơn.',
+        ],
+        <String>[
+          'Không cần tài liệu.',
+          'Chủ đề càng rõ → câu hỏi càng đúng trọng tâm.',
+          'Để trống số câu = AI tự quyết (mặc định ~10).',
+        ],
+      ),
+      ProcessingMode.extraction => (
+        <String>[
+          'Nạp file ĐÃ CÓ SẴN câu hỏi (đề thi, bài tập…).',
+          'AI đọc và TRÍCH NGUYÊN câu hỏi trong file — không sáng tác thêm.',
+        ],
+        <String>[
+          'File phải chứa câu hỏi rõ ràng, đúng định dạng.',
+          'Số câu lấy ra = số câu có trong file.',
+          'Không dùng để tạo câu mới — hãy chọn Nhập Prompt hoặc Tài liệu.',
+        ],
+      ),
+      ProcessingMode.ragGeneration => (
+        <String>[
+          'Nạp tài liệu (lý thuyết hoặc đề mẫu) → AI sáng tác câu hỏi MỚI từ nội dung.',
+          'Nếu là ĐỀ MẪU (badge 📋 Mẫu): để Loại câu = "Tự động" → hệ thống tự khớp SỐ CÂU và LOẠI y hệt mẫu.',
+          '"Tạo mới" = câu hoàn toàn mới · "Cùng dạng" = giữ cấu trúc, đổi số liệu.',
+        ],
+        <String>[
+          'Không chọn loại câu → tự phân bố theo mẫu (vd 5 tự luận + 2 trắc nghiệm).',
+          'Khớp số lượng + loại; thứ tự gom theo nhóm loại.',
+          'Tài liệu văn xuôi thuần (không phải đề) → AI tự chọn số câu & loại.',
+        ],
+      ),
+    };
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(icon, color: color, size: DesignIcons.mdSize),
+            SizedBox(width: DesignSpacing.sm),
+            Expanded(
+              child: Text(
+                title,
+                style: DesignTypography.titleSmall.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _helpSection('Cách dùng', usage, color),
+              SizedBox(height: DesignSpacing.md),
+              _helpSection('Lưu ý', notes, DesignColors.warning),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Đã hiểu'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _helpSection(String heading, List<String> items, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          heading,
+          style: DesignTypography.bodyMedium.copyWith(
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        SizedBox(height: DesignSpacing.xs),
+        ...items.map(
+          (t) => Padding(
+            padding: EdgeInsets.only(bottom: DesignSpacing.xs),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('•  ', style: DesignTypography.bodySmall),
+                Expanded(
+                  child: Text(t, style: DesignTypography.bodySmall),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
