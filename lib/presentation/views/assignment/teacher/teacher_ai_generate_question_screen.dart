@@ -2261,7 +2261,10 @@ class _TeacherAiGenerateQuestionScreenState
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp('[0-9]')),
             ],
-            onChanged: (_) => setState(() {}), // rebuild để cập nhật badge
+            onChanged: (_) => setState(() {
+              // Đổi tổng → tự chia lại đều cho các loại đang chọn (smart, no manual taps)
+              if (_selectedTypes.isNotEmpty) _redistributeQuantities();
+            }),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
                 return null; // trống = auto
@@ -2453,15 +2456,35 @@ class _TeacherAiGenerateQuestionScreenState
     setState(() {
       if (selected) {
         _selectedTypes.add(key);
-        _typeQuantities.putIfAbsent(key, () => 3);
+        _typeQuantities.putIfAbsent(key, () => 1);
       } else {
         _selectedTypes.remove(key);
         _typeQuantities.remove(key);
       }
+      // Tự chia đều tổng cho các loại đang chọn (không phải bấm +/- thủ công).
+      _redistributeQuantities();
       // Reset kết quả cũ khi đổi cấu hình
       _generatedQuestions = null;
       _sections.clear();
     });
+  }
+
+  /// Chia đều [_limitQty] cho các loại đang chọn — phần dư dồn cho các loại đầu
+  /// (tổng luôn = limit). Gọi khi toggle loại hoặc đổi ô tổng số câu, để:
+  /// chọn 1 loại → loại đó = tổng; đổi 10→5 → tự cập nhật, KHÔNG cần bấm +/-.
+  /// Steppers +/- vẫn dùng để tinh chỉnh thủ công sau đó.
+  void _redistributeQuantities() {
+    final n = _selectedTypes.length;
+    if (n == 0) return;
+    final limit = _limitQty;
+    final base = limit ~/ n;
+    final rem = limit % n;
+    var i = 0;
+    for (final key in _selectedTypes) {
+      final q = base + (i < rem ? 1 : 0);
+      _typeQuantities[key] = q < 1 ? 1 : q;
+      i++;
+    }
   }
 
   Widget _buildQuestionTypeSection(BuildContext context, bool isDark) {
@@ -4134,10 +4157,11 @@ class _EditQuestionDialogState extends ConsumerState<_EditQuestionDialog> {
   /// null = auto (theo screen width). Khi user bấm nút sẽ thành true/false.
   bool? _splitView;
 
+  // math = dạng tự luận/giải bài (expected_answer), KHÔNG dùng choices A/B/C/D —
+  // đồng bộ với prompt + workspace (_buildProblemSolving) + grading (essayTypes→AI).
   bool get _isChoiceType =>
       widget.questionType == QuestionType.multipleChoice ||
-      widget.questionType == QuestionType.trueFalse ||
-      widget.questionType == QuestionType.math;
+      widget.questionType == QuestionType.trueFalse;
 
   @override
   void initState() {

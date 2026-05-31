@@ -460,9 +460,9 @@ JSON HỢP LỆ — BẮT BUỘC:
 
       case 'math':
         return '''GỢI Ý: Nếu câu có công thức toán phức tạp (phân số, mũ, căn, sigma, integral...), dùng LaTeX inline kẹp `\$...\$` (vd `\$x^2+y^2=r^2\$`, `\$\\frac{a}{b}\$`, `\$\\sqrt{x}\$`). Câu số học đơn giản (cộng/trừ/nhân/chia hai số) viết thẳng không cần LaTeX.
-VÍ DỤ OUTPUT (1 câu):
+VÍ DỤ OUTPUT (1 câu — DẠNG TỰ LUẬN/GIẢI BÀI: học sinh tự trình bày lời giải, KHÔNG dùng choices):
 [
-  {"type":"math","override_text":"Tính: 15 + 27 = ?","choices":[{"id":0,"text":"40","isCorrect":false},{"id":1,"text":"42","isCorrect":true},{"id":2,"text":"44","isCorrect":false},{"id":3,"text":"38","isCorrect":false}],"tags":["tag1"]}
+  {"type":"math","override_text":"Một cửa hàng có 15 hộp bút, mỗi hộp 27 chiếc. Hỏi tổng cộng có bao nhiêu chiếc bút?","expected_answer":"15 × 27 = 405 (chiếc bút)","tags":["tag1"]}
 ]''';
 
       default: // multiple_choice
