@@ -483,7 +483,6 @@ class _TeacherAiGenerateQuestionScreenState
         ? (q['type'] as QuestionType)
         : QuestionType.multipleChoice;
 
-    // Format mới: override_text + choices (KHÔNG lồng trong content)
     // content chỉ chứa metadata như images, difficulty, tags...
     final content = <String, dynamic>{};
     final contentRaw = q['content'];
@@ -491,13 +490,18 @@ class _TeacherAiGenerateQuestionScreenState
       content.addAll(Map<String, dynamic>.from(contentRaw));
     }
 
-    // Override text - ưu tiên: q['text'] (đã mapped) → q['override_text'] (AI raw) → content fields
+    // Question text - ưu tiên: q['text'] (đã mapped) → q['override_text'] (AI raw) → content fields
     final questionText = (q['text'] as String?)?.trim().isNotEmpty == true
         ? (q['text'] as String).trim()
         : (q['override_text'] as String?)?.trim().isNotEmpty == true
         ? (q['override_text'] as String).trim()
         : (content['override_text'] ?? content['text'] ?? '').toString();
-    content['override_text'] = questionText;
+    // Bank questions.content dùng key CHUẨN 'text' (KHÔNG phải 'override_text' —
+    // override_text chỉ dành cho delta trong assignment_questions.custom_content).
+    // Mọi read path (picker preview, bank detail) ưu tiên content['text']; nếu lưu
+    // override_text thì câu AI sẽ hiển thị rỗng. Đồng bộ với teacher_create_question.
+    content['text'] = questionText;
+    content.remove('override_text');
     content['images'] = content['images'] is List ? content['images'] : [];
 
     // choices + answer - ưu tiên q['choices'] (đầy đủ) trước q['options'] (backward compat)
