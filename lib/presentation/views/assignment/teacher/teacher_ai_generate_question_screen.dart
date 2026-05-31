@@ -72,6 +72,8 @@ class _TeacherAiGenerateQuestionScreenState
   final Set<String> _selectedTypes = {};
   // Số lượng theo từng loại (key = typeKey)
   final Map<String, int> _typeQuantities = {};
+  // Controller cho ô nhập số câu mỗi loại (nhập trực tiếp, tránh bấm +/- nhiều)
+  final Map<String, TextEditingController> _qtyCtrls = {};
   // Phân nhóm kết quả theo loại (để hiển thị section header)
   final List<({String typeKey, String label, int startIndex, int count})>
   _sections = [];
@@ -138,6 +140,9 @@ class _TeacherAiGenerateQuestionScreenState
     _topicController.dispose();
     _quantityController.dispose();
     _focusHintController.dispose();
+    for (final c in _qtyCtrls.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -2485,6 +2490,50 @@ class _TeacherAiGenerateQuestionScreenState
       _typeQuantities[key] = q < 1 ? 1 : q;
       i++;
     }
+    _syncQtyControllers();
+  }
+
+  /// Đặt số câu cho 1 loại (gọi từ ô nhập trực tiếp hoặc nút +/-).
+  /// Khi CHỈ có ĐÚNG 2 loại → loại còn lại tự bù để tổng = limit
+  /// (tăng loại này thì loại kia giảm tương ứng). ≥3 loại để user tự nhập,
+  /// badge "Tổng / limit" cảnh báo nếu lệch.
+  void _setTypeQuantity(String key, int newQty) {
+    if (!_selectedTypes.contains(key)) return;
+    final limit = _limitQty;
+    final twoType = _selectedTypes.length == 2;
+    // 2 loại: mỗi loại tối đa limit-1 (loại kia ≥1). Còn lại: tối đa limit.
+    final maxPer = twoType
+        ? (limit - 1 < 1 ? 1 : limit - 1)
+        : (limit < 1 ? 999 : limit);
+    newQty = newQty.clamp(1, maxPer);
+    setState(() {
+      _typeQuantities[key] = newQty;
+      if (twoType) {
+        final other = _selectedTypes.firstWhere((k) => k != key);
+        final otherQty = limit - newQty;
+        _typeQuantities[other] = otherQty < 1 ? 1 : otherQty;
+      }
+      _syncQtyControllers();
+      // Đổi cấu hình → bỏ kết quả cũ
+      _generatedQuestions = null;
+      _sections.clear();
+    });
+  }
+
+  /// Đồng bộ text các controller theo _typeQuantities; dọn controller loại đã bỏ.
+  void _syncQtyControllers() {
+    for (final key in _selectedTypes) {
+      final v = (_typeQuantities[key] ?? 1).toString();
+      final c = _qtyCtrls.putIfAbsent(key, () => TextEditingController(text: v));
+      if (c.text != v) c.text = v;
+    }
+    _qtyCtrls.removeWhere((k, c) {
+      if (!_selectedTypes.contains(k)) {
+        c.dispose();
+        return true;
+      }
+      return false;
+    });
   }
 
   Widget _buildQuestionTypeSection(BuildContext context, bool isDark) {
@@ -2883,9 +2932,11 @@ class _TeacherAiGenerateQuestionScreenState
           // Per-type steppers
           ..._selectedTypes.map((key) {
             final qty = _typeQuantities[key] ?? 1;
-            final canAdd = total < limit;
+            final twoType = _selectedTypes.length == 2;
+            // 2 loại: + tăng tới limit-1 (loại kia ≥1). ≥3 loại: tới khi đủ tổng.
+            final canAdd = twoType ? qty < limit - 1 : total < limit;
             final remaining = limit - total; // số câu còn trống
-            final canFill = remaining > 0; // có thể fill thêm
+            final canFill = !twoType && remaining > 0; // 2 loại tự bù → ẩn fill
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
@@ -2902,9 +2953,7 @@ class _TeacherAiGenerateQuestionScreenState
                   // Nút fill tới giới hạn
                   if (canFill) ...[
                     GestureDetector(
-                      onTap: () => setState(
-                        () => _typeQuantities[key] = qty + remaining,
-                      ),
+                      onTap: () => _setTypeQuantity(key, qty + remaining),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -2954,28 +3003,47 @@ class _TeacherAiGenerateQuestionScreenState
                         _buildStepBtn(
                           icon: Icons.remove_rounded,
                           enabled: qty > 1,
-                          onTap: () =>
-                              setState(() => _typeQuantities[key] = qty - 1),
+                          onTap: () => _setTypeQuantity(key, qty - 1),
                           isDark: isDark,
                         ),
                         SizedBox(
-                          width: 36,
-                          child: Text(
-                            '$qty',
+                          width: 48,
+                          child: TextField(
+                            controller: _qtyCtrls.putIfAbsent(
+                              key,
+                              () => TextEditingController(text: '$qty'),
+                            ),
                             textAlign: TextAlign.center,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: false,
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp('[0-9]')),
+                              LengthLimitingTextInputFormatter(3),
+                            ],
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(vertical: 8),
+                            ),
                             style: DesignTypography.bodyMedium.copyWith(
                               fontWeight: FontWeight.bold,
                               color: isDark
                                   ? Colors.white
                                   : DesignColors.textPrimary,
                             ),
+                            onChanged: (v) {
+                              final n = int.tryParse(v);
+                              if (n != null && n > 0) {
+                                _setTypeQuantity(key, n);
+                              }
+                            },
                           ),
                         ),
                         _buildStepBtn(
                           icon: Icons.add_rounded,
                           enabled: canAdd,
-                          onTap: () =>
-                              setState(() => _typeQuantities[key] = qty + 1),
+                          onTap: () => _setTypeQuantity(key, qty + 1),
                           isDark: isDark,
                         ),
                       ],
