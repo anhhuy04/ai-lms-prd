@@ -143,43 +143,33 @@ class HomeGreetingBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // ── Avatar (viền tròn nhẹ) ──────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: DesignColors.primary.withValues(alpha: 0.25),
-                width: 2,
-              ),
-            ),
-            child: CircleAvatar(
-              radius: 22,
-              backgroundColor: DesignColors.primary.withValues(alpha: 0.12),
-              backgroundImage:
-                  hasAvatar ? NetworkImage(profile!.avatarUrl!) : null,
-              child: hasAvatar
-                  ? null
-                  : Text(
-                      initial,
-                      style: const TextStyle(
-                        color: DesignColors.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
+          // ── Avatar (giống thẻ profile sidebar PC: tròn phẳng, tint primary) ─
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: DesignColors.primary.withValues(alpha: 0.12),
+            backgroundImage:
+                hasAvatar ? NetworkImage(profile!.avatarUrl!) : null,
+            child: hasAvatar
+                ? null
+                : Text(
+                    initial,
+                    style: const TextStyle(
+                      color: DesignColors.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
                     ),
-            ),
+                  ),
           ),
           const SizedBox(width: DesignSpacing.md),
 
-          // ── Lời chào + tên ──────────────────────────────────────────────
+          // ── "Chào bạn," + họ tên (như thẻ PC) ───────────────────────────
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Chào mừng trở lại,',
+                  'Chào bạn,',
                   style: TextStyle(
                     fontSize: 12,
                     color:
@@ -192,7 +182,7 @@ class HomeGreetingBar extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     height: 1.1,
                     color: isDark ? Colors.white : DesignColors.textPrimary,
