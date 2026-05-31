@@ -273,9 +273,11 @@ class _TeacherCreateQuestionScreenState
         ?.map((e) => e.toString())
         .toList();
 
-    // Format mới: dùng override_text thay vì text
+    // Bank questions.content dùng key CHUẨN 'text' (không phải 'override_text' —
+    // 'override_text' chỉ dành cho delta trong assignment_questions.custom_content).
+    // Mọi read path ưu tiên content['text'] nên đây là shape đúng (tránh "tầng rác 2").
     final content = <String, dynamic>{
-      'override_text': text,
+      'text': text,
       if (images != null && images.isNotEmpty) 'images': images,
       if (explanation != null && explanation.isNotEmpty) 'explanation': explanation,
       if (hints != null && hints.isNotEmpty) 'hints': hints,
