@@ -747,12 +747,57 @@ class AiRepositoryImpl implements AiRepository {
       }
     }
 
+    // Matching: parse pairs (left_text/right_text) + distractors. pairs[i] là
+    // cặp ĐÚNG (trái[i]→phải[i]); distractors = phương án phải nhiễu. Thiếu cặp → drop.
+    List<Map<String, dynamic>>? pairs;
+    List<Map<String, dynamic>>? distractors;
+    if (questionType == QuestionType.matching) {
+      final rawPairs = aiQuestion['pairs'] as List<dynamic>?;
+      pairs = rawPairs
+          ?.whereType<Map>()
+          .map((p) {
+            final m = Map<String, dynamic>.from(p);
+            return {
+              'left_text': (m['left_text'] ?? m['left'] ?? '').toString().trim(),
+              'right_text':
+                  (m['right_text'] ?? m['right'] ?? '').toString().trim(),
+            };
+          })
+          .where(
+            (p) =>
+                (p['left_text'] as String).isNotEmpty &&
+                (p['right_text'] as String).isNotEmpty,
+          )
+          .toList();
+      if (pairs == null || pairs.isEmpty) {
+        AppLogger.warning(
+          '⚠️ [AI REPO] Question $index: matching thiếu pairs hợp lệ, bỏ qua.',
+        );
+        return null;
+      }
+      final rawDistractors = aiQuestion['distractors'] as List<dynamic>?;
+      distractors = rawDistractors
+          ?.map(
+            (d) => d is Map
+                ? {
+                    'right_text':
+                        (d['right_text'] ?? d['text'] ?? '').toString().trim(),
+                  }
+                : {'right_text': d.toString().trim()},
+          )
+          .where((d) => (d['right_text'] as String).isNotEmpty)
+          .toList();
+    }
+
     // Build result map với format chuẩn cho app
     return {
       'type': questionType,
       'content': content, // {text, images, latex}
       if (answer != null) 'answer': answer,
       if (choices != null && choices.isNotEmpty) 'choices': choices,
+      if (pairs != null && pairs.isNotEmpty) 'pairs': pairs,
+      if (distractors != null && distractors.isNotEmpty)
+        'distractors': distractors,
       if (difficulty != null) 'difficulty': difficulty,
       if (tags.isNotEmpty) 'tags': tags,
       if (learningObjectives != null && learningObjectives.isNotEmpty)

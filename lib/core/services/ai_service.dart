@@ -465,6 +465,13 @@ VÍ DỤ OUTPUT (1 câu — DẠNG TỰ LUẬN/GIẢI BÀI: học sinh tự trì
   {"type":"math","override_text":"Một cửa hàng có 15 hộp bút, mỗi hộp 27 chiếc. Hỏi tổng cộng có bao nhiêu chiếc bút?","expected_answer":"15 × 27 = 405 (chiếc bút)","tags":["tag1"]}
 ]''';
 
+      case 'matching':
+        return '''VÍ DỤ OUTPUT (1 câu NỐI CẶP — ghép mỗi mục cột trái với 1 mục cột phải):
+[
+  {"type":"matching","override_text":"Nối mỗi quốc gia với thủ đô tương ứng:","pairs":[{"left_text":"Việt Nam","right_text":"Hà Nội"},{"left_text":"Nhật Bản","right_text":"Tokyo"},{"left_text":"Pháp","right_text":"Paris"}],"distractors":[{"right_text":"Bắc Kinh"}],"tags":["địa lý"]}
+]
+RÀNG BUỘC: pairs là các cặp ĐÚNG (left_text ghép right_text). Tối thiểu 3 cặp. distractors (tuỳ chọn) là phương án cột phải gây nhiễu, KHÔNG khớp left nào.''';
+
       default: // multiple_choice
         return '''VÍ DỤ OUTPUT (2 câu — lưu ý LaTeX trong override_text và choices):
 [

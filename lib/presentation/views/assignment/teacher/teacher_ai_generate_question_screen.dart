@@ -509,6 +509,16 @@ class _TeacherAiGenerateQuestionScreenState
     content.remove('override_text');
     content['images'] = content['images'] is List ? content['images'] : [];
 
+    // Matching: giữ pairs/distractors trong content để không mất khi lưu vào bank.
+    if (type == QuestionType.matching) {
+      final pairs = q['pairs'];
+      if (pairs is List && pairs.isNotEmpty) content['pairs'] = pairs;
+      final distractors = q['distractors'];
+      if (distractors is List && distractors.isNotEmpty) {
+        content['distractors'] = distractors;
+      }
+    }
+
     // choices + answer - ưu tiên q['choices'] (đầy đủ) trước q['options'] (backward compat)
     Map<String, dynamic>? answer;
     List<Map<String, dynamic>>? choices;
@@ -2449,6 +2459,7 @@ class _TeacherAiGenerateQuestionScreenState
     ('short_answer', 'Trả lời ngắn', Icons.short_text_rounded),
     ('fill_blank', 'Điền khuyết', Icons.text_fields_rounded),
     ('math', 'Bài toán', Icons.calculate_outlined),
+    ('matching', 'Nối cặp', Icons.compare_arrows_rounded),
   ];
 
   String _typeLabel(String key) {
