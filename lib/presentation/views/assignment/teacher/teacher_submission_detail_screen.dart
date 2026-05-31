@@ -6,6 +6,7 @@ import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/grade_audit_trail.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/grading_action_buttons.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -452,7 +453,7 @@ class _TeacherSubmissionDetailScreenState
           const SizedBox(height: 16),
 
           // Question content
-          Text(
+          MathText(
             _getQuestionContent(question),
             style: const TextStyle(
               fontSize: 16,
@@ -663,7 +664,7 @@ class _TeacherSubmissionDetailScreenState
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          MathText(
             answerText,
             style: const TextStyle(
               fontSize: 14,
@@ -766,7 +767,7 @@ class _TeacherSubmissionDetailScreenState
               const SizedBox(width: 12),
               // Option text
               Expanded(
-                child: Text(
+                child: MathText(
                   choiceText,
                   style: TextStyle(
                     fontSize: 14,

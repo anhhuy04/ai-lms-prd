@@ -525,7 +525,7 @@ class _StudentAssignmentWorkspaceScreenState
                       ],
                     ),
                     const SizedBox(height: DesignSpacing.xs),
-                    Text(
+                    MathText(
                       question.content,
                       style: TextStyle(
                         fontSize: 15,
@@ -641,7 +641,7 @@ class _StudentAssignmentWorkspaceScreenState
                 ),
                 const SizedBox(width: DesignSpacing.md),
                 Expanded(
-                  child: Text(
+                  child: MathText(
                     choice.content,
                     style: TextStyle(
                       fontSize: 14,
@@ -1188,10 +1188,7 @@ class _StudentAssignmentWorkspaceScreenState
                               .map(
                                 (opt) => DropdownMenuItem<String>(
                                   value: opt,
-                                  child: Text(
-                                    opt,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                  child: MathText(opt),
                                 ),
                               )
                               .toList(),
@@ -1760,10 +1757,12 @@ class _StudentAssignmentWorkspaceScreenState
         ),
         actions: [
           TextButton(
+            key: const ValueKey('confirm_submit_cancel'),
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Hủy'),
           ),
           ElevatedButton(
+            key: const ValueKey('confirm_submit_ok'),
             onPressed: () => Navigator.of(context).pop(true),
             style: ElevatedButton.styleFrom(
               backgroundColor: DesignColors.primary,
