@@ -1049,6 +1049,12 @@ class _TeacherAiGenerateQuestionScreenState
       });
 
       _logGeneratedQuestions(generatedQuestions);
+
+      // HỆ THỐNG TỰ CHỮA: nếu có câu lỗi (placeholder) → tự sinh lại RIÊNG
+      // từng câu lỗi (đúng loại + bối cảnh mẫu), không đụng câu tốt. Chỉ chạy
+      // khi thực sự có câu lỗi nên không tốn thêm gọi AI khi sinh sạch.
+      await _autoHealFailedQuestions();
+
       // KHÔNG pop tự động - để user có thể test nhiều lần
       // User sẽ click "Xác nhận" để pop và trả về questions
     } on AiUncertaintyException catch (e) {
@@ -1357,14 +1363,23 @@ class _TeacherAiGenerateQuestionScreenState
     }
   }
 
-  Future<void> _handleRegenerateSingle(int index) async {
+  /// Dựng bối cảnh regen (topic + documentContext + trạng thái template) theo
+  /// mode hiện tại. Trả null nếu không đủ điều kiện (vd Mode 1 topic rỗng,
+  /// Mode 2 chưa chọn file). Dùng chung cho regen-1-câu VÀ auto-heal câu lỗi.
+  ({
+    String topic,
+    String? documentContext,
+    bool useTemplate,
+    TemplateMode? templateMode,
+  })?
+  _buildRegenContext() {
     final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
     final currentMode = aiSettings.processingMode;
 
     String topic;
     String? documentContext;
-    bool regenUseAsStyleTemplate = false;
-    TemplateMode? regenTemplateMode;
+    bool useTemplate = false;
+    TemplateMode? templateMode;
 
     if (currentMode == ProcessingMode.ragGeneration) {
       // Mode 3: re-detect template state tại thời điểm regen (GAP-3 fix)
@@ -1375,17 +1390,15 @@ class _TeacherAiGenerateQuestionScreenState
         final allFiles = ref.read(localTempFilesProvider);
         final notifier = ref.read(localTempFilesProvider.notifier);
         // Re-detect live từ role hiện tại của file (không dùng cached state)
-        regenUseAsStyleTemplate = allFiles.any(
+        useTemplate = allFiles.any(
           (f) =>
               selectedIds.contains(f.id) &&
               f.parsedQuestions != null &&
               f.parsedQuestions!.isNotEmpty &&
               f.effectiveRole == FileRole.template,
         );
-        regenTemplateMode = regenUseAsStyleTemplate
-            ? aiSettings.templateMode
-            : null;
-        final docText = regenUseAsStyleTemplate
+        templateMode = useTemplate ? aiSettings.templateMode : null;
+        final docText = useTemplate
             ? notifier.getKnowledgeContextForIds(
                 selectedIds,
                 templateMode: aiSettings.templateMode,
@@ -1398,34 +1411,49 @@ class _TeacherAiGenerateQuestionScreenState
     } else if (currentMode == ProcessingMode.extraction) {
       // Mode 2: lấy raw text từ tài liệu
       final selectedIds = aiSettings.selectedFileIds;
-      if (selectedIds.isEmpty) return;
+      if (selectedIds.isEmpty) return null;
       final docText = ref
           .read(localTempFilesProvider.notifier)
           .getExtractedTextForIds(selectedIds);
-      if (docText.isEmpty) return;
+      if (docText.isEmpty) return null;
       documentContext = AiService.smartTruncate(docText).text;
       topic = 'Câu hỏi từ tài liệu';
     } else {
       // Mode 1: dùng topic từ ô nhập
       topic = _topicController.text.trim();
-      if (topic.isEmpty) return;
+      if (topic.isEmpty) return null;
     }
+    return (
+      topic: topic,
+      documentContext: documentContext,
+      useTemplate: useTemplate,
+      templateMode: templateMode,
+    );
+  }
+
+  /// Card lỗi = placeholder fallback (cờ _isFallback hoặc text "(cần chỉnh sửa)").
+  bool _isFailedQuestion(Map<String, dynamic> q) =>
+      q['_isFallback'] == true ||
+      (q['text'] as String? ?? '').contains('(cần chỉnh sửa)');
+
+  Future<void> _handleRegenerateSingle(int index) async {
+    final ctx = _buildRegenContext();
+    if (ctx == null) return;
+    final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
 
     setState(() => _regeneratingIndex = index);
     try {
       final aiRepository = ref.read(aiRepositoryProvider);
       final result = await aiRepository.generateQuestions(
-        topic: topic,
+        topic: ctx.topic,
         quantity: 1,
         difficulty: _difficulty,
         questionType: _typeKeyForIndex(index),
-        documentContext: documentContext,
-        useAsStyleTemplate: regenUseAsStyleTemplate,
-        templateMode: regenTemplateMode,
-        templateQuestions: regenUseAsStyleTemplate
-            ? _templateQuestionsForVerify
-            : null,
-        templateCount: regenUseAsStyleTemplate
+        documentContext: ctx.documentContext,
+        useAsStyleTemplate: ctx.useTemplate,
+        templateMode: ctx.templateMode,
+        templateQuestions: ctx.useTemplate ? _templateQuestionsForVerify : null,
+        templateCount: ctx.useTemplate
             ? _templateQuestionsForVerify?.length
             : null,
         highAccuracyMode: aiSettings.highAccuracyMode,
@@ -1461,6 +1489,97 @@ class _TeacherAiGenerateQuestionScreenState
       AppToast.error(context, 'Tạo lại thất bại: $e');
     } finally {
       if (mounted) setState(() => _regeneratingIndex = null);
+    }
+  }
+
+  /// HỆ THỐNG TỰ CHỮA: sau khi sinh, tự phát hiện các card lỗi (placeholder
+  /// "(cần chỉnh sửa)") rồi CHỈ sinh lại riêng từng câu đó — đúng LOẠI (qua
+  /// _typeKeyForIndex từ _sections) + đúng bối cảnh MẪU (_buildRegenContext +
+  /// _templateQuestionsForVerify), thay tại chỗ. KHÔNG đụng câu tốt, KHÔNG đổi
+  /// phân bố/_sections (thay 1-đổi-1). Mỗi câu thử tối đa [maxPerCard] lần.
+  Future<void> _autoHealFailedQuestions({int maxPerCard = 2}) async {
+    final qs = _generatedQuestions;
+    if (qs == null) return;
+    final badIndices = [
+      for (var i = 0; i < qs.length; i++)
+        if (_isFailedQuestion(qs[i])) i,
+    ];
+    if (badIndices.isEmpty) return;
+
+    final ctx = _buildRegenContext();
+    if (ctx == null) return; // không đủ bối cảnh để sinh lại
+
+    final aiRepository = ref.read(aiRepositoryProvider);
+    final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
+    AppLogger.info(
+      '[AutoHeal] phát hiện ${badIndices.length} câu lỗi → tự sinh lại',
+    );
+
+    var healed = 0;
+    for (final idx in badIndices) {
+      for (var attempt = 0; attempt < maxPerCard; attempt++) {
+        if (!mounted) return;
+        setState(() {
+          _regeneratingIndex = idx;
+          _batchProgress =
+              'Đang tự sửa câu lỗi (${healed + 1}/${badIndices.length})...';
+        });
+        try {
+          final result = await aiRepository.generateQuestions(
+            topic: ctx.topic,
+            quantity: 1,
+            difficulty: _difficulty,
+            questionType: _typeKeyForIndex(idx),
+            documentContext: ctx.documentContext,
+            useAsStyleTemplate: ctx.useTemplate,
+            templateMode: ctx.templateMode,
+            templateQuestions:
+                ctx.useTemplate ? _templateQuestionsForVerify : null,
+            templateCount:
+                ctx.useTemplate ? _templateQuestionsForVerify?.length : null,
+            highAccuracyMode: aiSettings.highAccuracyMode,
+          );
+          if (result.isNotEmpty) {
+            final fresh = Map<String, dynamic>.from(result.first);
+            if (!_isFailedQuestion(fresh)) {
+              if (!mounted) return;
+              setState(() {
+                final updated =
+                    List<Map<String, dynamic>>.from(_generatedQuestions!);
+                updated[idx] = fresh; // thay 1-đổi-1, giữ nguyên _sections
+                _generatedQuestions = updated;
+              });
+              healed++;
+              break; // câu này OK → sang câu kế
+            }
+          }
+        } on AiUncertaintyException catch (e) {
+          AppLogger.warning('[AutoHeal] câu $idx uncertainty: ${e.reason}');
+          break; // không retry khi AI báo thiếu thông tin
+        } catch (e) {
+          AppLogger.warning('[AutoHeal] câu $idx attempt $attempt lỗi: $e');
+        }
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _regeneratingIndex = null;
+      _batchProgress = null;
+    });
+    final remaining = _generatedQuestions!.where(_isFailedQuestion).length;
+    if (healed > 0) {
+      AppToast.success(
+        context,
+        remaining > 0
+            ? 'Đã tự sửa $healed câu lỗi · còn $remaining câu cần sửa tay'
+            : 'Đã tự sửa $healed câu lỗi',
+      );
+    } else if (remaining > 0) {
+      AppToast.warning(
+        context,
+        'Còn $remaining câu lỗi — bấm nút tạo lại trên card hoặc sửa tay',
+      );
     }
   }
 
