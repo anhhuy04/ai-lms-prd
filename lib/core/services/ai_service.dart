@@ -318,6 +318,12 @@ LATEX BẮT BUỘC cho công thức:
             documentContext: documentContext,
             formatExample: formatExample,
             typeRule: typeRule,
+            // Đã biết môn (user nhập focus / tự suy từ mẫu / schema có liệt kê
+            // "CÁC MÔN HỌC TRONG MẪU") → bỏ lời mời trả lỗi, ép model tự tin
+            // sinh. Model thông minh (70b/qwen) hay lạm dụng clause AN TOÀN để
+            // bail khi schema chỉ có metadata → trả missing_subject/ambiguous.
+            subjectKnown: hasFocusHint ||
+                documentContext.contains('CÁC MÔN HỌC TRONG MẪU'),
           );
         case TemplateMode.sameForm:
           prompt = _buildSameFormPrompt(
@@ -500,6 +506,7 @@ RÀNG BUỘC: pairs là các cặp ĐÚNG (left_text ghép right_text). Tối th
     required String documentContext,
     required String formatExample,
     required String typeRule,
+    bool subjectKnown = false,
   }) {
     return '''$_vnTeacherPersona
 
@@ -528,14 +535,16 @@ QUY TẮC:
 4. KIỂM TRA trước khi xuất: xác nhận isCorrect=true là đúng kiến thức. Distractor phải sai có lý do.
 5. override_text = câu hỏi thực sự, BÁM CHỦ ĐỀ schema (VD đúng cho schema Vật lý lớp 10: "Tính vận tốc của vật rơi tự do sau 3 giây" — VD sai: "câu hỏi vật lý" hay "câu hỏi 1"). **CẤM dùng nội dung lệch domain với schema mẫu** — schema VN thì câu hỏi VN, schema Toán thì câu Toán.
 
-AN TOÀN — KHI BẠN KHÔNG CHẮC:
+${subjectKnown ? '''HÃY TỰ TIN TẠO CÂU:
+Bạn ĐÃ có đủ thông tin: môn học (xem "Chủ đề" + "CÁC MÔN HỌC TRONG MẪU"), loại câu, độ khó từng slot. Schema metadata như vậy là ĐỦ để sáng tác câu MỚI.
+TUYỆT ĐỐI KHÔNG trả về JSON lỗi (missing_subject/ambiguous_schema/insufficient_context) và KHÔNG đòi thêm thông tin. Hãy tạo ĐỦ $quantity câu hỏi mới thuộc đúng môn/chủ đề.''' : '''AN TOÀN — KHI BẠN KHÔNG CHẮC:
 Nếu bạn KHÔNG xác định được môn học, KHÔNG đủ thông tin từ tài liệu, HOẶC schema mơ hồ → KHÔNG được tự đoán và KHÔNG được tạo câu hỏi sai.
 Thay vào đó, trả về JSON object lỗi (KHÔNG phải array):
 {"error": "missing_subject", "message": "Tài liệu không nêu rõ môn học. Vui lòng thêm marker [TRẮC NGHIỆM — Toán học] hoặc nhập chủ đề trong ô gợi ý."}
 
 Mã lỗi cho phép: missing_subject | ambiguous_schema | insufficient_context
 
-Trả error tốt hơn nhiều so với gen 10 câu sai môn — tiết kiệm token người dùng.
+Trả error tốt hơn nhiều so với gen 10 câu sai môn — tiết kiệm token người dùng.'''}
 
 $formatExample
 
