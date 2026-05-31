@@ -182,7 +182,11 @@ class _TeacherDashboardScreenState
         // Shared top bar — tự handle topPadding bên trong
         DashboardTopBar(
           title: _titles[currentIdx],
-          subtitle: _subtitles[currentIdx],
+          // Mobile không có sidebar (PC mới có) → tab Home nhúng tên vào lời chào.
+          subtitle: currentIdx == 0 &&
+                  (widget.userProfile.fullName?.isNotEmpty ?? false)
+              ? 'Chào mừng trở lại, ${widget.userProfile.fullName}!'
+              : _subtitles[currentIdx],
           profile: widget.userProfile,
           actions: [
             IconButton(

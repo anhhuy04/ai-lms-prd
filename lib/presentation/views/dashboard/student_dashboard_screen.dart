@@ -140,7 +140,10 @@ class _StudentDashboardScreenState
         children: [
           DashboardTopBar(
             title: 'Trang chủ',
-            subtitle: 'Chào mừng trở lại!',
+            // Mobile không có sidebar (PC mới có) → nhúng tên vào lời chào để hiện tên.
+            subtitle: (widget.userProfile.fullName?.isNotEmpty ?? false)
+                ? 'Chào mừng trở lại, ${widget.userProfile.fullName}!'
+                : 'Chào mừng trở lại!',
             profile: widget.userProfile,
             actions: [
               IconButton(
