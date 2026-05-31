@@ -935,6 +935,19 @@ class _TeacherAiGenerateQuestionScreenState
           '[Mode3] useAsStyleTemplate=$_useAsStyleTemplate, '
           'docChars=${truncated.usedChars}, topic="$topic"',
         );
+
+        // ── FIX-MODE3-DIST: tự khớp phân bố loại theo tài liệu mẫu ──────────
+        // User CHƯA tự chọn loại + tài liệu mẫu có câu parse được → tự tính
+        // phân bố (vd 4 Tự luận + 3 Trắc nghiệm) và điền sẵn _selectedTypes/
+        // _typeQuantities để vòng tạo multi-type bên dưới xuất đúng số câu mỗi
+        // loại như tài liệu. User vẫn chỉnh tay (chip + ô số câu) trước khi
+        // bấm tạo lại nếu muốn — guard _selectedTypes.isEmpty tôn trọng lựa
+        // chọn thủ công.
+        if (_useAsStyleTemplate &&
+            _selectedTypes.isEmpty &&
+            templateQuestionsForCheck.isNotEmpty) {
+          _autoMatchTemplateDistribution(templateQuestionsForCheck);
+        }
       }
 
       final aiRepository = ref.read(aiRepositoryProvider);
@@ -2466,6 +2479,66 @@ class _TeacherAiGenerateQuestionScreenState
     return _kTypeOptions
         .firstWhere((t) => t.$1 == key, orElse: () => (key, key, Icons.help))
         .$2;
+  }
+
+  /// FIX-MODE3-DIST: map loại câu đã parse từ tài liệu mẫu → key trong
+  /// [_kTypeOptions]. Trả null nếu loại không sinh được (vd file_upload).
+  /// • shortAnswer → 'essay' (sheet "Tự luận" của Excel parse ra shortAnswer,
+  ///   nhưng người dùng coi là Tự luận → khớp đúng nhãn + cách chấm tự luận).
+  /// • math / problemSolving → 'math' (UI gộp về "Bài toán").
+  String? _typeKeyFromParsed(dynamic raw) {
+    QuestionType? t;
+    if (raw is QuestionType) {
+      t = raw;
+    } else if (raw is String) {
+      t = QuestionTypeDb.fromDb(raw);
+    }
+    if (t == null) return null;
+    final key = switch (t) {
+      QuestionType.shortAnswer || QuestionType.essay => 'essay',
+      QuestionType.math || QuestionType.problemSolving => 'math',
+      QuestionType.fileUpload => '',
+      _ => t.dbValue,
+    };
+    if (key.isEmpty) return null;
+    return _kTypeOptions.any((o) => o.$1 == key) ? key : null;
+  }
+
+  /// FIX-MODE3-DIST: tính phân bố loại từ câu hỏi mẫu (Mode 3 template) rồi
+  /// điền sẵn [_selectedTypes] + [_typeQuantities] + tổng số câu (= số câu mẫu).
+  /// Thứ tự loại theo lần xuất hiện đầu tiên trong tài liệu (group order — vòng
+  /// tạo multi-type sinh theo nhóm loại, KHÔNG xen kẽ từng câu).
+  /// Đặt `.text` lập trình KHÔNG kích hoạt onChanged nên không bị chia đều lại.
+  void _autoMatchTemplateDistribution(
+    List<Map<String, dynamic>> templateQuestions,
+  ) {
+    final dist = <String, int>{}; // key → count, giữ thứ tự first-seen
+    for (final q in templateQuestions) {
+      final key = _typeKeyFromParsed(q['type']);
+      if (key == null) continue;
+      dist[key] = (dist[key] ?? 0) + 1;
+    }
+    if (dist.isEmpty) return;
+    final total = dist.values.fold(0, (a, b) => a + b);
+    setState(() {
+      _selectedTypes
+        ..clear()
+        ..addAll(dist.keys);
+      _typeQuantities
+        ..clear()
+        ..addAll(dist);
+      _quantityController.text = total.toString();
+    });
+    _syncQtyControllers();
+    final summary = dist.entries
+        .map((e) => '${e.value} ${_typeLabel(e.key)}')
+        .join(' · ');
+    AppLogger.info(
+      '[Mode3] Auto khớp phân bố loại theo tài liệu: $summary (tổng $total)',
+    );
+    if (mounted) {
+      AppToast.info(context, 'Đã khớp phân bố tài liệu: $summary');
+    }
   }
 
   void _toggleType(String key, bool selected) {
