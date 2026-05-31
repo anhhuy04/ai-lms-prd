@@ -340,7 +340,11 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
           .eq('id', submissionAnswerId)
           .single();
 
-      final oldScore = (answer['final_score'] ?? answer['ai_score']) as double?;
+      // Supabase numeric → num/String — dùng _toDouble an toàn (tránh TypeError khi
+      // điểm là số nguyên hoặc String "10.00"). null khi cả hai null → giữ ngữ nghĩa
+      // 'if (oldScore != null)' bên dưới (chỉ ghi audit khi có điểm cũ).
+      final oldScore =
+          _toDouble(answer['final_score']) ?? _toDouble(answer['ai_score']);
 
       // Cập nhật điểm mới
       await datasource.updateSubmissionAnswerGrade(
@@ -403,7 +407,10 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
           .eq('id', submissionAnswerId)
           .single();
 
-      final currentScore = (answer['final_score'] ?? answer['ai_score']) as double? ?? 0.0;
+      final currentScore =
+          _toDouble(answer['final_score']) ??
+          _toDouble(answer['ai_score']) ??
+          0.0;
 
       await datasource.updateSubmissionAnswerGrade(
         answerId: submissionAnswerId,

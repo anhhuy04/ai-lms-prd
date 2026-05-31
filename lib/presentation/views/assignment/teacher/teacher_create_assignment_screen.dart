@@ -433,6 +433,8 @@ class _TeacherCreateAssignmentScreenState
         'explanation': customContent['explanation'] as String?,
         'hints': hints,
         'points': q.points,
+        // row id của assignment_questions — cần cho hotfix (sửa nóng câu đã phát)
+        if (q.id.isNotEmpty) 'id': q.id,
         if (q.questionId != null) 'questionId': q.questionId,
         if (q.rubric != null) 'rubric': q.rubric,
       });
@@ -2087,6 +2089,8 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
           'explanation': customContent['explanation'] as String?,
           'hints': hints,
           'points': q.points,
+          // row id của assignment_questions — cần cho hotfix (sửa nóng câu đã phát)
+          if (q.id.isNotEmpty) 'id': q.id,
           if (q.questionId != null) 'questionId': q.questionId,
           if (q.rubric != null) 'rubric': q.rubric,
         });

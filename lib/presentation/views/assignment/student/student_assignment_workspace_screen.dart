@@ -1103,7 +1103,9 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   /// Matching - dropdown chọn cặp tương ứng cho mỗi mục bên trái.
-  /// Student answer format: `{<qId>_match_<leftIdx>: rightIdx}`
+  /// Student answer format: `{<qId>_match_<leftIdx>: <right_text>}`
+  /// (value là CHUỖI right_text đã chọn, KHÔNG phải index — khớp với logic chấm
+  /// _gradeObjectiveQuestion 'matching' so sánh right_text với pairs[i].right_text).
   Widget _buildMatching(QuestionState question, dynamic answer) {
     final pairs = question.pairs ?? const <Map<String, dynamic>>[];
     if (pairs.isEmpty) {

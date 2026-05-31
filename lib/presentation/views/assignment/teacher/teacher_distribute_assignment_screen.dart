@@ -1600,7 +1600,7 @@ class _TeacherDistributeAssignmentScreenState
     // Auto-đóng sau 3s — lên lịch MỘT LẦN ngoài builder (đặt trong builder sẽ tạo
     // nhiều timer mỗi lần rebuild → dialog tự đóng/pop sai). Guard mounted tránh
     // gọi navigator đã defunct sau khi màn bị pop.
-    Timer(const Duration(seconds: 3), () {
+    final autoCloseTimer = Timer(const Duration(seconds: 3), () {
       if (mounted && navigator.canPop()) navigator.pop();
     });
     showDialog(
@@ -1735,6 +1735,8 @@ class _TeacherDistributeAssignmentScreenState
         );
       },
     ).then((_) {
+      // Hủy timer nếu user bấm 'Xong' trước 3s → tránh navigator.pop() dư 1 route.
+      autoCloseTimer.cancel();
       if (context.mounted) context.pop();
     });
   }

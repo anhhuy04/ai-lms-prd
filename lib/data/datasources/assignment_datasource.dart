@@ -1353,7 +1353,10 @@ class AssignmentDataSource {
         .from('assignment_distributions')
         .select('assignment_id, settings')
         .eq('id', distributionId)
-        .single();
+        .maybeSingle();
+    if (dist == null) {
+      throw Exception('Bài tập không còn tồn tại hoặc đã bị thu hồi.');
+    }
     final assignmentId = dist['assignment_id'] as String;
     final settings = dist['settings'] as Map<String, dynamic>? ?? {};
     final maxAttempts = (settings['max_attempts'] as num?)?.toInt();
@@ -1946,6 +1949,19 @@ class AssignmentDataSource {
             }
           }
 
+          // Cấp 5: matching — extract `pairs` từ customContent để chấm objective.
+          // Schema: customContent.pairs = [{left_text, right_text}]; cặp đúng là
+          // left_text[i] → right_text[i] (distractors chỉ là nhiễu, không cần chấm).
+          if (questionType == 'matching' && customContent != null) {
+            final pairs = customContent['pairs'] as List<dynamic>?;
+            if (pairs != null && pairs.isNotEmpty) {
+              correctAnswer = {
+                ...?correctAnswer,
+                'pairs': pairs,
+              };
+            }
+          }
+
           questionInfoMap[aqId] = {
             'type': questionType,
             'points': points,
@@ -2049,6 +2065,22 @@ class AssignmentDataSource {
             '⚠️ [SUBMIT] Question $questionId: Grading returned null - possible format mismatch',
           );
         } else if (finalScore > 0) {
+          totalMcqScore += finalScore;
+        }
+      } else if (studentAnswer != null && questionType == 'matching') {
+        // Matching: chấm objective bằng pairs (không dùng selected_choice_ids).
+        if (correctAnswer == null) {
+          AppLogger.warning(
+            '⚠️ [SUBMIT] Question $questionId: matching không có pairs để chấm',
+          );
+        }
+        finalScore = _gradeObjectiveQuestion(
+          questionType,
+          studentAnswer,
+          correctAnswer,
+          points,
+        );
+        if (finalScore != null && finalScore > 0) {
           totalMcqScore += finalScore;
         }
       }
@@ -2397,25 +2429,20 @@ class AssignmentDataSource {
                 .toList() ??
             [];
 
-        // Get correct answer - could be int (0/1) or string ("true"/"false")
+        // Choice id là opaque (giống MCQ): so khớp id dạng String, KHÔNG remap
+        // int→'true'/'false'. Student gửi selected_choice_ids = [choiceId.toString()]
+        // (vd '0'/'1'); correct_choices inline lưu int [0], bank/questions.answer lưu
+        // string ['0'] — đều normalize về toString().toLowerCase() để khớp 2 vế.
         final correctChoices = <String>[];
         if (correctAnswer['correct_choices'] != null) {
           final rawCorrect = correctAnswer['correct_choices'] as List<dynamic>;
           for (final e in rawCorrect) {
-            if (e is int) {
-              // int: 0 = true, 1 = false
-              correctChoices.add(e == 0 ? 'true' : 'false');
-            } else {
-              correctChoices.add(e.toString().toLowerCase());
-            }
+            correctChoices.add(e.toString().toLowerCase());
           }
         } else if (correctAnswer['correct_choice'] != null) {
-          final raw = correctAnswer['correct_choice'];
-          if (raw is int) {
-            correctChoices.add(raw == 0 ? 'true' : 'false');
-          } else {
-            correctChoices.add(raw.toString().toLowerCase());
-          }
+          correctChoices.add(
+            correctAnswer['correct_choice'].toString().toLowerCase(),
+          );
         }
 
         if (selectedChoices.isEmpty) {
@@ -2483,6 +2510,37 @@ class AssignmentDataSource {
 
         if (blanks.isEmpty) return 0;
         return maxPoints * (correctCount / blanks.length);
+      }
+
+      // Matching: chấm objective pro-rata theo số cặp đúng.
+      // Correct: pairs[i].right_text là đáp án đúng cho mục trái thứ i.
+      // Student answer: {<qId>_match_<i>: <right_text đã chọn>} (lưu chuỗi right_text).
+      if (questionType == 'matching') {
+        final pairs = correctAnswer['pairs'] as List<dynamic>?;
+        if (pairs == null || pairs.isEmpty) {
+          AppLogger.warning('⚠️ [GRADING] Matching: No pairs data');
+          return null;
+        }
+
+        int correctCount = 0;
+        for (var i = 0; i < pairs.length; i++) {
+          final pair = pairs[i] as Map<String, dynamic>;
+          final correctRight = (pair['right_text']?.toString() ?? '').trim();
+          if (correctRight.isEmpty) continue;
+
+          // Match student answer bằng bất kỳ key nào kết thúc bằng _match_$i
+          final exactKey = studentAnswer.keys.firstWhere(
+            (k) => k.endsWith('_match_$i'),
+            orElse: () => '',
+          );
+          if (exactKey.isEmpty) continue;
+          final studentRight = studentAnswer[exactKey]?.toString().trim();
+          if (studentRight == null || studentRight.isEmpty) continue;
+
+          if (studentRight == correctRight) correctCount++;
+        }
+
+        return maxPoints * (correctCount / pairs.length);
       }
     } catch (e) {
       // Log error but don't fail the submission
