@@ -375,6 +375,14 @@ async function handleAnalysis(
     ((dist?.assignments as Record<string, unknown>)?.teacher_id as string | null) ?? null;
   const classId = (dist?.class_id as string | null) ?? null;
 
+  // 5a-Q4: tên HS cho title REC-01 (teacher-facing). Fallback "Học sinh" nếu chưa có full_name.
+  const { data: studentProfile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", session.student_id)
+    .single();
+  const studentName = (studentProfile?.full_name as string | null) ?? "Học sinh";
+
   // Step 1: Query mastery rows WITHOUT nested join to avoid PostgREST FK resolution issues
   const { data: masteryRows, error: masteryError } = await supabase
     .from("student_skill_mastery")
@@ -418,37 +426,69 @@ async function handleAnalysis(
     const desc = lo?.description ?? "Kỹ năng cần cải thiện";
     const masteryPct = Math.round((m.mastery_level as number) * 100);
 
-    // 5a-R1/R2/R3: upsert idempotent (onConflict student_id,objective_id) + teacher_id/class_id +
-    //   objective_id (cột thật) + category. BỎ dismissed (ON CONFLICT DO UPDATE chỉ set cột gửi →
-    //   rec HS đã ẩn KHÔNG sống lại) + BỎ created_at (chống dời mốc tạo mỗi regen). Cột default lo insert.
-    //   resources build FULL object mỗi lần (không spread) — tránh Array Annihilation.
-    const { error: insertError } = await supabase.from("ai_recommendations").upsert(
+    const resources = {
+      objective_id: m.objective_id,
+      mastery_level: m.mastery_level,
+      attempts: m.attempts,
+      correct_count: m.correct,
+      generated_at: now,
+      source: "ai_queue_analysis",
+    };
+
+    // 5a-R2 / REC-02 (HỌC SINH): gợi ý "Ôn tập" study_tip. student-only (KHÔNG set teacher_id)
+    //   để tách audience (Q4). onConflict (student_id, objective_id). BỎ dismissed/created_at
+    //   (ON CONFLICT DO UPDATE chỉ set cột gửi → rec đã ẩn không sống lại; default lo insert).
+    const { error: studentErr } = await supabase.from("ai_recommendations").upsert(
       {
         student_id: session.student_id,
-        teacher_id: teacherId,
-        class_id: classId,
         objective_id: m.objective_id,
         type: "individual",
         category: "study_tip",
         priority: Math.min(5, Math.max(1, Math.round((1 - (m.mastery_level as number)) * 5))),
         title: `Ôn tập: ${code}`,
         description: `${desc} — tỷ lệ thành thạo ${masteryPct}%, cần cải thiện.`,
-        resources: {
-          objective_id: m.objective_id,
-          mastery_level: m.mastery_level,
-          attempts: m.attempts,
-          correct_count: m.correct,
-          generated_at: now,
-          source: "ai_queue_analysis",
-        },
+        resources,
       },
       { onConflict: "student_id,objective_id", ignoreDuplicates: false },
     );
-
-    if (insertError) {
-      console.error(`[AI] Insert recommendation failed for ${m.objective_id}: ${insertError.message}`);
+    if (studentErr) {
+      console.error(`[AI] Student rec upsert failed for ${m.objective_id}: ${studentErr.message}`);
     } else {
       insertedCount++;
+    }
+
+    // 5a-Q3/Q4 / REC-01 (GIÁO VIÊN): cảnh báo can thiệp. teacher-facing, student_id NULL +
+    //   subject_student_id = HS (chống rò RLS: students_read = student_id=auth.uid() → HS không
+    //   đọc được dòng student_id NULL). category at_risk_warning nếu mastery < 0.3, ngược lại
+    //   intervention (rule-based, KHÔNG LLM). onConflict (teacher_id, subject_student_id, objective_id).
+    if (teacherId) {
+      const isAtRisk = (m.mastery_level as number) < 0.3;
+      const { error: teacherErr } = await supabase.from("ai_recommendations").upsert(
+        {
+          teacher_id: teacherId,
+          class_id: classId,
+          subject_student_id: session.student_id,
+          objective_id: m.objective_id,
+          type: "individual",
+          category: isAtRisk ? "at_risk_warning" : "intervention",
+          priority: isAtRisk
+            ? 1
+            : Math.min(5, Math.max(2, Math.round((1 - (m.mastery_level as number)) * 5))),
+          title: isAtRisk
+            ? `Cảnh báo: ${studentName} — ${code}`
+            : `Cần hỗ trợ: ${studentName} — ${code}`,
+          description: `${studentName} đạt ${masteryPct}% ở "${desc}"${
+            isAtRisk ? " — mức rủi ro, nên can thiệp sớm." : " — nên ôn thêm."
+          }`,
+          resources,
+        },
+        { onConflict: "teacher_id,subject_student_id,objective_id", ignoreDuplicates: false },
+      );
+      if (teacherErr) {
+        console.error(`[AI] Teacher rec upsert failed for ${m.objective_id}: ${teacherErr.message}`);
+      } else {
+        insertedCount++;
+      }
     }
   }
 
