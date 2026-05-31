@@ -1092,23 +1092,42 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
         },
       );
 
-      final payload = {
-        'model': usedModel,
-        // giữ temperature thấp để giảm "lạc đề"
-        'temperature': 0.1,
-        // Token-optimized: giới hạn output để giảm TPM, vẫn đủ cho batch nhỏ.
-        'max_tokens': _groqMaxTokensFromPrompt(prompt),
-        // FIX-ANYMODEL: ép JSON mode — Groq áp grammar constraint, model yếu
-        // (llama-8b) BUỘC xuất JSON hợp lệ thay vì văn xuôi lảm nhảm + JSON rời
-        // rạc. Prompt đã chứa "JSON" (điều kiện bắt buộc của json_object mode).
-        'response_format': {'type': 'json_object'},
-        'messages': [
-          {'role': 'user', 'content': prompt},
-        ],
-      };
+      // FIX-ANYMODEL: ép JSON mode — Groq áp grammar constraint, model yếu
+      // (llama-8b) BUỘC xuất JSON hợp lệ thay vì văn xuôi lảm nhảm. Prompt đã
+      // chứa "JSON" (điều kiện bắt buộc của json_object mode).
+      Future<Response<dynamic>> callGroq({required bool jsonMode}) {
+        final payload = {
+          'model': usedModel,
+          'temperature': 0.1,
+          'max_tokens': _groqMaxTokensFromPrompt(prompt),
+          if (jsonMode) 'response_format': {'type': 'json_object'},
+          'messages': [
+            {'role': 'user', 'content': prompt},
+          ],
+        };
+        return dio.post(_groqChatUrl, data: payload);
+      }
 
       AppLogger.info('🤖 [AI Service] Calling Groq API... model=$usedModel');
-      final response = await dio.post(_groqChatUrl, data: payload);
+      Response<dynamic> response;
+      try {
+        response = await callGroq(jsonMode: true);
+      } on DioException catch (e) {
+        // FIX-JSONMODE: 400 'json_validate_failed' (Groq hết max_tokens TRƯỚC
+        // khi JSON hợp lệ hoàn tất — fail cứng) → retry KHÔNG json mode → model
+        // trả partial → parser đã siết (escapeInnerQuotes/removeTrailingCommas/
+        // autoClose) tự cứu. Best-of-both: JSON mode khi được, salvage khi fail.
+        final body = e.response?.data?.toString() ?? '';
+        if (e.response?.statusCode == 400 &&
+            body.contains('json_validate_failed')) {
+          AppLogger.warning(
+            '[Groq] json_validate_failed → retry KHÔNG json mode',
+          );
+          response = await callGroq(jsonMode: false);
+        } else {
+          rethrow;
+        }
+      }
 
       final data = response.data;
       if (data is! Map<String, dynamic>) {
@@ -1308,7 +1327,12 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
     final perQ = isHeavyType ? 650 : 220;
     final maxCap = isHeavyType ? 12000 : 6000;
     final estimated = 400 + (qty * perQ);
-    if (estimated < 800) return 800;
+    // FIX-JSONMODE: floor cao (2048). Khi bật response_format json_object,
+    // Groq trả 400 'json_validate_failed: max completion tokens reached' NẾU
+    // max_tokens hết trước khi JSON hợp lệ hoàn tất (fail cứng, không cắt cụt
+    // cho parser cứu). Batch nhỏ (vd refill 2 câu = 840) dễ dính → cho dư chỗ.
+    const floor = 2048;
+    if (estimated < floor) return floor;
     if (estimated > maxCap) return maxCap;
     return estimated;
   }
