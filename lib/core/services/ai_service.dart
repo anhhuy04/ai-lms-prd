@@ -1098,6 +1098,10 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
         'temperature': 0.1,
         // Token-optimized: giới hạn output để giảm TPM, vẫn đủ cho batch nhỏ.
         'max_tokens': _groqMaxTokensFromPrompt(prompt),
+        // FIX-ANYMODEL: ép JSON mode — Groq áp grammar constraint, model yếu
+        // (llama-8b) BUỘC xuất JSON hợp lệ thay vì văn xuôi lảm nhảm + JSON rời
+        // rạc. Prompt đã chứa "JSON" (điều kiện bắt buộc của json_object mode).
+        'response_format': {'type': 'json_object'},
         'messages': [
           {'role': 'user', 'content': prompt},
         ],
@@ -1179,6 +1183,9 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
             'model': usedModel,
             'temperature': 0.1,
             'max_tokens': _openRouterMaxTokensFromPrompt(prompt),
+            // FIX-ANYMODEL: ép JSON mode (OpenAI-compatible) — model yếu buộc
+            // xuất JSON hợp lệ. Model không hỗ trợ thì OpenRouter bỏ qua param.
+            'response_format': {'type': 'json_object'},
             'messages': [
               {'role': 'user', 'content': prompt},
             ],

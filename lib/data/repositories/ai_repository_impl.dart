@@ -1237,7 +1237,9 @@ class AiRepositoryImpl implements AiRepository {
   }
 
   void _logParseFailure(String s) {
-    final preview = s.length > 2000 ? '${s.substring(0, 2000)}\n...[TRUNCATED — total ${s.length} chars]' : s;
+    final preview = s.length > 2000
+        ? '${s.substring(0, 2000)}\n...[TRUNCATED — total ${s.length} chars]'
+        : s;
     AppLogger.warning(
       '🔴 [AI REPO] _tryParseJson: tất cả attempts thất bại. '
       'Raw response (up to 2000 chars):\n$preview',
