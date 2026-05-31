@@ -400,6 +400,8 @@ JSON HỢP LỆ — BẮT BUỘC:
 - **TUYỆT ĐỐI KHÔNG bọc trong object** như `{"questions": [...]}` hay `{"fill_blank": [...]}`. Root PHẢI là ARRAY thuần.
 - fill_blank PHẢI có cả 2 field: `override_text` (chứa [___N]) VÀ `blanks` (list correct_values cho từng N). Thiếu blanks → câu hỏi VÔ DỤNG.
 - KHÔNG dùng smart quotes (“ ” ‘ ’) — chỉ dùng dấu nháy thẳng " và '.
+- Bên trong giá trị text (override_text/expected_answer…): nếu cần trích dẫn hãy dùng nháy đơn ' hoặc « » — KHÔNG đặt dấu nháy kép " chưa escape (sẽ làm vỡ JSON).
+- Viết mỗi giá trị text trên 1 dòng — KHÔNG xuống dòng thật bên trong chuỗi (nếu cần xuống dòng dùng \\n).
 - KHÔNG có trailing comma trước `]` hoặc `}` (vd `,]` `,}` SAI).
 - LaTeX trong text: escape backslash thành `\\\\` để JSON hợp lệ (vd viết `\\\\frac{1}{2}` chứ không phải `\\frac{1}{2}`).
 - KHÔNG cắt JSON giữa chừng — nếu sắp hết token, giảm số câu chứ KHÔNG truncate.''';
@@ -545,7 +547,7 @@ RÀNG BUỘC FORMAT:
 - fill_blank: override_text dùng [___1], [___2]…; blanks liệt kê đáp án. KHÔNG đặt [___N] trong \$...\$ — phải ngoài LaTeX.
 - tags: 1-3 từ khóa chủ đề.
 - KHÔNG tạo field "explanation".
-- Bên trong override_text/expected_answer: KHÔNG dùng dấu nháy kép thẳng (") để trích dẫn — hãy dùng nháy đơn (') hoặc « » để JSON không bị vỡ.
+- Bên trong override_text/expected_answer: KHÔNG dùng dấu nháy kép thẳng (") để trích dẫn — hãy dùng nháy đơn (') hoặc « » để JSON không bị vỡ. KHÔNG xuống dòng thật trong chuỗi (nếu cần dùng \\n).
 
 NHẮC LẠI: Trả về JSON ARRAY $quantity object. override_text = câu hỏi thực, không phải nhãn.''';
   }
@@ -665,6 +667,7 @@ RÀNG BUỘC FORMAT:
 - true_false: override_text + 2 choices id 0/1 với text "Đúng"/"Sai".
 - tags: 1-3 từ khóa chủ đề.
 - KHÔNG tạo field "explanation".
+- Bên trong text: KHÔNG dùng nháy kép " chưa escape (dùng ' hoặc « »); KHÔNG xuống dòng thật trong chuỗi (dùng \\n).
 - Output JSON ARRAY thuần, KHÔNG markdown, KHÔNG text trước "[".
 
 NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OPTIONS. **GIỮ NGUYÊN DOMAIN/QUỐC GIA/CHỦ ĐỀ của mẫu** — KHÔNG drift sang nước khác hay môn khác. Trả về JSON ARRAY $quantity object đúng format ví dụ.''';

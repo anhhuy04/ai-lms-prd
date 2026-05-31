@@ -952,13 +952,16 @@ class AiRepositoryImpl implements AiRepository {
       _removeTrailingCommas, // 3. fix `,}` `,]`
       (x) => _removeTrailingCommas(_sanitizeLatexInJson(x)), // 4. combo
       _autoCloseBrackets, // 5. fix unbalanced
-      _escapeInnerQuotes, // 6. FIX-ESSAY-5: escape nháy kép chưa thoát trong text
+      _escapeInnerQuotes, // 6. FIX-ESSAY-5: escape nháy kép/ký tự điều khiển trong text
       (x) => _autoCloseBrackets(
             _removeTrailingCommas(_sanitizeLatexInJson(x)),
           ), // 7. combo all
-      // 8. combo + escape inner quote — cứu lô essay có nháy kép trong free-text
+      // 8. combo all + escape inner — THỨ TỰ: sanitizeLatex TRƯỚC (xử lý
+      // backslash LaTeX), rồi escapeInnerQuotes (thêm \" và \n), CUỐI là
+      // removeTrailingCommas + autoClose. KHÔNG để sanitizeLatex chạy SAU
+      // escapeInnerQuotes vì sẽ mangle các `\"` vừa thêm.
       (x) => _autoCloseBrackets(
-            _removeTrailingCommas(_sanitizeLatexInJson(_escapeInnerQuotes(x))),
+            _removeTrailingCommas(_escapeInnerQuotes(_sanitizeLatexInJson(x))),
           ),
     ];
 
@@ -1066,7 +1069,12 @@ class AiRepositoryImpl implements AiRepository {
   /// Remove trailing commas — AI thường thêm `,` cuối phần tử cuối:
   /// `[1, 2, 3,]` `{"a":1,}` → fix thành `[1,2,3]` `{"a":1}`.
   String _removeTrailingCommas(String input) {
-    return input.replaceAll(RegExp(r',(\s*[}\]])'), r'$1');
+    // FIX: PHẢI dùng replaceAllMapped — String.replaceAll KHÔNG hiểu
+    // backreference `$1` (chèn literal "$1" → mất dấu `}`/`]`, hỏng JSON).
+    return input.replaceAllMapped(
+      RegExp(r',(\s*[}\]])'),
+      (m) => m.group(1)!,
+    );
   }
 
   /// Auto-close unbalanced brackets — AI thỉnh thoảng truncate response
@@ -1146,6 +1154,20 @@ class AiRepositoryImpl implements AiRepository {
           sb.write(input[i + 1]);
           i++;
         }
+        continue;
+      }
+      // FIX-ESSAY-5b: ký tự điều khiển THÔ bên trong string (model yếu hay
+      // viết đáp án nhiều dòng bằng newline thật) → JSON cấm → escape chuẩn.
+      if (ch == '\n') {
+        sb.write(r'\n');
+        continue;
+      }
+      if (ch == '\r') {
+        sb.write(r'\r');
+        continue;
+      }
+      if (ch == '\t') {
+        sb.write(r'\t');
         continue;
       }
       if (ch == '"') {
