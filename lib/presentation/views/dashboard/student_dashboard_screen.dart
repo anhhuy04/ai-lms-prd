@@ -138,12 +138,7 @@ class _StudentDashboardScreenState
     if (currentIdx == 0) {
       return Column(
         children: [
-          DashboardTopBar(
-            title: 'Trang chủ',
-            // Mobile không có sidebar (PC mới có) → nhúng tên vào lời chào để hiện tên.
-            subtitle: (widget.userProfile.fullName?.isNotEmpty ?? false)
-                ? 'Chào mừng trở lại, ${widget.userProfile.fullName}!'
-                : 'Chào mừng trở lại!',
+          HomeGreetingBar(
             profile: widget.userProfile,
             actions: [
               IconButton(
@@ -382,7 +377,7 @@ class _StudentWideNavSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = userProfile.fullName ?? 'Học sinh';
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final initial = avatarInitialFromName(userProfile.fullName);
 
     return Container(
       width: 220,
