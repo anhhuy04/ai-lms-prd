@@ -415,6 +415,16 @@ class AiRepositoryImpl implements AiRepository {
     Map<String, dynamic>? answer;
     if (aiQuestion['answer'] is Map<String, dynamic>) {
       answer = Map<String, dynamic>.from(aiQuestion['answer'] as Map);
+      // Model có thể trả lai 2 format (answer map + field top-level): merge bổ sung
+      // expected_answer/ai_grading_keywords nếu answer map thiếu, tránh mất đáp án mẫu.
+      final topExpected = aiQuestion['expected_answer'];
+      if (answer['expected_answer'] == null && topExpected != null) {
+        answer['expected_answer'] = topExpected;
+      }
+      final topKeywords = aiQuestion['ai_grading_keywords'];
+      if (answer['ai_grading_keywords'] == null && topKeywords != null) {
+        answer['ai_grading_keywords'] = topKeywords;
+      }
     } else {
       // Essay/short_answer: AI outputs expected_answer + ai_grading_keywords at top level
       final expectedAnswer = aiQuestion['expected_answer'] as String?;

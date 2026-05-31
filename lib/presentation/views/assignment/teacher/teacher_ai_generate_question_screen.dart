@@ -734,7 +734,16 @@ class _TeacherAiGenerateQuestionScreenState
             .getExtractedTextForIds(selectedIds);
 
         if (docText.isEmpty) {
-          AppToast.warning(context, 'File Excel không đúng định dạng mẫu và file Word không có nội dung đọc được. ');
+          // Phân biệt "đang đọc dở" vs "thật sự rỗng" để không báo nhầm.
+          final stillExtracting = ref
+              .read(localTempFilesProvider)
+              .any((f) => selectedIds.contains(f.id) && f.isExtracting);
+          AppToast.warning(
+            context,
+            stillExtracting
+                ? 'Đang đọc nội dung tài liệu, vui lòng đợi giây lát rồi thử lại.'
+                : 'File Excel không đúng định dạng mẫu và file Word không có nội dung đọc được.',
+          );
           setState(() => _isGenerating = false);
           return;
         }
@@ -1253,6 +1262,46 @@ class _TeacherAiGenerateQuestionScreenState
   void _handleRemoveQuestion(int index) {
     setState(() {
       _generatedQuestions = List.from(_generatedQuestions!)..removeAt(index);
+
+      // Reindex state lưu theo int index để không lệch sau khi xóa:
+      // bỏ phần tử == index, dịch phần tử > index xuống 1.
+      List<int> shifted(Set<int> s) => s
+          .where((i) => i != index)
+          .map((i) => i > index ? i - 1 : i)
+          .toList();
+      final exp = shifted(_expandedExplanations);
+      _expandedExplanations
+        ..clear()
+        ..addAll(exp);
+      final regen = shifted(_regeneratingExplanationSet);
+      _regeneratingExplanationSet
+        ..clear()
+        ..addAll(regen);
+
+      // Reindex _sections: giảm count section chứa index, dịch startIndex các
+      // section sau index xuống 1; bỏ section rỗng. Giữ header/typeKey đúng câu.
+      final rebuilt =
+          <({String typeKey, String label, int startIndex, int count})>[];
+      for (final s in _sections) {
+        var start = s.startIndex;
+        var count = s.count;
+        if (index < start) {
+          start -= 1;
+        } else if (index < start + count) {
+          count -= 1;
+        }
+        if (count > 0) {
+          rebuilt.add((
+            typeKey: s.typeKey,
+            label: s.label,
+            startIndex: start,
+            count: count,
+          ));
+        }
+      }
+      _sections
+        ..clear()
+        ..addAll(rebuilt);
     });
   }
 
