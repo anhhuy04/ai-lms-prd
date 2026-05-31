@@ -930,7 +930,9 @@ class _TeacherAiGenerateQuestionScreenState
 
         // Topic từ focus hint, fallback về tài liệu
         final focusHint = _focusHintController.text.trim();
-        topic = focusHint.isNotEmpty ? focusHint : 'Câu hỏi từ tài liệu';
+        topic = focusHint.isNotEmpty
+            ? focusHint
+            : (_detectTemplateSubject() ?? 'Câu hỏi từ tài liệu');
         AppLogger.info(
           '[Mode3] useAsStyleTemplate=$_useAsStyleTemplate, '
           'docChars=${truncated.usedChars}, topic="$topic"',
@@ -1350,6 +1352,23 @@ class _TeacherAiGenerateQuestionScreenState
     return null; // auto
   }
 
+  /// Lấy MÔN HỌC phổ biến nhất từ câu hỏi mẫu (field `subject`). Dùng làm topic
+  /// fallback ở Mode 3 → model LUÔN có môn rõ ràng → không báo "missing_subject"
+  /// (clause AN TOÀN trong prompt) khi tài liệu mẫu thực ra đã nêu môn. Trả null
+  /// nếu mẫu không có subject.
+  String? _detectTemplateSubject() {
+    final qs = _templateQuestionsForVerify;
+    if (qs == null || qs.isEmpty) return null;
+    final subjects = <String>{};
+    for (final q in qs) {
+      final s = (q['subject'] as String?)?.trim();
+      if (s != null && s.isNotEmpty) subjects.add(s);
+    }
+    // Chỉ ép topic khi mẫu CHỈ CÓ 1 môn — đa môn thì trả null để giữ
+    // "tự suy từ tags" (không gò tất cả câu về 1 môn, tránh mất đa dạng).
+    return subjects.length == 1 ? subjects.first : null;
+  }
+
   /// Nếu [fresh] thiếu/null/empty cho [key] thì copy từ [old] (giữ user edit).
   void _carryOverIfMissing(
     Map<String, dynamic> fresh,
@@ -1384,7 +1403,9 @@ class _TeacherAiGenerateQuestionScreenState
     if (currentMode == ProcessingMode.ragGeneration) {
       // Mode 3: re-detect template state tại thời điểm regen (GAP-3 fix)
       final focusHint = _focusHintController.text.trim();
-      topic = focusHint.isNotEmpty ? focusHint : 'Câu hỏi từ tài liệu';
+      topic = focusHint.isNotEmpty
+          ? focusHint
+          : (_detectTemplateSubject() ?? 'Câu hỏi từ tài liệu');
       final selectedIds = aiSettings.selectedFileIds;
       if (selectedIds.isNotEmpty) {
         final allFiles = ref.read(localTempFilesProvider);
