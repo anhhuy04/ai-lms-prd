@@ -138,14 +138,17 @@ class _ContextSourcesSectionState
               f.effectiveRole == FileRole.template)
           .expand((f) => f.parsedQuestions!)
           .toList();
-      // GAP-6: cần ít nhất 2 câu Trắc nghiệm để AI có đủ pattern
-      allMcq = templateQs.length >= 2 &&
-          templateQs.every((q) {
-            final t = q['type'];
-            return t == QuestionType.multipleChoice ||
-                t == QuestionType.trueFalse ||
-                t == QuestionType.math;
-          });
+      // FIX: "Cùng dạng" (giữ cấu trúc, đổi số liệu) chỉ hợp lý cho câu CÓ
+      // CẤU TRÚC (trắc nghiệm/đúng-sai/toán). Trước đây dùng .every() → 1 câu
+      // tự luận trong file cũng KHÓA hết "Cùng dạng". Đổi sang ĐẾM: chỉ cần
+      // file có ≥2 câu cấu trúc là mở, các loại khác (tự luận…) không chặn nữa.
+      final structuredCount = templateQs.where((q) {
+        final t = q['type'];
+        return t == QuestionType.multipleChoice ||
+            t == QuestionType.trueFalse ||
+            t == QuestionType.math;
+      }).length;
+      allMcq = structuredCount >= 2;
       hasTemplateSelected = files.any((f) =>
           _selectedFileIds.contains(f.id) &&
           f.parsedQuestions?.isNotEmpty == true &&
@@ -686,7 +689,7 @@ class _ContextSourcesSectionState
                 : (allMcq
                     ? 'Giữ nguyên cấu trúc câu mẫu, chỉ đổi số liệu/giá trị. '
                         'Phù hợp toán drill. AI thấy text mẫu để clone.'
-                    : 'Cần ít nhất 2 câu Trắc nghiệm trong file mẫu'),
+                    : 'Cần ít nhất 2 câu có cấu trúc (trắc nghiệm/đúng-sai/toán) trong file mẫu'),
             onTap: (enabled && allMcq)
                 ? () => ref
                     .read(aiGenerationSettingsNotifierProvider.notifier)
@@ -696,7 +699,7 @@ class _ContextSourcesSectionState
           if (enabled && !allMcq) ...[
             const SizedBox(width: 6),
             Tooltip(
-              message: 'Cần ít nhất 2 câu Trắc nghiệm để dùng Cùng dạng',
+              message: 'Cần ít nhất 2 câu có cấu trúc (trắc nghiệm/đúng-sai/toán) để dùng Cùng dạng',
               child: Icon(
                 Icons.info_outline_rounded,
                 size: 13,
