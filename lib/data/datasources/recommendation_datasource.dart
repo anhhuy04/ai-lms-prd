@@ -154,7 +154,9 @@ class RecommendationDatasource {
   Recommendation _mapRowToRecommendation(Map<String, dynamic> row) {
     final studentId = row['student_id'] as String?;
     final teacherId = row['teacher_id'] as String?;
-    final type = row['type'] as String? ?? 'individual';
+    // 5a-R3: RecommendationType đọc từ cột 'category' (study_tip/intervention/at_risk_warning...).
+    // 'type' là SCOPE (individual/class/small_group) → không khớp case nào → cũ rơi default studyTip.
+    final category = row['category'] as String? ?? 'study_tip';
     final priority = (row['priority'] as num?)?.toInt() ?? 3;
 
     return Recommendation(
@@ -163,7 +165,7 @@ class RecommendationDatasource {
       role: studentId != null && studentId.isNotEmpty
           ? RecommendationRole.student
           : RecommendationRole.teacher,
-      type: _typeStringToEnum(type),
+      type: _typeStringToEnum(category),
       priority: _priorityIntToEnum(priority),
       title: (row['title'] as String?) ?? '',
       description: (row['description'] as String?) ?? '',

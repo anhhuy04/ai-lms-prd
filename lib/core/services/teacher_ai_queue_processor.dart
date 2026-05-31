@@ -37,7 +37,10 @@ class TeacherAiQueueProcessor {
         await _markCompleted(itemId);
         if (sessionId != null) await _maybeMarkSessionGraded(sessionId);
       } else if (requestType == 'analysis') {
-        await _handleAnalysis(item);
+        // 5a-R1: EDGE (process-ai-queue) là generator CANONICAL của recommendations.
+        // Dart KHÔNG sinh recommendations: insert teacher-authed teacher_id=NULL bị RLS chặn
+        // (null_local=0 suốt thời gian qua) + tránh nguồn-trùng với edge. Chỉ mark completed
+        // để queue 'analysis' không kẹt nếu edge chết.
         await _markCompleted(itemId);
       } else {
         // score → deferred (chờ phase 3)
@@ -124,6 +127,9 @@ class TeacherAiQueueProcessor {
 
   // ── Analysis handler ───────────────────────────────────────────────────────
 
+  /// @deprecated 5a-R1: KHÔNG còn được gọi. Edge (process-ai-queue) là generator
+  /// canonical của recommendations. Giữ lại để tham chiếu logic rule-based; sẽ xoá ở 5b.
+  // ignore: unused_element
   Future<void> _handleAnalysis(Map<String, dynamic> item) async {
     final sessionId = (item['payload'] as Map<String, dynamic>?)?['session_id'] as String?;
     if (sessionId == null) {

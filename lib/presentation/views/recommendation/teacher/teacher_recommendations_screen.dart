@@ -308,6 +308,9 @@ class _TeacherRecommendationsScreenState
   }
 
   Widget _buildEmptyState() {
+    // 5a: copy TRUNG TÍNH (gộp "chưa có dữ liệu" ∪ "không có cảnh báo"). Teacher không có
+    // tín hiệu rẻ để phân biệt 2 trạng thái này (phải join nhiều lớp/HS) → không khẳng định
+    // "Mọi học sinh đều ổn" (gây hiểu nhầm khi thực ra generator chưa chạy). Lỗi tải xử lý riêng.
     return Center(
       child: Padding(
         padding: EdgeInsets.all(DesignSpacing.xl),
@@ -318,24 +321,24 @@ class _TeacherRecommendationsScreenState
               width: 96,
               height: 96,
               decoration: BoxDecoration(
-                color: DesignColors.success.withValues(alpha: 0.1),
+                color: DesignColors.textTertiary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.check_circle_rounded,
+                Icons.insights_outlined,
                 size: 56,
-                color: DesignColors.success,
+                color: DesignColors.textTertiary,
               ),
             ),
             SizedBox(height: DesignSpacing.lg),
             Text(
-              'Mọi học sinh đều ổn',
+              'Chưa có gợi ý',
               style: DesignTypography.titleMedium
                   .copyWith(fontWeight: FontWeight.w700),
             ),
             SizedBox(height: DesignSpacing.sm),
             Text(
-              'Các gợi ý sẽ xuất hiện khi có học sinh\ncần hỗ trợ thêm.',
+              'Gợi ý sẽ xuất hiện sau khi học sinh hoàn thành\nbài và hệ thống phân tích kết quả.',
               style: DesignTypography.bodyMedium
                   .copyWith(color: DesignColors.textSecondary),
               textAlign: TextAlign.center,

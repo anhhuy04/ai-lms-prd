@@ -862,7 +862,9 @@ class AnalyticsDatasource {
       for (final row in rows) {
         final r = row as Map<String, dynamic>;
         final objectiveId = r['objective_id'] as String?;
-        final avg = (r['avg_mastery'] as num?)?.toDouble() ?? 0.0;
+        // 5a-G3: PostgREST serialize numeric TABLE-column thành CHUỖI ("0.2000...") →
+        // (as num?) = null → 0.0 mọi objective → radar lớp trắng. tryParse từ toString() an toàn cả số lẫn chuỗi.
+        final avg = double.tryParse('${r['avg_mastery']}') ?? 0.0;
         if (objectiveId != null) {
           map[objectiveId] = avg;
         }

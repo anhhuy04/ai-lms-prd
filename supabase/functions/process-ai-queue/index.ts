@@ -25,6 +25,21 @@ interface AiFeedback {
   raw?: string;          // Raw AI response (debug)
 }
 
+/** Kết quả AI chấm điểm tự luận (Phase 3) — ghi vào submission_answers + ai_evaluations */
+interface AiScoreResult {
+  status: "completed" | "no_api_key" | "failed";
+  provider: string;
+  model: string;
+  score: number;        // đã clamp [0, maxPoints]
+  confidence: number;   // [0, 1]
+  summary: string;
+  explanation: string;
+  strengths: string;
+  improvements: string;
+  criteria?: unknown[];  // mảng tiêu chí (giờ 1 phần tử "Nội dung chung"; mở để nâng cấp rubric)
+  raw?: string;
+}
+
 Deno.serve(async (req: Request) => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,10 +91,19 @@ Deno.serve(async (req: Request) => {
     let processed = 0;
     for (const item of (items as AiQueueItem[]) ?? []) {
       const dispatchedAttempts = item.attempts + 1;
-      await supabase
+      // Claim-row nguyên tử: chỉ xử lý nếu giành được transition pending→processing.
+      // Tránh race khi 2 invocation (webhook + nút scan) cùng SELECT trúng 1 dòng pending.
+      // Rẻ hơn pg_advisory_xact_lock và không ghim DB connection xuyên cuộc gọi AI ~30s.
+      const { data: claimed } = await supabase
         .from("ai_queue")
         .update({ status: "processing", attempts: dispatchedAttempts, updated_at: new Date().toISOString() })
-        .eq("id", item.id);
+        .eq("id", item.id)
+        .eq("status", "pending")
+        .select("id");
+      if (!claimed || claimed.length === 0) {
+        // Invocation khác đã claim dòng này — bỏ qua, không xử lý trùng.
+        continue;
+      }
 
       // C1+L2 fix: track session_id here so maybeMarkSessionGraded runs AFTER
       // status='completed' is written — prevents race where current item is still
@@ -93,13 +117,15 @@ Deno.serve(async (req: Request) => {
         } else if (item.request_type === "analysis") {
           await handleAnalysis(supabase, item);
         } else if (item.request_type === "score") {
-          // L4 fix: mark 'deferred' so it can be reprocessed when Phase 3 re-enables
-          console.log(`[STUB] Score request deferred: ${item.id}`);
-          await supabase
-            .from("ai_queue")
-            .update({ status: "deferred", updated_at: new Date().toISOString() })
-            .eq("id", item.id);
-          markCompleted = false;
+          // Phase 3: AI tự chấm điểm tự luận (essay/short_answer).
+          // Trả về session_id để outer loop gọi maybeMarkSessionGraded; null = đã defer
+          // (loại ngoài phạm vi như math/problem_solving) → không mark completed.
+          const scoreSession = await handleScore(supabase, item);
+          if (scoreSession === null) {
+            markCompleted = false;
+          } else {
+            itemSessionId = scoreSession;
+          }
         }
 
         if (markCompleted) {
@@ -305,35 +331,10 @@ Trả về JSON (không markdown, không giải thích thêm):
 // ─────────────────────────────────────────────────────────────────────────────
 // deno-lint-ignore no-explicit-any
 async function maybeMarkSessionGraded(supabase: any, sessionId: string) {
-  // Lấy toàn bộ submission_answer ids của session
-  const { data: answers } = await supabase
-    .from("submission_answers")
-    .select("id")
-    .eq("session_id", sessionId);
-
-  if (!answers || answers.length === 0) return;
-
-  const answerIds = answers.map((a: { id: string }) => a.id);
-
-  // Kiểm tra còn pending/processing feedback nào không
-  const { data: stillPending } = await supabase
-    .from("ai_queue")
-    .select("id")
-    .in("submission_answer_id", answerIds)
-    .eq("request_type", "feedback")
-    .in("status", ["pending", "processing"]);
-
-  if (!stillPending || stillPending.length === 0) {
-    // Tất cả feedback xong → chuyển session sang graded
-    const { error } = await supabase
-      .from("work_sessions")
-      .update({ status: "graded", updated_at: new Date().toISOString() })
-      .eq("id", sessionId)
-      .eq("status", "ai_processing"); // chỉ update nếu đang ở ai_processing
-    if (!error) {
-      console.log(`[AI] Session ${sessionId}: all feedback complete → status=graded`);
-    }
-  }
+  // Nguồn chân lý DUY NHẤT cho cú chuyển status nằm ở SQL RPC maybe_mark_session_graded
+  // (migration 036) — dùng chung với đường GV duyệt phía Dart để logic không bị lệch.
+  const { error } = await supabase.rpc("maybe_mark_session_graded", { p_session_id: sessionId });
+  if (error) console.error(`[AI] maybe_mark_session_graded failed for ${sessionId}: ${error.message}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -361,6 +362,18 @@ async function handleAnalysis(
     console.error(`[AI] Session not found: ${sessionId} — ${sessionError?.message}`);
     return;
   }
+
+  // 5a-R1: resolve teacher_id + class_id để teacher đọc được recommendation
+  //        (RLS qual teacher_id=auth.uid()). Mẫu giống handleFeedback.
+  //        class_id nullable cho distribution_type='group' → chấp nhận null.
+  const { data: dist } = await supabase
+    .from("assignment_distributions")
+    .select("class_id, assignments!inner(teacher_id)")
+    .eq("id", session.assignment_distribution_id)
+    .single();
+  const teacherId =
+    ((dist?.assignments as Record<string, unknown>)?.teacher_id as string | null) ?? null;
+  const classId = (dist?.class_id as string | null) ?? null;
 
   // Step 1: Query mastery rows WITHOUT nested join to avoid PostgREST FK resolution issues
   const { data: masteryRows, error: masteryError } = await supabase
@@ -405,23 +418,32 @@ async function handleAnalysis(
     const desc = lo?.description ?? "Kỹ năng cần cải thiện";
     const masteryPct = Math.round((m.mastery_level as number) * 100);
 
-    const { error: insertError } = await supabase.from("ai_recommendations").insert({
-      student_id: session.student_id,
-      type: "individual",
-      priority: Math.min(5, Math.max(1, Math.round((1 - (m.mastery_level as number)) * 5))),
-      title: `Ôn tập: ${code}`,
-      description: `${desc} — tỷ lệ thành thạo ${masteryPct}%, cần cải thiện.`,
-      resources: {
+    // 5a-R1/R2/R3: upsert idempotent (onConflict student_id,objective_id) + teacher_id/class_id +
+    //   objective_id (cột thật) + category. BỎ dismissed (ON CONFLICT DO UPDATE chỉ set cột gửi →
+    //   rec HS đã ẩn KHÔNG sống lại) + BỎ created_at (chống dời mốc tạo mỗi regen). Cột default lo insert.
+    //   resources build FULL object mỗi lần (không spread) — tránh Array Annihilation.
+    const { error: insertError } = await supabase.from("ai_recommendations").upsert(
+      {
+        student_id: session.student_id,
+        teacher_id: teacherId,
+        class_id: classId,
         objective_id: m.objective_id,
-        mastery_level: m.mastery_level,
-        attempts: m.attempts,
-        correct_count: m.correct,
-        generated_at: now,
-        source: "ai_queue_analysis",
+        type: "individual",
+        category: "study_tip",
+        priority: Math.min(5, Math.max(1, Math.round((1 - (m.mastery_level as number)) * 5))),
+        title: `Ôn tập: ${code}`,
+        description: `${desc} — tỷ lệ thành thạo ${masteryPct}%, cần cải thiện.`,
+        resources: {
+          objective_id: m.objective_id,
+          mastery_level: m.mastery_level,
+          attempts: m.attempts,
+          correct_count: m.correct,
+          generated_at: now,
+          source: "ai_queue_analysis",
+        },
       },
-      dismissed: false,
-      created_at: now,
-    });
+      { onConflict: "student_id,objective_id", ignoreDuplicates: false },
+    );
 
     if (insertError) {
       console.error(`[AI] Insert recommendation failed for ${m.objective_id}: ${insertError.message}`);
@@ -434,20 +456,278 @@ async function handleAnalysis(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SCORE HANDLER (Phase 3): AI tự chấm điểm tự luận essay/short_answer
+// ─────────────────────────────────────────────────────────────────────────────
+// deno-lint-ignore no-explicit-any
+async function handleScore(supabase: any, item: AiQueueItem): Promise<string | null> {
+  // 1) Context: bài làm + câu hỏi (custom_content cho inline; questions cho bank-linked)
+  const { data: ctx, error } = await supabase
+    .from("submission_answers")
+    .select(`
+      id, answer, ai_score, session_id,
+      assignment_questions!inner (
+        points, custom_content, question_id,
+        questions!left ( content, answer, type )
+      )
+    `)
+    .eq("id", item.submission_answer_id)
+    .single();
+
+  if (error || !ctx) {
+    throw new Error(`Answer not found for score: ${item.submission_answer_id} — ${error?.message ?? "null ctx"}`);
+  }
+
+  // 2) Idempotency: đã có ai_score → bỏ qua (không gọi AI lại, tiết kiệm token khi "Quét lại")
+  if (ctx.ai_score !== null && ctx.ai_score !== undefined) {
+    console.log(`[AI] Score already exists for ${item.submission_answer_id} — skip`);
+    return ctx.session_id as string;
+  }
+
+  const aq            = ctx.assignment_questions as Record<string, unknown>;
+  const customContent = (aq.custom_content as Record<string, unknown>) ?? {};
+  const linkedQ       = (aq.questions as Record<string, unknown>) ?? {};
+  const maxPoints     = (aq.points as number) ?? 1;
+
+  // 3) Phase 3 chỉ chấm essay/short_answer. Loại khác (math/problem_solving) → defer cho phase sau.
+  const qType = (customContent.type as string) ?? (linkedQ.type as string) ?? "essay";
+  if (qType !== "essay" && qType !== "short_answer") {
+    console.log(`[AI] Score type "${qType}" out of scope → deferred: ${item.id}`);
+    await supabase
+      .from("ai_queue")
+      .update({ status: "deferred", updated_at: new Date().toISOString() })
+      .eq("id", item.id);
+    return null; // báo outer loop KHÔNG mark completed
+  }
+
+  // 4) Nội dung câu hỏi + đáp án mẫu + từ khoá (ưu tiên custom_content, fallback questions)
+  const linkedContent = (linkedQ.content as Record<string, unknown>) ?? null;
+  const linkedAnswer  = (linkedQ.answer as Record<string, unknown>) ?? null;
+  const questionText =
+    (customContent.override_text as string) ??
+    (customContent.text as string) ??
+    (linkedContent?.text as string) ??
+    "Câu hỏi không có nội dung";
+  const expectedAnswer =
+    (customContent.expected_answer as string) ??
+    (linkedAnswer?.expected_answer as string) ??
+    (linkedAnswer?.sample_response as string) ??
+    "";
+  type Kw = { keyword?: string; weight?: number };
+  const keywords =
+    (customContent.ai_grading_keywords as Kw[]) ??
+    (linkedAnswer?.ai_grading_keywords as Kw[]) ??
+    [];
+
+  // 5) Bài làm học sinh (text)
+  const studentAns  = (ctx.answer as Record<string, unknown>) ?? {};
+  const studentText = ((studentAns.text as string) ?? "").trim();
+
+  // 6) Teacher API key + cờ ai_require_review
+  const cfg = await resolveTeacherAiConfig(supabase, ctx.session_id as string);
+  if (!cfg.apiKey) {
+    console.warn(`[AI] No API key for score — session ${ctx.session_id}`);
+    await supabase.from("submission_answers").update({
+      ai_feedback: {
+        status: "no_api_key", provider: cfg.provider, model: cfg.model,
+        summary: "Giáo viên chưa cấu hình API key cho AI chấm điểm.",
+        explanation: "", strengths: "", improvements: "",
+      },
+    }).eq("id", item.submission_answer_id);
+    return ctx.session_id as string; // final_score để NULL → GV chấm tay
+  }
+
+  // 7) Bài làm rỗng → 0 điểm, không cần gọi AI
+  if (!studentText) {
+    await writeScore(supabase, item.submission_answer_id, ctx.session_id as string, {
+      status: "completed", provider: cfg.provider, model: cfg.model,
+      score: 0, confidence: 1,
+      summary: "Học sinh không trả lời câu này.",
+      explanation: "", strengths: "", improvements: "Cần trả lời câu hỏi.",
+    }, maxPoints, cfg.requireReview);
+    return ctx.session_id as string;
+  }
+
+  // 8) Prompt Chain-of-Thought — nhúng maxPoints làm HARD CAP
+  const kwLines = keywords.length
+    ? keywords.map((k) => `- "${k.keyword ?? ""}" (trọng số ${k.weight ?? 0})`).join("\n")
+    : "(không có từ khoá)";
+  const prompt = `Bạn là giáo viên chấm bài tự luận. Chấm câu trả lời của học sinh theo thang điểm CỨNG và trả về JSON.
+
+THANG ĐIỂM TỐI ĐA: ${maxPoints} điểm. TUYỆT ĐỐI không cho quá ${maxPoints}.
+
+CÂU HỎI: ${questionText}
+
+ĐÁP ÁN MẪU: ${expectedAnswer || "(không có đáp án mẫu — chấm theo độ chính xác và đầy đủ của bài làm)"}
+
+TỪ KHOÁ TRỌNG TÂM (có trọng số):
+${kwLines}
+
+BÀI LÀM CỦA HỌC SINH:
+${studentText}
+
+Suy nghĩ theo các bước: (1) so khớp bài làm với đáp án mẫu; (2) đối chiếu từng từ khoá trọng tâm; (3) quyết định điểm trong khoảng 0..${maxPoints}.
+Trả về JSON (không markdown, không chữ thừa):
+{
+  "score": <số điểm 0..${maxPoints}>,
+  "confidence": <độ tin cậy 0..1>,
+  "summary": "<1 câu kết luận điểm và lý do cốt lõi>",
+  "explanation": "<2-3 câu giải thích vì sao điểm đó, đối chiếu đáp án mẫu/từ khoá>",
+  "strengths": "<điểm tốt trong bài làm>",
+  "improvements": "<điều cần cải thiện>",
+  "criteria": [ { "name": "Nội dung chung", "score": <0..${maxPoints}>, "max": ${maxPoints}, "comment": "<nhận xét>" } ]
+}`;
+
+  const raw    = await callAiApi(cfg.provider, cfg.model, cfg.apiKey, prompt, true);
+  const parsed = parseAiScoreJson(raw, maxPoints, cfg.provider, cfg.model);
+  parsed.raw   = raw.slice(0, 500);
+
+  await writeScore(supabase, item.submission_answer_id, ctx.session_id as string, parsed, maxPoints, cfg.requireReview);
+  console.log(`[AI] Scored answer ${item.submission_answer_id}: ${parsed.score}/${maxPoints} conf=${parsed.confidence} review=${cfg.requireReview}`);
+  return ctx.session_id as string;
+}
+
+/** Lấy provider/model/apiKey của giáo viên + cờ ai_require_review của distribution */
+// deno-lint-ignore no-explicit-any
+async function resolveTeacherAiConfig(
+  supabase: any,
+  sessionId: string,
+): Promise<{ provider: string; model: string; apiKey?: string; requireReview: boolean }> {
+  const { data: session } = await supabase
+    .from("work_sessions")
+    .select("assignment_distribution_id")
+    .eq("id", sessionId)
+    .single();
+
+  const { data: dist } = await supabase
+    .from("assignment_distributions")
+    .select("settings, assignments!inner(teacher_id)")
+    .eq("id", session?.assignment_distribution_id)
+    .single();
+
+  const settings = (dist?.settings as Record<string, unknown>) ?? {};
+  // Default true = Human-in-the-loop (an toàn). Chỉ auto-publish khi GV chủ động tắt.
+  const requireReview = settings.ai_require_review === false ? false : true;
+
+  const teacherId = (dist?.assignments as Record<string, unknown>)?.teacher_id as string;
+  const { data: profile } = await supabase.from("profiles").select("metadata").eq("id", teacherId).single();
+  const meta      = profile?.metadata as Record<string, unknown> | null;
+  const analytics = meta?.analytics   as Record<string, string>  | null;
+  const apiKeys   = meta?.api_keys    as Record<string, string>  | null;
+  const provider  = analytics?.provider ?? "gemini";
+  const model     = analytics?.model    ?? "gemini-2.0-flash";
+  return { provider, model, apiKey: apiKeys?.[provider], requireReview };
+}
+
+/** Ghi điểm AI vào submission_answers + ai_evaluations; auto-publish nếu !requireReview */
+// deno-lint-ignore no-explicit-any
+async function writeScore(
+  supabase: any,
+  answerId: string,
+  sessionId: string,
+  r: AiScoreResult,
+  maxPoints: number,
+  requireReview: boolean,
+): Promise<void> {
+  const now = new Date().toISOString();
+
+  const update: Record<string, unknown> = {
+    ai_score: r.score,
+    ai_confidence: r.confidence,
+    ai_feedback: {
+      status: r.status, provider: r.provider, model: r.model,
+      summary: r.summary, explanation: r.explanation,
+      strengths: r.strengths, improvements: r.improvements,
+    },
+    updated_at: now,
+  };
+  // Auto-publish CHỈ khi GV tắt review VÀ AI đủ tự tin (>=0.7). Confidence thấp / parse-fail
+  // (fallback conf 0.2) → giữ final_score NULL → maybe_mark đẩy pending_review để GV duyệt,
+  // tránh công bố điểm oan (vd model yếu trả prose → score=0). graded_by để NULL = AI chấm.
+  const autoPublish = !requireReview && r.status === "completed" && r.confidence >= 0.7;
+  if (autoPublish) {
+    update.final_score = r.score;
+    update.graded_at   = now;
+  }
+  await supabase.from("submission_answers").update(update).eq("id", answerId);
+
+  // Lịch sử chấm AI (hồi sinh ai_evaluations). rationale đóng khung dạng mảng criteria.
+  await supabase.from("ai_evaluations").insert({
+    submission_answer_id: answerId,
+    model_name: r.provider,
+    model_version: r.model,
+    ai_score: r.score,
+    ai_confidence: r.confidence,
+    feedback: r.summary,
+    rationale: {
+      criteria: (Array.isArray(r.criteria) && r.criteria.length)
+        ? r.criteria
+        : [{ name: "Nội dung chung", score: r.score, max: maxPoints, comment: r.explanation }],
+    },
+  });
+
+  if (autoPublish) {
+    // Auto-publish → tính lại tổng điểm submission để chảy vào sổ điểm.
+    await supabase.rpc("recompute_submission_total", { p_session_id: sessionId });
+  }
+}
+
+/** Parse JSON điểm từ AI — clamp nghiêm, output rác → 0 điểm + confidence thấp (chờ duyệt) */
+function parseAiScoreJson(raw: string, maxPoints: number, provider: string, model: string): AiScoreResult {
+  const base: AiScoreResult = {
+    status: "completed", provider, model,
+    score: 0, confidence: 0.3,
+    summary: "", explanation: "", strengths: "", improvements: "", criteria: [],
+  };
+  try {
+    const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+    const p = JSON.parse(cleaned) as Record<string, unknown>;
+
+    const rawScore = Number(p.score);
+    const scoreValid = Number.isFinite(rawScore);
+    const score = scoreValid ? Math.max(0, Math.min(maxPoints, rawScore)) : 0;
+
+    let conf = Number(p.confidence);
+    if (!Number.isFinite(conf)) conf = 0.3;
+    conf = Math.max(0, Math.min(1, conf));
+    // Score rác → ép confidence thấp để buộc GV duyệt
+    if (!scoreValid) conf = Math.min(conf, 0.3);
+
+    return {
+      ...base,
+      score,
+      confidence: conf,
+      summary:      (p.summary as string)      ?? "",
+      explanation:  (p.explanation as string)  ?? "",
+      strengths:    (p.strengths as string)    ?? "",
+      improvements: (p.improvements as string) ?? "",
+      criteria: Array.isArray(p.criteria)
+        ? (p.criteria as unknown[])
+        : [{ name: "Nội dung chung", score, max: maxPoints, comment: (p.explanation as string) ?? "" }],
+    };
+  } catch {
+    console.warn("[AI] Could not parse score JSON — fallback score=0, low confidence (chờ GV duyệt)");
+    return { ...base, summary: raw.slice(0, 300), confidence: 0.2 };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AI API CALLER
 // ─────────────────────────────────────────────────────────────────────────────
 async function callAiApi(
   provider: string,
   model: string,
   apiKey: string,
-  prompt: string
+  prompt: string,
+  jsonMode = false, // Phase 3: ép model trả JSON thuần (chỉ handleScore bật; feedback giữ nguyên)
 ): Promise<string> {
   if (provider === "gemini") {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const reqBody: Record<string, unknown> = { contents: [{ parts: [{ text: prompt }] }] };
+    if (jsonMode) reqBody.generationConfig = { responseMimeType: "application/json" };
     const resp = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-goog-api-key": apiKey },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      body: JSON.stringify(reqBody),
       signal: AbortSignal.timeout(30_000), // P3 fix: prevent hanging AI calls
     });
     if (!resp.ok) throw new Error(`Gemini HTTP ${resp.status}: ${await resp.text()}`);
@@ -456,10 +736,12 @@ async function callAiApi(
   }
 
   if (provider === "groq") {
+    const reqBody: Record<string, unknown> = { model, messages: [{ role: "user", content: prompt }], temperature: 0.3 };
+    if (jsonMode) reqBody.response_format = { type: "json_object" };
     const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature: 0.3 }),
+      body: JSON.stringify(reqBody),
       signal: AbortSignal.timeout(30_000),
     });
     if (!resp.ok) throw new Error(`Groq HTTP ${resp.status}: ${await resp.text()}`);
@@ -469,10 +751,12 @@ async function callAiApi(
 
   if (provider === "ollama") {
     const baseUrl = Deno.env.get("OLLAMA_URL") ?? "http://localhost:11434";
+    const reqBody: Record<string, unknown> = { model, prompt, stream: false };
+    if (jsonMode) reqBody.format = "json";
     const resp = await fetch(`${baseUrl}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, prompt, stream: false }),
+      body: JSON.stringify(reqBody),
       signal: AbortSignal.timeout(30_000),
     });
     if (!resp.ok) throw new Error(`Ollama HTTP ${resp.status}: ${await resp.text()}`);
