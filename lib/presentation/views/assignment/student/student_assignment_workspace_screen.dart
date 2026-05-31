@@ -1796,10 +1796,11 @@ class _StudentAssignmentWorkspaceScreenState
     final confirmationNumber =
         'NS${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${submissionId.substring(submissionId.length - 6)}';
 
+    final screenContext = context;
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
+      barrierDismissible: true,
+      builder: (dialogContext) => Dialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(DesignRadius.lg),
         ),
@@ -1922,8 +1923,11 @@ class _StudentAssignmentWorkspaceScreenState
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Navigate back to previous screen in stack
-                    context.pop();
+                    // Đóng dialog (Navigator) TRƯỚC, rồi mới pop màn về danh sách.
+                    // context.pop() (go_router) KHÔNG đóng dialog do showDialog dùng
+                    // Navigator → dialog kẹt lại trên màn list (không tự tắt được).
+                    Navigator.of(dialogContext).pop();
+                    if (screenContext.mounted) screenContext.pop();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: DesignColors.primary,
