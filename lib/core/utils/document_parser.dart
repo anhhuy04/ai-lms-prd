@@ -169,6 +169,9 @@ class DocumentParser {
             'answer': {'correct_choice_ids': [correctIndex]},
             'difficulty': difficulty,
             'tags': tags,
+            // Anti-drift: Excel không có marker môn → suy môn từ tag đầu (heuristic),
+            // để _buildSchemaOnlyContext có "CÁC MÔN HỌC TRONG MẪU" như docx.
+            if (tags.isNotEmpty) 'subject': tags.first,
           });
         }
       }
@@ -194,6 +197,7 @@ class DocumentParser {
                 : <String, dynamic>{},
             'difficulty': difficulty,
             'tags': tags,
+            if (tags.isNotEmpty) 'subject': tags.first, // anti-drift: suy môn từ tag đầu
           });
         }
       }
@@ -226,6 +230,7 @@ class DocumentParser {
             'answer': {'correct_choice_ids': [isTrue ? 0 : 1]},
             'difficulty': difficulty,
             'tags': tags,
+            if (tags.isNotEmpty) 'subject': tags.first, // anti-drift: suy môn từ tag đầu
           });
         }
       }
