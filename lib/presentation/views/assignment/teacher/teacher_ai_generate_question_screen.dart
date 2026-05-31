@@ -1431,10 +1431,18 @@ class _TeacherAiGenerateQuestionScreenState
     );
   }
 
-  /// Card lỗi = placeholder fallback (cờ _isFallback hoặc text "(cần chỉnh sửa)").
-  bool _isFailedQuestion(Map<String, dynamic> q) =>
-      q['_isFallback'] == true ||
-      (q['text'] as String? ?? '').contains('(cần chỉnh sửa)');
+  /// Card lỗi cần tự sửa. Bắt CẢ 2 dạng placeholder:
+  ///  1. Fallback parse-fail: cờ _isFallback / text "(cần chỉnh sửa)".
+  ///  2. Item rỗng nội dung: override_text trống → mapper điền mặc định
+  ///     "Câu hỏi N" (không có nội dung thật) → cũng coi là lỗi.
+  static final RegExp _emptyQuestionPattern = RegExp(r'^Câu hỏi \d+\.?$');
+  bool _isFailedQuestion(Map<String, dynamic> q) {
+    if (q['_isFallback'] == true) return true;
+    final t = (q['text'] as String? ?? '').trim();
+    if (t.contains('(cần chỉnh sửa)')) return true;
+    if (_emptyQuestionPattern.hasMatch(t)) return true;
+    return false;
+  }
 
   Future<void> _handleRegenerateSingle(int index) async {
     final ctx = _buildRegenContext();
