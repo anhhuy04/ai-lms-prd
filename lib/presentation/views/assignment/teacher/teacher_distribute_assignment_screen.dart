@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/recipient_tree_node.dart';
@@ -7,6 +9,7 @@ import 'package:ai_mls/presentation/providers/distribute_assignment_notifier.dar
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/recipient_tree_selector_modal.dart';
 import 'package:ai_mls/widgets/forms/date_time_picker_field.dart';
 import 'package:ai_mls/widgets/forms/select_field.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -71,11 +74,11 @@ class _TeacherDistributeAssignmentScreenState
 
     final tSec = isDark ? Colors.white70 : DesignColors.textSecondary;
 
-    // Lấy teacher ID (đã load từ auth provider)
+    // Láº¥y teacher ID (Ä‘Ă£ load tá»« auth provider)
     final currentUserAsync = ref.watch(currentUserProvider);
     final teacherId = currentUserAsync.valueOrNull?.id;
 
-    // Nếu chưa có teacher ID, hiển thị loading đơn giản
+    // Náº¿u chÆ°a cĂ³ teacher ID, hiá»ƒn thá»‹ loading Ä‘Æ¡n giáº£n
     if (teacherId == null) {
       return Scaffold(
         backgroundColor: isDark ? colorScheme.surface : DesignColors.moonLight,
@@ -85,14 +88,14 @@ class _TeacherDistributeAssignmentScreenState
             children: [
               const CircularProgressIndicator(strokeWidth: 2),
               const SizedBox(height: 16),
-              Text('Đang tải...', style: TextStyle(color: tSec)),
+              Text('Äang táº£i...', style: TextStyle(color: tSec)),
             ],
           ),
         ),
       );
     }
 
-    // Lấy dữ liệu class hierarchy từ database
+    // Láº¥y dá»¯ liá»‡u class hierarchy tá»« database
     final classHierarchyAsync = ref.watch(classHierarchyForDistributeProvider);
 
     final primaryColor = DesignColors.primary;
@@ -103,8 +106,8 @@ class _TeacherDistributeAssignmentScreenState
         : DesignColors.white;
     final tMain = isDark ? Colors.white : DesignColors.textPrimary;
 
-    // Xử lý classHierarchy - có thể là loading hoặc có dữ liệu
-    // KHÔNG trả về empty khi loading - để UI tự xử lý
+    // Xá»­ lĂ½ classHierarchy - cĂ³ thá»ƒ lĂ  loading hoáº·c cĂ³ dá»¯ liá»‡u
+    // KHĂ”NG tráº£ vá» empty khi loading - Ä‘á»ƒ UI tá»± xá»­ lĂ½
     List<ClassNode> classHierarchy;
     bool isClassHierarchyLoading = false;
     String? classHierarchyError;
@@ -166,7 +169,7 @@ class _TeacherDistributeAssignmentScreenState
           onPressed: () => context.pop(),
         ),
         title: Text(
-          widget.isEditMode ? 'Cấu hình phân phối' : 'Giao Bài Tập',
+          widget.isEditMode ? 'Cáº¥u hĂ¬nh phĂ¢n phá»‘i' : 'Giao BĂ i Táº­p',
           style: TextStyle(
             color: tMain,
             fontSize: 18,
@@ -252,13 +255,13 @@ class _TeacherDistributeAssignmentScreenState
                           Flexible(
                             child: Text(
                               state.isLoading
-                                  ? 'Đang tải...'
+                                  ? 'Äang táº£i...'
                                   : (state.selectedAssignments.isEmpty
-                                        ? '+ Thêm bài tập'
+                                        ? '+ ThĂªm bĂ i táº­p'
                                         : (state.selectedAssignments.length > 1
-                                              ? '${state.selectedAssignments.length} bài tập'
+                                              ? '${state.selectedAssignments.length} bĂ i táº­p'
                                               : state.assignment?.title ??
-                                                    'Chưa rõ bài tập')),
+                                                    'ChÆ°a rĂµ bĂ i táº­p')),
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -284,7 +287,7 @@ class _TeacherDistributeAssignmentScreenState
                   const SizedBox(height: 4),
                   RichText(
                     text: TextSpan(
-                      text: 'Dự kiến ',
+                      text: 'Dá»± kiáº¿n ',
                       style: TextStyle(
                         fontSize: 14,
                         color: tSec,
@@ -301,7 +304,7 @@ class _TeacherDistributeAssignmentScreenState
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const TextSpan(text: ' học sinh nhận bài'),
+                        const TextSpan(text: ' há»c sinh nháº­n bĂ i'),
                       ],
                     ),
                   ),
@@ -404,7 +407,7 @@ class _TeacherDistributeAssignmentScreenState
                       Icon(widget.isEditMode ? Icons.save_outlined : Icons.send),
                       const SizedBox(width: 8),
                       Text(
-                        widget.isEditMode ? 'Lưu cấu hình' : 'Giao Bài Ngay',
+                        widget.isEditMode ? 'LÆ°u cáº¥u hĂ¬nh' : 'Giao BĂ i Ngay',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -419,7 +422,7 @@ class _TeacherDistributeAssignmentScreenState
   }
 
   // =======================================================
-  // THÀNH PHẦN GIAO DIỆN
+  // THĂ€NH PHáº¦N GIAO DIá»†N
   // =======================================================
 
   Widget _buildSectionShell(
@@ -500,11 +503,11 @@ class _TeacherDistributeAssignmentScreenState
     final hasSelectedRecipients =
         state.recipientSelection != null && !state.recipientSelection!.isEmpty;
 
-    // Xây dựng nội dung trung tâm
+    // XĂ¢y dá»±ng ná»™i dung trung tĂ¢m
     Widget centerContent;
 
     if (isClassHierarchyLoading) {
-      // Đang tải - hiển thị loading + message
+      // Äang táº£i - hiá»ƒn thá»‹ loading + message
       centerContent = Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -515,20 +518,20 @@ class _TeacherDistributeAssignmentScreenState
           ),
           const SizedBox(height: 12),
           Text(
-            'Đang tải danh sách lớp...',
+            'Äang táº£i danh sĂ¡ch lá»›p...',
             style: TextStyle(color: tSec, fontSize: 14),
           ),
         ],
       );
     } else if (classHierarchyError != null) {
-      // Có lỗi - hiển thị lỗi + nút thử lại
+      // CĂ³ lá»—i - hiá»ƒn thá»‹ lá»—i + nĂºt thá»­ láº¡i
       centerContent = Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.error_outline, color: Colors.red[300], size: 40),
           const SizedBox(height: 12),
           Text(
-            'Lỗi khi tải danh sách lớp',
+            'Lá»—i khi táº£i danh sĂ¡ch lá»›p',
             style: TextStyle(
               color: tMain,
               fontSize: 15,
@@ -539,19 +542,19 @@ class _TeacherDistributeAssignmentScreenState
           OutlinedButton.icon(
             onPressed: () => ref.refresh(classHierarchyForDistributeProvider),
             icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Thử lại'),
+            label: const Text('Thá»­ láº¡i'),
           ),
         ],
       );
     } else if (classHierarchy.isEmpty) {
-      // Không có lớp - hiển thị message
+      // KhĂ´ng cĂ³ lá»›p - hiá»ƒn thá»‹ message
       centerContent = Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.school_outlined, color: tSec, size: 40),
           const SizedBox(height: 12),
           Text(
-            'Chưa có lớp học nào',
+            'ChÆ°a cĂ³ lá»›p há»c nĂ o',
             style: TextStyle(
               color: tMain,
               fontSize: 15,
@@ -560,14 +563,14 @@ class _TeacherDistributeAssignmentScreenState
           ),
           const SizedBox(height: 4),
           Text(
-            'Bạn cần tạo lớp học trước khi phân phối bài tập',
+            'Báº¡n cáº§n táº¡o lá»›p há»c trÆ°á»›c khi phĂ¢n phá»‘i bĂ i táº­p',
             style: TextStyle(color: tSec, fontSize: 13),
             textAlign: TextAlign.center,
           ),
         ],
       );
     } else if (hasSelectedRecipients) {
-      // Có dữ liệu và đã chọn - hiển thị danh sách đã chọn
+      // CĂ³ dá»¯ liá»‡u vĂ  Ä‘Ă£ chá»n - hiá»ƒn thá»‹ danh sĂ¡ch Ä‘Ă£ chá»n
       centerContent = ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: (MediaQuery.of(context).size.height * 0.5).clamp(0.0, 700.0),
@@ -592,7 +595,7 @@ class _TeacherDistributeAssignmentScreenState
         ),
       );
     } else {
-      // Có dữ liệu nhưng chưa chọn
+      // CĂ³ dá»¯ liá»‡u nhÆ°ng chÆ°a chá»n
       centerContent = const SizedBox.shrink();
     }
 
@@ -600,7 +603,7 @@ class _TeacherDistributeAssignmentScreenState
       isDark,
       cardColor,
       Icons.group,
-      'Đối tượng',
+      'Äá»‘i tÆ°á»£ng',
       trailingHeader: selectionCountText.isNotEmpty
           ? Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -623,7 +626,7 @@ class _TeacherDistributeAssignmentScreenState
       child: Column(
         children: [
           centerContent,
-          // Nút Add - ẩn trong editMode
+          // NĂºt Add - áº©n trong editMode
           if (!isEditMode) ...[
             if (centerContent is! SizedBox) const SizedBox(height: 12),
             InkWell(
@@ -656,7 +659,7 @@ class _TeacherDistributeAssignmentScreenState
                     Icon(Icons.add_circle, color: DesignColors.primary, size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      'Thêm Lớp / Nhóm / Học sinh',
+                      'ThĂªm Lá»›p / NhĂ³m / Há»c sinh',
                       style: TextStyle(
                         color: DesignColors.primary,
                         fontWeight: FontWeight.w600,
@@ -686,7 +689,7 @@ class _TeacherDistributeAssignmentScreenState
 
     final result = <Widget>[];
 
-    // Lấy danh sách tất cả các Lớp có chứa Học sinh hoặc Nhóm hoặc fully selected
+    // Láº¥y danh sĂ¡ch táº¥t cáº£ cĂ¡c Lá»›p cĂ³ chá»©a Há»c sinh hoáº·c NhĂ³m hoáº·c fully selected
     final allClassIds = <String>{
       ...selection.fullySelectedClassIds,
       ...selection.selectedGroupIdsByClass.keys,
@@ -719,7 +722,7 @@ class _TeacherDistributeAssignmentScreenState
       result.add(const SizedBox(height: 12));
     }
 
-    // Thêm bottom padding extra
+    // ThĂªm bottom padding extra
     if (result.isNotEmpty) {
       result.add(const SizedBox(height: 4));
     }
@@ -739,7 +742,7 @@ class _TeacherDistributeAssignmentScreenState
       isDark,
       cardColor,
       Icons.calendar_month,
-      'Lịch trình & Thời gian',
+      'Lá»‹ch trĂ¬nh & Thá»i gian',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -747,7 +750,7 @@ class _TeacherDistributeAssignmentScreenState
             children: [
               Expanded(
                 child: DatePickerField(
-                  label: 'NGÀY BẮT ĐẦU',
+                  label: 'NGĂ€Y Báº®T Äáº¦U',
                   initialDate: state.availableFrom,
                   onDateSelected: (date) {
                     notifier.setAvailableFrom(date);
@@ -761,7 +764,7 @@ class _TeacherDistributeAssignmentScreenState
               const SizedBox(width: 16),
               Expanded(
                 child: TimePickerField(
-                  label: 'GIỜ BẮT ĐẦU',
+                  label: 'GIá»œ Báº®T Äáº¦U',
                   initialTime: state.availableFrom != null
                       ? TimeOfDay.fromDateTime(state.availableFrom!)
                       : null,
@@ -787,7 +790,7 @@ class _TeacherDistributeAssignmentScreenState
             children: [
               Expanded(
                 child: DatePickerField(
-                  label: 'NGÀY HẾT HẠN',
+                  label: 'NGĂ€Y Háº¾T Háº N',
                   initialDate: state.dueDate,
                   onDateSelected: (date) {
                     notifier.setDueDate(date);
@@ -798,7 +801,7 @@ class _TeacherDistributeAssignmentScreenState
               const SizedBox(width: 16),
               Expanded(
                 child: TimePickerField(
-                  label: 'GIỜ HẾT HẠN',
+                  label: 'GIá»œ Háº¾T Háº N',
                   initialTime: state.dueDate != null
                       ? TimeOfDay.fromDateTime(state.dueDate!)
                       : null,
@@ -827,19 +830,19 @@ class _TeacherDistributeAssignmentScreenState
           const SizedBox(height: 16),
           // Time Limit
           SelectField<String>(
-            label: 'THỜI GIAN LÀM BÀI',
+            label: 'THá»œI GIAN LĂ€M BĂ€I',
             value: state.timeLimitMinutes != null
                 ? state.timeLimitMinutes.toString()
                 : 'unlimited',
             prefixIcon: Icons.timer,
             useCustomPicker: true,
             options: const [
-              SelectFieldOption(value: '15', label: '15 phút'),
-              SelectFieldOption(value: '30', label: '30 phút'),
-              SelectFieldOption(value: '45', label: '45 phút'),
-              SelectFieldOption(value: '60', label: '60 phút'),
-              SelectFieldOption(value: '90', label: '90 phút'),
-              SelectFieldOption(value: 'unlimited', label: 'Không giới hạn'),
+              SelectFieldOption(value: '15', label: '15 phĂºt'),
+              SelectFieldOption(value: '30', label: '30 phĂºt'),
+              SelectFieldOption(value: '45', label: '45 phĂºt'),
+              SelectFieldOption(value: '60', label: '60 phĂºt'),
+              SelectFieldOption(value: '90', label: '90 phĂºt'),
+              SelectFieldOption(value: 'unlimited', label: 'KhĂ´ng giá»›i háº¡n'),
             ],
             onChanged: (limit) {
               if (limit == 'unlimited') {
@@ -866,20 +869,20 @@ class _TeacherDistributeAssignmentScreenState
       isDark,
       cardColor,
       Icons.tune,
-      'Cài đặt nâng cao',
+      'CĂ i Ä‘áº·t nĂ¢ng cao',
       child: Column(
         children: [
           _buildToggleRow(
             icon: Icons.history_toggle_off,
-            title: 'Cho phép nộp muộn',
-            subtitle: 'Học sinh có thể nộp bài sau thời hạn',
+            title: 'Cho phĂ©p ná»™p muá»™n',
+            subtitle: 'Há»c sinh cĂ³ thá»ƒ ná»™p bĂ i sau thá»i háº¡n',
             value: state.allowLate,
             onChanged: notifier.setAllowLate,
             tMain: tMain,
             tSec: tSec,
             isDark: isDark,
           ),
-          // Late Penalty - Hiển thị khi allowLate = true
+          // Late Penalty - Hiá»ƒn thá»‹ khi allowLate = true
           if (state.allowLate) ...[
             const SizedBox(height: 8),
             _buildLatePenaltyRow(
@@ -917,7 +920,7 @@ class _TeacherDistributeAssignmentScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Chế độ xem kết quả',
+                            'Cháº¿ Ä‘á»™ xem káº¿t quáº£',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w500,
@@ -926,7 +929,7 @@ class _TeacherDistributeAssignmentScreenState
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Học sinh xem được gì sau khi nộp bài',
+                            'Há»c sinh xem Ä‘Æ°á»£c gĂ¬ sau khi ná»™p bĂ i',
                             style: TextStyle(fontSize: 12, color: tSec),
                           ),
                         ],
@@ -942,17 +945,17 @@ class _TeacherDistributeAssignmentScreenState
                       ButtonSegment(
                         value: 'none',
                         icon: Icon(Icons.visibility_off_outlined, size: 15),
-                        label: Text('Ẩn hết', style: TextStyle(fontSize: 11)),
+                        label: Text('áº¨n háº¿t', style: TextStyle(fontSize: 11)),
                       ),
                       ButtonSegment(
                         value: 'score_only',
                         icon: Icon(Icons.stars_outlined, size: 15),
-                        label: Text('Chỉ điểm', style: TextStyle(fontSize: 11)),
+                        label: Text('Chá»‰ Ä‘iá»ƒm', style: TextStyle(fontSize: 11)),
                       ),
                       ButtonSegment(
                         value: 'full_review',
                         icon: Icon(Icons.fact_check_outlined, size: 15),
-                        label: Text('Xem lại', style: TextStyle(fontSize: 11)),
+                        label: Text('Xem láº¡i', style: TextStyle(fontSize: 11)),
                       ),
                     ],
                     selected: {state.studentReviewMode},
@@ -968,11 +971,11 @@ class _TeacherDistributeAssignmentScreenState
             ),
           ),
           Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
-          // Cho phép làm lại
+          // Cho phĂ©p lĂ m láº¡i
           _buildToggleRow(
             icon: Icons.replay_rounded,
-            title: 'Cho phép làm lại',
-            subtitle: 'Học sinh có thể làm lại bài sau khi đã nộp',
+            title: 'Cho phĂ©p lĂ m láº¡i',
+            subtitle: 'Há»c sinh cĂ³ thá»ƒ lĂ m láº¡i bĂ i sau khi Ä‘Ă£ ná»™p',
             value: state.allowRetake,
             onChanged: (v) {
               notifier.setAllowRetake(v);
@@ -1010,7 +1013,7 @@ class _TeacherDistributeAssignmentScreenState
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Số lần làm tối đa',
+                            'Sá»‘ láº§n lĂ m tá»‘i Ä‘a',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
@@ -1061,7 +1064,7 @@ class _TeacherDistributeAssignmentScreenState
                 : const SizedBox.shrink(),
           ),
           Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
-          // Quy tắc tính điểm cuối
+          // Quy táº¯c tĂ­nh Ä‘iá»ƒm cuá»‘i
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Column(
@@ -1086,7 +1089,7 @@ class _TeacherDistributeAssignmentScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Quy tắc tính điểm cuối',
+                            'Quy táº¯c tĂ­nh Ä‘iá»ƒm cuá»‘i',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w500,
@@ -1095,7 +1098,7 @@ class _TeacherDistributeAssignmentScreenState
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Điểm nào được tính khi làm nhiều lần',
+                            'Äiá»ƒm nĂ o Ä‘Æ°á»£c tĂ­nh khi lĂ m nhiá»u láº§n',
                             style: TextStyle(fontSize: 12, color: tSec),
                           ),
                         ],
@@ -1111,22 +1114,22 @@ class _TeacherDistributeAssignmentScreenState
                       ButtonSegment(
                         value: 'latest',
                         icon: Icon(Icons.update, size: 15),
-                        label: Text('Mới nhất', style: TextStyle(fontSize: 11)),
+                        label: Text('Má»›i nháº¥t', style: TextStyle(fontSize: 11)),
                       ),
                       ButtonSegment(
                         value: 'first',
                         icon: Icon(Icons.looks_one_outlined, size: 15),
-                        label: Text('Đầu tiên', style: TextStyle(fontSize: 11)),
+                        label: Text('Äáº§u tiĂªn', style: TextStyle(fontSize: 11)),
                       ),
                       ButtonSegment(
                         value: 'max',
                         icon: Icon(Icons.trending_up, size: 15),
-                        label: Text('Cao nhất', style: TextStyle(fontSize: 11)),
+                        label: Text('Cao nháº¥t', style: TextStyle(fontSize: 11)),
                       ),
                       ButtonSegment(
                         value: 'average',
                         icon: Icon(Icons.bar_chart, size: 15),
-                        label: Text('Trung bình', style: TextStyle(fontSize: 11)),
+                        label: Text('Trung bĂ¬nh', style: TextStyle(fontSize: 11)),
                       ),
                     ],
                     selected: {state.scoreAggregationRule},
@@ -1150,8 +1153,8 @@ class _TeacherDistributeAssignmentScreenState
           Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
           _buildToggleRow(
             icon: Icons.shuffle,
-            title: 'Đảo câu hỏi',
-            subtitle: 'Thứ tự câu hỏi khác nhau cho mỗi học sinh',
+            title: 'Äáº£o cĂ¢u há»i',
+            subtitle: 'Thá»© tá»± cĂ¢u há»i khĂ¡c nhau cho má»—i há»c sinh',
             value: state.shuffleQuestions,
             onChanged: notifier.setShuffleQuestions,
             tMain: tMain,
@@ -1161,8 +1164,8 @@ class _TeacherDistributeAssignmentScreenState
           Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
           _buildToggleRow(
             icon: Icons.swap_horiz,
-            title: 'Đảo đáp án',
-            subtitle: 'Thứ tự đáp án khác nhau cho mỗi học sinh',
+            title: 'Äáº£o Ä‘Ă¡p Ă¡n',
+            subtitle: 'Thá»© tá»± Ä‘Ă¡p Ă¡n khĂ¡c nhau cho má»—i há»c sinh',
             value: state.shuffleAnswers,
             onChanged: notifier.setShuffleAnswers,
             tMain: tMain,
@@ -1172,8 +1175,8 @@ class _TeacherDistributeAssignmentScreenState
           Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
           _buildToggleRow(
             icon: Icons.notifications_active,
-            title: 'Gửi thông báo',
-            subtitle: 'Thông báo cho học sinh khi có bài mới',
+            title: 'Gá»­i thĂ´ng bĂ¡o',
+            subtitle: 'ThĂ´ng bĂ¡o cho há»c sinh khi cĂ³ bĂ i má»›i',
             value: state.sendNotification,
             onChanged: notifier.setSendNotification,
             tMain: tMain,
@@ -1184,8 +1187,8 @@ class _TeacherDistributeAssignmentScreenState
           // AI Analysis toggle (7-11b)
           _buildToggleRow(
             icon: Icons.auto_awesome,
-            title: 'AI Phân tích bài làm',
-            subtitle: 'Sau khi nộp, AI giải thích đáp án và phân tích học lực',
+            title: 'AI PhĂ¢n tĂ­ch bĂ i lĂ m',
+            subtitle: 'Sau khi ná»™p, AI giáº£i thĂ­ch Ä‘Ă¡p Ă¡n vĂ  phĂ¢n tĂ­ch há»c lá»±c',
             value: state.aiEnabled,
             onChanged: (_) => notifier.toggleAiEnabled(),
             tMain: tMain,
@@ -1218,7 +1221,7 @@ class _TeacherDistributeAssignmentScreenState
                           children: [
                             Expanded(
                               child: Text(
-                                'Chờ giáo viên duyệt trước khi công bố',
+                                'Chá» giĂ¡o viĂªn duyá»‡t trÆ°á»›c khi cĂ´ng bá»‘',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
@@ -1247,8 +1250,8 @@ class _TeacherDistributeAssignmentScreenState
                         const SizedBox(height: 4),
                         Text(
                           state.requireReview
-                              ? 'AI phân tích xong → giáo viên xem xét → công bố điểm'
-                              : 'AI phân tích xong → tự động công bố điểm',
+                              ? 'AI phĂ¢n tĂ­ch xong â†’ giĂ¡o viĂªn xem xĂ©t â†’ cĂ´ng bá»‘ Ä‘iá»ƒm'
+                              : 'AI phĂ¢n tĂ­ch xong â†’ tá»± Ä‘á»™ng cĂ´ng bá»‘ Ä‘iá»ƒm',
                           style: TextStyle(fontSize: 12, color: tSec),
                         ),
                       ],
@@ -1271,7 +1274,7 @@ class _TeacherDistributeAssignmentScreenState
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      margin: const EdgeInsets.only(left: 44), // Indent để phân biệt với toggle
+      margin: const EdgeInsets.only(left: 44), // Indent Ä‘á»ƒ phĂ¢n biá»‡t vá»›i toggle
       decoration: BoxDecoration(
         color: isDark
             ? DesignColors.primary.withValues(alpha: 0.08)
@@ -1296,7 +1299,7 @@ class _TeacherDistributeAssignmentScreenState
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        'Phần trăm trừ điểm',
+                        'Pháº§n trÄƒm trá»« Ä‘iá»ƒm',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -1362,7 +1365,7 @@ class _TeacherDistributeAssignmentScreenState
           ),
           const SizedBox(height: 4),
           Text(
-            'Mỗi ngày nộp muộn sẽ bị trừ ${state.latePenaltyPercent}% điểm',
+            'Má»—i ngĂ y ná»™p muá»™n sáº½ bá»‹ trá»« ${state.latePenaltyPercent}% Ä‘iá»ƒm',
             style: TextStyle(
               fontSize: 12,
               color: tSec,
@@ -1430,7 +1433,7 @@ class _TeacherDistributeAssignmentScreenState
               ],
             ),
           ),
-          // Toggle custom để giống HTML
+          // Toggle custom Ä‘á»ƒ giá»‘ng HTML
           Transform.scale(
             scale: 0.65,
             child: Switch(
@@ -1460,19 +1463,19 @@ class _TeacherDistributeAssignmentScreenState
     showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Đổi quy tắc tính điểm?'),
+        title: const Text('Äá»•i quy táº¯c tĂ­nh Ä‘iá»ƒm?'),
         content: Text(
-          'Chuyển sang "${_ruleLabel(newRule)}" sẽ thay đổi điểm cuối '
-          'hiển thị cho tất cả học sinh đã nộp bài. Tiếp tục?',
+          'Chuyá»ƒn sang "${_ruleLabel(newRule)}" sáº½ thay Ä‘á»•i Ä‘iá»ƒm cuá»‘i '
+          'hiá»ƒn thá»‹ cho táº¥t cáº£ há»c sinh Ä‘Ă£ ná»™p bĂ i. Tiáº¿p tá»¥c?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: const Text('Há»§y'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Tiếp tục'),
+            child: const Text('Tiáº¿p tá»¥c'),
           ),
         ],
       ),
@@ -1484,10 +1487,10 @@ class _TeacherDistributeAssignmentScreenState
   }
 
   String _ruleLabel(String rule) => switch (rule) {
-        'max' => 'Cao nhất',
-        'average' => 'Trung bình',
-        'first' => 'Đầu tiên',
-        _ => 'Mới nhất',
+        'max' => 'Cao nháº¥t',
+        'average' => 'Trung bĂ¬nh',
+        'first' => 'Äáº§u tiĂªn',
+        _ => 'Má»›i nháº¥t',
       };
 
   Widget _buildCounterBtn({
@@ -1525,17 +1528,17 @@ class _TeacherDistributeAssignmentScreenState
     final (IconData icon, String text, Color color) = switch (mode) {
       'none' => (
           Icons.visibility_off_outlined,
-          'Học sinh không thấy điểm số và không được xem lại bài làm',
+          'Há»c sinh khĂ´ng tháº¥y Ä‘iá»ƒm sá»‘ vĂ  khĂ´ng Ä‘Æ°á»£c xem láº¡i bĂ i lĂ m',
           const Color(0xFFDC2626),
         ),
       'score_only' => (
           Icons.stars_outlined,
-          'Học sinh chỉ thấy điểm số, không xem chi tiết từng câu trả lời',
+          'Há»c sinh chá»‰ tháº¥y Ä‘iá»ƒm sá»‘, khĂ´ng xem chi tiáº¿t tá»«ng cĂ¢u tráº£ lá»i',
           const Color(0xFFD97706),
         ),
       _ => (
           Icons.fact_check_outlined,
-          'Học sinh thấy điểm, nhận xét AI và có thể xem lại từng câu trả lời',
+          'Há»c sinh tháº¥y Ä‘iá»ƒm, nháº­n xĂ©t AI vĂ  cĂ³ thá»ƒ xem láº¡i tá»«ng cĂ¢u tráº£ lá»i',
           const Color(0xFF16A34A),
         ),
     };
@@ -1582,19 +1585,21 @@ class _TeacherDistributeAssignmentScreenState
         : 1;
     final assignmentTitle = state.selectedAssignments.isNotEmpty
         ? (assignmentCount > 1
-              ? '$assignmentCount bài tập'
+              ? '$assignmentCount bĂ i táº­p'
               : state.selectedAssignments.first.title)
-        : (state.assignment?.title ?? 'Bài tập');
+        : (state.assignment?.title ?? 'BĂ i táº­p');
 
+    final navigator = Navigator.of(context);
+    // Auto-Ä‘Ă³ng sau 3s â€” lĂªn lá»‹ch Má»˜T Láº¦N ngoĂ i builder (Ä‘áº·t trong builder sáº½ táº¡o
+    // nhiá»u timer má»—i láº§n rebuild â†’ dialog tá»± Ä‘Ă³ng/pop sai). Guard mounted trĂ¡nh
+    // gá»i navigator Ä‘Ă£ defunct sau khi mĂ n bá»‹ pop.
+    Timer(const Duration(seconds: 3), () {
+      if (mounted && navigator.canPop()) navigator.pop();
+    });
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (ctx) {
-        // Auto-close sau 2.5 giây
-        Future.delayed(const Duration(milliseconds: 2500), () {
-          if (ctx.mounted) Navigator.of(ctx).pop();
-        });
-
         return Dialog(
           backgroundColor: isDark
               ? const Color(0xFF1E293B)
@@ -1637,7 +1642,7 @@ class _TeacherDistributeAssignmentScreenState
                 ),
                 SizedBox(height: DesignSpacing.lg),
                 Text(
-                  'Giao bài thành công!',
+                  'Giao bĂ i thĂ nh cĂ´ng!',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -1667,7 +1672,7 @@ class _TeacherDistributeAssignmentScreenState
                     borderRadius: BorderRadius.circular(DesignSpacing.md),
                   ),
                   child: Text(
-                    '$estimatedCount học sinh nhận bài',
+                    '$estimatedCount há»c sinh nháº­n bĂ i',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -1689,7 +1694,7 @@ class _TeacherDistributeAssignmentScreenState
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'Đề thi sẽ được xáo trộn khi HS bắt đầu làm bài',
+                        'Äá» thi sáº½ Ä‘Æ°á»£c xĂ¡o trá»™n khi HS báº¯t Ä‘áº§u lĂ m bĂ i',
                         style: TextStyle(
                           fontSize: 11,
                           color: DesignColors.tealPrimary,
@@ -1699,6 +1704,24 @@ class _TeacherDistributeAssignmentScreenState
                     ],
                   ),
                 ],
+                SizedBox(height: DesignSpacing.xl),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: DesignColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(
+                        vertical: DesignSpacing.md,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(DesignSpacing.md),
+                      ),
+                    ),
+                    child: const Text('Xong'),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1710,7 +1733,7 @@ class _TeacherDistributeAssignmentScreenState
   }
 
   void _showError(BuildContext context, String message) {
-    /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — AppToast.error(context, message); */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */;
+    if (context.mounted) AppToast.error(context, message);
   }
 
   String _calculateEstimatedCount(
@@ -1760,9 +1783,9 @@ class _TeacherDistributeAssignmentScreenState
 
   String _getSelectionCountText(RecipientSelectionResult? result) {
     if (result == null || result.isEmpty) return '';
-    if (result.totalClasses > 0) return 'Đã chọn ${result.totalClasses} lớp';
-    if (result.totalGroups > 0) return 'Đã chọn ${result.totalGroups} nhóm';
-    return 'Đã chọn ${result.totalStudents} HS';
+    if (result.totalClasses > 0) return 'ÄĂ£ chá»n ${result.totalClasses} lá»›p';
+    if (result.totalGroups > 0) return 'ÄĂ£ chá»n ${result.totalGroups} nhĂ³m';
+    return 'ÄĂ£ chá»n ${result.totalStudents} HS';
   }
 }
 
@@ -1832,8 +1855,8 @@ class _ClassRecipientAccordion extends StatelessWidget {
                   context,
                   data: [classNode],
                   initialSelection: selection,
-                  title: 'Chi tiết ${classNode.name}',
-                  confirmText: 'Cập nhật danh sách',
+                  title: 'Chi tiáº¿t ${classNode.name}',
+                  confirmText: 'Cáº­p nháº­t danh sĂ¡ch',
                 );
                 if (result != null) {
                   final fullySelected = Set.of(selection.fullySelectedClassIds);
@@ -1893,10 +1916,10 @@ class _ClassRecipientAccordion extends StatelessWidget {
         ),
         subtitle: Text(
           classNode.id == 'inter_class_root'
-              ? 'Đã chọn: $totalSelectedStudentsNum học sinh'
+              ? 'ÄĂ£ chá»n: $totalSelectedStudentsNum há»c sinh'
               : (isFullySelected
-                    ? 'Lớp đầy đủ ($totalSelectedStudentsNum học sinh)'
-                    : 'Đã chọn: $totalSelectedStudentsNum học sinh'),
+                    ? 'Lá»›p Ä‘áº§y Ä‘á»§ ($totalSelectedStudentsNum há»c sinh)'
+                    : 'ÄĂ£ chá»n: $totalSelectedStudentsNum há»c sinh'),
           style: TextStyle(fontSize: 12, color: tSec),
         ),
         trailing: isEditMode
