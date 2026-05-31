@@ -3672,8 +3672,19 @@ class _TeacherAiGenerateQuestionScreenState
     );
   }
 
-  /// Chip chọn sub-mode template: "Tạo mới" (styleOnly) / "Cùng dạng" (sameForm).
-  /// Chỉ hiển thị sau khi detect được file Excel mẫu (_useAsStyleTemplate=true).
+  /// Câu fill_blank có ô trống nhưng correct_values rỗng (AI quên đáp án) →
+  /// cần GV nhập đáp án trước khi lưu, nếu không auto-grade luôn trả 0 điểm.
+  bool _needsAnswerBadge(QuestionType type, Map<String, dynamic>? answer) {
+    if (type != QuestionType.fillBlank) return false;
+    final blanks = answer?['blanks'];
+    if (blanks is! List || blanks.isEmpty) return false;
+    return blanks.any((b) {
+      final cv = b is Map ? (b['correct_values'] ?? b['correctValues']) : null;
+      if (cv is! List || cv.isEmpty) return true;
+      return cv.every((v) => v.toString().trim().isEmpty);
+    });
+  }
+
   Widget _buildQuestionPreviewCard(
     BuildContext context,
     bool isDark, {
@@ -3737,6 +3748,42 @@ class _TeacherAiGenerateQuestionScreenState
                       ),
                     ),
                   ),
+                  // Badge đỏ: fill_blank thiếu đáp án (correct_values rỗng) → GV phải nhập
+                  if (_needsAnswerBadge(questionType, answer)) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: DesignColors.error.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(DesignRadius.full),
+                        border: Border.all(
+                          color: DesignColors.error.withValues(alpha: 0.45),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 13,
+                            color: DesignColors.error,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Cần nhập đáp án trước khi lưu',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: DesignColors.error,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   MathText(
                     questionText,
