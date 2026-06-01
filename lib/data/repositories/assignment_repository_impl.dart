@@ -252,6 +252,26 @@ class AssignmentRepositoryImpl implements AssignmentRepository {
   }
 
   @override
+  Future<List<AssignmentQuestion>> getAssignmentQuestionsForGrading(
+    String assignmentId,
+  ) async {
+    try {
+      final rows = await _ds.getAssignmentQuestionsForGrading(assignmentId);
+      return rows.map(AssignmentQuestion.fromJson).toList();
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [REPO ERROR] getAssignmentQuestionsForGrading(assignmentId: $assignmentId): $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw ErrorTranslationUtils.translateError(
+        e,
+        'Lấy danh sách câu hỏi bài tập',
+      );
+    }
+  }
+
+  @override
   Future<List<AssignmentVariant>> getVariants(String assignmentId) async {
     try {
       final rows = await _ds.getVariants(assignmentId);

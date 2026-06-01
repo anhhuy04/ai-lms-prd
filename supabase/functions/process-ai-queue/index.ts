@@ -735,6 +735,12 @@ async function writeScore(
 ): Promise<void> {
   const now = new Date().toISOString();
 
+  // Tiêu chí chấm (fallback 1 phần tử nếu model không trả) — DÙNG CHUNG cho cả
+  //   ai_feedback (UI) lẫn ai_evaluations.rationale (lịch sử) để 2 nơi luôn nhất quán.
+  const criteria = (Array.isArray(r.criteria) && r.criteria.length)
+    ? r.criteria
+    : [{ name: "Nội dung chung", score: r.score, max: maxPoints, comment: r.explanation }];
+
   const update: Record<string, unknown> = {
     ai_score: r.score,
     ai_confidence: r.confidence,
@@ -742,6 +748,9 @@ async function writeScore(
       status: r.status, provider: r.provider, model: r.model,
       summary: r.summary, explanation: r.explanation,
       strengths: r.strengths, improvements: r.improvements,
+      // UI chấm đọc thêm 2 field này: danh sách tiêu chí + lý do (chuỗi).
+      criteria,
+      rationale: r.explanation || r.summary || "",
     },
     updated_at: now,
   };
@@ -763,11 +772,7 @@ async function writeScore(
     ai_score: r.score,
     ai_confidence: r.confidence,
     feedback: r.summary,
-    rationale: {
-      criteria: (Array.isArray(r.criteria) && r.criteria.length)
-        ? r.criteria
-        : [{ name: "Nội dung chung", score: r.score, max: maxPoints, comment: r.explanation }],
-    },
+    rationale: { criteria },
   });
 
   if (autoPublish) {

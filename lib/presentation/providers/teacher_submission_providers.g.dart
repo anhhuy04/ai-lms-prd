@@ -807,7 +807,7 @@ class _TeacherStudentDistributionAttemptsProviderElement
 }
 
 String _$batchGradeAssignmentQuestionsHash() =>
-    r'85e9225afde855c19976c98b3ba754b551d5cdf4';
+    r'eba4d752b6ea444cbebbd01560399f52179b15c7';
 
 /// Track 2 — Danh sách câu hỏi (assignment_questions) của 1 distribution, dùng cho
 /// màn chấm theo câu. Chain: distributionDetail → assignment_id → câu hỏi (typed).
@@ -1157,7 +1157,7 @@ final submissionFilterNotifierProvider =
 
 typedef _$SubmissionFilterNotifier = AutoDisposeNotifier<SubmissionFilter>;
 String _$submissionGradingNotifierHash() =>
-    r'f1e59cd9aaa95c5da8044d8fd06a7e8ce9bcb5dc';
+    r'5dbf9c7a722e7e7c6d8481de73c357ede820fa50';
 
 /// Provider cập nhật điểm và feedback của submission
 ///

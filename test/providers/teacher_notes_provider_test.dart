@@ -55,6 +55,35 @@ class _FakeTeacherNotesRepository implements TeacherNotesRepository {
   }
 }
 
+/// Fake repository luôn ném lỗi — dùng để kiểm tra error path của mutation.
+class _ThrowingTeacherNotesRepository implements TeacherNotesRepository {
+  @override
+  Future<List<TeacherNote>> getNotes(String studentId) async => [];
+
+  @override
+  Future<TeacherNote> addNote({
+    required String studentId,
+    required String content,
+    bool isPrivate = true,
+  }) async {
+    throw Exception('add failed');
+  }
+
+  @override
+  Future<TeacherNote> updateNote({
+    required String id,
+    required String content,
+    bool? isPrivate,
+  }) async {
+    throw Exception('update failed');
+  }
+
+  @override
+  Future<void> deleteNote(String id) async {
+    throw Exception('delete failed');
+  }
+}
+
 TeacherNote _makeNote({
   String id = 'n1',
   String studentId = 'student-1',
@@ -75,7 +104,7 @@ TeacherNote _makeNote({
 void main() {
   const studentId = 'student-1';
 
-  ProviderContainer makeContainer(_FakeTeacherNotesRepository fake) {
+  ProviderContainer makeContainer(TeacherNotesRepository fake) {
     final container = ProviderContainer(
       overrides: [
         // autoDispose @riverpod provider → dùng overrideWith (không overrideWithValue)
@@ -128,10 +157,13 @@ void main() {
           .read(teacherNotesProvider(studentId: studentId).future);
       expect(before.length, equals(1));
 
-      // Thêm ghi chú
+      // Thêm ghi chú (notifier KHÔNG còn tự invalidate — widget mới làm việc đó)
       await container
           .read(teacherNotesNotifierProvider.notifier)
           .addNote(studentId: studentId, content: 'Mới');
+
+      // Giả lập việc widget invalidate read-provider bằng ref còn sống của nó.
+      container.invalidate(teacherNotesProvider(studentId: studentId));
 
       // Sau invalidate, đọc lại provider → danh sách reload từ repository
       final after = await container
@@ -156,10 +188,25 @@ void main() {
           .read(teacherNotesNotifierProvider.notifier)
           .deleteNote(id: 'n1', studentId: studentId);
 
+      // Giả lập việc widget invalidate read-provider sau mutation.
+      container.invalidate(teacherNotesProvider(studentId: studentId));
+
       final after = await container
           .read(teacherNotesProvider(studentId: studentId).future);
       expect(after.length, equals(1));
       expect(after.first.id, equals('n2'));
+    });
+
+    test('addNote ném exception khi repository thất bại', () async {
+      final fake = _ThrowingTeacherNotesRepository();
+      final container = makeContainer(fake);
+
+      await expectLater(
+        container
+            .read(teacherNotesNotifierProvider.notifier)
+            .addNote(studentId: studentId, content: 'Mới'),
+        throwsA(isA<Exception>()),
+      );
     });
   });
 }

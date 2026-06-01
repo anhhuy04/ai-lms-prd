@@ -370,6 +370,120 @@ class AssignmentDataSource {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  /// Track 2 (Chấm theo câu) — Lấy assignment_questions ĐÃ resolve nội dung từ
+  /// question bank, dùng riêng cho màn "Chấm theo câu".
+  ///
+  /// KHÁC [getAssignmentQuestions] (select trần, không join bank): với câu hỏi
+  /// reuse từ kho (question_id != null), `custom_content` là NULL theo khế ước
+  /// Delta Override → màn chấm theo câu sẽ render trắng + suy sai loại (essay).
+  /// Method này JOIN bank `questions(type, content, answer, question_choices)`
+  /// và gói nội dung đã resolve vào field `custom_content` (chỉ dùng cho màn
+  /// này — KHÔNG ghi DB) để [AssignmentQuestion.fromJson] parse được mà KHÔNG
+  /// phải đổi entity.
+  ///
+  /// Khế ước precedence (gương theo getDistributionDetail + _extractQuestionType):
+  /// - type:    câu bank → bank `questions.type` (custom_content KHÔNG có 'type');
+  ///            câu inline → custom_content['type']. Normalize camelCase→snake_case.
+  /// - text:    custom_content['override_text'] nếu có, else bank content.text.
+  /// - choices: custom_content['choices'] nếu có, else bank question_choices.
+  ///            Chuẩn hoá về shape màn chấm cần: {id, text, isCorrect}
+  ///            (bank trả {id, content:{text}, is_correct}).
+  Future<List<Map<String, dynamic>>> getAssignmentQuestionsForGrading(
+    String assignmentId,
+  ) async {
+    // Single nested embed → tránh N+1 (mỗi câu bank không phải query riêng).
+    final res = await _client
+        .from('assignment_questions')
+        .select(
+          'id, assignment_id, question_id, points, order_idx, custom_content, rubric, '
+          'questions(id, type, content, answer, question_choices(id, content, is_correct))',
+        )
+        .eq('assignment_id', assignmentId)
+        .order('order_idx', ascending: true);
+
+    return List<Map<String, dynamic>>.from(res)
+        .map(resolveGradingRow)
+        .toList();
+  }
+
+  /// Pure transform: 1 row assignment_questions (đã embed bank `questions`) →
+  /// row có `custom_content` đã resolve type/text/choices theo khế ước Delta
+  /// Override. Tách riêng (static, pure) để unit-test KHÔNG cần mock Supabase.
+  ///
+  /// Input row shape (từ embed):
+  ///   {id, assignment_id, question_id, points, order_idx, custom_content, rubric,
+  ///    questions: {type, content:{text}, answer,
+  ///                question_choices:[{id, content:{text}, is_correct}]}}
+  static Map<String, dynamic> resolveGradingRow(Map<String, dynamic> row) {
+    final aq = Map<String, dynamic>.from(row);
+    final bank = aq['questions'] as Map<String, dynamic>?;
+    final custom = aq['custom_content'] as Map<String, dynamic>?;
+
+    // ── type ──────────────────────────────────────────────────────────────
+    String? rawType = custom?['type'] as String?;
+    if (rawType == null || rawType.isEmpty) {
+      rawType = bank?['type'] as String?;
+    }
+    final resolvedType = _normalizeQuestionType(rawType);
+
+    // ── text ──────────────────────────────────────────────────────────────
+    final bankContent = bank?['content'] as Map<String, dynamic>?;
+    final resolvedText = (custom?['override_text'] as String?) ??
+        (custom?['text'] as String?) ??
+        (bankContent?['text']?.toString()) ??
+        (custom?['question_text'] as String?) ??
+        '';
+
+    // ── choices ───────────────────────────────────────────────────────────
+    // Nguồn thô: override nếu có, else bank question_choices.
+    final overrideChoices = custom?['choices'] as List<dynamic>?;
+    final rawChoices = (overrideChoices != null && overrideChoices.isNotEmpty)
+        ? overrideChoices
+        : (bank?['question_choices'] as List<dynamic>? ?? const []);
+    // Chuẩn hoá MỌI nguồn về shape màn chấm cần: {id, text, isCorrect}.
+    // - bank: {id, content:{text}, is_correct}
+    // - override: {id, text, isCorrect} (đôi khi is_correct / content.text)
+    final resolvedChoices = rawChoices.asMap().entries.map((e) {
+      final idx = e.key;
+      final cm = e.value as Map<String, dynamic>;
+      final content = cm['content'];
+      final text = cm['text']?.toString() ??
+          (content is Map ? content['text']?.toString() : null) ??
+          '';
+      return <String, dynamic>{
+        'id': cm['id'] ?? idx,
+        'text': text,
+        'isCorrect': cm['isCorrect'] == true || cm['is_correct'] == true,
+      };
+    }).toList();
+
+    // Gói resolved vào custom_content (chỉ phục vụ render màn chấm theo câu).
+    // Giữ nguyên các key gốc của custom_content nếu có (vd override_text).
+    aq['custom_content'] = <String, dynamic>{
+      if (custom != null) ...custom,
+      'type': resolvedType,
+      'text': resolvedText,
+      'choices': resolvedChoices,
+    };
+    aq.remove('questions'); // không cần nested bank sau khi đã resolve
+    return aq;
+  }
+
+  /// Normalize loại câu hỏi camelCase (dữ liệu cũ) → snake_case (chuẩn app).
+  static String _normalizeQuestionType(String? rawType) {
+    if (rawType == null || rawType.isEmpty) return 'essay';
+    switch (rawType) {
+      case 'multipleChoice':
+        return 'multiple_choice';
+      case 'trueFalse':
+        return 'true_false';
+      case 'fillBlank':
+        return 'fill_blank';
+      default:
+        return rawType;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getDistributions(
     String assignmentId,
   ) async {
@@ -1161,20 +1275,58 @@ class AssignmentDataSource {
 
   /// Lấy danh sách tất cả bài tập của học sinh (từ tất cả các lớp)
   /// Query submissions table để lấy tất cả distributions mà student đã được giao
+  /// Thứ hạng ưu tiên của một work_session khi 1 distribution có nhiều lần làm.
+  /// graded (đã chấm) > submitted/ai_processing/pending_review (đã nộp) >
+  /// in_progress (đang làm) > khác. Dùng để chọn session đại diện.
+  int _sessionStatusRank(String? status) {
+    switch (status) {
+      case 'graded':
+        return 4;
+      case 'submitted':
+      case 'ai_processing':
+      case 'pending_review':
+        return 3;
+      case 'in_progress':
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getStudentAssignments(
     String studentId,
   ) async {
     // Lấy tất cả submissions của student để biết họ được giao bài tập nào
     final submissionsRes = await _client
         .from('work_sessions')
-        .select('assignment_distribution_id, status, submitted_at')
+        .select('assignment_distribution_id, status, submitted_at, attempt')
         .eq('student_id', studentId);
     final submissions = List<Map<String, dynamic>>.from(submissionsRes);
 
-    // Lấy danh sách distribution_id đã có submission (dùng để merge submission status)
-    final submissionsByDistId = {
-      for (final s in submissions) s['assignment_distribution_id'] as String: s,
-    };
+    // Một distribution có thể có NHIỀU work_session (làm lại nhiều lần).
+    // Phải chọn session "tốt nhất" theo cùng convention với getSubmission:
+    // ưu tiên graded > submitted/ai_processing/pending_review > in_progress,
+    // hoà thì lấy attempt cao nhất. KHÔNG dùng "last-wins" vì thứ tự query
+    // không xác định → một bài đã chấm có thể bị một lần làm dở (in_progress)
+    // đè lên, khiến trang chủ hiện sai "đang làm" + lọt vào "sắp đến hạn".
+    final submissionsByDistId = <String, Map<String, dynamic>>{};
+    for (final s in submissions) {
+      final distId = s['assignment_distribution_id'] as String;
+      final existing = submissionsByDistId[distId];
+      if (existing == null) {
+        submissionsByDistId[distId] = s;
+        continue;
+      }
+      final newRank = _sessionStatusRank(s['status'] as String?);
+      final oldRank = _sessionStatusRank(existing['status'] as String?);
+      if (newRank > oldRank) {
+        submissionsByDistId[distId] = s;
+      } else if (newRank == oldRank) {
+        final newAttempt = (s['attempt'] as num?)?.toInt() ?? 0;
+        final oldAttempt = (existing['attempt'] as num?)?.toInt() ?? 0;
+        if (newAttempt > oldAttempt) submissionsByDistId[distId] = s;
+      }
+    }
 
     // Query class_members để lấy danh sách lớp của student
     final classMembersRes = await _client
@@ -1745,6 +1897,8 @@ class AssignmentDataSource {
         ? Map<String, dynamic>.from(rawSettings)
         : <String, dynamic>{};
     final aiEnabled = distSettings['ai_feedback_enabled'] as bool? ?? false;
+    // Phase 3: công tắc RIÊNG cho AI tự chấm tự luận (mặc định tắt → GV tự chấm tay).
+    final aiGradeEssay = distSettings['ai_grade_essay'] as bool? ?? false;
 
     // is_late và submitted_at sẽ được tính server-side bởi finalize_work_session.
     // Không tính từ client để tránh gian lận đồng hồ máy.
@@ -1993,6 +2147,11 @@ class AssignmentDataSource {
     // 2️⃣ Save each answer to submission_answers + Auto-grade MCQ/True-False
     double totalMcqScore = 0;
 
+    // Phase 3: theo dõi item AI sẽ THỰC SỰ xử lý → quyết định status chính xác.
+    // Chỉ essay/short_answer được AI chấm (math/problem_solving defer ở edge); feedback cho MCQ.
+    bool enqueuedInScopeScore = false;
+    bool enqueuedFeedback = false;
+
     for (final aa in autosaveAnswers) {
       final questionId = aa['assignment_question_id'] as String?;
       if (questionId == null) continue;
@@ -2085,6 +2244,13 @@ class AssignmentDataSource {
         }
       }
 
+      // Phase 3 regression guard: câu khách quan (MCQ/true_false/fill_blank/matching) được
+      // chấm NGAY lúc nộp → LUÔN ghi final_score (0 nếu không chấm được), để
+      // maybe_mark_session_graded không hiểu nhầm là "câu chờ duyệt" và treo session ở
+      // pending_review (hành vi cũ: các câu này dẫn tới graded). Câu tự luận giữ NULL.
+      final double? scoreToWrite =
+          needsAIGrading ? finalScore : (finalScore ?? 0);
+
       // Insert to submission_answers
       final result = await _client
           .from('submission_answers')
@@ -2092,7 +2258,7 @@ class AssignmentDataSource {
             'session_id': sessionId,
             'assignment_question_id': questionId,
             'answer': studentAnswer,
-            if (finalScore != null) 'final_score': finalScore,
+            if (scoreToWrite != null) 'final_score': scoreToWrite,
           })
           .select()
           .single();
@@ -2100,13 +2266,18 @@ class AssignmentDataSource {
       // 5️⃣ Queue ai_queue items (D-11)
       final answerId = result['id'] as String?;
       if (answerId != null) {
-        if (needsAIGrading) {
-          // Essay/short_answer → score stub (processing deferred until Phase 3)
+        if (needsAIGrading && aiGradeEssay) {
+          // Phase 3: CHỈ đẩy AI chấm khi GV bật "AI tự chấm tự luận" cho bài này.
+          // essay/short_answer → AI chấm; math/problem_solving sẽ defer ở edge.
+          // Tắt công tắc → không enqueue → final_score NULL → status 'submitted' (GV chấm tay).
           await _client.from('ai_queue').insert({
             'submission_answer_id': answerId,
             'request_type': 'score',
             'status': 'pending',
           });
+          if (questionType == 'essay' || questionType == 'short_answer') {
+            enqueuedInScopeScore = true;
+          }
         } else if (aiEnabled && !needsAIGrading) {
           // MCQ with AI enabled → queue feedback explanation (D-11, 07-08)
           await _client.from('ai_queue').insert({
@@ -2114,6 +2285,7 @@ class AssignmentDataSource {
             'request_type': 'feedback',
             'status': 'pending',
           });
+          enqueuedFeedback = true;
         }
       }
     }
@@ -2164,15 +2336,21 @@ class AssignmentDataSource {
     }
 
     // 3️⃣ Finalize work_sessions — "Chiếc đồng hồ Trọng tài" (server-side timestamps)
-    // D-12 status logic:
-    //   has essay   → 'submitted'     (chờ giáo viên duyệt)
-    //   MCQ + AI    → 'ai_processing' (điểm hiện ngay, AI chạy ngầm → graded khi xong)
-    //   MCQ + no AI → 'graded'        (xong ngay)
+    // Phase 3 status logic:
+    //   AI sẽ xử lý (essay/short_answer score HOẶC MCQ feedback) → 'ai_processing'
+    //     (edge gọi maybe_mark_session_graded để nâng pending_review/graded khi xong)
+    //   hasEssay nhưng AI KHÔNG xử lý (math/problem_solving/fill_blank/toàn bỏ trống) → 'submitted'
+    //     (GIỮ NGUYÊN hành vi cũ — GV chấm tay; tránh kẹt vĩnh viễn ở ai_processing)
+    //   MCQ + no AI → 'graded'
+    // Bug B fix: chỉ 'ai_processing' khi THỰC SỰ có item AI sẽ xử lý (score/feedback đã enqueue).
+    // Nhánh cũ 'else if (aiEnabled) → ai_processing' chỉ tới được khi pure-MCQ + nộp toàn trắng
+    // (không enqueue gì, chỉ có item analysis) → session kẹt ai_processing vì analysis không gọi
+    // maybe_mark. Khi tới đây mọi câu đã có final_score (=0) → 'graded' là đúng.
     final String submitStatus;
-    if (hasEssay) {
-      submitStatus = 'submitted';
-    } else if (aiEnabled) {
+    if (enqueuedInScopeScore || enqueuedFeedback) {
       submitStatus = 'ai_processing';
+    } else if (hasEssay) {
+      submitStatus = 'submitted';
     } else {
       submitStatus = 'graded';
     }
@@ -2554,14 +2732,31 @@ class AssignmentDataSource {
   Future<List<Map<String, dynamic>>> getStudentSubmissionHistory(
     String studentId,
   ) async {
-    // Lấy tất cả submissions của student
+    // Lấy tất cả submissions của student. Nhúng submissions(total_score) để có điểm
+    // tổng (total_score nằm ở bảng submissions, không phải work_sessions) — phục vụ cả
+    // màn lịch sử lẫn "Điểm số mới nhất" ở dashboard.
     final submissionsRes = await _client
         .from('work_sessions')
-        .select('*, assignment_distributions!inner(*, assignments(*))')
+        .select(
+          '*, submissions(total_score), assignment_distributions!inner(*, assignments(*))',
+        )
         .eq('student_id', studentId)
         .order('submitted_at', ascending: false);
 
-    return List<Map<String, dynamic>>.from(submissionsRes);
+    final list = List<Map<String, dynamic>>.from(submissionsRes);
+
+    // Flatten total_score lên top-level (submissions là mảng do FK ngược session_id)
+    // để consumer đọc submission['total_score'] thống nhất.
+    for (final row in list) {
+      final subs = row['submissions'];
+      if (subs is List && subs.isNotEmpty) {
+        row['total_score'] = (subs.first as Map)['total_score'];
+      } else if (subs is Map) {
+        row['total_score'] = subs['total_score'];
+      }
+    }
+
+    return list;
   }
 
   /// Lấy danh sách các lần làm bài (attempts) của 1 học sinh cho 1 bài tập cụ thể

@@ -347,8 +347,15 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
         ));
       }
       if (distributionId != null) {
-        ref.invalidate(
-            teacherSubmissionListProvider(distributionId: distributionId));
+        // Màn danh sách watch provider theo filter hiện tại; chỉ invalidate
+        // instance mặc định (filter: all) sẽ để list dưới filter khác bị stale.
+        // → invalidate mọi giá trị filter của family.
+        for (final f in SubmissionFilter.values) {
+          ref.invalidate(teacherSubmissionListProvider(
+            distributionId: distributionId,
+            filter: f,
+          ));
+        }
       }
       return count;
     } catch (e, stackTrace) {
@@ -585,7 +592,10 @@ Future<List<AssignmentQuestion>> batchGradeAssignmentQuestions(
     );
     return const [];
   }
-  return repo.getAssignmentQuestions(assignmentId);
+  // Dùng biến thể ForGrading: resolve nội dung từ bank cho câu reuse (question_id
+  // != null) — custom_content trần là NULL nên màn chấm theo câu sẽ render trắng
+  // + suy sai loại nếu dùng getAssignmentQuestions thường.
+  return repo.getAssignmentQuestionsForGrading(assignmentId);
 }
 
 /// Track 2 — Câu trả lời của TẤT CẢ học sinh cho 1 câu hỏi trong distribution.

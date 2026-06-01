@@ -183,9 +183,14 @@ class _TeacherNotesProviderElement
 }
 
 String _$teacherNotesNotifierHash() =>
-    r'06f3e279880cdb51d73c735708984282691d5707';
+    r'70eb2adfe8d440099fbe8361a30b0e0498188a34';
 
 /// Notifier cho các mutation (thêm/sửa/xóa) ghi chú của giáo viên.
+///
+/// LƯU Ý: Các method dưới đây CỐ TÌNH ném lại exception khi thất bại thay vì
+/// nuốt vào `AsyncValue` (notifier này không có ai watch nên state thay đổi sẽ
+/// không hiển thị ở đâu). Widget gọi sẽ `await` → bắt lỗi → hiện SnackBar và
+/// tự `ref.invalidate(teacherNotesProvider(...))` bằng ref còn sống của nó.
 ///
 /// Copied from [TeacherNotesNotifier].
 @ProviderFor(TeacherNotesNotifier)

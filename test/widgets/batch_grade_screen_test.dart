@@ -87,4 +87,68 @@ void main() {
     await pumpScreen(tester);
     expect(find.textContaining('quang hợp'), findsWidgets);
   });
+
+  // Bug 1 — câu reuse từ kho (question_id != null): datasource ForGrading đã
+  // resolve type/text/choices từ bank vào custom_content. Màn phải render đúng
+  // MCQ (không hiển nhầm thành essay "không có câu trả lời") và highlight
+  // đáp án HS chọn qua key 'selected' (mảng index số nguyên).
+  testWidgets('render câu MCQ reuse từ kho + selected index', (tester) async {
+    const bankDistId = 'dist-bank';
+    final bankQuestion = AssignmentQuestion(
+      id: 'aq-bank',
+      assignmentId: 'assign-1',
+      questionId: 'q-bank-1',
+      // Shape do getAssignmentQuestionsForGrading sản xuất: type snake_case,
+      // text từ bank content, choices đã normalize {id, text, isCorrect}.
+      customContent: const {
+        'type': 'multiple_choice',
+        'text': 'Thủ đô của Việt Nam là?',
+        'choices': [
+          {'id': 0, 'text': 'Hà Nội', 'isCorrect': true},
+          {'id': 1, 'text': 'Đà Nẵng', 'isCorrect': false},
+        ],
+      },
+      points: 1,
+      orderIdx: 0,
+    );
+
+    final bankAnswers = <Map<String, dynamic>>[
+      {
+        'answer_id': 'ans-b1',
+        'session_id': 'sb1',
+        'student_id': 'stb1',
+        'student_name': 'Lê Văn C',
+        'answer': {'selected': [1]}, // chọn "Đà Nẵng" (sai)
+        'ai_score': null,
+        'ai_confidence': null,
+        'final_score': null,
+      },
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          batchGradeAssignmentQuestionsProvider(distributionId: bankDistId)
+              .overrideWith((ref) async => [bankQuestion]),
+          distributionAnswersByQuestionProvider(
+            distributionId: bankDistId,
+            assignmentQuestionId: 'aq-bank',
+          ).overrideWith((ref) async => bankAnswers),
+        ],
+        child: const MaterialApp(
+          home: BatchGradeByQuestionScreen(distributionId: bankDistId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Câu hỏi (text từ bank) hiển thị.
+    expect(find.textContaining('Thủ đô'), findsWidgets);
+    // Render dưới dạng MCQ: cả 2 lựa chọn hiện ra (KHÔNG phải essay
+    // "Học sinh không có câu trả lời"). Choices render qua MathText (RichText)
+    // → dùng textContaining/findsWidgets giống test có sẵn (line ~88).
+    expect(find.textContaining('Hà Nội'), findsWidgets);
+    expect(find.textContaining('Đà Nẵng'), findsWidgets);
+    expect(find.text('Học sinh không có câu trả lời'), findsNothing);
+  });
 }

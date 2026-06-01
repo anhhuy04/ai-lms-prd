@@ -220,83 +220,67 @@ class TeacherNotesSection extends ConsumerWidget {
   }
 
   /// Mở dialog thêm (note == null) hoặc sửa (note != null) ghi chú.
+  /// Dialog là StatefulWidget riêng (_NoteEditDialog) tự quản lý vòng đời
+  /// TextEditingController trong dispose() — tránh "used after disposed"
+  /// do đua với animation đóng dialog.
   Future<void> _showEditDialog(
     BuildContext context,
     WidgetRef ref, {
     TeacherNote? note,
   }) async {
-    final controller = TextEditingController(text: note?.content ?? '');
-    var isPrivate = note?.isPrivate ?? true;
     final isEdit = note != null;
 
-    final result = await showDialog<bool>(
+    final result = await showDialog<_NoteDialogResult>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text(isEdit ? 'Sửa ghi chú' : 'Thêm ghi chú'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: controller,
-                    autofocus: true,
-                    maxLines: 5,
-                    minLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: 'Nhập nội dung ghi chú...',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  SizedBox(height: DesignSpacing.sm),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Ghi chú riêng tư',
-                      style: DesignTypography.bodyMedium,
-                    ),
-                    value: isPrivate,
-                    onChanged: (v) => setState(() => isPrivate = v),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  child: const Text('Hủy'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(dialogContext, true),
-                  child: Text(isEdit ? 'Lưu' : 'Thêm'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (dialogContext) => _NoteEditDialog(
+        initialContent: note?.content ?? '',
+        initialIsPrivate: note?.isPrivate ?? true,
+        isEdit: isEdit,
+      ),
     );
 
-    if (result != true) return;
-    final content = controller.text.trim();
+    if (result == null) return;
+    final content = result.content.trim();
     if (content.isEmpty) return;
 
-    final notifier = ref.read(teacherNotesNotifierProvider.notifier);
-    if (isEdit) {
-      await notifier.updateNote(
-        id: note.id,
-        studentId: studentId,
-        content: content,
-        isPrivate: isPrivate,
-      );
-    } else {
-      await notifier.addNote(
-        studentId: studentId,
-        content: content,
-        isPrivate: isPrivate,
-      );
+    try {
+      final notifier = ref.read(teacherNotesNotifierProvider.notifier);
+      if (isEdit) {
+        await notifier.updateNote(
+          id: note.id,
+          studentId: studentId,
+          content: content,
+          isPrivate: result.isPrivate,
+        );
+      } else {
+        await notifier.addNote(
+          studentId: studentId,
+          content: content,
+          isPrivate: result.isPrivate,
+        );
+      }
+
+      // Refresh danh sách bằng ref còn sống của widget (đang watch family này).
+      ref.invalidate(teacherNotesProvider(studentId: studentId));
+      if (!context.mounted) return;
+      _showSnack(context, 'Đã lưu ghi chú', isError: false);
+    } catch (e) {
+      if (!context.mounted) return;
+      _showSnack(context, 'Không thể lưu ghi chú', isError: true);
     }
+  }
+
+  void _showSnack(
+    BuildContext context,
+    String message, {
+    required bool isError,
+  }) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? DesignColors.error : DesignColors.success,
+      ),
+    );
   }
 
   Future<void> _confirmDelete(
@@ -326,9 +310,106 @@ class TeacherNotesSection extends ConsumerWidget {
     );
 
     if (confirmed != true) return;
-    await ref.read(teacherNotesNotifierProvider.notifier).deleteNote(
-          id: note.id,
-          studentId: studentId,
-        );
+    try {
+      await ref.read(teacherNotesNotifierProvider.notifier).deleteNote(
+            id: note.id,
+            studentId: studentId,
+          );
+      ref.invalidate(teacherNotesProvider(studentId: studentId));
+      if (!context.mounted) return;
+      _showSnack(context, 'Đã xoá ghi chú', isError: false);
+    } catch (e) {
+      if (!context.mounted) return;
+      _showSnack(context, 'Không thể xoá ghi chú', isError: true);
+    }
+  }
+}
+
+/// Kết quả trả về từ dialog thêm/sửa ghi chú.
+class _NoteDialogResult {
+  final String content;
+  final bool isPrivate;
+  const _NoteDialogResult(this.content, this.isPrivate);
+}
+
+/// Dialog thêm/sửa ghi chú — tự quản lý TextEditingController trong dispose()
+/// để tránh lỗi "TextEditingController used after being disposed" khi dialog
+/// đóng kèm animation.
+class _NoteEditDialog extends StatefulWidget {
+  final String initialContent;
+  final bool initialIsPrivate;
+  final bool isEdit;
+
+  const _NoteEditDialog({
+    required this.initialContent,
+    required this.initialIsPrivate,
+    required this.isEdit,
+  });
+
+  @override
+  State<_NoteEditDialog> createState() => _NoteEditDialogState();
+}
+
+class _NoteEditDialogState extends State<_NoteEditDialog> {
+  late final TextEditingController _controller;
+  late bool _isPrivate;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialContent);
+    _isPrivate = widget.initialIsPrivate;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.isEdit ? 'Sửa ghi chú' : 'Thêm ghi chú'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLines: 5,
+            minLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'Nhập nội dung ghi chú...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          SizedBox(height: DesignSpacing.sm),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Ghi chú riêng tư',
+              style: DesignTypography.bodyMedium,
+            ),
+            value: _isPrivate,
+            onChanged: (v) => setState(() => _isPrivate = v),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Hủy'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(
+            context,
+            _NoteDialogResult(_controller.text, _isPrivate),
+          ),
+          child: Text(widget.isEdit ? 'Lưu' : 'Thêm'),
+        ),
+      ],
+    );
   }
 }

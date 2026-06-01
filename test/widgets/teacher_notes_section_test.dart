@@ -2,6 +2,7 @@
 import 'dart:async';
 
 import 'package:ai_mls/domain/entities/teacher_note.dart';
+import 'package:ai_mls/domain/repositories/teacher_notes_repository.dart';
 import 'package:ai_mls/presentation/providers/teacher_notes_provider.dart';
 import 'package:ai_mls/presentation/views/grading/widgets/teacher_notes_section.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,35 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _studentId = 'student-1';
+
+/// Repository giả luôn ném lỗi khi addNote — dùng cho test error path.
+class _ThrowingTeacherNotesRepository implements TeacherNotesRepository {
+  @override
+  Future<List<TeacherNote>> getNotes(String studentId) async => [];
+
+  @override
+  Future<TeacherNote> addNote({
+    required String studentId,
+    required String content,
+    bool isPrivate = true,
+  }) async {
+    throw Exception('add failed');
+  }
+
+  @override
+  Future<TeacherNote> updateNote({
+    required String id,
+    required String content,
+    bool? isPrivate,
+  }) async {
+    throw Exception('update failed');
+  }
+
+  @override
+  Future<void> deleteNote(String id) async {
+    throw Exception('delete failed');
+  }
+}
 
 TeacherNote _makeNote({
   String id = 'n1',
@@ -107,6 +137,41 @@ void main() {
       expect(find.text('Thêm ghi chú'), findsWidgets);
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('Hủy'), findsOneWidget);
+    });
+
+    testWidgets('hiện SnackBar lỗi khi lưu ghi chú thất bại', (tester) async {
+      // Override repository (đường đi mutation đi qua provider này) để ném lỗi.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            teacherNotesProvider(studentId: _studentId)
+                .overrideWith((ref) => Future.value(const <TeacherNote>[])),
+            teacherNotesRepositoryProvider
+                .overrideWith((ref) => _ThrowingTeacherNotesRepository()),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: TeacherNotesSection(studentId: _studentId),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Mở dialog thêm ghi chú.
+      await tester.tap(find.text('Thêm ghi chú'));
+      await tester.pumpAndSettle();
+
+      // Nhập nội dung rồi nhấn Thêm.
+      await tester.enterText(find.byType(TextField), 'Nội dung test');
+      await tester.tap(find.text('Thêm'));
+      await tester.pumpAndSettle();
+
+      // SnackBar lỗi xuất hiện, không giả vờ thành công.
+      expect(find.text('Không thể lưu ghi chú'), findsOneWidget);
+      expect(find.text('Đã lưu ghi chú'), findsNothing);
     });
   });
 }

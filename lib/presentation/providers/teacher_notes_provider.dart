@@ -36,6 +36,11 @@ Future<List<TeacherNote>> teacherNotes(
 }
 
 /// Notifier cho các mutation (thêm/sửa/xóa) ghi chú của giáo viên.
+///
+/// LƯU Ý: Các method dưới đây CỐ TÌNH ném lại exception khi thất bại thay vì
+/// nuốt vào `AsyncValue` (notifier này không có ai watch nên state thay đổi sẽ
+/// không hiển thị ở đâu). Widget gọi sẽ `await` → bắt lỗi → hiện SnackBar và
+/// tự `ref.invalidate(teacherNotesProvider(...))` bằng ref còn sống của nó.
 @riverpod
 class TeacherNotesNotifier extends _$TeacherNotesNotifier {
   bool _isUpdating = false;
@@ -43,7 +48,7 @@ class TeacherNotesNotifier extends _$TeacherNotesNotifier {
   @override
   Future<void> build() async {}
 
-  /// Thêm ghi chú mới rồi refresh danh sách.
+  /// Thêm ghi chú mới. Ném exception nếu thất bại.
   Future<void> addNote({
     required String studentId,
     required String content,
@@ -53,22 +58,26 @@ class TeacherNotesNotifier extends _$TeacherNotesNotifier {
     _isUpdating = true;
 
     final repository = ref.read(teacherNotesRepositoryProvider);
-
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    try {
       await repository.addNote(
         studentId: studentId,
         content: content,
         isPrivate: isPrivate,
       );
       AppLogger.info('📝 Added teacher note for student: $studentId');
-      ref.invalidate(teacherNotesProvider(studentId: studentId));
-    });
-
-    _isUpdating = false;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [TEACHER_NOTES] addNote failed: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    } finally {
+      _isUpdating = false;
+    }
   }
 
-  /// Cập nhật một ghi chú rồi refresh danh sách.
+  /// Cập nhật một ghi chú. Ném exception nếu thất bại.
   Future<void> updateNote({
     required String id,
     required String studentId,
@@ -79,22 +88,26 @@ class TeacherNotesNotifier extends _$TeacherNotesNotifier {
     _isUpdating = true;
 
     final repository = ref.read(teacherNotesRepositoryProvider);
-
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    try {
       await repository.updateNote(
         id: id,
         content: content,
         isPrivate: isPrivate,
       );
       AppLogger.info('✏️ Updated teacher note: $id');
-      ref.invalidate(teacherNotesProvider(studentId: studentId));
-    });
-
-    _isUpdating = false;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [TEACHER_NOTES] updateNote failed: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    } finally {
+      _isUpdating = false;
+    }
   }
 
-  /// Xóa một ghi chú rồi refresh danh sách.
+  /// Xóa một ghi chú. Ném exception nếu thất bại.
   Future<void> deleteNote({
     required String id,
     required String studentId,
@@ -103,14 +116,18 @@ class TeacherNotesNotifier extends _$TeacherNotesNotifier {
     _isUpdating = true;
 
     final repository = ref.read(teacherNotesRepositoryProvider);
-
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    try {
       await repository.deleteNote(id);
       AppLogger.info('🗑️ Deleted teacher note: $id');
-      ref.invalidate(teacherNotesProvider(studentId: studentId));
-    });
-
-    _isUpdating = false;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [TEACHER_NOTES] deleteNote failed: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    } finally {
+      _isUpdating = false;
+    }
   }
 }

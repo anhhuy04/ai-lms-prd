@@ -355,8 +355,11 @@ class _BatchGradeByQuestionScreenState
     final isMcq = type == 'multiple_choice' || type == 'true_false';
 
     if (isMcq) {
+      // Dữ liệu thật dùng key 'selected' với mảng index số nguyên (vd [1]).
+      // _selectedIndices đã xử lý phần tử int nên [1] hoạt động.
       final selected = studentAnswer?['selected_choice_ids'] as List<dynamic>? ??
           studentAnswer?['selected_choices'] as List<dynamic>? ??
+          studentAnswer?['selected'] as List<dynamic>? ??
           const [];
       return _buildMcqAnswer(selected, question);
     }
@@ -478,7 +481,13 @@ class _BatchGradeByQuestionScreenState
             assignmentQuestionId: question.id,
           );
       if (mounted) {
-        AppToast.info(context, 'Đã duyệt $count điểm AI');
+        // count == 0 có thể do guard _isUpdating early-return (đang chạy lần
+        // trước) → không khẳng định thành công sai sự thật.
+        if (count > 0) {
+          AppToast.info(context, 'Đã duyệt $count điểm AI');
+        } else {
+          AppToast.info(context, 'Không có điểm nào được duyệt');
+        }
       }
     } catch (e) {
       AppLogger.error('Error batch approving scores: $e');
