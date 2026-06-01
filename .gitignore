@@ -80,3 +80,44 @@ supabase/.temp/
 
 # File rỗng accidentally created
 Trượt
+
+# === Repo cleanup: untrack khỏi GitHub, giữ nguyên local ===
+# Output/log/temp & script chạy 1 lần
+/1
+/schema.sql
+/analyze.txt
+/analyze_errors.txt
+/analyze_out.txt
+/analyze_output.txt
+/lints.txt
+/test_output.txt
+/snackbars.txt
+/_applog.txt
+/tmp_api_key.dart
+/tmp_objective.dart
+/replace_api_snackbars.py
+/replace_grids.py
+/replace_snackbar.py
+/replace_snackbar_literal.py
+/temp_check_submissions.sql
+/temp_get_tables.sql
+/package-lock.json
+/jsonb_migration_progress.md
+/backup_truoc_khi_seed.sql
+/prod_data.sql
+/tmp/
+/markitdown_output/
+
+# AI tooling configs (chỉ giữ local)
+/.agents/
+/.claude/
+/.continue/
+/.cursor/
+/.clinerules
+/.skillsrc
+
+# Project context / planning / docs (chỉ giữ local)
+/memory-bank/
+/.planning/
+/tasks/
+/docs/
