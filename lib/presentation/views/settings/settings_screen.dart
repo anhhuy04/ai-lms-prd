@@ -2,6 +2,7 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/services/api_key_service.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:go_router/go_router.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -106,11 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 isDark: isDark,
                 onTap: () {
                   // TODO: Implement notifications settings
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Tính năng đang phát triển'),
-                    ),
-                  );
+                  AppToast.info(context, 'Tính năng đang phát triển');
                 },
               ),
               _buildSettingsTile(
@@ -122,11 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 isDark: isDark,
                 onTap: () {
                   // TODO: Implement language settings
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Tính năng đang phát triển'),
-                    ),
-                  );
+                  AppToast.info(context, 'Tính năng đang phát triển');
                 },
               ),
             ],
@@ -159,11 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 isDark: isDark,
                 onTap: () {
                   // TODO: Implement terms
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Tính năng đang phát triển'),
-                    ),
-                  );
+                  AppToast.info(context, 'Tính năng đang phát triển');
                 },
               ),
               _buildSettingsTile(
@@ -175,11 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 isDark: isDark,
                 onTap: () {
                   // TODO: Implement privacy policy
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Tính năng đang phát triển'),
-                    ),
-                  );
+                  AppToast.info(context, 'Tính năng đang phát triển');
                 },
               ),
             ],

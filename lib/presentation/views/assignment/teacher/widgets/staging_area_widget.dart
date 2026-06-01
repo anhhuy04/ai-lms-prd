@@ -2,6 +2,7 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/data/models/question_dto.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -84,23 +85,13 @@ class _StagingAreaWidgetState extends ConsumerState<StagingAreaWidget> {
         },
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã lưu ${questions.length} câu vào Ngân hàng câu hỏi'),
-            backgroundColor: DesignColors.success,
-          ),
-        );
+        AppToast.success(context, 'Đã lưu ${questions.length} câu vào Ngân hàng câu hỏi');
         widget.onComplete();
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi lưu vào Ngân hàng: $e'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Lỗi lưu vào Ngân hàng: $e');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -124,24 +115,13 @@ class _StagingAreaWidgetState extends ConsumerState<StagingAreaWidget> {
         },
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Đã lưu và thêm ${questions.length} câu vào Đề thi'),
-            backgroundColor: DesignColors.success,
-          ),
-        );
+        AppToast.success(context, 'Đã lưu và thêm ${questions.length} câu vào Đề thi');
         widget.onComplete();
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi lưu vào Đề thi: $e'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Lỗi lưu vào Đề thi: $e');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

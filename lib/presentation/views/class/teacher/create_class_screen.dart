@@ -6,6 +6,7 @@ import 'package:ai_mls/presentation/providers/class_notifier.dart';
 import 'package:ai_mls/presentation/providers/class_providers.dart';
 import 'package:ai_mls/presentation/views/class/teacher/widgets/drawers/class_create_class_setting_drawer.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -262,8 +263,8 @@ class _CreateClassScreenState extends ConsumerState<CreateClassScreen> {
         const SizedBox(height: 12),
 
         // Lưới các tùy chọn
-        GridView.count(
-          crossAxisCount: 2,
+        GridView.extent(
+          maxCrossAxisExtent: 240,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           childAspectRatio: 0.8,
@@ -727,12 +728,7 @@ class _CreateClassScreenState extends ConsumerState<CreateClassScreen> {
 
     final currentTeacherId = authState.value?.id;
     if (currentTeacherId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Không tìm thấy thông tin giáo viên'),
-          backgroundColor: Colors.red[600],
-        ),
-      );
+      AppToast.error(context, 'Không tìm thấy thông tin giáo viên');
       return;
     }
 
@@ -776,17 +772,7 @@ class _CreateClassScreenState extends ConsumerState<CreateClassScreen> {
           // Ignore if paging controller chưa khởi tạo hoặc teacherId chưa có
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lớp học "${newClass.name}" đã được tạo thành công!'),
-            backgroundColor: DesignColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(DesignRadius.sm),
-            ),
-            margin: EdgeInsets.all(DesignSpacing.lg),
-          ),
-        );
+        AppToast.success(context, 'Lớp học "${newClass.name}" đã được tạo thành công!');
 
         // Quay lại màn hình danh sách lớp học
         // Sử dụng context.go() thay vì Navigator.pop() vì route này nằm trong ShellRoute
@@ -795,17 +781,7 @@ class _CreateClassScreenState extends ConsumerState<CreateClassScreen> {
     } else {
       // Hiển thị lỗi nếu có
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Không thể tạo lớp học'),
-            backgroundColor: Colors.red[600],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+        AppToast.error(context, 'Không thể tạo lớp học');
       }
     }
   }

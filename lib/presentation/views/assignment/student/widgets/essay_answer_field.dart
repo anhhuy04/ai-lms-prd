@@ -1,6 +1,7 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/presentation/providers/workspace_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -184,22 +185,12 @@ class _EssayAnswerFieldState extends ConsumerState<EssayAnswerField> {
             .uploadFile(file);
 
         if (publicUrl != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đã tải ảnh lên'),
-              backgroundColor: DesignColors.success,
-            ),
-          );
+          AppToast.success(context, 'Đã tải ảnh lên');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi tải ảnh: $e'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Lỗi tải ảnh: $e');
       }
     } finally {
       if (mounted) {
@@ -225,22 +216,12 @@ class _EssayAnswerFieldState extends ConsumerState<EssayAnswerField> {
             .uploadFile(dartFile);
 
         if (publicUrl != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đã tải file lên'),
-              backgroundColor: DesignColors.success,
-            ),
-          );
+          AppToast.success(context, 'Đã tải file lên');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi tải file: $e'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Lỗi tải file: $e');
       }
     } finally {
       if (mounted) {

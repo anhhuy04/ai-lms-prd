@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/domain/entities/recipient_tree_node.dart';
@@ -7,6 +9,7 @@ import 'package:ai_mls/presentation/providers/distribute_assignment_notifier.dar
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/recipient_tree_selector_modal.dart';
 import 'package:ai_mls/widgets/forms/date_time_picker_field.dart';
 import 'package:ai_mls/widgets/forms/select_field.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -187,8 +190,13 @@ class _TeacherDistributeAssignmentScreenState
           ),
         ),
       ),
-      body: CustomScrollView(
-        slivers: [
+      // Center-constrain trên màn rộng (PC/web) để form không giãn edge-to-edge.
+      // Mobile (<860) tự lấy full width — non-destructive.
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 860),
+          child: CustomScrollView(
+            slivers: [
           SliverToBoxAdapter(
             child: Container(
               color: cardColor,
@@ -347,7 +355,9 @@ class _TeacherDistributeAssignmentScreenState
               ]),
             ),
           ),
-        ],
+            ],
+          ),
+        ),
       ),
       bottomSheet: Container(
         padding: const EdgeInsets.symmetric(
@@ -570,7 +580,7 @@ class _TeacherDistributeAssignmentScreenState
       // Có dữ liệu và đã chọn - hiển thị danh sách đã chọn
       centerContent = ConstrainedBox(
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.5,
+          maxHeight: (MediaQuery.of(context).size.height * 0.5).clamp(0.0, 700.0),
         ),
         child: Scrollbar(
           controller: _recipientScrollController,
@@ -1181,13 +1191,25 @@ class _TeacherDistributeAssignmentScreenState
             isDark: isDark,
           ),
           Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
-          // AI Analysis toggle (7-11b)
+          // AI Analysis toggle (7-11b) — giải thích đáp án trắc nghiệm + phân tích học lực
           _buildToggleRow(
             icon: Icons.auto_awesome,
             title: 'AI Phân tích bài làm',
-            subtitle: 'Sau khi nộp, AI giải thích đáp án và phân tích học lực',
+            subtitle: 'Sau khi nộp, AI giải thích đáp án trắc nghiệm và phân tích học lực',
             value: state.aiEnabled,
             onChanged: (_) => notifier.toggleAiEnabled(),
+            tMain: tMain,
+            tSec: tSec,
+            isDark: isDark,
+          ),
+          Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
+          // Phase 3: Công tắc RIÊNG — AI tự chấm điểm câu tự luận/trả lời ngắn
+          _buildToggleRow(
+            icon: Icons.grading,
+            title: 'AI tự chấm câu tự luận',
+            subtitle: 'AI chấm điểm câu tự luận & trả lời ngắn (tắt = giáo viên tự chấm tay)',
+            value: state.aiGradeEssay,
+            onChanged: (_) => notifier.toggleAiGradeEssay(),
             tMain: tMain,
             tSec: tSec,
             isDark: isDark,
@@ -1195,7 +1217,7 @@ class _TeacherDistributeAssignmentScreenState
           AnimatedSize(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
-            child: state.aiEnabled
+            child: state.aiGradeEssay
                 ? Container(
                     margin: const EdgeInsets.only(left: 44, top: 4, bottom: 4),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1247,8 +1269,8 @@ class _TeacherDistributeAssignmentScreenState
                         const SizedBox(height: 4),
                         Text(
                           state.requireReview
-                              ? 'AI phân tích xong → giáo viên xem xét → công bố điểm'
-                              : 'AI phân tích xong → tự động công bố điểm',
+                              ? 'AI chấm xong → giáo viên xem xét → công bố điểm'
+                              : 'AI chấm xong → tự động công bố (chỉ khi AI đủ tin cậy ≥ 70%)',
                           style: TextStyle(fontSize: 12, color: tSec),
                         ),
                       ],
@@ -1586,15 +1608,17 @@ class _TeacherDistributeAssignmentScreenState
               : state.selectedAssignments.first.title)
         : (state.assignment?.title ?? 'Bài tập');
 
+    final navigator = Navigator.of(context);
+    // Auto-đóng sau 3s — lên lịch MỘT LẦN ngoài builder (đặt trong builder sẽ tạo
+    // nhiều timer mỗi lần rebuild → dialog tự đóng/pop sai). Guard mounted tránh
+    // gọi navigator đã defunct sau khi màn bị pop.
+    final autoCloseTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted && navigator.canPop()) navigator.pop();
+    });
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (ctx) {
-        // Auto-close sau 2.5 giây
-        Future.delayed(const Duration(milliseconds: 2500), () {
-          if (ctx.mounted) Navigator.of(ctx).pop();
-        });
-
         return Dialog(
           backgroundColor: isDark
               ? const Color(0xFF1E293B)
@@ -1699,34 +1723,38 @@ class _TeacherDistributeAssignmentScreenState
                     ],
                   ),
                 ],
+                SizedBox(height: DesignSpacing.xl),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: DesignColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(
+                        vertical: DesignSpacing.md,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(DesignSpacing.md),
+                      ),
+                    ),
+                    child: const Text('Xong'),
+                  ),
+                ),
               ],
             ),
           ),
         );
       },
     ).then((_) {
+      // Hủy timer nếu user bấm 'Xong' trước 3s → tránh navigator.pop() dư 1 route.
+      autoCloseTimer.cancel();
       if (context.mounted) context.pop();
     });
   }
 
   void _showError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: DesignColors.error,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(DesignSpacing.sm),
-        ),
-        margin: EdgeInsets.all(DesignSpacing.md),
-      ),
-    );
+    if (context.mounted) AppToast.error(context, message);
   }
 
   String _calculateEstimatedCount(

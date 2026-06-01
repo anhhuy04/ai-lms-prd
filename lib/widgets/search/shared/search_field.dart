@@ -1,6 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// Reusable search field widget with customizable size
 /// Default size matches DesignComponents.inputFieldHeight
@@ -76,20 +75,20 @@ class _SearchFieldState extends State<SearchField> {
     // Dùng ScreenUtil để scale kích thước theo màn hình.
     // Khi caller truyền giá trị tuyệt đối → tôn trọng (không scale lại) để tránh
     // overflow trên web (designSize 360 mobile, window ~1700px → scale ~5x).
-    final height = widget.height ?? DesignComponents.inputFieldHeight.h;
-    final horizontalPadding = widget.horizontalPadding ?? DesignSpacing.lg.w;
-    final verticalPadding = widget.verticalPadding ?? DesignSpacing.md.h;
+    final height = widget.height ?? DesignComponents.inputFieldHeight;
+    final horizontalPadding = widget.horizontalPadding ?? DesignSpacing.lg;
+    final verticalPadding = widget.verticalPadding ?? DesignSpacing.md;
     final backgroundColor = widget.backgroundColor ?? DesignColors.moonMedium;
-    final borderRadius = widget.borderRadius ?? DesignRadius.full.r;
-    final iconSize = widget.iconSize ?? DesignIcons.mdSize.sp;
+    final borderRadius = widget.borderRadius ?? DesignRadius.full;
+    final iconSize = widget.iconSize ?? DesignIcons.mdSize;
     final hintStyle =
         widget.hintStyle ??
         DesignTypography.bodyMedium.copyWith(
           color: DesignColors.textSecondary,
-          fontSize: (DesignTypography.bodyMediumSize).sp,
+          fontSize: (DesignTypography.bodyMediumSize),
         );
     final textStyle = (widget.textStyle ?? DesignTypography.bodyMedium)
-        .copyWith(fontSize: (DesignTypography.bodyMediumSize).sp);
+        .copyWith(fontSize: (DesignTypography.bodyMediumSize));
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -106,7 +105,7 @@ class _SearchFieldState extends State<SearchField> {
         child: Row(
           children: [
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: DesignSpacing.lg.w),
+              padding: EdgeInsets.symmetric(horizontal: DesignSpacing.lg),
               child: Icon(
                 Icons.search,
                 size: iconSize,
@@ -129,7 +128,7 @@ class _SearchFieldState extends State<SearchField> {
                   hintStyle: hintStyle,
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(
-                    vertical: DesignSpacing.md.h,
+                    vertical: DesignSpacing.md,
                   ),
                   suffixIcon: (widget.onClear != null && _hasText)
                       ? IconButton(

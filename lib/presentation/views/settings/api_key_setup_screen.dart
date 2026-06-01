@@ -1,5 +1,8 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:ai_mls/core/services/api_key_service.dart';
+import 'package:ai_mls/core/services/profile_metadata_service.dart';
+import 'package:ai_mls/presentation/views/settings/widgets/feedback_tone_setting.dart';
 import 'package:ai_mls/widgets/forms/select_field.dart';
 import 'package:flutter/material.dart';
 
@@ -64,6 +67,10 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
   bool _questionKeyTesting = false;
   bool _isUpdatingQuestion = false;
   bool _isUpdatingAnalytics = false;
+
+  // ── Giọng điệu phản hồi AI (Track 3) ───────────────────────────────────
+  String _feedbackTone = 'encouraging';
+  bool _isSavingTone = false;
 
   // ── Ollama model controllers (nhập thủ công) ───────────────────────────
   final _ollamaModelQuestionController = TextEditingController(
@@ -153,6 +160,29 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
     // Auto-fetch Ollama models nếu URL đã lưu
     if (ollamaUrl.isNotEmpty) {
       _fetchOllamaModels(ollamaUrl.toString());
+    }
+
+    // Track 3: nạp giọng điệu phản hồi AI đã lưu để control phản ánh đúng.
+    final tone = await ProfileMetadataService.getFeedbackTone();
+    if (mounted) setState(() => _feedbackTone = tone);
+  }
+
+  /// Track 3: lưu giọng điệu phản hồi AI vào metadata.feedback_tone.
+  Future<void> _onFeedbackToneChanged(String tone) async {
+    if (tone == _feedbackTone || _isSavingTone) return;
+    final previous = _feedbackTone;
+    setState(() {
+      _feedbackTone = tone; // optimistic: phản hồi UI ngay
+      _isSavingTone = true;
+    });
+    final ok = await ProfileMetadataService.setFeedbackTone(tone);
+    if (!mounted) return;
+    setState(() => _isSavingTone = false);
+    if (ok) {
+      AppToast.success(context, '✅ Đã lưu giọng điệu phản hồi AI');
+    } else {
+      setState(() => _feedbackTone = previous); // revert nếu lưu lỗi
+      AppToast.error(context, '❌ Không lưu được giọng điệu phản hồi');
     }
   }
 
@@ -290,9 +320,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         if (ollamaUrl.isEmpty) {
           if (!mounted) return;
           setState(() => _isUpdatingQuestion = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('⚠️ Vui lòng nhập Ollama URL'), backgroundColor: DesignColors.warning),
-          );
+          AppToast.warning(context, '⚠️ Vui lòng nhập Ollama URL');
           return;
         }
       } else {
@@ -304,9 +332,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         if (key.isEmpty) {
           if (!mounted) return;
           setState(() => _isUpdatingQuestion = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('⚠️ Vui lòng nhập API key'), backgroundColor: DesignColors.warning),
-          );
+          AppToast.warning(context, '⚠️ Vui lòng nhập API key');
           return;
         }
       }
@@ -365,12 +391,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       if (!mounted) return;
       if (saveResult['saved'] != true) {
         setState(() => _isUpdatingQuestion = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Lưu thất bại: ${saveResult['error'] ?? 'Unknown'}'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, '❌ Lưu thất bại: ${saveResult['error'] ?? 'Unknown'}');
         return;
       }
 
@@ -394,15 +415,11 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         }
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok
-              ? '✅ Đã cập nhật và áp dụng: $provider • $model'
-              : '⚠️ Đã lưu key nhưng không thể áp dụng cấu hình'),
-          backgroundColor: ok ? DesignColors.success : DesignColors.warning,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      if (ok) {
+        AppToast.success(context, '✅ Đã cập nhật và áp dụng: $provider • $model');
+      } else {
+        AppToast.warning(context, '⚠️ Đã lưu key nhưng không thể áp dụng cấu hình');
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -410,9 +427,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         _questionKeyStatus = 'error';
         _questionKeyError = e.toString();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Lỗi: ${e.toString()}'), backgroundColor: DesignColors.error),
-      );
+      AppToast.error(context, '❌ Lỗi: ${e.toString()}');
     }
   }
 
@@ -439,9 +454,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         if (ollamaUrl.isEmpty) {
           if (!mounted) return;
           setState(() => _isUpdatingAnalytics = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('⚠️ Vui lòng nhập Ollama URL'), backgroundColor: DesignColors.warning),
-          );
+          AppToast.warning(context, '⚠️ Vui lòng nhập Ollama URL');
           return;
         }
       } else {
@@ -453,9 +466,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         if (key.isEmpty) {
           if (!mounted) return;
           setState(() => _isUpdatingAnalytics = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('⚠️ Vui lòng nhập API key'), backgroundColor: DesignColors.warning),
-          );
+          AppToast.warning(context, '⚠️ Vui lòng nhập API key');
           return;
         }
       }
@@ -514,12 +525,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       if (!mounted) return;
       if (saveResult['saved'] != true) {
         setState(() => _isUpdatingAnalytics = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Lưu thất bại: ${saveResult['error'] ?? 'Unknown'}'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, '❌ Lưu thất bại: ${saveResult['error'] ?? 'Unknown'}');
         return;
       }
 
@@ -542,15 +548,11 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         }
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok
-              ? '✅ Đã cập nhật và áp dụng: $provider • $model'
-              : '⚠️ Đã lưu key nhưng không thể áp dụng cấu hình'),
-          backgroundColor: ok ? DesignColors.success : DesignColors.warning,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      if (ok) {
+        AppToast.success(context, '✅ Đã cập nhật và áp dụng: $provider • $model');
+      } else {
+        AppToast.warning(context, '⚠️ Đã lưu key nhưng không thể áp dụng cấu hình');
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -558,9 +560,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
         _analyticsKeyStatus = 'error';
         _analyticsKeyError = e.toString();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Lỗi: ${e.toString()}'), backgroundColor: DesignColors.error),
-      );
+      AppToast.error(context, '❌ Lỗi: ${e.toString()}');
     }
   }
 
@@ -651,13 +651,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
 
       if (success) {
         if (showSuccessSnackbar) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✅ $provider • $model hoạt động bình thường'),
-              backgroundColor: DesignColors.success,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          AppToast.success(context, '✅ $provider • $model hoạt động bình thường');
         }
       } else {
         _showErrorDialog(
@@ -754,13 +748,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
 
       if (success) {
         if (showSuccessSnackbar) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✅ $provider • $model hoạt động bình thường'),
-              backgroundColor: DesignColors.success,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          AppToast.success(context, '✅ $provider • $model hoạt động bình thường');
         }
       } else {
         _showErrorDialog(
@@ -894,22 +882,12 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
             _geminiKeyStatus = null;
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Đã xóa Gemini API Key'),
-              backgroundColor: DesignColors.success,
-            ),
-          );
+          AppToast.success(context, '✅ Đã xóa Gemini API Key');
         }
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ Lỗi: ${e.toString()}'),
-              backgroundColor: DesignColors.error,
-            ),
-          );
+          AppToast.error(context, '❌ Lỗi: ${e.toString()}');
         }
       }
     }
@@ -946,22 +924,12 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
             _groqKeyStatus = null;
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Đã xóa Groq API Key'),
-              backgroundColor: DesignColors.success,
-            ),
-          );
+          AppToast.success(context, '✅ Đã xóa Groq API Key');
         }
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ Lỗi: ${e.toString()}'),
-              backgroundColor: DesignColors.error,
-            ),
-          );
+          AppToast.error(context, '❌ Lỗi: ${e.toString()}');
         }
       }
     }
@@ -998,22 +966,12 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
             _ollamaConnectionStatus = null;
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Đã xóa Ollama URL'),
-              backgroundColor: DesignColors.success,
-            ),
-          );
+          AppToast.success(context, '✅ Đã xóa Ollama URL');
         }
       } catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ Lỗi: ${e.toString()}'),
-              backgroundColor: DesignColors.error,
-            ),
-          );
+          AppToast.error(context, '❌ Lỗi: ${e.toString()}');
         }
       }
     }
@@ -1151,6 +1109,30 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
                       _buildFeatureChip('Phân tích xu hướng', Icons.trending_up_rounded, DesignColors.info),
                       _buildFeatureChip('Đề xuất cải thiện', Icons.lightbulb_outline, DesignColors.info),
                     ],
+                  ),
+                  SizedBox(height: DesignSpacing.xxl),
+
+                  // ── Phần 3: Giọng điệu phản hồi AI (Track 3) ────────────
+                  _buildSectionLabel(
+                    '3. Giọng điệu phản hồi AI',
+                    Icons.record_voice_over_outlined,
+                    isDark,
+                  ),
+                  SizedBox(height: DesignSpacing.xs),
+                  Text(
+                    'Chọn cách AI viết nhận xét khi chấm bài & giải thích câu hỏi cho học sinh. '
+                    'Chỉ ảnh hưởng giọng văn, không thay đổi điểm số.',
+                    style: DesignTypography.bodySmall.copyWith(
+                      color: isDark
+                          ? Colors.grey[400]
+                          : DesignColors.textSecondary,
+                    ),
+                  ),
+                  SizedBox(height: DesignSpacing.md),
+                  FeedbackToneSetting(
+                    value: _feedbackTone,
+                    isSaving: _isSavingTone,
+                    onChanged: _onFeedbackToneChanged,
                   ),
                   SizedBox(height: DesignSpacing.xxl),
 
@@ -2005,9 +1987,7 @@ class _ApiKeySetupScreenState extends State<ApiKeySetupScreen> {
       _hasOpenRouterKey = false;
       _openRouterKeyStatus = null;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('✅ Đã xóa OpenRouter API key'), backgroundColor: DesignColors.success),
-    );
+    AppToast.success(context, '✅ Đã xóa OpenRouter API key');
   }
 
   // ── KEY INPUT INLINE ──────────────────────────────────────────────────

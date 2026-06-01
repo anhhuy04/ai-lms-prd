@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
 
 class ClassOverviewCard extends StatelessWidget {
@@ -214,20 +213,20 @@ class _MetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, color: DesignColors.white.withValues(alpha: 0.9), size: 20.w),
-        SizedBox(height: 4.h),
+        Icon(icon, color: DesignColors.white.withValues(alpha: 0.9), size: 20.0),
+        SizedBox(height: 4.0),
         Text(
           value,
           style: TextStyle(
-            fontSize: 20.sp,
+            fontSize: 20.0,
             fontWeight: FontWeight.bold,
             color: DesignColors.white,
           ),
         ),
-        SizedBox(height: 2.h),
+        SizedBox(height: 2.0),
         Text(
           label,
-          style: TextStyle(fontSize: 10.sp, color: DesignColors.white.withValues(alpha: 0.75)),
+          style: TextStyle(fontSize: 10.0, color: DesignColors.white.withValues(alpha: 0.75)),
         ),
       ],
     );
@@ -249,7 +248,7 @@ class _DetailChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 5.h),
+      padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
       decoration: BoxDecoration(
         color: DesignColors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(DesignRadius.sm),
@@ -257,15 +256,15 @@ class _DetailChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12.w, color: DesignColors.white.withValues(alpha: 0.8)),
-          SizedBox(width: 4.w),
+          Icon(icon, size: 12.0, color: DesignColors.white.withValues(alpha: 0.8)),
+          SizedBox(width: 4.0),
           Text(
             '$label: ',
-            style: TextStyle(fontSize: 10.sp, color: DesignColors.white.withValues(alpha: 0.8)),
+            style: TextStyle(fontSize: 10.0, color: DesignColors.white.withValues(alpha: 0.8)),
           ),
           Text(
             value,
-            style: TextStyle(fontSize: 10.sp, fontWeight: FontWeight.w600, color: DesignColors.white),
+            style: TextStyle(fontSize: 10.0, fontWeight: FontWeight.w600, color: DesignColors.white),
           ),
         ],
       ),

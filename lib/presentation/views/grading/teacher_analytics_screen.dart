@@ -1,4 +1,6 @@
+import 'package:go_router/go_router.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/core/utils/score_display_utils.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
@@ -379,79 +381,157 @@ class _TeacherAnalyticsScreenState
     );
   }
 
+  /// Mở bài làm của HS (submission detail) khi GV bấm HS trong heatmap.
+  /// Resolve submissionId từ (distributionId, studentId) rồi điều hướng.
+  Future<void> _openStudentSubmission(
+    String studentId,
+    String distributionId,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final datasource = ref.read(analyticsDatasourceProvider);
+      final submissionId = await datasource.getSubmissionIdForStudent(
+        distributionId: distributionId,
+        studentId: studentId,
+      );
+      if (!mounted) return;
+      if (submissionId == null) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Không tìm thấy bài làm của học sinh này.'),
+          ),
+        );
+        return;
+      }
+      context.pushNamed(
+        AppRoute.teacherGradeSubmission,
+        pathParameters: {'submissionId': submissionId},
+        extra: {'distributionId': distributionId},
+      );
+    } catch (e, st) {
+      AppLogger.error(
+        '[TeacherAnalytics] mở bài làm HS lỗi',
+        error: e,
+        stackTrace: st,
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Không thể mở bài làm.')),
+      );
+    }
+  }
+
   Widget _buildAnalyticsContent(ClassAnalytics analytics, String classId) {
+    // PC: căn giữa + giới hạn bề rộng để không kéo dãn full-width trên màn rộng;
+    //     hai danh sách Top/Cần chú ý xếp cạnh nhau khi >= 900px.
+    final isWide = MediaQuery.of(context).size.width >= 900;
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(classAnalyticsProvider(classId));
       },
       child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.all(DesignSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Class Overview Card
-            ClassOverviewCard(
-              classAverage: analytics.classAverage,
-              totalStudents: analytics.totalStudents,
-              totalSubmissions: analytics.totalSubmissions,
-              totalExpectedSubmissions: analytics.totalExpectedSubmissions,
-              participatingStudents: analytics.participatingStudents,
-              highestScore: analytics.highestScore,
-              lowestScore: analytics.lowestScore,
-              submissionRate: analytics.submissionRate,
-              lateSubmissionRate: analytics.lateSubmissionRate,
-              lateSubmissionCount: analytics.lateSubmissionCount,
-              lateSubmissionTotal: analytics.totalSubmissions,
-              worstOffenderName: analytics.worstOffender?.studentName,
-              worstOffenderCount: analytics.worstOffender?.lateCount,
-            ),
-            SizedBox(height: DesignSpacing.lg),
-
-            // Grade Distribution Chart (Heatmap)
-            _buildSectionTitle('Phân bố điểm số theo môn'),
-            SizedBox(height: DesignSpacing.sm),
-            GradeDistributionHeatmap(
-              subjects: analytics.subjectDistributions,
-            ),
-            SizedBox(height: DesignSpacing.lg),
-
-            // Top Performers
-            _buildSectionTitle('Học sinh xuất sắc'),
-            SizedBox(height: DesignSpacing.sm),
-            TopPerformersList(
-              performers: analytics.topPerformers,
-              onTap: (studentId) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => TeacherStudentAnalyticsScreen(
-                      studentId: studentId,
-                      classId: classId,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(DesignSpacing.md),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Class Overview Card
+                    ClassOverviewCard(
+                      classAverage: analytics.classAverage,
+                      totalStudents: analytics.totalStudents,
+                      totalSubmissions: analytics.totalSubmissions,
+                      totalExpectedSubmissions:
+                          analytics.totalExpectedSubmissions,
+                      participatingStudents: analytics.participatingStudents,
+                      highestScore: analytics.highestScore,
+                      lowestScore: analytics.lowestScore,
+                      submissionRate: analytics.submissionRate,
+                      lateSubmissionRate: analytics.lateSubmissionRate,
+                      lateSubmissionCount: analytics.lateSubmissionCount,
+                      lateSubmissionTotal: analytics.totalSubmissions,
+                      worstOffenderName: analytics.worstOffender?.studentName,
+                      worstOffenderCount: analytics.worstOffender?.lateCount,
                     ),
-                  ),
-                );
-              },
-            ),
-            SizedBox(height: DesignSpacing.lg),
+                    SizedBox(height: DesignSpacing.lg),
 
-            // Bottom Performers (needs attention)
-            _buildSectionTitle('Cần chú ý'),
-            SizedBox(height: DesignSpacing.sm),
-            BottomPerformersList(
-              performers: analytics.bottomPerformers,
-              onTap: (studentId) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => TeacherStudentAnalyticsScreen(
-                      studentId: studentId,
-                      classId: classId,
+                    // Grade Distribution Chart (Heatmap)
+                    _buildSectionTitle('Phân bố điểm số theo môn'),
+                    SizedBox(height: DesignSpacing.sm),
+                    GradeDistributionHeatmap(
+                      subjects: analytics.subjectDistributions,
+                      onStudentTap: (studentId, distributionId) =>
+                          _openStudentSubmission(studentId, distributionId),
                     ),
-                  ),
-                );
-              },
+                    SizedBox(height: DesignSpacing.lg),
+
+                    // Top / Bottom performers — cạnh nhau trên PC, xếp dọc khi hẹp
+                    if (isWide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _topPerformersSection(analytics, classId),
+                          ),
+                          SizedBox(width: DesignSpacing.lg),
+                          Expanded(
+                            child:
+                                _bottomPerformersSection(analytics, classId),
+                          ),
+                        ],
+                      )
+                    else ...[
+                      _topPerformersSection(analytics, classId),
+                      SizedBox(height: DesignSpacing.lg),
+                      _bottomPerformersSection(analytics, classId),
+                    ],
+                    SizedBox(height: DesignSpacing.xxl),
+                  ],
+                ),
+              ),
             ),
-            SizedBox(height: DesignSpacing.xxl),
-          ],
+      ),
+    );
+  }
+
+  /// Mục "Học sinh xuất sắc" — bấm HS mở phân tích cá nhân (có ghi chú GV).
+  Widget _topPerformersSection(ClassAnalytics analytics, String classId) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Học sinh xuất sắc'),
+        SizedBox(height: DesignSpacing.sm),
+        TopPerformersList(
+          performers: analytics.topPerformers,
+          onTap: (studentId) => _openStudentAnalytics(studentId, classId),
+        ),
+      ],
+    );
+  }
+
+  /// Mục "Cần chú ý" — bấm HS mở phân tích cá nhân (có ghi chú GV).
+  Widget _bottomPerformersSection(ClassAnalytics analytics, String classId) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Cần chú ý'),
+        SizedBox(height: DesignSpacing.sm),
+        BottomPerformersList(
+          performers: analytics.bottomPerformers,
+          onTap: (studentId) => _openStudentAnalytics(studentId, classId),
+        ),
+      ],
+    );
+  }
+
+  void _openStudentAnalytics(String studentId, String classId) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TeacherStudentAnalyticsScreen(
+          studentId: studentId,
+          classId: classId,
         ),
       ),
     );

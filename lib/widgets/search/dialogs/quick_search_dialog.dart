@@ -79,7 +79,7 @@ class _QuickSearchDialogState extends State<QuickSearchDialog> {
       child: Container(
         constraints: BoxConstraints(
           maxWidth: 600,
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
+          maxHeight: (MediaQuery.of(context).size.height * 0.85).clamp(0.0, 700.0),
         ),
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,

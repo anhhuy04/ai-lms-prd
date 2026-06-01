@@ -4,6 +4,7 @@ import 'package:ai_mls/domain/entities/group.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/group_providers.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -56,7 +57,8 @@ class StudentGroupScreen extends ConsumerWidget {
           ],
         ),
       ),
-      body: groupsAsync.when(
+      body: WideContentWrapper(
+        child: groupsAsync.when(
         loading: () => const Padding(
           padding: EdgeInsets.all(16),
           child: ShimmerListTileLoading(itemCount: 4),
@@ -114,6 +116,7 @@ class StudentGroupScreen extends ConsumerWidget {
             ),
           );
         },
+        ),
       ),
     );
   }

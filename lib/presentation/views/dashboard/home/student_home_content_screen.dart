@@ -2,7 +2,6 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/responsive_utils.dart';
 import 'package:ai_mls/presentation/providers/analytics_providers.dart';
-import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/recommendation_providers.dart';
 import 'package:ai_mls/presentation/providers/student_dashboard_notifier.dart';
 import 'package:ai_mls/presentation/providers/student_dashboard_providers.dart';
@@ -12,7 +11,6 @@ import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/responsive/responsive_card.dart';
 import 'package:ai_mls/widgets/responsive/responsive_row.dart';
 import 'package:ai_mls/widgets/responsive/responsive_text.dart';
-import 'package:ai_mls/widgets/text/smart_marquee_text.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,111 +22,186 @@ class StudentHomeContentScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboardState = ref.watch(studentDashboardNotifierProvider);
-    final config = ResponsiveUtils.getLayoutConfig(context);
+    final isWide =
+        MediaQuery.of(context).size.width >= DesignBreakpoints.tabletSmall;
 
     return dashboardState.when(
       loading: () => const ShimmerDashboardLoading(),
       error: (error, _) =>
           Center(child: ResponsiveText('Lỗi: ${error.toString()}')),
-      data: (_) {
-        return RefreshIndicator(
-          onRefresh: () =>
-              ref.read(studentDashboardNotifierProvider.notifier).refresh(),
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(
-              config.screenPadding,
-              config.sectionSpacing,
-              config.screenPadding,
-              config.sectionSpacing + 80,
-            ),
-            children: [
-              _buildHeader(context, ref),
-              SizedBox(height: config.sectionSpacing),
-              _buildProgressCard(context, ref),
-              SizedBox(height: config.sectionSpacing),
-              _buildPeerComparisonBadge(context, ref),
-              SizedBox(height: config.sectionSpacing),
-              _buildRecommendationsSection(context, ref),
-              SizedBox(height: config.sectionSpacing),
-              _buildStatsRow(context, ref),
-              SizedBox(height: config.sectionSpacing),
-              _buildSectionHeader(
-                context,
-                'Sắp đến hạn',
-                actionLabel: 'Xem tất cả',
-                onAction: () =>
-                    context.pushNamed(AppRoute.studentAssignmentList),
+      data: (_) => isWide
+          ? _buildWideBody(context, ref)
+          : _buildMobileBody(context, ref),
+    );
+  }
+
+  /// Màn rộng: 2 cột nội dung (cùng sidebar trái của dashboard = 3 cột tổng).
+  /// Trái = tiến độ + sắp đến hạn + điểm số; phải (320px) = thống kê + so sánh
+  /// + gợi ý. Title do DashboardTopBar ở shell cung cấp. Dùng 1 scrollview
+  /// ngoài + Wrap (không lồng scrollview/horizontal-list) để layout an toàn.
+  Widget _buildWideBody(BuildContext context, WidgetRef ref) {
+    final config = ResponsiveUtils.getLayoutConfig(context);
+    // Row đặt TRỰC TIẾP (không bọc trong SingleChildScrollView) → nhận chiều cao
+    // có giới hạn từ Expanded của shell. Mỗi cột tự cuộn riêng — giống pattern
+    // TeacherHomeWideLayout, tránh lỗi "RenderBox no size" (box.dart:2251).
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Cột chính (trái) — cuộn độc lập ──────────────────────────────────
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () =>
+                ref.read(studentDashboardNotifierProvider.notifier).refresh(),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(DesignSpacing.xl),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildProgressCard(context, ref),
+                  SizedBox(height: config.sectionSpacing),
+                  _buildSectionHeader(
+                    context,
+                    'Sắp đến hạn',
+                    actionLabel: 'Xem tất cả',
+                    onAction: () =>
+                        context.pushNamed(AppRoute.studentAssignmentList),
+                  ),
+                  SizedBox(height: config.itemSpacing),
+                  _buildDueWrap(context, ref),
+                  SizedBox(height: config.sectionSpacing),
+                  _buildSectionHeader(context, 'Điểm số mới nhất'),
+                  SizedBox(height: config.itemSpacing),
+                  _buildScoresList(context, ref),
+                  const SizedBox(height: 80),
+                ],
               ),
-              SizedBox(height: config.itemSpacing),
-              _buildDueList(context, ref),
-              SizedBox(height: config.sectionSpacing),
-              _buildSectionHeader(context, 'Điểm số mới nhất'),
-              SizedBox(height: config.itemSpacing),
-              _buildScoresList(context, ref),
-            ],
+            ),
           ),
+        ),
+
+        // ── Cột phụ (phải) — cuộn độc lập ────────────────────────────────────
+        SizedBox(
+          width: 320,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              0,
+              DesignSpacing.xl,
+              DesignSpacing.xl,
+              DesignSpacing.xl,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildStatsRow(context, ref),
+                SizedBox(height: config.sectionSpacing),
+                _buildPeerComparisonBadge(context, ref),
+                SizedBox(height: config.sectionSpacing),
+                _buildRecommendationsSection(context, ref),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Danh sách "Sắp đến hạn" cho màn rộng — dùng Wrap (không cuộn ngang) để
+  /// tránh lồng ListView ngang trong layout cột.
+  Widget _buildDueWrap(BuildContext context, WidgetRef ref) {
+    final config = ResponsiveUtils.getLayoutConfig(context);
+    final dueAsync = ref.watch(studentDueAssignmentsProvider);
+
+    return dueAsync.when(
+      loading: () => const ShimmerHorizontalCardsLoading(height: 180),
+      error: (_, __) => ResponsiveText(
+        'Không thể tải dữ liệu',
+        style: TextStyle(color: DesignColors.textSecondary),
+      ),
+      data: (assignments) {
+        if (assignments.isEmpty) {
+          return Row(
+            children: [
+              const Icon(Icons.check_circle_outline,
+                  color: DesignColors.success, size: 20),
+              const SizedBox(width: DesignSpacing.sm),
+              ResponsiveText(
+                'Không có bài tập nào sắp hết hạn',
+                style: TextStyle(color: DesignColors.textSecondary),
+              ),
+            ],
+          );
+        }
+        return Wrap(
+          spacing: config.itemSpacing,
+          runSpacing: config.itemSpacing,
+          children: [
+            for (int index = 0; index < assignments.length; index++)
+              Builder(
+                builder: (context) {
+                  final a = assignments[index];
+                  final title = a['title'] as String? ?? 'Bài tập';
+                  final dueAtStr = a['distribution_due_at'] as String?;
+                  final dueAt =
+                      dueAtStr != null ? DateTime.tryParse(dueAtStr) : null;
+                  final status =
+                      a['submission_status'] as String? ?? 'not_submitted';
+                  final distributionId =
+                      a['assignment_distribution_id'] as String?;
+                  // BẮT BUỘC bọc height cố định: _buildDueCard có Spacer()
+                  // (= Expanded) bên trong Column — trong Wrap không giới hạn
+                  // chiều cao sẽ gây "RenderBox no size". SizedBox cho Column
+                  // chiều cao xác định để Spacer hoạt động.
+                  return SizedBox(
+                    height: 170,
+                    child: _buildDueCard(
+                        context, title, status, dueAt, index, distributionId),
+                  );
+                },
+              ),
+          ],
         );
       },
     );
   }
 
-  Widget _buildHeader(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authNotifierProvider);
-    final profile = authState.value;
+  /// Nội dung trang chủ — 1 cột dọc (mobile).
+  Widget _buildMobileBody(BuildContext context, WidgetRef ref) {
     final config = ResponsiveUtils.getLayoutConfig(context);
-
-    return ResponsiveRow(
-      children: [
-        CircleAvatar(
-          radius: DesignComponents.avatarMedium / 2,
-          backgroundColor: DesignColors.primary.withValues(alpha: 0.1),
-          child: ResponsiveText(
-            (profile?.fullName?.isNotEmpty ?? false)
-                ? profile!.fullName![0].toUpperCase()
-                : '?',
-            style: const TextStyle(
-              color: DesignColors.primary,
-              fontWeight: FontWeight.bold,
-            ),
-            fontSize: 22,
-          ),
+    return RefreshIndicator(
+      onRefresh: () =>
+          ref.read(studentDashboardNotifierProvider.notifier).refresh(),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(
+          config.screenPadding,
+          config.sectionSpacing,
+          config.screenPadding,
+          config.sectionSpacing + 80,
         ),
-        SizedBox(width: config.itemSpacing),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ResponsiveText(
-                'Chào buổi sáng,',
-                style: TextStyle(color: DesignColors.textSecondary),
-                fontSize: DesignTypography.bodySmallSize,
-              ),
-              SizedBox(height: DesignSpacing.xs),
-              SmartMarqueeText(
-                text: profile?.fullName ?? 'Học sinh',
-                style: DesignTypography.titleLarge,
-              ),
-            ],
+        children: [
+          _buildProgressCard(context, ref),
+          SizedBox(height: config.sectionSpacing),
+          _buildPeerComparisonBadge(context, ref),
+          SizedBox(height: config.sectionSpacing),
+          _buildRecommendationsSection(context, ref),
+          SizedBox(height: config.sectionSpacing),
+          _buildStatsRow(context, ref),
+          SizedBox(height: config.sectionSpacing),
+          _buildSectionHeader(
+            context,
+            'Sắp đến hạn',
+            actionLabel: 'Xem tất cả',
+            onAction: () => context.pushNamed(AppRoute.studentAssignmentList),
           ),
-        ),
-        SizedBox(width: config.itemSpacing),
-        Container(
-          width: DesignComponents.avatarMedium,
-          height: DesignComponents.avatarMedium,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(DesignRadius.md),
-            border: Border.all(color: DesignColors.dividerLight),
-          ),
-          child: IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none_outlined),
-            color: DesignColors.primary,
-          ),
-        ),
-      ],
+          SizedBox(height: config.itemSpacing),
+          _buildDueList(context, ref),
+          SizedBox(height: config.sectionSpacing),
+          _buildSectionHeader(context, 'Điểm số mới nhất'),
+          SizedBox(height: config.itemSpacing),
+          _buildScoresList(context, ref),
+        ],
+      ),
     );
   }
 
@@ -468,7 +541,8 @@ class StudentHomeContentScreen extends ConsumerWidget {
                   dueAtStr != null ? DateTime.tryParse(dueAtStr) : null;
               final status =
                   a['submission_status'] as String? ?? 'not_submitted';
-              final distributionId = a['distribution_id'] as String?;
+              final distributionId =
+                  a['assignment_distribution_id'] as String?;
               return _buildDueCard(
                   context, title, status, dueAt, index, distributionId);
             },

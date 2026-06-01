@@ -187,6 +187,10 @@ class QuestionRepositoryImpl implements QuestionRepository {
       });
 
   @override
+  Future<List<String>> getObjectiveIdsByQuestionId(String id) =>
+      _guard('GetObjectiveIds', () => _ds.getObjectiveIdsByQuestionId(id));
+
+  @override
   Future<List<Question>> getQuestions(QuestionFilter filter) => _guard('GetList', () async {
         final rows = await _ds.getQuestions(filter);
         return rows.map(Question.fromJson).toList();

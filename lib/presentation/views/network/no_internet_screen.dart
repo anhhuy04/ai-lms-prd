@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:ai_mls/core/constants/design_tokens.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class NoInternetScreen extends StatelessWidget {
   final VoidCallback onRetry;
@@ -18,7 +17,7 @@ class NoInternetScreen extends StatelessWidget {
             children: [
               Icon(
                 Icons.wifi_off,
-                size: 80.w,
+                size: 80.0,
                 color: DesignColors.primary,
               ),
               SizedBox(height: DesignSpacing.lg),

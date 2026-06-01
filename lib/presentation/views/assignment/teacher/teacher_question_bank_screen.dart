@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
@@ -10,9 +12,13 @@ import 'package:ai_mls/domain/entities/question_filter.dart';
 import 'package:ai_mls/domain/entities/question_source.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/question_bank_notifier.dart';
+import 'package:ai_mls/presentation/providers/question_usage_provider.dart';
 import 'package:ai_mls/presentation/view_models/question_vm.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/widgets/question_bank/assignment_folder_list.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/question_bank/question_bank_card.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/question_bank/question_source_chip_bar.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/widgets/question_bank/slidable_card_wrapper.dart';
+import 'package:ai_mls/widgets/dialogs/question_delete_confirm_dialog.dart';
 import 'package:ai_mls/widgets/dialogs/question_filter_bottom_sheet.dart';
 import 'package:ai_mls/widgets/dialogs/question_sort_bottom_sheet.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
@@ -49,6 +55,9 @@ class _TeacherQuestionBankScreenState
     bool includeGlobal = true;
     switch (_source) {
       case SourceChipFilter.all:
+      case SourceChipFilter.assignmentFolder:
+        // `assignmentFolder` không dùng filter này (body render danh sách
+        // bài tập riêng), nhưng vẫn cần case để switch exhaustive.
         includeGlobal = true;
         break;
       case SourceChipFilter.mine:
@@ -68,6 +77,9 @@ class _TeacherQuestionBankScreenState
       difficulty: _filterValue.difficulty,
       tags: _filterValue.tags.isEmpty ? null : _filterValue.tags,
       sortBy: _sortKey,
+      // Bug #1: default pageSize=20 → chỉ thấy 20/83 câu khi tab "Tất cả".
+      // Tạm bump 500 (cover 99% giáo viên). TODO: load-more pagination.
+      pageSize: 500,
     );
   }
 
@@ -180,48 +192,80 @@ class _TeacherQuestionBankScreenState
             ),
           ),
           Expanded(
-            child: stateAsync.when(
+            child: _source == SourceChipFilter.assignmentFolder
+                // Tab "Tệp bài tập" → list bài tập có expand câu hỏi.
+                ? AssignmentFolderList(
+                    teacherId: userId,
+                    searchQuery: _searchQuery,
+                  )
+                : stateAsync.when(
               data: (s) => s.questions.isEmpty
                   ? _buildEmpty()
                   : RefreshIndicator(
                       onRefresh: () async => ref.invalidate(
                         questionBankNotifierProvider,
                       ),
-                      child: ListView.builder(
-                        itemCount: s.questions.length,
-                        itemBuilder: (_, i) {
-                          final q = s.questions[i];
-                          final vm = q.toVM(
-                            currentUserId: userId,
-                            isAdmin: isAdmin,
-                          );
-                          return QuestionBankCard(
-                            vm: vm,
-                            onTap: () => context.pushNamed(
-                              AppRoute.teacherQuestionBankDetail,
-                              pathParameters: {'questionId': q.id},
-                            ),
-                            onEdit: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Sửa câu hỏi — sẽ wire trong Phase 6',
+                      child: SlidableAutoCloseBehavior(
+                        child: LayoutBuilder(
+                          builder: (ctx, constraints) {
+                            final ratio =
+                                computeSlidableRatio(constraints.maxWidth);
+                            return ListView.builder(
+                              itemCount: s.questions.length,
+                              itemBuilder: (_, i) {
+                                final q = s.questions[i];
+                                final vm = q.toVM(
+                                  currentUserId: userId,
+                                  isAdmin: isAdmin,
+                                );
+                                return SlidableCardWrapper(
+                                  borderRadius: DesignRadius.md,
+                                  margin: EdgeInsets.symmetric(
+                                    vertical: DesignSpacing.xs,
+                                    horizontal: DesignSpacing.md,
                                   ),
-                                ),
-                              );
-                            },
-                            onDelete: () => _confirmDelete(q.id, filter),
-                            onDuplicate: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Sao chép — sẽ implement sau',
+                                  slidableKey:
+                                      ValueKey('question_${q.id}'),
+                                  groupTag: 'question_bank',
+                                  extentRatio: ratio,
+                                  actions: [
+                                    CompactSlidableAction(
+                                      onPressed: () {
+                                        AppToast.info(context, 'Sửa câu hỏi — sẽ wire trong Phase 6');
+                                      },
+                                      bg: DesignColors.primary,
+                                      icon: Icons.edit_rounded,
+                                      label: 'Sửa',
+                                    ),
+                                    CompactSlidableAction(
+                                      onPressed: () =>
+                                          _confirmDelete(q.id, filter),
+                                      bg: DesignColors.error,
+                                      icon: Icons.delete_rounded,
+                                      label: 'Xoá',
+                                    ),
+                                  ],
+                                  child: QuestionBankCard(
+                                    vm: vm,
+                                    margin: EdgeInsets.zero,
+                                    onTap: () => context.pushNamed(
+                                      AppRoute.teacherQuestionBankDetail,
+                                      pathParameters: {'questionId': q.id},
+                                    ),
+                                    onEdit: () {
+                                      AppToast.info(context, 'Sửa câu hỏi — sẽ wire trong Phase 6');
+                                    },
+                                    onDelete: () =>
+                                        _confirmDelete(q.id, filter),
+                                    onDuplicate: () {
+                                      AppToast.info(context, 'Sao chép — sẽ implement sau');
+                                    },
                                   ),
-                                ),
-                              );
-                            },
-                          );
-                        },
+                                );
+                              },
+                            );
+                          },
+                        ),
                       ),
                     ),
               loading: () => const ShimmerListTileLoading(itemCount: 6),
@@ -258,11 +302,7 @@ class _TeacherQuestionBankScreenState
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Tạo câu hỏi — sẽ wire trong Phase 6'),
-            ),
-          );
+          AppToast.info(context, 'Tạo câu hỏi — sẽ wire trong Phase 6');
         },
         label: const Text('Tạo câu hỏi mới'),
         icon: const Icon(Icons.add),
@@ -290,51 +330,41 @@ class _TeacherQuestionBankScreenState
   );
 
   Future<void> _confirmDelete(String id, QuestionFilter filter) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Xóa câu hỏi?'),
-        content: const Text(
-          'Câu hỏi sẽ vào "Thùng rác" và có thể khôi phục trong 30 ngày.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Xóa'),
-          ),
-        ],
-      ),
+    // Pre-check: câu hỏi có đang link với bài tập nào không?
+    // Linked → chỉ ẩn (không cho xoá vĩnh viễn để bảo toàn bài tập đã giao).
+    final List<QuestionUsageItem> usage;
+    try {
+      usage = await ref.read(questionUsageProvider(id).future);
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.error(context, 'Không kiểm tra được liên kết: $e');
+      return;
+    }
+    if (!mounted) return;
+
+    final isLinked = usage.isNotEmpty;
+    final ok = await QuestionDeleteConfirmDialog.show(
+      context,
+      isLinked: isLinked,
+      linkedCount: usage.length,
+      firstAssignmentTitle: isLinked ? usage.first.title : null,
     );
-    if (ok != true || !mounted) return;
+    if (!ok || !mounted) return;
+
     try {
       await ref
           .read(questionBankNotifierProvider(filter: filter).notifier)
           .softDelete(id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Đã xóa câu hỏi'),
-          action: SnackBarAction(
-            label: 'Hoàn tác',
-            onPressed: () => ref
-                .read(questionBankNotifierProvider(filter: filter).notifier)
-                .restore(id),
-          ),
-          duration: const Duration(seconds: 30),
-        ),
+      AppToast.warning(
+        context,
+        isLinked
+            ? 'Đã ẩn câu hỏi khỏi ngân hàng (giữ trong bài tập đã giao)'
+            : 'Đã xóa câu hỏi',
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Lỗi: $e');
     }
   }
 

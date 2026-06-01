@@ -1,5 +1,7 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/presentation/providers/student_assignment_providers.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
+import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -74,7 +76,8 @@ class StudentSubmissionReviewScreen extends ConsumerWidget {
           child: Container(color: DesignColors.dividerLight, height: 1),
         ),
       ),
-      body: detailAsync.when(
+      body: WideContentWrapper(
+        child: detailAsync.when(
         data: (submission) {
           if (submission == null) {
             return const Center(child: Text('Không tìm thấy bài làm'));
@@ -148,6 +151,7 @@ class StudentSubmissionReviewScreen extends ConsumerWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -293,7 +297,7 @@ class StudentSubmissionReviewScreen extends ConsumerWidget {
           const SizedBox(height: 14),
 
           // Question content
-          Text(
+          MathText(
             _getQuestionContent(question),
             style: const TextStyle(
               fontSize: 16,
@@ -372,7 +376,7 @@ class StudentSubmissionReviewScreen extends ConsumerWidget {
               _buildOptionIcon(isSelected, isCorrect),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
+                child: MathText(
                   text,
                   style: TextStyle(
                     fontSize: 14,

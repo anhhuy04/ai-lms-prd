@@ -28,6 +28,7 @@ import 'package:ai_mls/widgets/objective_selector/objective_selector_sheet.dart'
 import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -71,6 +72,8 @@ class _TeacherAiGenerateQuestionScreenState
   final Set<String> _selectedTypes = {};
   // Số lượng theo từng loại (key = typeKey)
   final Map<String, int> _typeQuantities = {};
+  // Controller cho ô nhập số câu mỗi loại (nhập trực tiếp, tránh bấm +/- nhiều)
+  final Map<String, TextEditingController> _qtyCtrls = {};
   // Phân nhóm kết quả theo loại (để hiển thị section header)
   final List<({String typeKey, String label, int startIndex, int count})>
   _sections = [];
@@ -137,6 +140,9 @@ class _TeacherAiGenerateQuestionScreenState
     _topicController.dispose();
     _quantityController.dispose();
     _focusHintController.dispose();
+    for (final c in _qtyCtrls.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -266,13 +272,7 @@ class _TeacherAiGenerateQuestionScreenState
 
       if (!mounted) return;
       if (errors.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Đã lưu $success câu hỏi vào Question Bank'),
-            backgroundColor: DesignColors.success,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        AppToast.success(context, '✅ Đã lưu $success câu hỏi vào Question Bank');
       } else {
         showDialog(
           context: context,
@@ -336,12 +336,7 @@ class _TeacherAiGenerateQuestionScreenState
   Future<void> _showExportSheet() async {
     final questions = _generatedQuestions;
     if (questions == null || questions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Chưa có câu hỏi để xuất. Hãy tạo trước.'),
-          backgroundColor: DesignColors.warning,
-        ),
-      );
+      AppToast.warning(context, 'Chưa có câu hỏi để xuất. Hãy tạo trước.');
       return;
     }
 
@@ -432,12 +427,7 @@ class _TeacherAiGenerateQuestionScreenState
       if (!mounted) return;
 
       if (saved) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã xuất $fileName (${questions.length} câu)'),
-            backgroundColor: DesignColors.success,
-          ),
-        );
+        AppToast.success(context, 'Đã xuất $fileName (${questions.length} câu)');
         AppLogger.info(
           '[ExportExcel] Saved: $fileName, ${bytes.length} bytes',
         );
@@ -447,24 +437,14 @@ class _TeacherAiGenerateQuestionScreenState
     } catch (e, st) {
       AppLogger.error('[ExportExcel] Failed: $e\n$st');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi xuất Excel: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Lỗi xuất Excel: $e');
     }
   }
 
   Future<void> _handleExportToWord() async {
     final questions = _generatedQuestions;
     if (questions == null || questions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Chưa có câu hỏi để xuất. Hãy tạo trước.'),
-          backgroundColor: DesignColors.warning,
-        ),
-      );
+      AppToast.warning(context, 'Chưa có câu hỏi để xuất. Hãy tạo trước.');
       return;
     }
 
@@ -485,12 +465,7 @@ class _TeacherAiGenerateQuestionScreenState
       if (!mounted) return;
 
       if (saved) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã xuất $fileName (${questions.length} câu)'),
-            backgroundColor: DesignColors.success,
-          ),
-        );
+        AppToast.success(context, 'Đã xuất $fileName (${questions.length} câu)');
         AppLogger.info('[ExportWord] Saved: $fileName, ${bytes.length} bytes');
       } else {
         AppLogger.info('[ExportWord] User canceled save dialog');
@@ -498,12 +473,7 @@ class _TeacherAiGenerateQuestionScreenState
     } catch (e, st) {
       AppLogger.error('[ExportWord] Failed: $e\n$st');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi xuất Word: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Lỗi xuất Word: $e');
     }
   }
 
@@ -518,7 +488,6 @@ class _TeacherAiGenerateQuestionScreenState
         ? (q['type'] as QuestionType)
         : QuestionType.multipleChoice;
 
-    // Format mới: override_text + choices (KHÔNG lồng trong content)
     // content chỉ chứa metadata như images, difficulty, tags...
     final content = <String, dynamic>{};
     final contentRaw = q['content'];
@@ -526,14 +495,29 @@ class _TeacherAiGenerateQuestionScreenState
       content.addAll(Map<String, dynamic>.from(contentRaw));
     }
 
-    // Override text - ưu tiên: q['text'] (đã mapped) → q['override_text'] (AI raw) → content fields
+    // Question text - ưu tiên: q['text'] (đã mapped) → q['override_text'] (AI raw) → content fields
     final questionText = (q['text'] as String?)?.trim().isNotEmpty == true
         ? (q['text'] as String).trim()
         : (q['override_text'] as String?)?.trim().isNotEmpty == true
         ? (q['override_text'] as String).trim()
         : (content['override_text'] ?? content['text'] ?? '').toString();
-    content['override_text'] = questionText;
+    // Bank questions.content dùng key CHUẨN 'text' (KHÔNG phải 'override_text' —
+    // override_text chỉ dành cho delta trong assignment_questions.custom_content).
+    // Mọi read path (picker preview, bank detail) ưu tiên content['text']; nếu lưu
+    // override_text thì câu AI sẽ hiển thị rỗng. Đồng bộ với teacher_create_question.
+    content['text'] = questionText;
+    content.remove('override_text');
     content['images'] = content['images'] is List ? content['images'] : [];
+
+    // Matching: giữ pairs/distractors trong content để không mất khi lưu vào bank.
+    if (type == QuestionType.matching) {
+      final pairs = q['pairs'];
+      if (pairs is List && pairs.isNotEmpty) content['pairs'] = pairs;
+      final distractors = q['distractors'];
+      if (distractors is List && distractors.isNotEmpty) {
+        content['distractors'] = distractors;
+      }
+    }
 
     // choices + answer - ưu tiên q['choices'] (đầy đủ) trước q['options'] (backward compat)
     Map<String, dynamic>? answer;
@@ -687,12 +671,7 @@ class _TeacherAiGenerateQuestionScreenState
 
       if (topic.isEmpty) {
         AppLogger.warning('🟡 [Generate] EXIT: topic empty');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng nhập chủ đề câu hỏi'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Vui lòng nhập chủ đề câu hỏi');
         return;
       }
 
@@ -742,14 +721,7 @@ class _TeacherAiGenerateQuestionScreenState
       if (currentMode == ProcessingMode.extraction) {
         final selectedIds = aiSettings.selectedFileIds;
         if (selectedIds.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu trước khi trích xuất.',
-              ),
-              backgroundColor: DesignColors.warning,
-            ),
-          );
+          AppToast.warning(context, 'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu trước khi trích xuất.');
           setState(() => _isGenerating = false);
           return;
         }
@@ -766,15 +738,7 @@ class _TeacherAiGenerateQuestionScreenState
               _isGenerating = false;
               _batchProgress = null;
             });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Đã tải ${templateQuestions.length} câu hỏi từ file Excel',
-                ),
-                backgroundColor: DesignColors.success,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            AppToast.success(context, 'Đã tải ${templateQuestions.length} câu hỏi từ file Excel');
           }
           return;
         }
@@ -785,14 +749,15 @@ class _TeacherAiGenerateQuestionScreenState
             .getExtractedTextForIds(selectedIds);
 
         if (docText.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'File Excel không đúng định dạng mẫu và file Word không có nội dung đọc được. '
-                'Vui lòng dùng file mẫu Excel hoặc file Word có nội dung.',
-              ),
-              backgroundColor: DesignColors.warning,
-            ),
+          // Phân biệt "đang đọc dở" vs "thật sự rỗng" để không báo nhầm.
+          final stillExtracting = ref
+              .read(localTempFilesProvider)
+              .any((f) => selectedIds.contains(f.id) && f.isExtracting);
+          AppToast.warning(
+            context,
+            stillExtracting
+                ? 'Đang đọc nội dung tài liệu, vui lòng đợi giây lát rồi thử lại.'
+                : 'File Excel không đúng định dạng mẫu và file Word không có nội dung đọc được.',
           );
           setState(() => _isGenerating = false);
           return;
@@ -801,16 +766,7 @@ class _TeacherAiGenerateQuestionScreenState
         // Smart truncate nếu tài liệu quá dài
         final truncated = AiService.smartTruncate(docText);
         if (truncated.wasTruncated && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Tài liệu dài (${truncated.totalChars} ký tự) — '
-                'đã dùng ${truncated.usedChars} ký tự để tránh tràn context AI.',
-              ),
-              backgroundColor: DesignColors.warning,
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          AppToast.warning(context, 'Tài liệu dài (${truncated.totalChars} ký tự) — ');
         }
         documentContext = truncated.text;
 
@@ -844,14 +800,7 @@ class _TeacherAiGenerateQuestionScreenState
         }
 
         if (selectedIds.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu.',
-              ),
-              backgroundColor: DesignColors.warning,
-            ),
-          );
+          AppToast.warning(context, 'Vui lòng chọn ít nhất 1 tài liệu ở Nguồn Dữ Liệu.');
           setState(() => _isGenerating = false);
           return;
         }
@@ -881,15 +830,7 @@ class _TeacherAiGenerateQuestionScreenState
               'parsedQty=${f.parsedQuestions?.length ?? 0}',
             );
           }
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Tài liệu chưa có nội dung đọc được. '
-                'Hỗ trợ: Word (.docx), Excel (.xlsx), PDF (.pdf).',
-              ),
-              backgroundColor: DesignColors.warning,
-            ),
-          );
+          AppToast.warning(context, 'Tài liệu chưa có nội dung đọc được. ');
           setState(() => _isGenerating = false);
           return;
         }
@@ -964,17 +905,7 @@ class _TeacherAiGenerateQuestionScreenState
           final qty = _limitQty;
           final templateSize = templateQuestionsForCheck.length;
           if (templateSize > 0 && qty > templateSize * 3) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Yêu cầu $qty câu từ mẫu $templateSize câu '
-                  '— AI có thể bị lặp. Nên giảm xuống ≤ ${templateSize * 3} câu.',
-                ),
-                backgroundColor: DesignColors.warning,
-                duration: const Duration(seconds: 5),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            AppToast.warning(context, 'Yêu cầu $qty câu từ mẫu $templateSize câu ');
           }
         }
         // Build aiText: template-style dùng knowledge context (anti-leak), còn lại raw.
@@ -992,42 +923,33 @@ class _TeacherAiGenerateQuestionScreenState
         );
 
         if (truncated.wasTruncated && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Tài liệu dài (${truncated.totalChars} ký tự) — '
-                'đã dùng ${truncated.usedChars} ký tự để tránh tràn context AI.',
-              ),
-              backgroundColor: DesignColors.warning,
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          AppToast.warning(context, 'Tài liệu dài (${truncated.totalChars} ký tự) — ');
         }
         documentContext = truncated.text;
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                _useAsStyleTemplate
-                    ? 'Phát hiện tài liệu bài mẫu — AI sẽ tạo câu cùng dạng, nội dung mới.'
-                    : 'Phát hiện tài liệu lý thuyết — AI sẽ tạo câu dựa trên kiến thức trong tài liệu.',
-              ),
-              backgroundColor: _useAsStyleTemplate
-                  ? DesignColors.success
-                  : DesignColors.primary,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
 
         // Topic từ focus hint, fallback về tài liệu
         final focusHint = _focusHintController.text.trim();
-        topic = focusHint.isNotEmpty ? focusHint : 'Câu hỏi từ tài liệu';
+        topic = focusHint.isNotEmpty
+            ? focusHint
+            : (_detectTemplateSubject() ?? 'Câu hỏi từ tài liệu');
         AppLogger.info(
           '[Mode3] useAsStyleTemplate=$_useAsStyleTemplate, '
           'docChars=${truncated.usedChars}, topic="$topic"',
         );
+
+        // ── FIX-MODE3-DIST: tự khớp phân bố loại theo tài liệu mẫu ──────────
+        // User CHƯA tự chọn loại + tài liệu mẫu có câu parse được → tự tính
+        // phân bố (vd 4 Tự luận + 3 Trắc nghiệm) và điền sẵn _selectedTypes/
+        // _typeQuantities để vòng tạo multi-type bên dưới xuất đúng số câu mỗi
+        // loại như tài liệu. User vẫn chỉnh tay (chip + ô số câu) trước khi
+        // bấm tạo lại nếu muốn — guard _selectedTypes.isEmpty tôn trọng lựa
+        // chọn thủ công.
+        if (_useAsStyleTemplate &&
+            _selectedTypes.isEmpty &&
+            templateQuestionsForCheck.isNotEmpty) {
+          _autoMatchTemplateDistribution(templateQuestionsForCheck);
+        }
       }
 
       final aiRepository = ref.read(aiRepositoryProvider);
@@ -1129,32 +1051,18 @@ class _TeacherAiGenerateQuestionScreenState
       });
 
       _logGeneratedQuestions(generatedQuestions);
+
+      // HỆ THỐNG TỰ CHỮA: nếu có câu lỗi (placeholder) → tự sinh lại RIÊNG
+      // từng câu lỗi (đúng loại + bối cảnh mẫu), không đụng câu tốt. Chỉ chạy
+      // khi thực sự có câu lỗi nên không tốn thêm gọi AI khi sinh sạch.
+      await _autoHealFailedQuestions();
+
       // KHÔNG pop tự động - để user có thể test nhiều lần
       // User sẽ click "Xác nhận" để pop và trả về questions
     } on AiUncertaintyException catch (e) {
       AppLogger.warning('[Generate] AI uncertainty: ${e.code} — ${e.reason}');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '⚠ AI cần thêm thông tin',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(e.reason, style: const TextStyle(color: Colors.white)),
-              ],
-            ),
-            backgroundColor: DesignColors.warning,
-            duration: const Duration(seconds: 8),
-          ),
-        );
+        AppToast.warning(context, '⚠ AI cần thêm thông tin');
       }
     } catch (e) {
       if (!mounted) return;
@@ -1240,13 +1148,7 @@ class _TeacherAiGenerateQuestionScreenState
         );
       } else {
         // Hiển thị SnackBar cho các lỗi khác
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi tạo câu hỏi: ${e.toString()}'),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        AppToast.error(context, 'Lỗi khi tạo câu hỏi: ${e.toString()}');
       }
     } finally {
       if (mounted) setState(() => _isGenerating = false);
@@ -1396,6 +1298,46 @@ class _TeacherAiGenerateQuestionScreenState
   void _handleRemoveQuestion(int index) {
     setState(() {
       _generatedQuestions = List.from(_generatedQuestions!)..removeAt(index);
+
+      // Reindex state lưu theo int index để không lệch sau khi xóa:
+      // bỏ phần tử == index, dịch phần tử > index xuống 1.
+      List<int> shifted(Set<int> s) => s
+          .where((i) => i != index)
+          .map((i) => i > index ? i - 1 : i)
+          .toList();
+      final exp = shifted(_expandedExplanations);
+      _expandedExplanations
+        ..clear()
+        ..addAll(exp);
+      final regen = shifted(_regeneratingExplanationSet);
+      _regeneratingExplanationSet
+        ..clear()
+        ..addAll(regen);
+
+      // Reindex _sections: giảm count section chứa index, dịch startIndex các
+      // section sau index xuống 1; bỏ section rỗng. Giữ header/typeKey đúng câu.
+      final rebuilt =
+          <({String typeKey, String label, int startIndex, int count})>[];
+      for (final s in _sections) {
+        var start = s.startIndex;
+        var count = s.count;
+        if (index < start) {
+          start -= 1;
+        } else if (index < start + count) {
+          count -= 1;
+        }
+        if (count > 0) {
+          rebuilt.add((
+            typeKey: s.typeKey,
+            label: s.label,
+            startIndex: start,
+            count: count,
+          ));
+        }
+      }
+      _sections
+        ..clear()
+        ..addAll(rebuilt);
     });
   }
 
@@ -1408,6 +1350,23 @@ class _TeacherAiGenerateQuestionScreenState
       }
     }
     return null; // auto
+  }
+
+  /// Lấy MÔN HỌC phổ biến nhất từ câu hỏi mẫu (field `subject`). Dùng làm topic
+  /// fallback ở Mode 3 → model LUÔN có môn rõ ràng → không báo "missing_subject"
+  /// (clause AN TOÀN trong prompt) khi tài liệu mẫu thực ra đã nêu môn. Trả null
+  /// nếu mẫu không có subject.
+  String? _detectTemplateSubject() {
+    final qs = _templateQuestionsForVerify;
+    if (qs == null || qs.isEmpty) return null;
+    final subjects = <String>{};
+    for (final q in qs) {
+      final s = (q['subject'] as String?)?.trim();
+      if (s != null && s.isNotEmpty) subjects.add(s);
+    }
+    // Chỉ ép topic khi mẫu CHỈ CÓ 1 môn — đa môn thì trả null để giữ
+    // "tự suy từ tags" (không gò tất cả câu về 1 môn, tránh mất đa dạng).
+    return subjects.length == 1 ? subjects.first : null;
   }
 
   /// Nếu [fresh] thiếu/null/empty cho [key] thì copy từ [old] (giữ user edit).
@@ -1423,35 +1382,44 @@ class _TeacherAiGenerateQuestionScreenState
     }
   }
 
-  Future<void> _handleRegenerateSingle(int index) async {
+  /// Dựng bối cảnh regen (topic + documentContext + trạng thái template) theo
+  /// mode hiện tại. Trả null nếu không đủ điều kiện (vd Mode 1 topic rỗng,
+  /// Mode 2 chưa chọn file). Dùng chung cho regen-1-câu VÀ auto-heal câu lỗi.
+  ({
+    String topic,
+    String? documentContext,
+    bool useTemplate,
+    TemplateMode? templateMode,
+  })?
+  _buildRegenContext() {
     final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
     final currentMode = aiSettings.processingMode;
 
     String topic;
     String? documentContext;
-    bool regenUseAsStyleTemplate = false;
-    TemplateMode? regenTemplateMode;
+    bool useTemplate = false;
+    TemplateMode? templateMode;
 
     if (currentMode == ProcessingMode.ragGeneration) {
       // Mode 3: re-detect template state tại thời điểm regen (GAP-3 fix)
       final focusHint = _focusHintController.text.trim();
-      topic = focusHint.isNotEmpty ? focusHint : 'Câu hỏi từ tài liệu';
+      topic = focusHint.isNotEmpty
+          ? focusHint
+          : (_detectTemplateSubject() ?? 'Câu hỏi từ tài liệu');
       final selectedIds = aiSettings.selectedFileIds;
       if (selectedIds.isNotEmpty) {
         final allFiles = ref.read(localTempFilesProvider);
         final notifier = ref.read(localTempFilesProvider.notifier);
         // Re-detect live từ role hiện tại của file (không dùng cached state)
-        regenUseAsStyleTemplate = allFiles.any(
+        useTemplate = allFiles.any(
           (f) =>
               selectedIds.contains(f.id) &&
               f.parsedQuestions != null &&
               f.parsedQuestions!.isNotEmpty &&
               f.effectiveRole == FileRole.template,
         );
-        regenTemplateMode = regenUseAsStyleTemplate
-            ? aiSettings.templateMode
-            : null;
-        final docText = regenUseAsStyleTemplate
+        templateMode = useTemplate ? aiSettings.templateMode : null;
+        final docText = useTemplate
             ? notifier.getKnowledgeContextForIds(
                 selectedIds,
                 templateMode: aiSettings.templateMode,
@@ -1464,34 +1432,57 @@ class _TeacherAiGenerateQuestionScreenState
     } else if (currentMode == ProcessingMode.extraction) {
       // Mode 2: lấy raw text từ tài liệu
       final selectedIds = aiSettings.selectedFileIds;
-      if (selectedIds.isEmpty) return;
+      if (selectedIds.isEmpty) return null;
       final docText = ref
           .read(localTempFilesProvider.notifier)
           .getExtractedTextForIds(selectedIds);
-      if (docText.isEmpty) return;
+      if (docText.isEmpty) return null;
       documentContext = AiService.smartTruncate(docText).text;
       topic = 'Câu hỏi từ tài liệu';
     } else {
       // Mode 1: dùng topic từ ô nhập
       topic = _topicController.text.trim();
-      if (topic.isEmpty) return;
+      if (topic.isEmpty) return null;
     }
+    return (
+      topic: topic,
+      documentContext: documentContext,
+      useTemplate: useTemplate,
+      templateMode: templateMode,
+    );
+  }
+
+  /// Card lỗi cần tự sửa. Bắt CẢ 2 dạng placeholder:
+  ///  1. Fallback parse-fail: cờ _isFallback / text "(cần chỉnh sửa)".
+  ///  2. Item rỗng nội dung: override_text trống → mapper điền mặc định
+  ///     "Câu hỏi N" (không có nội dung thật) → cũng coi là lỗi.
+  static final RegExp _emptyQuestionPattern = RegExp(r'^Câu hỏi \d+\.?$');
+  bool _isFailedQuestion(Map<String, dynamic> q) {
+    if (q['_isFallback'] == true) return true;
+    final t = (q['text'] as String? ?? '').trim();
+    if (t.contains('(cần chỉnh sửa)')) return true;
+    if (_emptyQuestionPattern.hasMatch(t)) return true;
+    return false;
+  }
+
+  Future<void> _handleRegenerateSingle(int index) async {
+    final ctx = _buildRegenContext();
+    if (ctx == null) return;
+    final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
 
     setState(() => _regeneratingIndex = index);
     try {
       final aiRepository = ref.read(aiRepositoryProvider);
       final result = await aiRepository.generateQuestions(
-        topic: topic,
+        topic: ctx.topic,
         quantity: 1,
         difficulty: _difficulty,
         questionType: _typeKeyForIndex(index),
-        documentContext: documentContext,
-        useAsStyleTemplate: regenUseAsStyleTemplate,
-        templateMode: regenTemplateMode,
-        templateQuestions: regenUseAsStyleTemplate
-            ? _templateQuestionsForVerify
-            : null,
-        templateCount: regenUseAsStyleTemplate
+        documentContext: ctx.documentContext,
+        useAsStyleTemplate: ctx.useTemplate,
+        templateMode: ctx.templateMode,
+        templateQuestions: ctx.useTemplate ? _templateQuestionsForVerify : null,
+        templateCount: ctx.useTemplate
             ? _templateQuestionsForVerify?.length
             : null,
         highAccuracyMode: aiSettings.highAccuracyMode,
@@ -1521,23 +1512,103 @@ class _TeacherAiGenerateQuestionScreenState
         '[RegenSingle] AI uncertainty: ${e.code} — ${e.reason}',
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('⚠ AI cần thêm thông tin: ${e.reason}'),
-          backgroundColor: DesignColors.warning,
-          duration: const Duration(seconds: 6),
-        ),
-      );
+      AppToast.warning(context, '⚠ AI cần thêm thông tin: ${e.reason}');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Tạo lại thất bại: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Tạo lại thất bại: $e');
     } finally {
       if (mounted) setState(() => _regeneratingIndex = null);
+    }
+  }
+
+  /// HỆ THỐNG TỰ CHỮA: sau khi sinh, tự phát hiện các card lỗi (placeholder
+  /// "(cần chỉnh sửa)") rồi CHỈ sinh lại riêng từng câu đó — đúng LOẠI (qua
+  /// _typeKeyForIndex từ _sections) + đúng bối cảnh MẪU (_buildRegenContext +
+  /// _templateQuestionsForVerify), thay tại chỗ. KHÔNG đụng câu tốt, KHÔNG đổi
+  /// phân bố/_sections (thay 1-đổi-1). Mỗi câu thử tối đa [maxPerCard] lần.
+  Future<void> _autoHealFailedQuestions({int maxPerCard = 2}) async {
+    final qs = _generatedQuestions;
+    if (qs == null) return;
+    final badIndices = [
+      for (var i = 0; i < qs.length; i++)
+        if (_isFailedQuestion(qs[i])) i,
+    ];
+    if (badIndices.isEmpty) return;
+
+    final ctx = _buildRegenContext();
+    if (ctx == null) return; // không đủ bối cảnh để sinh lại
+
+    final aiRepository = ref.read(aiRepositoryProvider);
+    final aiSettings = ref.read(aiGenerationSettingsNotifierProvider);
+    AppLogger.info(
+      '[AutoHeal] phát hiện ${badIndices.length} câu lỗi → tự sinh lại',
+    );
+
+    var healed = 0;
+    for (final idx in badIndices) {
+      for (var attempt = 0; attempt < maxPerCard; attempt++) {
+        if (!mounted) return;
+        setState(() {
+          _regeneratingIndex = idx;
+          _batchProgress =
+              'Đang tự sửa câu lỗi (${healed + 1}/${badIndices.length})...';
+        });
+        try {
+          final result = await aiRepository.generateQuestions(
+            topic: ctx.topic,
+            quantity: 1,
+            difficulty: _difficulty,
+            questionType: _typeKeyForIndex(idx),
+            documentContext: ctx.documentContext,
+            useAsStyleTemplate: ctx.useTemplate,
+            templateMode: ctx.templateMode,
+            templateQuestions:
+                ctx.useTemplate ? _templateQuestionsForVerify : null,
+            templateCount:
+                ctx.useTemplate ? _templateQuestionsForVerify?.length : null,
+            highAccuracyMode: aiSettings.highAccuracyMode,
+          );
+          if (result.isNotEmpty) {
+            final fresh = Map<String, dynamic>.from(result.first);
+            if (!_isFailedQuestion(fresh)) {
+              if (!mounted) return;
+              setState(() {
+                final updated =
+                    List<Map<String, dynamic>>.from(_generatedQuestions!);
+                updated[idx] = fresh; // thay 1-đổi-1, giữ nguyên _sections
+                _generatedQuestions = updated;
+              });
+              healed++;
+              break; // câu này OK → sang câu kế
+            }
+          }
+        } on AiUncertaintyException catch (e) {
+          AppLogger.warning('[AutoHeal] câu $idx uncertainty: ${e.reason}');
+          break; // không retry khi AI báo thiếu thông tin
+        } catch (e) {
+          AppLogger.warning('[AutoHeal] câu $idx attempt $attempt lỗi: $e');
+        }
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _regeneratingIndex = null;
+      _batchProgress = null;
+    });
+    final remaining = _generatedQuestions!.where(_isFailedQuestion).length;
+    if (healed > 0) {
+      AppToast.success(
+        context,
+        remaining > 0
+            ? 'Đã tự sửa $healed câu lỗi · còn $remaining câu cần sửa tay'
+            : 'Đã tự sửa $healed câu lỗi',
+      );
+    } else if (remaining > 0) {
+      AppToast.warning(
+        context,
+        'Còn $remaining câu lỗi — bấm nút tạo lại trên card hoặc sửa tay',
+      );
     }
   }
 
@@ -1571,12 +1642,7 @@ class _TeacherAiGenerateQuestionScreenState
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Tạo lại gợi ý thất bại: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Tạo lại gợi ý thất bại: $e');
     } finally {
       if (mounted) setState(() => _regeneratingExplanationSet.remove(index));
     }
@@ -1816,8 +1882,10 @@ class _TeacherAiGenerateQuestionScreenState
                           SizedBox(height: DesignSpacing.xl),
                         ],
 
-                        // Mode 1 only: topic input
+                        // Mode 1 only: hint card (có icon ?) + topic input
                         if (mode == ProcessingMode.promptOnly) ...[
+                          _buildModeHintCard(context, mode, isDark),
+                          SizedBox(height: DesignSpacing.lg),
                           _buildTopicSection(context, isDark),
                           SizedBox(height: DesignSpacing.xxl),
                         ],
@@ -2371,7 +2439,10 @@ class _TeacherAiGenerateQuestionScreenState
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp('[0-9]')),
             ],
-            onChanged: (_) => setState(() {}), // rebuild để cập nhật badge
+            onChanged: (_) => setState(() {
+              // Đổi tổng → tự chia lại đều cho các loại đang chọn (smart, no manual taps)
+              if (_selectedTypes.isNotEmpty) _redistributeQuantities();
+            }),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
                 return null; // trống = auto
@@ -2551,6 +2622,7 @@ class _TeacherAiGenerateQuestionScreenState
     ('short_answer', 'Trả lời ngắn', Icons.short_text_rounded),
     ('fill_blank', 'Điền khuyết', Icons.text_fields_rounded),
     ('math', 'Bài toán', Icons.calculate_outlined),
+    ('matching', 'Nối cặp', Icons.compare_arrows_rounded),
   ];
 
   String _typeLabel(String key) {
@@ -2559,18 +2631,142 @@ class _TeacherAiGenerateQuestionScreenState
         .$2;
   }
 
+  /// FIX-MODE3-DIST: map loại câu đã parse từ tài liệu mẫu → key trong
+  /// [_kTypeOptions]. Trả null nếu loại không sinh được (vd file_upload).
+  /// • shortAnswer → 'essay' (sheet "Tự luận" của Excel parse ra shortAnswer,
+  ///   nhưng người dùng coi là Tự luận → khớp đúng nhãn + cách chấm tự luận).
+  /// • math / problemSolving → 'math' (UI gộp về "Bài toán").
+  String? _typeKeyFromParsed(dynamic raw) {
+    QuestionType? t;
+    if (raw is QuestionType) {
+      t = raw;
+    } else if (raw is String) {
+      t = QuestionTypeDb.fromDb(raw);
+    }
+    if (t == null) return null;
+    final key = switch (t) {
+      QuestionType.shortAnswer || QuestionType.essay => 'essay',
+      QuestionType.math || QuestionType.problemSolving => 'math',
+      QuestionType.fileUpload => '',
+      _ => t.dbValue,
+    };
+    if (key.isEmpty) return null;
+    return _kTypeOptions.any((o) => o.$1 == key) ? key : null;
+  }
+
+  /// FIX-MODE3-DIST: tính phân bố loại từ câu hỏi mẫu (Mode 3 template) rồi
+  /// điền sẵn [_selectedTypes] + [_typeQuantities] + tổng số câu (= số câu mẫu).
+  /// Thứ tự loại theo lần xuất hiện đầu tiên trong tài liệu (group order — vòng
+  /// tạo multi-type sinh theo nhóm loại, KHÔNG xen kẽ từng câu).
+  /// Đặt `.text` lập trình KHÔNG kích hoạt onChanged nên không bị chia đều lại.
+  void _autoMatchTemplateDistribution(
+    List<Map<String, dynamic>> templateQuestions,
+  ) {
+    final dist = <String, int>{}; // key → count, giữ thứ tự first-seen
+    for (final q in templateQuestions) {
+      final key = _typeKeyFromParsed(q['type']);
+      if (key == null) continue;
+      dist[key] = (dist[key] ?? 0) + 1;
+    }
+    if (dist.isEmpty) return;
+    final total = dist.values.fold(0, (a, b) => a + b);
+    setState(() {
+      _selectedTypes
+        ..clear()
+        ..addAll(dist.keys);
+      _typeQuantities
+        ..clear()
+        ..addAll(dist);
+      _quantityController.text = total.toString();
+    });
+    _syncQtyControllers();
+    final summary = dist.entries
+        .map((e) => '${e.value} ${_typeLabel(e.key)}')
+        .join(' · ');
+    AppLogger.info(
+      '[Mode3] Auto khớp phân bố loại theo tài liệu: $summary (tổng $total)',
+    );
+    if (mounted) {
+      AppToast.info(context, 'Đã khớp phân bố tài liệu: $summary');
+    }
+  }
+
   void _toggleType(String key, bool selected) {
     setState(() {
       if (selected) {
         _selectedTypes.add(key);
-        _typeQuantities.putIfAbsent(key, () => 3);
+        _typeQuantities.putIfAbsent(key, () => 1);
       } else {
         _selectedTypes.remove(key);
         _typeQuantities.remove(key);
       }
+      // Tự chia đều tổng cho các loại đang chọn (không phải bấm +/- thủ công).
+      _redistributeQuantities();
       // Reset kết quả cũ khi đổi cấu hình
       _generatedQuestions = null;
       _sections.clear();
+    });
+  }
+
+  /// Chia đều [_limitQty] cho các loại đang chọn — phần dư dồn cho các loại đầu
+  /// (tổng luôn = limit). Gọi khi toggle loại hoặc đổi ô tổng số câu, để:
+  /// chọn 1 loại → loại đó = tổng; đổi 10→5 → tự cập nhật, KHÔNG cần bấm +/-.
+  /// Steppers +/- vẫn dùng để tinh chỉnh thủ công sau đó.
+  void _redistributeQuantities() {
+    final n = _selectedTypes.length;
+    if (n == 0) return;
+    final limit = _limitQty;
+    final base = limit ~/ n;
+    final rem = limit % n;
+    var i = 0;
+    for (final key in _selectedTypes) {
+      final q = base + (i < rem ? 1 : 0);
+      _typeQuantities[key] = q < 1 ? 1 : q;
+      i++;
+    }
+    _syncQtyControllers();
+  }
+
+  /// Đặt số câu cho 1 loại (gọi từ ô nhập trực tiếp hoặc nút +/-).
+  /// Khi CHỈ có ĐÚNG 2 loại → loại còn lại tự bù để tổng = limit
+  /// (tăng loại này thì loại kia giảm tương ứng). ≥3 loại để user tự nhập,
+  /// badge "Tổng / limit" cảnh báo nếu lệch.
+  void _setTypeQuantity(String key, int newQty) {
+    if (!_selectedTypes.contains(key)) return;
+    final limit = _limitQty;
+    final twoType = _selectedTypes.length == 2;
+    // 2 loại: mỗi loại tối đa limit-1 (loại kia ≥1). Còn lại: tối đa limit.
+    final maxPer = twoType
+        ? (limit - 1 < 1 ? 1 : limit - 1)
+        : (limit < 1 ? 999 : limit);
+    newQty = newQty.clamp(1, maxPer);
+    setState(() {
+      _typeQuantities[key] = newQty;
+      if (twoType) {
+        final other = _selectedTypes.firstWhere((k) => k != key);
+        final otherQty = limit - newQty;
+        _typeQuantities[other] = otherQty < 1 ? 1 : otherQty;
+      }
+      _syncQtyControllers();
+      // Đổi cấu hình → bỏ kết quả cũ
+      _generatedQuestions = null;
+      _sections.clear();
+    });
+  }
+
+  /// Đồng bộ text các controller theo _typeQuantities; dọn controller loại đã bỏ.
+  void _syncQtyControllers() {
+    for (final key in _selectedTypes) {
+      final v = (_typeQuantities[key] ?? 1).toString();
+      final c = _qtyCtrls.putIfAbsent(key, () => TextEditingController(text: v));
+      if (c.text != v) c.text = v;
+    }
+    _qtyCtrls.removeWhere((k, c) {
+      if (!_selectedTypes.contains(k)) {
+        c.dispose();
+        return true;
+      }
+      return false;
     });
   }
 
@@ -2834,13 +3030,26 @@ class _TeacherAiGenerateQuestionScreenState
     bool isDark,
   ) {
     final isExtraction = mode == ProcessingMode.extraction;
-    final icon = isExtraction
+    final isPrompt = mode == ProcessingMode.promptOnly;
+    final IconData icon = isExtraction
         ? Icons.content_paste_search_rounded
+        : isPrompt
+        ? Icons.edit_note_rounded
         : Icons.auto_stories_rounded;
-    final color = isExtraction ? DesignColors.warning : DesignColors.success;
-    final title = isExtraction ? 'Chế độ Trích xuất' : 'Chế độ Từ Tài liệu';
+    final Color color = isExtraction
+        ? DesignColors.warning
+        : isPrompt
+        ? DesignColors.primary
+        : DesignColors.success;
+    final title = isExtraction
+        ? 'Chế độ Trích xuất'
+        : isPrompt
+        ? 'Chế độ Nhập Prompt'
+        : 'Chế độ Từ Tài liệu';
     final subtitle = isExtraction
         ? 'AI sẽ đọc file và trích xuất câu hỏi có sẵn. Không sáng tác thêm.'
+        : isPrompt
+        ? 'AI tự sáng tác câu hỏi mới theo chủ đề bạn nhập. Không cần tài liệu.'
         : 'AI sáng tác câu hỏi dựa trên nội dung tài liệu (RAG pipeline).';
 
     return Container(
@@ -2850,43 +3059,160 @@ class _TeacherAiGenerateQuestionScreenState
         borderRadius: BorderRadius.circular(DesignRadius.md),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: color, size: DesignIcons.mdSize),
-              SizedBox(width: DesignSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: DesignTypography.bodyMedium.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                    ),
-                    SizedBox(height: DesignSpacing.xs),
-                    Text(
-                      subtitle,
-                      style: DesignTypography.bodySmall.copyWith(
-                        color: isDark
-                            ? Colors.grey[300]
-                            : DesignColors.textSecondary,
-                      ),
-                    ),
-                  ],
+          Icon(icon, color: color, size: DesignIcons.mdSize),
+          SizedBox(width: DesignSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: DesignTypography.bodyMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
                 ),
-              ),
-            ],
+                SizedBox(height: DesignSpacing.xs),
+                Text(
+                  subtitle,
+                  style: DesignTypography.bodySmall.copyWith(
+                    color: isDark
+                        ? Colors.grey[300]
+                        : DesignColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
           ),
-          // FIX-V3V2: BỎ SwitchListTile "Coi tài liệu là MẪU" — redundant.
-          // User chọn chip "Cùng dạng"/"Tạo mới" sẽ tự động kích hoạt template mode.
+          // Icon ? — mở hướng dẫn chi tiết cách dùng + lưu ý của mode.
+          IconButton(
+            key: ValueKey('mode_help_${mode.name}'),
+            tooltip: 'Hướng dẫn sử dụng',
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: Icon(Icons.help_outline_rounded, color: color, size: 20),
+            onPressed: () => _showModeHelp(context, mode, color, icon, title),
+          ),
         ],
       ),
+    );
+  }
+
+  /// Dialog hướng dẫn ngắn gọn cho từng mode: cách dùng + lưu ý.
+  void _showModeHelp(
+    BuildContext context,
+    ProcessingMode mode,
+    Color color,
+    IconData icon,
+    String title,
+  ) {
+    final (usage, notes) = switch (mode) {
+      ProcessingMode.promptOnly => (
+        <String>[
+          'Nhập chủ đề + chọn loại câu, số câu, độ khó (tùy chọn).',
+          'AI tự sáng tác câu hỏi MỚI hoàn toàn theo chủ đề.',
+          'Dùng ô "Lệnh hướng dẫn AI" để định hướng cụ thể hơn.',
+        ],
+        <String>[
+          'Không cần tài liệu.',
+          'Chủ đề càng rõ → câu hỏi càng đúng trọng tâm.',
+          'Để trống số câu = AI tự quyết (mặc định ~10).',
+        ],
+      ),
+      ProcessingMode.extraction => (
+        <String>[
+          'Nạp file ĐÃ CÓ SẴN câu hỏi (đề thi, bài tập…).',
+          'AI đọc và TRÍCH NGUYÊN câu hỏi trong file — không sáng tác thêm.',
+        ],
+        <String>[
+          'File phải chứa câu hỏi rõ ràng, đúng định dạng.',
+          'Số câu lấy ra = số câu có trong file.',
+          'Không dùng để tạo câu mới — hãy chọn Nhập Prompt hoặc Tài liệu.',
+        ],
+      ),
+      ProcessingMode.ragGeneration => (
+        <String>[
+          'Nạp tài liệu (lý thuyết hoặc đề mẫu) → AI sáng tác câu hỏi MỚI từ nội dung.',
+          'Nếu là ĐỀ MẪU (badge 📋 Mẫu): để Loại câu = "Tự động" → hệ thống tự khớp SỐ CÂU và LOẠI y hệt mẫu.',
+          '"Tạo mới" = câu hoàn toàn mới · "Cùng dạng" = giữ cấu trúc, đổi số liệu.',
+        ],
+        <String>[
+          'Không chọn loại câu → tự phân bố theo mẫu (vd 5 tự luận + 2 trắc nghiệm).',
+          'Khớp số lượng + loại; thứ tự gom theo nhóm loại.',
+          'Tài liệu văn xuôi thuần (không phải đề) → AI tự chọn số câu & loại.',
+        ],
+      ),
+    };
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(icon, color: color, size: DesignIcons.mdSize),
+            SizedBox(width: DesignSpacing.sm),
+            Expanded(
+              child: Text(
+                title,
+                style: DesignTypography.titleSmall.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _helpSection('Cách dùng', usage, color),
+              SizedBox(height: DesignSpacing.md),
+              _helpSection('Lưu ý', notes, DesignColors.warning),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Đã hiểu'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _helpSection(String heading, List<String> items, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          heading,
+          style: DesignTypography.bodyMedium.copyWith(
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        SizedBox(height: DesignSpacing.xs),
+        ...items.map(
+          (t) => Padding(
+            padding: EdgeInsets.only(bottom: DesignSpacing.xs),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('•  ', style: DesignTypography.bodySmall),
+                Expanded(
+                  child: Text(t, style: DesignTypography.bodySmall),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -2970,9 +3296,11 @@ class _TeacherAiGenerateQuestionScreenState
           // Per-type steppers
           ..._selectedTypes.map((key) {
             final qty = _typeQuantities[key] ?? 1;
-            final canAdd = total < limit;
+            final twoType = _selectedTypes.length == 2;
+            // 2 loại: + tăng tới limit-1 (loại kia ≥1). ≥3 loại: tới khi đủ tổng.
+            final canAdd = twoType ? qty < limit - 1 : total < limit;
             final remaining = limit - total; // số câu còn trống
-            final canFill = remaining > 0; // có thể fill thêm
+            final canFill = !twoType && remaining > 0; // 2 loại tự bù → ẩn fill
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
@@ -2989,9 +3317,7 @@ class _TeacherAiGenerateQuestionScreenState
                   // Nút fill tới giới hạn
                   if (canFill) ...[
                     GestureDetector(
-                      onTap: () => setState(
-                        () => _typeQuantities[key] = qty + remaining,
-                      ),
+                      onTap: () => _setTypeQuantity(key, qty + remaining),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -3041,28 +3367,47 @@ class _TeacherAiGenerateQuestionScreenState
                         _buildStepBtn(
                           icon: Icons.remove_rounded,
                           enabled: qty > 1,
-                          onTap: () =>
-                              setState(() => _typeQuantities[key] = qty - 1),
+                          onTap: () => _setTypeQuantity(key, qty - 1),
                           isDark: isDark,
                         ),
                         SizedBox(
-                          width: 36,
-                          child: Text(
-                            '$qty',
+                          width: 48,
+                          child: TextField(
+                            controller: _qtyCtrls.putIfAbsent(
+                              key,
+                              () => TextEditingController(text: '$qty'),
+                            ),
                             textAlign: TextAlign.center,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: false,
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp('[0-9]')),
+                              LengthLimitingTextInputFormatter(3),
+                            ],
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(vertical: 8),
+                            ),
                             style: DesignTypography.bodyMedium.copyWith(
                               fontWeight: FontWeight.bold,
                               color: isDark
                                   ? Colors.white
                                   : DesignColors.textPrimary,
                             ),
+                            onChanged: (v) {
+                              final n = int.tryParse(v);
+                              if (n != null && n > 0) {
+                                _setTypeQuantity(key, n);
+                              }
+                            },
                           ),
                         ),
                         _buildStepBtn(
                           icon: Icons.add_rounded,
                           enabled: canAdd,
-                          onTap: () =>
-                              setState(() => _typeQuantities[key] = qty + 1),
+                          onTap: () => _setTypeQuantity(key, qty + 1),
                           isDark: isDark,
                         ),
                       ],
@@ -3691,8 +4036,19 @@ class _TeacherAiGenerateQuestionScreenState
     );
   }
 
-  /// Chip chọn sub-mode template: "Tạo mới" (styleOnly) / "Cùng dạng" (sameForm).
-  /// Chỉ hiển thị sau khi detect được file Excel mẫu (_useAsStyleTemplate=true).
+  /// Câu fill_blank có ô trống nhưng correct_values rỗng (AI quên đáp án) →
+  /// cần GV nhập đáp án trước khi lưu, nếu không auto-grade luôn trả 0 điểm.
+  bool _needsAnswerBadge(QuestionType type, Map<String, dynamic>? answer) {
+    if (type != QuestionType.fillBlank) return false;
+    final blanks = answer?['blanks'];
+    if (blanks is! List || blanks.isEmpty) return false;
+    return blanks.any((b) {
+      final cv = b is Map ? (b['correct_values'] ?? b['correctValues']) : null;
+      if (cv is! List || cv.isEmpty) return true;
+      return cv.every((v) => v.toString().trim().isEmpty);
+    });
+  }
+
   Widget _buildQuestionPreviewCard(
     BuildContext context,
     bool isDark, {
@@ -3756,6 +4112,42 @@ class _TeacherAiGenerateQuestionScreenState
                       ),
                     ),
                   ),
+                  // Badge đỏ: fill_blank thiếu đáp án (correct_values rỗng) → GV phải nhập
+                  if (_needsAnswerBadge(questionType, answer)) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: DesignColors.error.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(DesignRadius.full),
+                        border: Border.all(
+                          color: DesignColors.error.withValues(alpha: 0.45),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 13,
+                            color: DesignColors.error,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Cần nhập đáp án trước khi lưu',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: DesignColors.error,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   MathText(
                     questionText,
@@ -4143,13 +4535,7 @@ class _TeacherAiGenerateQuestionScreenState
                   final text = _rawApiResponsePretty ?? _rawApiResponse ?? '';
                   await Clipboard.setData(ClipboardData(text: text));
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Đã copy JSON'),
-                      backgroundColor: DesignColors.success,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
+                  AppToast.success(context, '✅ Đã copy JSON');
                 },
                 icon: Icon(
                   Icons.copy_rounded,
@@ -4250,10 +4636,11 @@ class _EditQuestionDialogState extends ConsumerState<_EditQuestionDialog> {
   /// null = auto (theo screen width). Khi user bấm nút sẽ thành true/false.
   bool? _splitView;
 
+  // math = dạng tự luận/giải bài (expected_answer), KHÔNG dùng choices A/B/C/D —
+  // đồng bộ với prompt + workspace (_buildProblemSolving) + grading (essayTypes→AI).
   bool get _isChoiceType =>
       widget.questionType == QuestionType.multipleChoice ||
-      widget.questionType == QuestionType.trueFalse ||
-      widget.questionType == QuestionType.math;
+      widget.questionType == QuestionType.trueFalse;
 
   @override
   void initState() {

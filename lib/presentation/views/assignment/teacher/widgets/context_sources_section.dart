@@ -2,12 +2,12 @@ import 'dart:typed_data';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/data/models/local_temp_file.dart';
-import 'package:ai_mls/domain/entities/question_type.dart';
 import 'package:ai_mls/domain/entities/template_mode.dart';
 import 'package:ai_mls/presentation/providers/ai_generation_settings_notifier.dart';
 import 'package:ai_mls/presentation/providers/local_temp_file_notifier.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Danh sách card tài liệu tham khảo cho Mode 2 & 3.
@@ -68,13 +68,7 @@ class _ContextSourcesSectionState
         ref
             .read(localTempFilesProvider.notifier)
             .updateFileRole(old.id, FileRole.knowledgeSource);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('"${old.filename}" đã chuyển sang 📚 Kiến thức'),
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppToast.info(context, '"${old.filename}" đã chuyển sang 📚 Kiến thức');
       }
     }
 
@@ -143,14 +137,10 @@ class _ContextSourcesSectionState
               f.effectiveRole == FileRole.template)
           .expand((f) => f.parsedQuestions!)
           .toList();
-      // GAP-6: cần ít nhất 2 câu Trắc nghiệm để AI có đủ pattern
-      allMcq = templateQs.length >= 2 &&
-          templateQs.every((q) {
-            final t = q['type'];
-            return t == QuestionType.multipleChoice ||
-                t == QuestionType.trueFalse ||
-                t == QuestionType.math;
-          });
+      // "Cùng dạng" (giữ cấu trúc, đổi giá trị/chủ đề) áp dụng cho MỌI loại câu
+      // kể cả tự luận (giữ kiểu câu hỏi, đổi nội dung). Chỉ cần file mẫu có
+      // ≥1 câu parse được là mở — không phân biệt loại, không cần đủ 2 câu.
+      allMcq = templateQs.isNotEmpty;
       hasTemplateSelected = files.any((f) =>
           _selectedFileIds.contains(f.id) &&
           f.parsedQuestions?.isNotEmpty == true &&
@@ -691,7 +681,7 @@ class _ContextSourcesSectionState
                 : (allMcq
                     ? 'Giữ nguyên cấu trúc câu mẫu, chỉ đổi số liệu/giá trị. '
                         'Phù hợp toán drill. AI thấy text mẫu để clone.'
-                    : 'Cần ít nhất 2 câu Trắc nghiệm trong file mẫu'),
+                    : 'Cần ít nhất 1 câu trong file mẫu'),
             onTap: (enabled && allMcq)
                 ? () => ref
                     .read(aiGenerationSettingsNotifierProvider.notifier)
@@ -701,7 +691,7 @@ class _ContextSourcesSectionState
           if (enabled && !allMcq) ...[
             const SizedBox(width: 6),
             Tooltip(
-              message: 'Cần ít nhất 2 câu Trắc nghiệm để dùng Cùng dạng',
+              message: 'Cần ít nhất 1 câu trong file mẫu để dùng Cùng dạng',
               child: Icon(
                 Icons.info_outline_rounded,
                 size: 13,

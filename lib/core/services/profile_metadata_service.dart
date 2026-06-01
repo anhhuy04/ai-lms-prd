@@ -397,6 +397,26 @@ class ProfileMetadataService {
     return okProvider && okModel;
   }
 
+  // ── Giọng điệu phản hồi AI (Track 3) ────────────────────────────────────
+
+  /// Giọng điệu phản hồi AI GV chọn: 'encouraging' | 'direct' | 'detailed'.
+  ///
+  /// Lưu ở top-level metadata.feedback_tone (KHÔNG nested) để edge function
+  /// process-ai-queue đọc qua `metadata->>'feedback_tone'`. Mặc định 'encouraging'.
+  static Future<String> getFeedbackTone({bool forceRefresh = false}) async {
+    final tone = await get<String>(
+      'feedback_tone',
+      forceRefresh: forceRefresh,
+    );
+    return (tone != null && tone.isNotEmpty) ? tone : 'encouraging';
+  }
+
+  /// Set giọng điệu phản hồi AI (top-level metadata.feedback_tone).
+  static Future<bool> setFeedbackTone(String tone) async {
+    if (tone.isEmpty) return false;
+    return await set('feedback_tone', tone);
+  }
+
   // ────────────────────────────────────────────────────────────────────────
 
   /// Kiểm tra xem có Gemini API key không

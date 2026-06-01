@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 
 /// Teacher Feedback Editor - Cho phép GV sửa lời phê AI
 /// Có debounce 1000ms để tránh gọi API quá nhiều
@@ -72,20 +73,13 @@ class _TeacherFeedbackEditorState extends State<TeacherFeedbackEditor> {
       AppLogger.info('✅ Teacher feedback saved for answer: ${widget.answerId}');
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã lưu lời phê'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        AppToast.info(context, 'Đã lưu lời phê');
         setState(() => _hasChanges = false);
       }
     } catch (e) {
       AppLogger.error('Error saving teacher feedback: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi lưu: $e')),
-        );
+        AppToast.info(context, 'Lỗi lưu: $e');
       }
     } finally {
       if (mounted) {

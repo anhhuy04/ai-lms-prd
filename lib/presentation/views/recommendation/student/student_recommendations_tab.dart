@@ -1,7 +1,10 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/presentation/providers/recommendation_providers.dart';
+import 'package:ai_mls/presentation/providers/student_dashboard_providers.dart';
 import 'package:ai_mls/presentation/views/recommendation/widgets/recommendation_card.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -14,6 +17,10 @@ class StudentRecommendationsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final recsAsync = ref.watch(studentRecommendationNotifierProvider());
+    // 5a empty-state: phân biệt "chưa có dữ liệu AI" vs "đã học tốt thật".
+    // hasScores = đã có bài được chấm (status='graded', total_score != null).
+    final hasScores =
+        ref.watch(studentRecentScoresProvider).valueOrNull?.isNotEmpty ?? false;
 
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
@@ -27,10 +34,11 @@ class StudentRecommendationsTab extends ConsumerWidget {
         ),
         automaticallyImplyLeading: true,
       ),
-      body: recsAsync.when(
+      body: WideContentWrapper(
+        child: recsAsync.when(
         data: (recs) {
           if (recs.isEmpty) {
-            return _buildEmptyState();
+            return _buildEmptyState(hasScores);
           }
 
           return RefreshIndicator(
@@ -52,12 +60,7 @@ class StudentRecommendationsTab extends ConsumerWidget {
                   onDismiss: () async {
                     await _dismiss(ref, rec.id);
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Đã xóa gợi ý'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
+                      AppToast.info(context, 'Đã xóa gợi ý');
                     }
                   },
                 );
@@ -67,6 +70,7 @@ class StudentRecommendationsTab extends ConsumerWidget {
         },
         loading: () => _buildLoadingState(),
         error: (e, _) => _buildErrorState(ref, e.toString()),
+        ),
       ),
     );
   }
@@ -126,7 +130,21 @@ class StudentRecommendationsTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState() {
+  /// 5a: 2 nhánh empty-state.
+  /// - hasScores=false → "chưa có dữ liệu AI" (trung tính, không khẳng định giỏi/dở).
+  /// - hasScores=true  → "đang học tốt thật" (đã có bài chấm mà không có gợi ý).
+  Widget _buildEmptyState(bool hasScores) {
+    final IconData icon = hasScores
+        ? Icons.thumb_up_rounded
+        : Icons.auto_awesome_rounded;
+    final Color color =
+        hasScores ? DesignColors.success : DesignColors.textTertiary;
+    final String title =
+        hasScores ? 'Bạn đang học rất tốt!' : 'Chưa có gợi ý';
+    final String subtitle = hasScores
+        ? 'Hiện chưa có gợi ý nào cần thiết.\nTiếp tục làm bài để duy trì phong độ.'
+        : 'Gợi ý học tập sẽ xuất hiện sau khi bạn\nhoàn thành và được chấm một vài bài.';
+
     return Center(
       child: Padding(
         padding: EdgeInsets.all(DesignSpacing.xl),
@@ -137,24 +155,20 @@ class StudentRecommendationsTab extends ConsumerWidget {
               width: 96,
               height: 96,
               decoration: BoxDecoration(
-                color: DesignColors.success.withValues(alpha: 0.1),
+                color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.thumb_up_rounded,
-                size: 56,
-                color: DesignColors.success,
-              ),
+              child: Icon(icon, size: 56, color: color),
             ),
             SizedBox(height: DesignSpacing.lg),
             Text(
-              'Bạn đang học rất tốt!',
+              title,
               style: DesignTypography.titleMedium
                   .copyWith(fontWeight: FontWeight.w700),
             ),
             SizedBox(height: DesignSpacing.sm),
             Text(
-              'Tiếp tục làm bài để duy trì phong độ.\nGợi ý sẽ xuất hiện khi cần.',
+              subtitle,
               style: DesignTypography.bodyMedium
                   .copyWith(color: DesignColors.textSecondary),
               textAlign: TextAlign.center,

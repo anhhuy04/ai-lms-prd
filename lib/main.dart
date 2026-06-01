@@ -29,6 +29,7 @@ import 'package:ai_mls/presentation/providers/class_providers.dart';
 import 'package:ai_mls/presentation/providers/learning_objective_providers.dart';
 import 'package:ai_mls/presentation/providers/question_bank_providers.dart';
 import 'package:ai_mls/widgets/navigation/back_button_handler.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -269,6 +270,13 @@ class MyApp extends ConsumerWidget {
       designSize: const Size(375, 812), // Design size mặc định
       minTextAdapt: true, // Cho phép text scale nhỏ hơn
       splitScreenMode: true, // Hỗ trợ split screen
+      // Giới hạn: trên desktop, ScreenUtil "tưởng" màn hình chỉ 600px width
+      // → .sp chỉ nhân tối đa 1.6x thay vì 5.1x
+      fontSizeResolver: (fontSize, instance) {
+        final width = instance.screenWidth;
+        final clampedWidth = width.clamp(320.0, 600.0);
+        return fontSize * (clampedWidth / 375.0);
+      },
       builder: (context, child) {
         // Apply deep link navigation after router is available.
         // Safe to call multiple times (DeepLinkService clears pending path after applying).
@@ -298,35 +306,34 @@ class MyApp extends ConsumerWidget {
               },
               behavior: HitTestBehavior.opaque,
               child: MaterialApp.router(
-        debugShowCheckedModeBanner: false, // Disable debug banner
+                debugShowCheckedModeBanner: false,
                 title: 'AI Learning App',
                 theme: AppTheme.lightTheme,
                 routerConfig: router,
                 builder: (context, child) {
-                  // Cap textScaler [0.85, 1.15] để chặn font scale quá lớn
-                  // trên web/desktop (ScreenUtil designSize=375 → .sp scale
-                  // tới ~4.5× trên màn 1700px gây UI overflow nghiêm trọng).
-                  final mq = MediaQuery.of(context);
-                  return MediaQuery(
-                    data: mq.copyWith(
-                      textScaler: mq.textScaler.clamp(
-                        minScaleFactor: 0.85,
-                        maxScaleFactor: 1.15,
+                    // Cap textScaler [0.85, 1.15] để chặn font scale quá lớn
+                    // trên web/desktop (ScreenUtil designSize=375 → .sp scale
+                    // tới ~4.5× trên màn 1700px gây UI overflow nghiêm trọng).
+                    final mq = MediaQuery.of(context);
+                    return MediaQuery(
+                      data: mq.copyWith(
+                        textScaler: mq.textScaler.clamp(
+                          minScaleFactor: 0.85,
+                          maxScaleFactor: 1.15,
+                        ),
                       ),
-                    ),
-                    child: GestureDetector(
-                      onTap: () {
-                        // Đảm bảo keyboard ẩn khi tap bất kỳ đâu
-                        FocusScope.of(context).unfocus();
-                      },
-                      behavior: HitTestBehavior.opaque,
-                      child: child,
-                    ),
-                  );
-                },
+                      child: GestureDetector(
+                        onTap: () {
+                          FocusScope.of(context).unfocus();
+                        },
+                        behavior: HitTestBehavior.opaque,
+                        child: AppToastOverlay(child: child!),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
-          ),
         );
       },
     );

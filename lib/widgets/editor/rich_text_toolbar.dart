@@ -1,6 +1,7 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 
 /// Toolbar nhập rich text + ký tự toán/hoá học cho [TextEditingController].
 ///
@@ -170,12 +171,7 @@ class RichTextToolbar extends StatelessWidget {
               final t = linkTextCtrl.text.trim();
               final u = linkUrlCtrl.text.trim();
               if (t.isEmpty || u.isEmpty) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(
-                    content: Text('Vui lòng nhập đầy đủ văn bản và URL'),
-                    backgroundColor: DesignColors.error,
-                  ),
-                );
+                AppToast.error(ctx, 'Vui lòng nhập đầy đủ văn bản và URL');
                 return;
               }
               _insertAtCursor('[$t]($u)');
@@ -309,7 +305,7 @@ class _MathBottomSheet extends StatelessWidget {
       length: 5,
       child: Container(
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
+          maxHeight: (MediaQuery.of(context).size.height * 0.85).clamp(0.0, 700.0),
         ),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1A2632) : Colors.white,
@@ -1073,12 +1069,7 @@ void _showSlotDialog({
               // Validate required
               for (var i = 0; i < slots.length; i++) {
                 if (slots[i].required && values[i].isEmpty) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(
-                      content: Text('Vui lòng nhập ${slots[i].label}'),
-                      backgroundColor: DesignColors.error,
-                    ),
-                  );
+                  AppToast.error(ctx, 'Vui lòng nhập ${slots[i].label}');
                   return;
                 }
               }
@@ -1622,12 +1613,7 @@ class _CasesDialogState extends State<_CasesDialog> {
                 .where((s) => s.isNotEmpty)
                 .toList();
             if (rows.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Vui lòng nhập ít nhất 1 phương trình'),
-                  backgroundColor: DesignColors.error,
-                ),
-              );
+              AppToast.error(context, 'Vui lòng nhập ít nhất 1 phương trình');
               return;
             }
             widget.onInsert(

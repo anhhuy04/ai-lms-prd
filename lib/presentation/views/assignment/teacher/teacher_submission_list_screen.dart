@@ -1,4 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/data/datasources/assignment_datasource.dart';
 import 'package:ai_mls/presentation/providers/teacher_assignment_providers.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
@@ -6,6 +7,7 @@ import 'package:ai_mls/presentation/providers/teacher_submission_providers.dart'
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/submission_filter_chips.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/submission_list_item.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -45,6 +47,19 @@ class _TeacherSubmissionListScreenState
       appBar: AppBar(
         title: const Text('Danh sách bài nộp'),
         actions: [
+          // Track 2 — Chấm theo câu (cùng 1 câu cho tất cả HS)
+          IconButton(
+            key: const ValueKey('batch_grade_by_question_action'),
+            icon: const Icon(Icons.grading),
+            tooltip: 'Chấm theo câu',
+            onPressed: () {
+              context.pushNamed(
+                AppRoute.teacherBatchGradeByQuestion,
+                pathParameters: {'distributionId': widget.distributionId},
+                extra: {'assignmentTitle': widget.assignmentTitle},
+              );
+            },
+          ),
           // Nút xuất bản điểm - Stage Curtain
           IconButton(
             icon: const Icon(Icons.publish),
@@ -197,11 +212,7 @@ class _TeacherSubmissionListScreenState
                   .publishAllGrades(widget.distributionId);
 
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Đã xuất bản điểm thành công'),
-                  ),
-                );
+                AppToast.info(context, 'Đã xuất bản điểm thành công');
               }
             },
             child: const Text('Xuất bản'),

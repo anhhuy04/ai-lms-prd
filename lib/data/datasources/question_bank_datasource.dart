@@ -156,6 +156,16 @@ class QuestionBankDataSource {
   Future<void> deleteQuestionObjectivesByQuestionId(String questionId) =>
       _questionObjectives.deleteWhere('question_id', questionId);
 
+  Future<List<String>> getObjectiveIdsByQuestionId(String questionId) async {
+    final res = await _client
+        .from('question_objectives')
+        .select('objective_id')
+        .eq('question_id', questionId);
+    return List<Map<String, dynamic>>.from(res)
+        .map((r) => r['objective_id'].toString())
+        .toList();
+  }
+
   // ---------------------------------------------------------------------------
   // RPC wrappers.
   // ---------------------------------------------------------------------------

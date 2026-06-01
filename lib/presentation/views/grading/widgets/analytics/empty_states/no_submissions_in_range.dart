@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../../../../core/constants/design_tokens.dart';
 
 /// Empty state shown when student has submissions but none fall
@@ -12,7 +11,7 @@ class NoSubmissionsInRangeState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 300.h,
+      height: 300.0,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

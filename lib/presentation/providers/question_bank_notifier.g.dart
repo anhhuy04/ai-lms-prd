@@ -7,7 +7,7 @@ part of 'question_bank_notifier.dart';
 // **************************************************************************
 
 String _$questionBankNotifierHash() =>
-    r'a1bbfd186a227d1acaaca53ab73474cfb3b1f1d6';
+    r'19c8375c0d1af54013ac5f08598a399e423f7ab9';
 
 /// Copied from Dart SDK
 class _SystemHash {

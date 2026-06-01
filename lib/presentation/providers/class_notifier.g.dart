@@ -6,7 +6,7 @@ part of 'class_notifier.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$classNotifierHash() => r'df990349153db59dd8228dcc78f04772475a9d1e';
+String _$classNotifierHash() => r'5e092cc3309abfe64f491f9db78bbaa9267665e6';
 
 /// ClassNotifier (Riverpod) thay thế dần `ClassViewModel`.
 ///

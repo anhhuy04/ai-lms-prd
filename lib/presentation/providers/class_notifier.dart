@@ -305,10 +305,7 @@ class ClassNotifier extends _$ClassNotifier {
   }
 
   /// Yêu cầu tham gia lớp (học sinh).
-  Future<ClassMember?> requestJoinClass(
-    String classId,
-    String studentId,
-  ) async {
+  Future<ClassMember> requestJoinClass(String classId, String studentId) async {
     try {
       final member = await _repo.requestJoinClass(classId, studentId);
       // Không thay đổi list state ngay (phụ thuộc backend flow), chỉ log.
@@ -320,7 +317,7 @@ class ClassNotifier extends _$ClassNotifier {
         error: e,
         stackTrace: stackTrace,
       );
-      return null;
+      rethrow;
     }
   }
 
@@ -335,7 +332,7 @@ class ClassNotifier extends _$ClassNotifier {
     _isUpdating = true;
     try {
       await _repo.leaveClass(classId, studentId);
-      
+
       // Cập nhật state: xóa class khỏi danh sách
       final currentState = state;
       if (currentState.hasValue) {
@@ -344,12 +341,12 @@ class ClassNotifier extends _$ClassNotifier {
             .toList();
         state = AsyncValue.data(updatedClasses);
       }
-      
+
       // Clear selected class nếu đang ở class này
       if (_selectedClass?.id == classId) {
         _selectedClass = null;
       }
-      
+
       AppLogger.info('✅ [CLASS] leaveClass thành công classId=$classId');
       return true;
     } catch (e, stackTrace) {

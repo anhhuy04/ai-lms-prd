@@ -8,6 +8,7 @@ import 'package:ai_mls/presentation/views/class/teacher/widgets/dialogs/teacher_
 import 'package:ai_mls/widgets/drawers/drawer_action_tile.dart';
 import 'package:ai_mls/widgets/drawers/drawer_toggle_tile.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -419,13 +420,7 @@ class _ClassSettingsDrawerState extends ConsumerState<ClassSettingsDrawer> {
 
                     if (!success) {
                       // Rollback đã được xử lý trong notifier
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Không thể cập nhật cài đặt'),
-                          backgroundColor: DesignColors.error,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
+                      AppToast.error(context, 'Không thể cập nhật cài đặt');
                     }
                   },
                 ),
@@ -501,13 +496,7 @@ class _ClassSettingsDrawerState extends ConsumerState<ClassSettingsDrawer> {
 
                     if (!context.mounted) return;
                     if (!success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Không thể cập nhật cài đặt'),
-                          backgroundColor: DesignColors.error,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
+                      AppToast.error(context, 'Không thể cập nhật cài đặt');
                     }
                   },
                 ),
@@ -541,13 +530,7 @@ class _ClassSettingsDrawerState extends ConsumerState<ClassSettingsDrawer> {
 
                     if (!context.mounted) return;
                     if (!success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Không thể cập nhật cài đặt'),
-                          backgroundColor: DesignColors.error,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
+                      AppToast.error(context, 'Không thể cập nhật cài đặt');
                     }
                   },
                 ),
@@ -581,13 +564,7 @@ class _ClassSettingsDrawerState extends ConsumerState<ClassSettingsDrawer> {
 
                     if (!context.mounted) return;
                     if (!success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Không thể cập nhật cài đặt'),
-                          backgroundColor: DesignColors.error,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
+                      AppToast.error(context, 'Không thể cập nhật cài đặt');
                     }
                   },
                 ),
@@ -633,13 +610,7 @@ class _ClassSettingsDrawerState extends ConsumerState<ClassSettingsDrawer> {
 
                     if (!context.mounted) return;
                     if (!success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Không thể cập nhật cài đặt'),
-                          backgroundColor: DesignColors.error,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
+                      AppToast.error(context, 'Không thể cập nhật cài đặt');
                     }
                   },
                 ),
@@ -673,13 +644,7 @@ class _ClassSettingsDrawerState extends ConsumerState<ClassSettingsDrawer> {
 
                     if (!context.mounted) return;
                     if (!success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Không thể cập nhật cài đặt'),
-                          backgroundColor: DesignColors.error,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
+                      AppToast.error(context, 'Không thể cập nhật cài đặt');
                     }
                   },
                 ),
@@ -806,22 +771,11 @@ class _ClassSettingsDrawerState extends ConsumerState<ClassSettingsDrawer> {
         // Hiển thị success message sau một delay nhỏ
         Future.delayed(const Duration(milliseconds: 200), () {
           if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Đã xóa lớp học thành công'),
-              backgroundColor: DesignColors.success,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          AppToast.success(context, '✅ Đã xóa lớp học thành công');
         });
       } else {
         // Hiển thị error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể xóa lớp học'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Không thể xóa lớp học');
       }
     } catch (e, stackTrace) {
       AppLogger.error(
@@ -837,12 +791,7 @@ class _ClassSettingsDrawerState extends ConsumerState<ClassSettingsDrawer> {
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
           }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Lỗi không mong đợi: $e'),
-              backgroundColor: DesignColors.error,
-            ),
-          );
+          AppToast.error(context, 'Lỗi không mong đợi: $e');
         } catch (_) {
           // Ignore if context is already disposed
         }

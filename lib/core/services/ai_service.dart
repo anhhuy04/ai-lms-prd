@@ -318,6 +318,12 @@ LATEX BẮT BUỘC cho công thức:
             documentContext: documentContext,
             formatExample: formatExample,
             typeRule: typeRule,
+            // Đã biết môn (user nhập focus / tự suy từ mẫu / schema có liệt kê
+            // "CÁC MÔN HỌC TRONG MẪU") → bỏ lời mời trả lỗi, ép model tự tin
+            // sinh. Model thông minh (70b/qwen) hay lạm dụng clause AN TOÀN để
+            // bail khi schema chỉ có metadata → trả missing_subject/ambiguous.
+            subjectKnown: hasFocusHint ||
+                documentContext.contains('CÁC MÔN HỌC TRONG MẪU'),
           );
         case TemplateMode.sameForm:
           prompt = _buildSameFormPrompt(
@@ -400,6 +406,8 @@ JSON HỢP LỆ — BẮT BUỘC:
 - **TUYỆT ĐỐI KHÔNG bọc trong object** như `{"questions": [...]}` hay `{"fill_blank": [...]}`. Root PHẢI là ARRAY thuần.
 - fill_blank PHẢI có cả 2 field: `override_text` (chứa [___N]) VÀ `blanks` (list correct_values cho từng N). Thiếu blanks → câu hỏi VÔ DỤNG.
 - KHÔNG dùng smart quotes (“ ” ‘ ’) — chỉ dùng dấu nháy thẳng " và '.
+- Bên trong giá trị text (override_text/expected_answer…): nếu cần trích dẫn hãy dùng nháy đơn ' hoặc « » — KHÔNG đặt dấu nháy kép " chưa escape (sẽ làm vỡ JSON).
+- Viết mỗi giá trị text trên 1 dòng — KHÔNG xuống dòng thật bên trong chuỗi (nếu cần xuống dòng dùng \\n).
 - KHÔNG có trailing comma trước `]` hoặc `}` (vd `,]` `,}` SAI).
 - LaTeX trong text: escape backslash thành `\\\\` để JSON hợp lệ (vd viết `\\\\frac{1}{2}` chứ không phải `\\frac{1}{2}`).
 - KHÔNG cắt JSON giữa chừng — nếu sắp hết token, giảm số câu chứ KHÔNG truncate.''';
@@ -460,10 +468,17 @@ JSON HỢP LỆ — BẮT BUỘC:
 
       case 'math':
         return '''GỢI Ý: Nếu câu có công thức toán phức tạp (phân số, mũ, căn, sigma, integral...), dùng LaTeX inline kẹp `\$...\$` (vd `\$x^2+y^2=r^2\$`, `\$\\frac{a}{b}\$`, `\$\\sqrt{x}\$`). Câu số học đơn giản (cộng/trừ/nhân/chia hai số) viết thẳng không cần LaTeX.
-VÍ DỤ OUTPUT (1 câu):
+VÍ DỤ OUTPUT (1 câu — DẠNG TỰ LUẬN/GIẢI BÀI: học sinh tự trình bày lời giải, KHÔNG dùng choices):
 [
-  {"type":"math","override_text":"Tính: 15 + 27 = ?","choices":[{"id":0,"text":"40","isCorrect":false},{"id":1,"text":"42","isCorrect":true},{"id":2,"text":"44","isCorrect":false},{"id":3,"text":"38","isCorrect":false}],"tags":["tag1"]}
+  {"type":"math","override_text":"Một cửa hàng có 15 hộp bút, mỗi hộp 27 chiếc. Hỏi tổng cộng có bao nhiêu chiếc bút?","expected_answer":"15 × 27 = 405 (chiếc bút)","tags":["tag1"]}
 ]''';
+
+      case 'matching':
+        return '''VÍ DỤ OUTPUT (1 câu NỐI CẶP — ghép mỗi mục cột trái với 1 mục cột phải):
+[
+  {"type":"matching","override_text":"Nối mỗi quốc gia với thủ đô tương ứng:","pairs":[{"left_text":"Việt Nam","right_text":"Hà Nội"},{"left_text":"Nhật Bản","right_text":"Tokyo"},{"left_text":"Pháp","right_text":"Paris"}],"distractors":[{"right_text":"Bắc Kinh"}],"tags":["địa lý"]}
+]
+RÀNG BUỘC: pairs là các cặp ĐÚNG (left_text ghép right_text). Tối thiểu 3 cặp. distractors (tuỳ chọn) là phương án cột phải gây nhiễu, KHÔNG khớp left nào.''';
 
       default: // multiple_choice
         return '''VÍ DỤ OUTPUT (2 câu — lưu ý LaTeX trong override_text và choices):
@@ -491,6 +506,7 @@ VÍ DỤ OUTPUT (1 câu):
     required String documentContext,
     required String formatExample,
     required String typeRule,
+    bool subjectKnown = false,
   }) {
     return '''$_vnTeacherPersona
 
@@ -519,14 +535,16 @@ QUY TẮC:
 4. KIỂM TRA trước khi xuất: xác nhận isCorrect=true là đúng kiến thức. Distractor phải sai có lý do.
 5. override_text = câu hỏi thực sự, BÁM CHỦ ĐỀ schema (VD đúng cho schema Vật lý lớp 10: "Tính vận tốc của vật rơi tự do sau 3 giây" — VD sai: "câu hỏi vật lý" hay "câu hỏi 1"). **CẤM dùng nội dung lệch domain với schema mẫu** — schema VN thì câu hỏi VN, schema Toán thì câu Toán.
 
-AN TOÀN — KHI BẠN KHÔNG CHẮC:
+${subjectKnown ? '''HÃY TỰ TIN TẠO CÂU:
+Bạn ĐÃ có đủ thông tin: môn học (xem "Chủ đề" + "CÁC MÔN HỌC TRONG MẪU"), loại câu, độ khó từng slot. Schema metadata như vậy là ĐỦ để sáng tác câu MỚI.
+TUYỆT ĐỐI KHÔNG trả về JSON lỗi (missing_subject/ambiguous_schema/insufficient_context) và KHÔNG đòi thêm thông tin. Hãy tạo ĐỦ $quantity câu hỏi mới thuộc đúng môn/chủ đề.''' : '''AN TOÀN — KHI BẠN KHÔNG CHẮC:
 Nếu bạn KHÔNG xác định được môn học, KHÔNG đủ thông tin từ tài liệu, HOẶC schema mơ hồ → KHÔNG được tự đoán và KHÔNG được tạo câu hỏi sai.
 Thay vào đó, trả về JSON object lỗi (KHÔNG phải array):
 {"error": "missing_subject", "message": "Tài liệu không nêu rõ môn học. Vui lòng thêm marker [TRẮC NGHIỆM — Toán học] hoặc nhập chủ đề trong ô gợi ý."}
 
 Mã lỗi cho phép: missing_subject | ambiguous_schema | insufficient_context
 
-Trả error tốt hơn nhiều so với gen 10 câu sai môn — tiết kiệm token người dùng.
+Trả error tốt hơn nhiều so với gen 10 câu sai môn — tiết kiệm token người dùng.'''}
 
 $formatExample
 
@@ -538,6 +556,7 @@ RÀNG BUỘC FORMAT:
 - fill_blank: override_text dùng [___1], [___2]…; blanks liệt kê đáp án. KHÔNG đặt [___N] trong \$...\$ — phải ngoài LaTeX.
 - tags: 1-3 từ khóa chủ đề.
 - KHÔNG tạo field "explanation".
+- Bên trong override_text/expected_answer: KHÔNG dùng dấu nháy kép thẳng (") để trích dẫn — hãy dùng nháy đơn (') hoặc « » để JSON không bị vỡ. KHÔNG xuống dòng thật trong chuỗi (nếu cần dùng \\n).
 
 NHẮC LẠI: Trả về JSON ARRAY $quantity object. override_text = câu hỏi thực, không phải nhãn.''';
   }
@@ -657,6 +676,7 @@ RÀNG BUỘC FORMAT:
 - true_false: override_text + 2 choices id 0/1 với text "Đúng"/"Sai".
 - tags: 1-3 từ khóa chủ đề.
 - KHÔNG tạo field "explanation".
+- Bên trong text: KHÔNG dùng nháy kép " chưa escape (dùng ' hoặc « »); KHÔNG xuống dòng thật trong chuỗi (dùng \\n).
 - Output JSON ARRAY thuần, KHÔNG markdown, KHÔNG text trước "[".
 
 NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OPTIONS. **GIỮ NGUYÊN DOMAIN/QUỐC GIA/CHỦ ĐỀ của mẫu** — KHÔNG drift sang nước khác hay môn khác. Trả về JSON ARRAY $quantity object đúng format ví dụ.''';
@@ -920,6 +940,10 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
         'generationConfig': {
           'responseMimeType': 'application/json',
           'temperature': 0.2,
+          // FIX-ESSAY-3: set tường minh maxOutputTokens rộng rãi để lô câu nặng
+          // (tự luận 5 câu + expected_answer dài + ai_grading_keywords) KHÔNG bị
+          // cắt cụt giữa JSON. Gemini 1.5/2.0 flash hỗ trợ tới 8192 output tokens.
+          'maxOutputTokens': 8192,
         },
       };
 
@@ -1077,19 +1101,42 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
         },
       );
 
-      final payload = {
-        'model': usedModel,
-        // giữ temperature thấp để giảm "lạc đề"
-        'temperature': 0.1,
-        // Token-optimized: giới hạn output để giảm TPM, vẫn đủ cho batch nhỏ.
-        'max_tokens': _groqMaxTokensFromPrompt(prompt),
-        'messages': [
-          {'role': 'user', 'content': prompt},
-        ],
-      };
+      // FIX-ANYMODEL: ép JSON mode — Groq áp grammar constraint, model yếu
+      // (llama-8b) BUỘC xuất JSON hợp lệ thay vì văn xuôi lảm nhảm. Prompt đã
+      // chứa "JSON" (điều kiện bắt buộc của json_object mode).
+      Future<Response<dynamic>> callGroq({required bool jsonMode}) {
+        final payload = {
+          'model': usedModel,
+          'temperature': 0.1,
+          'max_tokens': _groqMaxTokensFromPrompt(prompt),
+          if (jsonMode) 'response_format': {'type': 'json_object'},
+          'messages': [
+            {'role': 'user', 'content': prompt},
+          ],
+        };
+        return dio.post(_groqChatUrl, data: payload);
+      }
 
       AppLogger.info('🤖 [AI Service] Calling Groq API... model=$usedModel');
-      final response = await dio.post(_groqChatUrl, data: payload);
+      Response<dynamic> response;
+      try {
+        response = await callGroq(jsonMode: true);
+      } on DioException catch (e) {
+        // FIX-JSONMODE: 400 'json_validate_failed' (Groq hết max_tokens TRƯỚC
+        // khi JSON hợp lệ hoàn tất — fail cứng) → retry KHÔNG json mode → model
+        // trả partial → parser đã siết (escapeInnerQuotes/removeTrailingCommas/
+        // autoClose) tự cứu. Best-of-both: JSON mode khi được, salvage khi fail.
+        final body = e.response?.data?.toString() ?? '';
+        if (e.response?.statusCode == 400 &&
+            body.contains('json_validate_failed')) {
+          AppLogger.warning(
+            '[Groq] json_validate_failed → retry KHÔNG json mode',
+          );
+          response = await callGroq(jsonMode: false);
+        } else {
+          rethrow;
+        }
+      }
 
       final data = response.data;
       if (data is! Map<String, dynamic>) {
@@ -1164,6 +1211,9 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
             'model': usedModel,
             'temperature': 0.1,
             'max_tokens': _openRouterMaxTokensFromPrompt(prompt),
+            // FIX-ANYMODEL: ép JSON mode (OpenAI-compatible) — model yếu buộc
+            // xuất JSON hợp lệ. Model không hỗ trợ thì OpenRouter bỏ qua param.
+            'response_format': {'type': 'json_object'},
             'messages': [
               {'role': 'user', 'content': prompt},
             ],
@@ -1274,11 +1324,25 @@ NHẮC LẠI: PHÂN TÍCH STRUCTURE TRƯỚC, ĐỔI VALUE SAU, TÍNH LẠI 4 OP
       caseSensitive: false,
     ).firstMatch(prompt);
     final qty = int.tryParse(m?.group(1) ?? '') ?? 10;
-    // MCQ đầy đủ (override_text + 4 choices + tags): ~200-250 tokens mỗi câu.
-    // Cap 6000 để tránh truncate khi qty lớn (Groq free tier giới hạn ≈ 8k).
-    final estimated = 400 + (qty * 220);
-    if (estimated < 800) return 800;
-    if (estimated > 6000) return 6000;
+    // FIX-ESSAY-3: budget token THEO LOẠI CÂU. Hệ số 220 tok/câu chỉ đúng cho
+    // MCQ/true_false (nhẹ). Câu tự luận/trả lời ngắn/giải toán/nối cặp NẶNG hơn
+    // nhiều (expected_answer dài + ai_grading_keywords lồng + pairs...) → 220
+    // làm output bị CẮT CỤT → JSON hỏng → parse fail → fallback. Nhận diện loại
+    // qua type rule trong prompt ("type=\"essay\"" ...) → dùng hệ số cao hơn.
+    final isHeavyType = RegExp(
+      r'type="(essay|short_answer|math|matching|problem_solving)"',
+      caseSensitive: false,
+    ).hasMatch(prompt);
+    final perQ = isHeavyType ? 650 : 220;
+    final maxCap = isHeavyType ? 12000 : 6000;
+    final estimated = 400 + (qty * perQ);
+    // FIX-JSONMODE: floor cao (2048). Khi bật response_format json_object,
+    // Groq trả 400 'json_validate_failed: max completion tokens reached' NẾU
+    // max_tokens hết trước khi JSON hợp lệ hoàn tất (fail cứng, không cắt cụt
+    // cho parser cứu). Batch nhỏ (vd refill 2 câu = 840) dễ dính → cho dư chỗ.
+    const floor = 2048;
+    if (estimated < floor) return floor;
+    if (estimated > maxCap) return maxCap;
     return estimated;
   }
 

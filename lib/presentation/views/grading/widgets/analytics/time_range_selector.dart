@@ -121,7 +121,7 @@ class _AnalyticsFilterBottomSheetState
   Widget build(BuildContext context) {
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.75,
+        maxHeight: (MediaQuery.of(context).size.height * 0.75).clamp(0.0, 700.0),
       ),
       decoration: BoxDecoration(
         color: DesignColors.white,

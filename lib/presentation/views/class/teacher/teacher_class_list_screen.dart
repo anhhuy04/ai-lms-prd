@@ -12,6 +12,7 @@ import 'package:ai_mls/widgets/list_item/class/class_item_widget.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
@@ -531,14 +532,7 @@ class _TeacherClassListScreenState extends ConsumerState<TeacherClassListScreen>
                             .catchError((error) {
                               // Log error nếu có
                               if (!context.mounted) return null;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Không thể mở chi tiết lớp học: ${error.toString()}',
-                                  ),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
+                              AppToast.error(context, 'Không thể mở chi tiết lớp học: ${error.toString()}');
                               return null; // Return null để satisfy linter
                             });
                       },

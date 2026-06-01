@@ -8,6 +8,11 @@ import 'package:ai_mls/domain/entities/analytics/class_analytics.dart';
 class GradeDistributionHeatmap extends StatelessWidget {
   final List<SubjectDistribution>? subjects;
   final double height;
+
+  /// Khi GV bấm 1 HS trong bottom sheet → mở bài làm của HS đó cho đợt giao này.
+  /// (studentId, distributionId). Null = không cho điều hướng (chỉ xem điểm).
+  final void Function(String studentId, String distributionId)? onStudentTap;
+
   static const int _maxVisibleRows = 5;
   static const _bucketLabels = ['0-4', '4-6', '6-8', '8-10'];
 
@@ -15,6 +20,7 @@ class GradeDistributionHeatmap extends StatelessWidget {
     super.key,
     this.subjects,
     this.height = 300,
+    this.onStudentTap,
   });
 
   @override
@@ -185,6 +191,7 @@ class GradeDistributionHeatmap extends StatelessWidget {
             e.value,
             e.key,
             bucketStudents[e.key],
+            subject.distributionId,
           )),
         ],
       ),
@@ -195,6 +202,7 @@ class GradeDistributionHeatmap extends StatelessWidget {
     BuildContext context,
     int bucketIndex,
     List<StudentScoreItem> students,
+    String distributionId,
   ) {
     if (students.isEmpty) return;
 
@@ -264,12 +272,21 @@ class GradeDistributionHeatmap extends StatelessWidget {
             itemCount: students.length,
             itemBuilder: (context, index) {
               final student = students[index];
+              // Cho phép bấm để mở bài làm khi có callback + distributionId hợp lệ.
+              final canOpen =
+                  onStudentTap != null && distributionId.isNotEmpty;
               return ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: DesignSpacing.md,
                   vertical: 4,
                 ),
+                onTap: canOpen
+                    ? () {
+                        Navigator.pop(context);
+                        onStudentTap!(student.studentId, distributionId);
+                      }
+                    : null,
                 leading: CircleAvatar(
                   radius: 16,
                   backgroundColor: colors[bucketIndex].withValues(alpha: 0.15),
@@ -288,23 +305,44 @@ class GradeDistributionHeatmap extends StatelessWidget {
                   student.studentName,
                   style: DesignTypography.bodyMedium,
                 ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors[bucketIndex].withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    (student.score / 10).toStringAsFixed(1),
-                    style: TextStyle(
-                      color: colors[bucketIndex],
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                subtitle: canOpen
+                    ? Text(
+                        'Xem bài làm',
+                        style: DesignTypography.caption.copyWith(
+                          color: DesignColors.primary,
+                        ),
+                      )
+                    : null,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors[bucketIndex].withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        (student.score / 10).toStringAsFixed(1),
+                        style: TextStyle(
+                          color: colors[bucketIndex],
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (canOpen) ...[
+                      SizedBox(width: DesignSpacing.xs),
+                      Icon(
+                        Icons.chevron_right,
+                        size: DesignIcons.smSize,
+                        color: DesignColors.textSecondary,
+                      ),
+                    ],
+                  ],
                 ),
               );
             },
@@ -320,6 +358,7 @@ class GradeDistributionHeatmap extends StatelessWidget {
     int count,
     int bucketIndex,
     List<StudentScoreItem> students,
+    String distributionId,
   ) {
     final color = _getBucketColor(bucketIndex);
     
@@ -336,7 +375,8 @@ class GradeDistributionHeatmap extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
         child: GestureDetector(
           onTap: count > 0
-              ? () => _showStudentsBottomSheet(context, bucketIndex, students)
+              ? () => _showStudentsBottomSheet(
+                  context, bucketIndex, students, distributionId)
               : null,
           child: Container(
             decoration: BoxDecoration(

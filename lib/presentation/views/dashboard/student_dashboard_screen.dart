@@ -2,6 +2,7 @@ import 'package:ai_mls/domain/entities/profile.dart';
 import 'package:ai_mls/presentation/views/assignment/student/assignment_list_screen.dart';
 import 'package:ai_mls/presentation/views/class/student/student_class_list_screen.dart';
 import 'package:ai_mls/presentation/views/dashboard/home/student_home_content_screen.dart';
+import 'package:ai_mls/presentation/views/dashboard/widgets/dashboard_top_bar.dart';
 import 'package:ai_mls/presentation/views/grading/scores_screen.dart';
 import 'package:ai_mls/presentation/views/profile/profile_screen.dart';
 import 'package:flutter/material.dart';
@@ -103,6 +104,8 @@ class _StudentDashboardScreenState
     final currentSelectedIndex = _getSelectedIndexFromRoute(context);
     final isShellRoute = widget.child != null;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isWide =
+        MediaQuery.of(context).size.width >= DesignBreakpoints.tabletSmall;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -114,17 +117,91 @@ class _StudentDashboardScreenState
       ),
       child: Scaffold(
         backgroundColor: Colors.white,
-        extendBody: true,
-        body: SafeArea(
-          top: true,
-          bottom: false,
-          minimum: EdgeInsets.zero,
-          child: isShellRoute
-              ? widget.child!
-              : IndexedStack(index: _selectedIndex, children: _pages),
-        ),
-        bottomNavigationBar: _buildBottomBar(currentSelectedIndex),
+        extendBody: !isWide,
+        body: isWide
+            ? _buildWideLayout(currentSelectedIndex, isShellRoute)
+            : _buildMobileLayout(currentSelectedIndex, isShellRoute),
+        bottomNavigationBar:
+            isWide ? null : _buildBottomBar(currentSelectedIndex),
       ),
+    );
+  }
+
+  /// Layout mobile: tab Home (0) là content thuần nên shell cấp DashboardTopBar
+  /// để đồng bộ tiêu đề với teacher. Các tab khác đã có AppBar riêng → chỉ bọc
+  /// SafeArea, tránh double-header.
+  Widget _buildMobileLayout(int currentIdx, bool isShellRoute) {
+    final content = isShellRoute
+        ? widget.child!
+        : IndexedStack(index: _selectedIndex, children: _pages);
+
+    if (currentIdx == 0) {
+      return Column(
+        children: [
+          HomeGreetingBar(
+            profile: widget.userProfile,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined, size: 22),
+                onPressed: () {},
+                tooltip: 'Thông báo',
+              ),
+            ],
+          ),
+          Expanded(child: content),
+        ],
+      );
+    }
+
+    return SafeArea(
+      top: true,
+      bottom: false,
+      minimum: EdgeInsets.zero,
+      child: content,
+    );
+  }
+
+  /// Layout màn rộng: sidebar điều hướng trái + nội dung phải. Mỗi màn content
+  /// tự quản header (giữ hành vi như mobile, tránh double-header).
+  Widget _buildWideLayout(int currentIdx, bool isShellRoute) {
+    final content = isShellRoute
+        ? widget.child!
+        : IndexedStack(index: _selectedIndex, children: _pages);
+
+    return Row(
+      children: [
+        _StudentWideNavSidebar(
+          selectedIndex: currentIdx,
+          onItemTapped: _onItemTapped,
+          userProfile: widget.userProfile,
+        ),
+        Container(width: 1, color: DesignColors.dividerLight),
+        // Tab Home (0) chưa có AppBar riêng → thêm DashboardTopBar (title +
+        // subtitle). Các tab khác đã có AppBar riêng nên chỉ bọc SafeArea.
+        Expanded(
+          child: currentIdx == 0
+              ? Column(
+                  children: [
+                    DashboardTopBar(
+                      title: 'Trang chủ',
+                      subtitle: 'Chào mừng trở lại!',
+                      profile: widget.userProfile,
+                      showAvatar: false,
+                      actions: [
+                        IconButton(
+                          icon: const Icon(Icons.notifications_outlined,
+                              size: 22),
+                          onPressed: () {},
+                          tooltip: 'Thông báo',
+                        ),
+                      ],
+                    ),
+                    Expanded(child: content),
+                  ],
+                )
+              : SafeArea(top: true, bottom: false, child: content),
+        ),
+      ],
     );
   }
 
@@ -253,4 +330,175 @@ class _StudentDashboardScreenState
       ),
     );
   }
+}
+
+// ── Wide Navigation Sidebar (màn rộng) ──────────────────────────────────────
+/// Thanh menu điều hướng bên trái cho học sinh trên màn rộng (tablet/web/
+/// desktop). Avatar header + 5 tab, highlight tab đang chọn bằng tint primary.
+class _StudentWideNavSidebar extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onItemTapped;
+  final Profile userProfile;
+
+  const _StudentWideNavSidebar({
+    required this.selectedIndex,
+    required this.onItemTapped,
+    required this.userProfile,
+  });
+
+  static const _items = [
+    _SidebarItem(
+      activeIcon: Icons.home,
+      inactiveIcon: Icons.home_outlined,
+      label: 'Trang chủ',
+    ),
+    _SidebarItem(
+      activeIcon: Icons.class_,
+      inactiveIcon: Icons.class_outlined,
+      label: 'Lớp học',
+    ),
+    _SidebarItem(
+      activeIcon: Icons.assignment,
+      inactiveIcon: Icons.assignment_outlined,
+      label: 'Bài tập',
+    ),
+    _SidebarItem(
+      activeIcon: Icons.leaderboard,
+      inactiveIcon: Icons.leaderboard_outlined,
+      label: 'Điểm số',
+    ),
+    _SidebarItem(
+      activeIcon: Icons.person,
+      inactiveIcon: Icons.person_outline,
+      label: 'Cá nhân',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final name = userProfile.fullName ?? 'Học sinh';
+    final initial = avatarInitialFromName(userProfile.fullName);
+
+    return Container(
+      width: 220,
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.all(DesignSpacing.xl),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor:
+                        DesignColors.primary.withValues(alpha: 0.12),
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        color: DesignColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: DesignSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Chào bạn,',
+                          style: TextStyle(
+                            color: DesignColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Divider(height: 1, color: DesignColors.dividerLight),
+          const SizedBox(height: DesignSpacing.sm),
+          for (int i = 0; i < _items.length; i++)
+            _buildNavItem(context, _items[i], i),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(BuildContext context, _SidebarItem item, int index) {
+    final isActive = selectedIndex == index;
+    final color =
+        isActive ? DesignColors.primary : DesignColors.textSecondary;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: DesignSpacing.sm,
+        vertical: 2,
+      ),
+      child: InkWell(
+        onTap: () => onItemTapped(index),
+        borderRadius: BorderRadius.circular(DesignRadius.sm),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesignSpacing.md,
+            vertical: DesignSpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            color: isActive
+                ? DesignColors.primary.withValues(alpha: 0.08)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(DesignRadius.sm),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isActive ? item.activeIcon : item.inactiveIcon,
+                color: color,
+                size: 20,
+              ),
+              const SizedBox(width: DesignSpacing.md),
+              Expanded(
+                child: Text(
+                  item.label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 14,
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarItem {
+  final IconData activeIcon;
+  final IconData inactiveIcon;
+  final String label;
+
+  const _SidebarItem({
+    required this.activeIcon,
+    required this.inactiveIcon,
+    required this.label,
+  });
 }

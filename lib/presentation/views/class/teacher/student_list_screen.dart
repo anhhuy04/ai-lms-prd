@@ -5,6 +5,7 @@ import 'package:ai_mls/domain/entities/profile.dart';
 import 'package:ai_mls/presentation/providers/class_notifier.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -540,20 +541,10 @@ class _StudentListScreenState extends ConsumerState<StudentListScreen> {
       await notifier.approveStudent(student.classId, student.studentId);
       await _loadMembers();
       if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-          content: const Text('Đã duyệt học sinh'),
-            backgroundColor: DesignColors.success,
-          ),
-        );
+      AppToast.success(context, 'Đã duyệt học sinh');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, e.toString());
     }
   }
 
@@ -597,20 +588,10 @@ class _StudentListScreenState extends ConsumerState<StudentListScreen> {
       await notifier.rejectStudent(student.classId, student.studentId);
       await _loadMembers();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Đã từ chối học sinh'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Đã từ chối học sinh');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, e.toString());
     }
   }
 

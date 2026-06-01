@@ -53,6 +53,8 @@ mixin _$DistributeAssignmentState {
       throw _privateConstructorUsedError; // --- AI Analysis settings (D-11) ---
   bool get aiEnabled =>
       throw _privateConstructorUsedError; // AI phân tích bài làm (default: tắt)
+  bool get aiGradeEssay =>
+      throw _privateConstructorUsedError; // Phase 3: AI tự chấm câu tự luận (default: tắt — GV tự chấm)
   bool get requireReview =>
       throw _privateConstructorUsedError; // Chờ giáo viên duyệt trước khi công bố (default: bật)
   // --- UI State ---
@@ -92,6 +94,7 @@ abstract class $DistributeAssignmentStateCopyWith<$Res> {
     bool allowRetake,
     String scoreAggregationRule,
     bool aiEnabled,
+    bool aiGradeEssay,
     bool requireReview,
     bool isLoading,
     bool isSuccess,
@@ -136,6 +139,7 @@ class _$DistributeAssignmentStateCopyWithImpl<
     Object? allowRetake = null,
     Object? scoreAggregationRule = null,
     Object? aiEnabled = null,
+    Object? aiGradeEssay = null,
     Object? requireReview = null,
     Object? isLoading = null,
     Object? isSuccess = null,
@@ -211,6 +215,10 @@ class _$DistributeAssignmentStateCopyWithImpl<
                 ? _value.aiEnabled
                 : aiEnabled // ignore: cast_nullable_to_non_nullable
                       as bool,
+            aiGradeEssay: null == aiGradeEssay
+                ? _value.aiGradeEssay
+                : aiGradeEssay // ignore: cast_nullable_to_non_nullable
+                      as bool,
             requireReview: null == requireReview
                 ? _value.requireReview
                 : requireReview // ignore: cast_nullable_to_non_nullable
@@ -274,6 +282,7 @@ abstract class _$$DistributeAssignmentStateImplCopyWith<$Res>
     bool allowRetake,
     String scoreAggregationRule,
     bool aiEnabled,
+    bool aiGradeEssay,
     bool requireReview,
     bool isLoading,
     bool isSuccess,
@@ -319,6 +328,7 @@ class __$$DistributeAssignmentStateImplCopyWithImpl<$Res>
     Object? allowRetake = null,
     Object? scoreAggregationRule = null,
     Object? aiEnabled = null,
+    Object? aiGradeEssay = null,
     Object? requireReview = null,
     Object? isLoading = null,
     Object? isSuccess = null,
@@ -394,6 +404,10 @@ class __$$DistributeAssignmentStateImplCopyWithImpl<$Res>
             ? _value.aiEnabled
             : aiEnabled // ignore: cast_nullable_to_non_nullable
                   as bool,
+        aiGradeEssay: null == aiGradeEssay
+            ? _value.aiGradeEssay
+            : aiGradeEssay // ignore: cast_nullable_to_non_nullable
+                  as bool,
         requireReview: null == requireReview
             ? _value.requireReview
             : requireReview // ignore: cast_nullable_to_non_nullable
@@ -436,6 +450,7 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
     this.allowRetake = false,
     this.scoreAggregationRule = 'latest',
     this.aiEnabled = false,
+    this.aiGradeEssay = false,
     this.requireReview = true,
     this.isLoading = false,
     this.isSuccess = false,
@@ -519,6 +534,10 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
   // AI phân tích bài làm (default: tắt)
   @override
   @JsonKey()
+  final bool aiGradeEssay;
+  // Phase 3: AI tự chấm câu tự luận (default: tắt — GV tự chấm)
+  @override
+  @JsonKey()
   final bool requireReview;
   // Chờ giáo viên duyệt trước khi công bố (default: bật)
   // --- UI State ---
@@ -533,7 +552,7 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
 
   @override
   String toString() {
-    return 'DistributeAssignmentState(assignment: $assignment, selectedAssignments: $selectedAssignments, recipientSelection: $recipientSelection, dueDate: $dueDate, availableFrom: $availableFrom, availableUntil: $availableUntil, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePenaltyPercent: $latePenaltyPercent, studentReviewMode: $studentReviewMode, maxAttempts: $maxAttempts, sendNotification: $sendNotification, shuffleQuestions: $shuffleQuestions, shuffleAnswers: $shuffleAnswers, allowRetake: $allowRetake, scoreAggregationRule: $scoreAggregationRule, aiEnabled: $aiEnabled, requireReview: $requireReview, isLoading: $isLoading, isSuccess: $isSuccess, errorMessage: $errorMessage)';
+    return 'DistributeAssignmentState(assignment: $assignment, selectedAssignments: $selectedAssignments, recipientSelection: $recipientSelection, dueDate: $dueDate, availableFrom: $availableFrom, availableUntil: $availableUntil, timeLimitMinutes: $timeLimitMinutes, allowLate: $allowLate, latePenaltyPercent: $latePenaltyPercent, studentReviewMode: $studentReviewMode, maxAttempts: $maxAttempts, sendNotification: $sendNotification, shuffleQuestions: $shuffleQuestions, shuffleAnswers: $shuffleAnswers, allowRetake: $allowRetake, scoreAggregationRule: $scoreAggregationRule, aiEnabled: $aiEnabled, aiGradeEssay: $aiGradeEssay, requireReview: $requireReview, isLoading: $isLoading, isSuccess: $isSuccess, errorMessage: $errorMessage)';
   }
 
   @override
@@ -576,6 +595,8 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
                 other.scoreAggregationRule == scoreAggregationRule) &&
             (identical(other.aiEnabled, aiEnabled) ||
                 other.aiEnabled == aiEnabled) &&
+            (identical(other.aiGradeEssay, aiGradeEssay) ||
+                other.aiGradeEssay == aiGradeEssay) &&
             (identical(other.requireReview, requireReview) ||
                 other.requireReview == requireReview) &&
             (identical(other.isLoading, isLoading) ||
@@ -606,6 +627,7 @@ class _$DistributeAssignmentStateImpl implements _DistributeAssignmentState {
     allowRetake,
     scoreAggregationRule,
     aiEnabled,
+    aiGradeEssay,
     requireReview,
     isLoading,
     isSuccess,
@@ -643,6 +665,7 @@ abstract class _DistributeAssignmentState implements DistributeAssignmentState {
     final bool allowRetake,
     final String scoreAggregationRule,
     final bool aiEnabled,
+    final bool aiGradeEssay,
     final bool requireReview,
     final bool isLoading,
     final bool isSuccess,
@@ -688,6 +711,8 @@ abstract class _DistributeAssignmentState implements DistributeAssignmentState {
   String get scoreAggregationRule; // --- AI Analysis settings (D-11) ---
   @override
   bool get aiEnabled; // AI phân tích bài làm (default: tắt)
+  @override
+  bool get aiGradeEssay; // Phase 3: AI tự chấm câu tự luận (default: tắt — GV tự chấm)
   @override
   bool get requireReview; // Chờ giáo viên duyệt trước khi công bố (default: bật)
   // --- UI State ---

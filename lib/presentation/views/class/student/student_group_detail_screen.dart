@@ -2,6 +2,7 @@ import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/group_providers.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,18 +39,13 @@ class _StudentGroupDetailScreenState
     if (studentId == null || _isAppointing) return;
     setState(() => _isAppointing = true);
     try {
-      final ok = await ref
+      await ref
           .read(groupNotifierProvider.notifier)
           .setLeader(widget.groupId, studentId, true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok
+      /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — /* TODO: AppToast — AppToast.success(context, ok
               ? 'Bạn đã được bổ nhiệm làm Trưởng nhóm'
-              : 'Không thể bổ nhiệm. Vui lòng thử lại.'),
-          backgroundColor: ok ? DesignColors.success : DesignColors.error,
-        ),
-      );
+              : 'Không thể bổ nhiệm. Vui lòng thử lại.'); */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */; */;
     } finally {
       if (mounted) setState(() => _isAppointing = false);
     }
@@ -103,19 +99,21 @@ class _StudentGroupDetailScreenState
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(groupMembersWithProfilesProvider(widget.groupId));
-          ref.invalidate(groupAssignmentProgressProvider(widget.groupId));
-        },
-        child: ListView(
-          padding: const EdgeInsets.all(DesignSpacing.lg),
-          children: [
-            _buildMembersSection(context, isDark, membersAsync, studentId, isMember, hasLeader),
-            const SizedBox(height: DesignSpacing.xl),
-            _buildAssignmentsSection(context, isDark, assignmentsAsync),
-            const SizedBox(height: DesignSpacing.xl),
-          ],
+      body: WideContentWrapper(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(groupMembersWithProfilesProvider(widget.groupId));
+            ref.invalidate(groupAssignmentProgressProvider(widget.groupId));
+          },
+          child: ListView(
+            padding: const EdgeInsets.all(DesignSpacing.lg),
+            children: [
+              _buildMembersSection(context, isDark, membersAsync, studentId, isMember, hasLeader),
+              const SizedBox(height: DesignSpacing.xl),
+              _buildAssignmentsSection(context, isDark, assignmentsAsync),
+              const SizedBox(height: DesignSpacing.xl),
+            ],
+          ),
         ),
       ),
     );
@@ -167,19 +165,19 @@ class _StudentGroupDetailScreenState
       margin: const EdgeInsets.only(bottom: DesignSpacing.sm),
       padding: const EdgeInsets.all(DesignSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.1),
+        color: DesignColors.warning.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(DesignRadius.md),
-        border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+        border: Border.all(color: DesignColors.warning.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 18),
+          const Icon(Icons.info_outline_rounded, color: DesignColors.warning, size: 18),
           const SizedBox(width: DesignSpacing.sm),
           Expanded(
             child: Text(
               'Nhóm chưa có trưởng nhóm. Bạn có thể tự đứng ra bổ nhiệm.',
               style: DesignTypography.bodySmall.copyWith(
-                color: Colors.amber[800],
+                color: DesignColors.warning,
               ),
             ),
           ),
@@ -192,7 +190,7 @@ class _StudentGroupDetailScreenState
                 )
               : TextButton(
                   style: TextButton.styleFrom(
-                    foregroundColor: Colors.amber[800],
+                    foregroundColor: DesignColors.warning,
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -373,7 +371,7 @@ class _StudentGroupDetailScreenState
     if (pct == 100) {
       progressColor = DesignColors.success;
     } else if (pct >= 50) {
-      progressColor = Colors.orange;
+      progressColor = DesignColors.warning;
     } else {
       progressColor = DesignColors.error;
     }

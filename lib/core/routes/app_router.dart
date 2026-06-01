@@ -23,6 +23,7 @@ import 'package:ai_mls/presentation/views/assignment/teacher/teacher_class_submi
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_submission_detail_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_grading_hub_screen.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/teacher_submission_list_screen.dart';
+import 'package:ai_mls/presentation/views/assignment/teacher/batch_grade_by_question_screen.dart';
 import 'package:ai_mls/presentation/views/auth/login_screen.dart';
 import 'package:ai_mls/presentation/views/auth/register_screen.dart';
 import 'package:ai_mls/presentation/views/class/student/join_class_screen.dart';
@@ -767,6 +768,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             submissionId: submissionId,
             distributionId: distributionId,
             allSubmissionIds: allSubmissionIds,
+          );
+        },
+      ),
+
+      // Route chấm theo câu (Track 2 — Batch grade by question)
+      GoRoute(
+        path: AppRoute.teacherBatchGradeByQuestionPath(':distributionId'),
+        name: AppRoute.teacherBatchGradeByQuestion,
+        builder: (context, state) {
+          final distributionId = state.pathParameters['distributionId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          return BatchGradeByQuestionScreen(
+            distributionId: distributionId,
+            assignmentTitle: extra?['assignmentTitle'] as String? ?? '',
           );
         },
       ),

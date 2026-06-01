@@ -479,10 +479,10 @@ class _TeacherAssignmentHubScreenState
       children: [
         Text('Thao tác nhanh', style: DesignTypography.titleLarge),
         const SizedBox(height: 12),
-        GridView.count(
+        GridView.extent(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 3,
+          maxCrossAxisExtent: 120,
           crossAxisSpacing: DesignSpacing.md,
           mainAxisSpacing: DesignSpacing.md,
           childAspectRatio: 1.05,
@@ -598,8 +598,6 @@ class _TeacherAssignmentHubScreenState
   }
 
   Widget _buildError(BuildContext context, WidgetRef ref, Object error) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return CustomScrollView(
       slivers: [
         SliverFillRemaining(

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../../../../core/constants/design_tokens.dart';
 
 class ZeroSubmissionsState extends StatelessWidget {
@@ -10,7 +9,7 @@ class ZeroSubmissionsState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 300.h, // Match radar chart height
+      height: 300.0, // Match radar chart height
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

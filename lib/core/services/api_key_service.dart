@@ -532,6 +532,24 @@ Web: Browser's secure storage (if supported)
     }
   }
 
+
+
+  /// Kiểm tra xem có bất kỳ API key nào đã được cấu hình hay chưa
+  static Future<bool> hasAnyApiKey() async {
+    final gemini = await hasGeminiApiKey();
+    if (gemini) return true;
+    final groq = await hasGroqApiKey();
+    if (groq) return true;
+    final ollama = await getOllamaBaseUrl();
+    if (ollama.isNotEmpty) return true;
+    
+    // Check in secure storage for ai_api_key or openrouter as well
+    final openrouter = await _storage.read(key: _openRouterApiKeyKey);
+    if (openrouter != null && openrouter.isNotEmpty) return true;
+    
+    return false;
+  }
+
   static Future<bool> hasGroqApiKey() async {
     try {
       final hasKey = await ProfileMetadataService.hasGroqApiKey();

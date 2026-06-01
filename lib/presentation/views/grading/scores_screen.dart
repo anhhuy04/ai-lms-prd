@@ -5,6 +5,7 @@ import 'package:ai_mls/domain/entities/analytics/grade_trend.dart';
 import 'package:ai_mls/domain/entities/analytics/student_analytics.dart';
 import 'package:ai_mls/presentation/providers/analytics_providers.dart';
 import 'package:ai_mls/presentation/views/grading/widgets/analytics/charts/line_trend_chart.dart';
+import 'package:ai_mls/widgets/responsive/wide_content_wrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,14 +21,26 @@ class ScoresScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: DesignColors.moonLight,
       appBar: AppBar(
-        title: const Text('Điểm số'),
-        backgroundColor: DesignColors.moonLight,
+        title: const Text(
+          'Điểm số',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: DesignColors.textPrimary,
+          ),
+        ),
+        centerTitle: false,
+        backgroundColor: DesignColors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
-      body: analyticsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _buildErrorState(context, ref, e.toString()),
-        data: (analytics) => _buildContent(context, analytics, emptyState),
+      body: WideContentWrapper(
+        child: analyticsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => _buildErrorState(context, ref, e.toString()),
+          data: (analytics) => _buildContent(context, analytics, emptyState),
+        ),
       ),
     );
   }

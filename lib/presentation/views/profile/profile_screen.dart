@@ -9,6 +9,7 @@ import 'package:ai_mls/presentation/views/dashboard/widgets/dashboard_top_bar.da
 import 'package:ai_mls/widgets/loading/profile_shimmer_loading.dart';
 import 'package:ai_mls/widgets/refresh/app_refresh_indicator.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -129,25 +130,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final role = user?.role.toLowerCase() ?? '';
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Text('Đang cập nhật...'),
-              ],
-            ),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        AppToast.info(context, 'Đang cập nhật...');
       }
 
       final metaToUpdate = <String, dynamic>{
@@ -186,25 +169,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
       if (mounted) {
         setState(() => _isEditing = false);
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Đã cập nhật thông tin thành công!'),
-            backgroundColor: DesignColors.success,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        AppToast.success(context, '✅ Đã cập nhật thông tin thành công!');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Lỗi: ${e.toString()}'),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        AppToast.error(context, '❌ Lỗi: ${e.toString()}');
       }
     }
   }
@@ -947,7 +916,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
               subtitle: FutureBuilder<bool>(
-                future: ApiKeyService.hasGeminiApiKey(),
+                future: ApiKeyService.hasAnyApiKey(),
                 builder: (context, snapshot) {
                   final hasKey = snapshot.data ?? false;
                   return Text(
@@ -1005,41 +974,121 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     Profile user,
     bool isDark,
   ) {
-    final apiKeys = user.metadata?['api_keys'];
-    if (apiKeys is! Map<String, dynamic> || apiKeys.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    return FutureBuilder<Map<String, dynamic>>(
+      future: () async {
+        final provider = await ApiKeyService.getActiveProvider();
+        final model = await ApiKeyService.getActiveModel();
+        final analyticsProvider = await ApiKeyService.getAnalyticsProvider();
+        final analyticsModel = await ApiKeyService.getAnalyticsModel();
+        final hasGemini = await ApiKeyService.hasGeminiApiKey();
+        final hasGroq = await ApiKeyService.hasGroqApiKey();
+        final ollamaUrl = await ApiKeyService.getOllamaBaseUrl();
+        final hasOllama = ollamaUrl.isNotEmpty;
+        return {
+          'provider': provider,
+          'model': model,
+          'analyticsProvider': analyticsProvider,
+          'analyticsModel': analyticsModel,
+          'hasGemini': hasGemini,
+          'hasGroq': hasGroq,
+          'hasOllama': hasOllama,
+        };
+      }(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        
+        final data = snapshot.data!;
+        final provider = data['provider'] as String;
+        final model = data['model'] as String;
+        final analyticsProvider = data['analyticsProvider'] as String;
+        final analyticsModel = data['analyticsModel'] as String;
+        final hasGemini = data['hasGemini'] as bool;
+        final hasGroq = data['hasGroq'] as bool;
+        final hasOllama = data['hasOllama'] as bool;
 
-    return _buildCard(
-      isDark: isDark,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionHeader('API KEYS', isDark, icon: Icons.data_object_outlined),
-          const SizedBox(height: 16),
-          _buildInfoField(
-            context,
-            label: 'API Keys',
-            icon: Icons.key_rounded,
-            isDark: isDark,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (apiKeys.containsKey('gemini'))
-                  _apiKeyBadge('Gemini API Key', DesignColors.success),
-                if (apiKeys.containsKey('gemini') && apiKeys.containsKey('ai'))
-                  const SizedBox(height: 8),
-                if (apiKeys.containsKey('ai'))
-                  _apiKeyBadge('AI API Key', DesignColors.info),
-                if (apiKeys.containsKey('groq')) ...[
-                  const SizedBox(height: 8),
-                  _apiKeyBadge('Groq API Key', DesignColors.warning),
-                ],
-              ],
-            ),
+        if (!hasGemini && !hasGroq && !hasOllama) return const SizedBox.shrink();
+
+        return _buildCard(
+          isDark: isDark,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _sectionHeader('CẤU HÌNH AI', isDark, icon: Icons.smart_toy_outlined),
+              const SizedBox(height: 16),
+              
+              _buildInfoField(
+                context,
+                label: 'Đang sử dụng',
+                icon: Icons.bolt_rounded,
+                isDark: isDark,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Câu hỏi AI', style: DesignTypography.labelSmall),
+                          const SizedBox(height: 4),
+                          Text(
+                            provider.toUpperCase(),
+                            style: DesignTypography.bodyMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: DesignColors.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(model, style: DesignTypography.bodySmall),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Phân tích xử lý', style: DesignTypography.labelSmall),
+                          const SizedBox(height: 4),
+                          Text(
+                            analyticsProvider.toUpperCase(),
+                            style: DesignTypography.bodyMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: DesignColors.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(analyticsModel, style: DesignTypography.bodySmall),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 12),
+              Divider(color: isDark ? Colors.grey[800] : Colors.grey[200]),
+              const SizedBox(height: 12),
+              
+              _buildInfoField(
+                context,
+                label: 'Khóa API đã cài đặt',
+                icon: Icons.vpn_key_outlined,
+                isDark: isDark,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (hasGemini) _apiKeyBadge('Gemini', DesignColors.success),
+                    if (hasGemini && (hasGroq || hasOllama)) const SizedBox(height: 8),
+                    if (hasGroq) _apiKeyBadge('Groq', DesignColors.success),
+                    if (hasGroq && hasOllama) const SizedBox(height: 8),
+                    if (hasOllama) _apiKeyBadge('Ollama', DesignColors.success),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1070,10 +1119,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Widget _buildProfileContent(Profile user, bool isDark) {
     final isStudent = user.role.toLowerCase() == 'student';
-    final hasApiKeys = !isStudent &&
-        user.metadata != null &&
-        user.metadata!['api_keys'] is Map<String, dynamic> &&
-        (user.metadata!['api_keys'] as Map<String, dynamic>).isNotEmpty;
+    final showAiConfig = !isStudent;
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWide = screenWidth >= DesignBreakpoints.tabletSmall;
 
     return AppRefreshIndicator(
       onRefresh: _refreshProfile,
@@ -1090,6 +1139,44 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
         child: Form(
           key: _formKey,
+          child: isWide
+              ? _buildDesktopLayout(user, isDark, showAiConfig)
+              : _buildMobileLayout(user, isDark, showAiConfig),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout(Profile user, bool isDark, bool showAiConfig) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildAvatarSection(context, user, isDark),
+        SizedBox(height: DesignSpacing.xxl),
+        _buildProfileInfoSection(context, user, isDark),
+        SizedBox(height: DesignSpacing.xxl),
+        _buildRoleSpecificSection(user, isDark),
+        SizedBox(height: DesignSpacing.xxl),
+        _buildExtrasSection(user, isDark),
+        SizedBox(height: DesignSpacing.xxl),
+        _buildQuickActionsSection(context, user, isDark),
+        SizedBox(height: DesignSpacing.xxl),
+        if (showAiConfig) ...[
+          _buildMetadataSection(context, user, isDark),
+          SizedBox(height: DesignSpacing.xxl),
+        ],
+        _buildAccountActionsSection(context, isDark),
+      ],
+    );
+  }
+
+  Widget _buildDesktopLayout(Profile user, bool isDark, bool showAiConfig) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Cột Trái: Thông tin chính (Avatar + Biểu mẫu)
+        Expanded(
+          flex: 8,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1100,18 +1187,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               _buildRoleSpecificSection(user, isDark),
               SizedBox(height: DesignSpacing.xxl),
               _buildExtrasSection(user, isDark),
-              SizedBox(height: DesignSpacing.xxl),
+            ],
+          ),
+        ),
+        SizedBox(width: DesignSpacing.xxl),
+        // Cột Phải: Thao tác nhanh, API, Đăng xuất
+        Expanded(
+          flex: 4,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               _buildQuickActionsSection(context, user, isDark),
-              SizedBox(height: DesignSpacing.xxl),
-              if (hasApiKeys) ...[
-                _buildMetadataSection(context, user, isDark),
+              if (showAiConfig) ...[
                 SizedBox(height: DesignSpacing.xxl),
+                _buildMetadataSection(context, user, isDark),
               ],
+              SizedBox(height: DesignSpacing.xxl),
               _buildAccountActionsSection(context, isDark),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 

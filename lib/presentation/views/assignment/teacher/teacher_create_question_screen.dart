@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
+import 'package:ai_mls/core/utils/app_logger.dart'; // [DOTEST]
 import 'package:ai_mls/data/utils/content_hasher.dart';
 import 'package:ai_mls/domain/entities/create_question_params.dart';
 import 'package:ai_mls/domain/entities/learning_objective.dart';
@@ -18,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Màn hình tạo/chỉnh sửa câu hỏi
@@ -271,9 +273,11 @@ class _TeacherCreateQuestionScreenState
         ?.map((e) => e.toString())
         .toList();
 
-    // Format mới: dùng override_text thay vì text
+    // Bank questions.content dùng key CHUẨN 'text' (không phải 'override_text' —
+    // 'override_text' chỉ dành cho delta trong assignment_questions.custom_content).
+    // Mọi read path ưu tiên content['text'] nên đây là shape đúng (tránh "tầng rác 2").
     final content = <String, dynamic>{
-      'override_text': text,
+      'text': text,
       if (images != null && images.isNotEmpty) 'images': images,
       if (explanation != null && explanation.isNotEmpty) 'explanation': explanation,
       if (hints != null && hints.isNotEmpty) 'hints': hints,
@@ -357,13 +361,7 @@ class _TeacherCreateQuestionScreenState
       return created.id;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        AppToast.error(context, e.toString());
       }
       return null;
     } finally {
@@ -451,6 +449,7 @@ class _TeacherCreateQuestionScreenState
       _selectedObjectives = selected;
       _learningObjectiveIds = selected.map((o) => o.id).toList();
     });
+    AppLogger.info('[DOTEST][client] objectives selected: $_learningObjectiveIds');
     _checkUnsavedChanges();
   }
 
@@ -1587,35 +1586,20 @@ class _TeacherCreateQuestionScreenState
 
   Future<void> _handleSaveAndAddNew() async {
     if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng kiểm tra lại các trường bắt buộc'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Vui lòng kiểm tra lại các trường bắt buộc');
       return;
     }
 
     // Validate options for multiple choice
     if (_selectedQuestionType == QuestionType.multipleChoice) {
       if (_options.length < 2) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng thêm ít nhất 2 lựa chọn'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Vui lòng thêm ít nhất 2 lựa chọn');
         return;
       }
 
       final hasCorrectAnswer = _options.any((opt) => opt.isCorrect);
       if (!hasCorrectAnswer) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng chọn ít nhất 1 đáp án đúng'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Vui lòng chọn ít nhất 1 đáp án đúng');
         return;
       }
     }
@@ -1623,29 +1607,39 @@ class _TeacherCreateQuestionScreenState
     // Build question data
     final questionData = _buildQuestionDataFromForm();
 
-    // Auto-save to Supabase before adding new question
-    final questionId = await _saveQuestionToSupabase(questionData);
-    if (!mounted) return;
-    if (questionId != null) {
-      questionData['questionId'] = questionId;
-      _editingQuestionId = questionId;
-      // Update original values sau khi save thành công
-      _captureOriginalValues();
-    }
-
-    // Call callback to save and add new
-    if (widget.onSaveAndAddNew != null) {
-      widget.onSaveAndAddNew!(questionData);
-      // Parent sẽ pop và navigate lại với questions mới và currentQuestionIndex mới
-      // Widget sẽ được rebuild với initialData = null (tạo mới)
-    } else {
-      // Fallback: return data to parent
-      if (mounted) {
+    // CHẾ ĐỘ KHO (độc lập, không có callback inline): lưu vào Ngân hàng câu hỏi rồi quay về.
+    if (widget.onSaveAndAddNew == null) {
+      final questionId = await _saveQuestionToSupabase(questionData);
+      if (!mounted) return;
+      if (questionId != null) {
+        questionData['questionId'] = questionId;
+        _editingQuestionId = questionId;
+        _captureOriginalValues();
         context.pop(questionData);
       }
+      return;
     }
 
-    // Prepare new blank question locally (stay on screen)
+    // CHẾ ĐỘ INLINE (soạn câu cho bài tập): KHÔNG ghi kho — câu inline (questionId = null).
+    // Toàn bộ câu chỉ được ghi 1 lần khi user bấm Lưu nháp/Xuất bản ở trang bài tập.
+    final isEditingExisting = _localCurrentIndex != null;
+    widget.onSaveAndAddNew!(questionData);
+
+    if (isEditingExisting) {
+      // Sửa 1 câu đã có → parent callback xử lý cập nhật + điều hướng. Không reset ở đây.
+      return;
+    }
+
+    if (!mounted) return;
+    // Thêm câu mới: cập nhật danh sách local (cho drawer liệt kê/thống kê + tiêu đề "Câu N")
+    // rồi reset form, Ở LẠI màn soạn để tạo tiếp — KHÔNG nhảy về trang bài tập.
+    setState(() {
+      _localQuestions = [..._localQuestions, questionData];
+    });
+    AppToast.success(
+      context,
+      'Đã thêm câu hỏi. Soạn tiếp câu mới hoặc bấm quay lại để lưu tất cả.',
+    );
     _resetForNewQuestion(type: _selectedQuestionType);
   }
 }

@@ -34,6 +34,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 
 /// Màn hình tạo bài tập mới cho giáo viên
 /// Nếu có assignmentId, sẽ load assignment từ database để edit
@@ -432,6 +433,8 @@ class _TeacherCreateAssignmentScreenState
         'explanation': customContent['explanation'] as String?,
         'hints': hints,
         'points': q.points,
+        // row id của assignment_questions — cần cho hotfix (sửa nóng câu đã phát)
+        if (q.id.isNotEmpty) 'id': q.id,
         if (q.questionId != null) 'questionId': q.questionId,
         if (q.rubric != null) 'rubric': q.rubric,
       });
@@ -468,12 +471,7 @@ class _TeacherCreateAssignmentScreenState
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi tải chi tiết câu hỏi: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Lỗi tải chi tiết câu hỏi: $e');
       return;
     }
     if (!mounted) return;
@@ -491,9 +489,7 @@ class _TeacherCreateAssignmentScreenState
     _updateQuestionPoints();
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã thêm ${picked.length} câu hỏi từ kho')),
-    );
+    AppToast.info(context, 'Đã thêm ${picked.length} câu hỏi từ kho');
 
     // Persist to draft + reload questions section (silent on failure;
     // user can still Save Draft manually) — same pattern as add-question.
@@ -576,9 +572,7 @@ class _TeacherCreateAssignmentScreenState
       // silent
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đã đồng bộ — danh sách câu hỏi đã cập nhật')),
-    );
+    AppToast.info(context, 'Đã đồng bộ — danh sách câu hỏi đã cập nhật');
   }
 
   // Map để lưu trữ điểm cho từng loại câu hỏi (nguồn gốc của điểm)
@@ -923,6 +917,13 @@ class _TeacherCreateAssignmentScreenState
         customContent['hints'] = q['hints'];
       }
 
+      // KHÔNG strip `type` ở client. Mọi đường ghi assignment_questions đều qua
+      // RPC server-side chuẩn hoá bằng fn_normalize_aq_content, vốn xử lý đúng
+      // cả 3 trường hợp: bank GLOBAL → whitelist (tự bỏ `type`, thành S1/S2);
+      // bank PRIVATE → cắt link (question_id=NULL) + GIỮ NGUYÊN snapshot kể cả
+      // `type` (S3, để render đúng loại câu). Client strip `type` sẽ làm câu bank
+      // PRIVATE mất loại câu → render sai thành trắc nghiệm. Để server lo.
+
       // Get points for this question, đảm bảo > 0 để không vi phạm constraint
       double points =
           q['points'] as double? ?? _getPointsForQuestion(questionType);
@@ -949,7 +950,7 @@ class _TeacherCreateAssignmentScreenState
   /// - Luôn gửi custom_content + points + order_idx.
   List<Map<String, dynamic>> _mapQuestionsToRpcQuestions() {
     final aq = _mapQuestionsToAssignmentQuestions();
-    return aq.map((row) {
+    final mapped = aq.map((row) {
       return <String, dynamic>{
         if (row['question_id'] != null) 'id': row['question_id'],
         'custom_content': row['custom_content'],
@@ -960,6 +961,14 @@ class _TeacherCreateAssignmentScreenState
         'default_points': row['points'],
       };
     }).toList();
+    // [DOTEST] log payload gửi lên RPC để xác minh data contract (S1/S2/S3)
+    for (final r in mapped) {
+      final cc = r['custom_content'] as Map<String, dynamic>?;
+      AppLogger.info('[DOTEST][client] q id=${r['id']} '
+          'hasCustomContent=${cc != null} ccType=${cc?['type']} '
+          'objIds=${cc?['objective_ids']}');
+    }
+    return mapped;
   }
 
   /// Thêm câu hỏi mới từ CreateQuestionScreen
@@ -970,14 +979,7 @@ class _TeacherCreateAssignmentScreenState
     // Trước khi cho tạo/sửa câu hỏi: bắt buộc validate các thông tin tối thiểu
     if (!_formKey.currentState!.validate()) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Vui lòng nhập các thông tin bắt buộc trước khi tạo câu hỏi',
-            ),
-            backgroundColor: DesignColors.warning,
-          ),
-        );
+        AppToast.warning(context, 'Vui lòng nhập các thông tin bắt buộc trước khi tạo câu hỏi');
       }
       return;
     }
@@ -990,13 +992,7 @@ class _TeacherCreateAssignmentScreenState
       _captureOriginalValues();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        AppToast.error(context, e.toString().replaceAll('Exception: ', ''));
       }
       return;
     }
@@ -1035,113 +1031,34 @@ class _TeacherCreateAssignmentScreenState
           _editQuestion(index);
         },
         'onSaveAndAddNew': (Map<String, dynamic> savedQuestionData) {
-          int? newIndex;
-
-          // Save current question
-          if (editIndex != null &&
-              editIndex >= 0 &&
-              editIndex < _questions.length) {
-            // Update existing question
-            final next = List<Map<String, dynamic>>.from(_questions);
-            next[editIndex] = {
-              'number': next[editIndex]['number'] as int,
-              'type': savedQuestionData['type'] as QuestionType,
-              'text': savedQuestionData['text'] as String,
-              'images': savedQuestionData['images'] as List<String>?,
-              'options':
-                  savedQuestionData['options'] as List<Map<String, dynamic>>?,
-              'difficulty': savedQuestionData['difficulty'] as int?,
-              'tags': savedQuestionData['tags'] as List<String>?,
-              'learningObjectives':
-                  savedQuestionData['learningObjectives'] as List<String>?,
-              'explanation': savedQuestionData['explanation'] as String?,
-              'hints': savedQuestionData['hints'] as List<String>?,
-              'points': _getPointsForQuestion(
-                savedQuestionData['type'] as QuestionType,
-              ),
-              if (savedQuestionData['questionId'] != null)
-                'questionId': savedQuestionData['questionId'],
-            };
-            _setQuestions(next);
-            _updateQuestionPoints();
-
-            // Add new temporary question
-            final next2 = List<Map<String, dynamic>>.from(_questions);
-            final newNumber = next2.length + 1;
-            next2.add({
-              'number': newNumber,
-              'type': savedQuestionData['type'] as QuestionType,
-              'text': '', // Tạm thời để trống
-              'images': null,
-              'options': null,
-              'difficulty': null,
-              'tags': null,
-              'learningObjectives': null,
-              'explanation': null,
-              'hints': null,
-              'points': 0.0,
-            });
-            _setQuestions(next2);
-            newIndex = next2.length - 1;
-          } else {
-            // Add new question
-            final next = List<Map<String, dynamic>>.from(_questions);
-            final newNumber = next.length + 1;
-            next.add({
-              'number': newNumber,
-              'type': savedQuestionData['type'] as QuestionType,
-              'text': savedQuestionData['text'] as String,
-              'images': savedQuestionData['images'] as List<String>?,
-              'options':
-                  savedQuestionData['options'] as List<Map<String, dynamic>>?,
-              'difficulty': savedQuestionData['difficulty'] as int?,
-              'tags': savedQuestionData['tags'] as List<String>?,
-              'learningObjectives':
-                  savedQuestionData['learningObjectives'] as List<String>?,
-              'explanation': savedQuestionData['explanation'] as String?,
-              'hints': savedQuestionData['hints'] as List<String>?,
-              'points': _getPointsForQuestion(
-                savedQuestionData['type'] as QuestionType,
-              ),
-              if (savedQuestionData['questionId'] != null)
-                'questionId': savedQuestionData['questionId'],
-            });
-            _setQuestions(next);
-            _updateQuestionPoints();
-
-            // Add new temporary question
-            final next2 = List<Map<String, dynamic>>.from(_questions);
-            final tempNumber = next2.length + 1;
-            next2.add({
-              'number': tempNumber,
-              'type': savedQuestionData['type'] as QuestionType,
-              'text': '', // Tạm thời để trống
-              'images': null,
-              'options': null,
-              'difficulty': null,
-              'tags': null,
-              'learningObjectives': null,
-              'explanation': null,
-              'hints': null,
-              'points': 0.0,
-            });
-            _setQuestions(next2);
-            newIndex = next2.length - 1;
-          }
-
-          // Navigate lại với questions mới và currentQuestionIndex mới
-          if (newIndex >= 0) {
-            // Pop current screen
-            context.pop();
-            // Navigate lại với questions mới và index mới
-            _addQuestionFromScreen(
+          // Soạn nhiều câu không nhảy trang: chỉ APPEND câu vừa soạn vào danh sách
+          // bài tập (KHÔNG chèn câu rỗng tạm, KHÔNG pop/push lại). Editor ở lại để
+          // user soạn tiếp; toàn bộ câu được ghi 1 lần khi Lưu nháp/Xuất bản.
+          final next = List<Map<String, dynamic>>.from(_questions);
+          next.add({
+            'number': next.length + 1,
+            'type': savedQuestionData['type'] as QuestionType,
+            'text': savedQuestionData['text'] as String,
+            'images': savedQuestionData['images'] as List<String>?,
+            'options':
+                savedQuestionData['options'] as List<Map<String, dynamic>>?,
+            'difficulty': savedQuestionData['difficulty'] as int?,
+            'tags': savedQuestionData['tags'] as List<String>?,
+            'learningObjectives':
+                savedQuestionData['learningObjectives'] as List<String>?,
+            'explanation': savedQuestionData['explanation'] as String?,
+            'hints': savedQuestionData['hints'] as List<String>?,
+            'points': _getPointsForQuestion(
               savedQuestionData['type'] as QuestionType,
-              editIndex: newIndex,
-            );
-          }
+            ),
+            if (savedQuestionData['questionId'] != null)
+              'questionId': savedQuestionData['questionId'],
+          });
+          _setQuestions(next);
+          _updateQuestionPoints();
 
-          // Return new index
-          return newIndex;
+          // Trả index câu vừa thêm (giữ chữ ký int? Function(...)).
+          return next.length - 1;
         },
       },
     );
@@ -1208,9 +1125,8 @@ class _TeacherCreateAssignmentScreenState
           _editQuestion(idx);
         },
         'onSaveAndAddNew': (Map<String, dynamic> savedQuestionData) {
-          int? newIndex;
-
-          // Save current question
+          // Sửa 1 câu đã có: cập nhật tại chỗ rồi QUAY LẠI trang bài tập
+          // (không chèn câu rỗng, không push lại editor). Ghi DB khi Lưu nháp/Xuất bản.
           final next = List<Map<String, dynamic>>.from(_questions);
           next[index] = {
             'number': question['number'] as int,
@@ -1233,43 +1149,8 @@ class _TeacherCreateAssignmentScreenState
           };
           _setQuestions(next);
           _updateQuestionPoints();
-
-          // Add new temporary question
-          final next2 = List<Map<String, dynamic>>.from(_questions);
-          final newNumber = next2.length + 1;
-          next2.add({
-            'number': newNumber,
-            'type': savedQuestionData['type'] as QuestionType,
-            'text': '', // Tạm thời để trống
-            'images': null,
-            'options': null,
-            'difficulty': null,
-            'tags': null,
-            'learningObjectives': null,
-            'explanation': null,
-            'hints': null,
-            'points': 0.0,
-          });
-          _setQuestions(next2);
-          newIndex = next2.length - 1;
-
-          // Navigate lại với questions mới và currentQuestionIndex mới
-          if (newIndex >= 0) {
-            // Pop current screen
-            context.pop();
-            // Navigate lại với questions mới và index mới (không có initialData để tạo mới)
-            Future.microtask(() {
-              if (mounted) {
-                _addQuestionFromScreen(
-                  savedQuestionData['type'] as QuestionType,
-                  editIndex: newIndex,
-                );
-              }
-            });
-          }
-
-          // Return new index
-          return newIndex;
+          if (mounted) context.pop();
+          return index;
         },
       },
     );
@@ -1342,13 +1223,7 @@ class _TeacherCreateAssignmentScreenState
       _captureOriginalValues();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        AppToast.error(context, e.toString().replaceAll('Exception: ', ''));
       }
       return;
     }
@@ -1393,32 +1268,12 @@ class _TeacherCreateAssignmentScreenState
   Future<void> _autoAssignObjectives() async {
     if (_isAutoAssigning) return;
     if (_questions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Chưa có câu hỏi nào để phân tích.'),
-          duration: Duration(seconds: 3),
-        ),
-      );
+      AppToast.info(context, 'Chưa có câu hỏi nào để phân tích.');
       return;
     }
 
     setState(() => _isAutoAssigning = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            ),
-            SizedBox(width: 12),
-            Text('AI đang phân tích câu hỏi...'),
-          ],
-        ),
-        duration: Duration(seconds: 60),
-      ),
-    );
+    AppToast.info(context, 'AI đang phân tích câu hỏi...');
 
     try {
       // 1. Load tất cả learning objectives
@@ -1428,13 +1283,7 @@ class _TeacherCreateAssignmentScreenState
 
       if (objectives.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Chưa có mục tiêu học tập nào trong hệ thống.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          AppToast.warning(context, 'Chưa có mục tiêu học tập nào trong hệ thống.');
         }
         return;
       }
@@ -1502,28 +1351,12 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
       _setQuestions(next);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Đã gán mục tiêu học tập cho $assignedCount/${_questions.length} câu hỏi.',
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        AppToast.success(context, 'Đã gán mục tiêu học tập cho $assignedCount/${_questions.length} câu hỏi.');
       }
     } catch (e) {
       AppLogger.error('[AutoAssign] Error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi: ${e.toString().replaceAll('Exception: ', '')}'),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        AppToast.error(context, 'Lỗi: ${e.toString().replaceAll('Exception: ', '')}');
       }
     } finally {
       if (mounted) setState(() => _isAutoAssigning = false);
@@ -1564,12 +1397,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
 
     if (_questions.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng thêm ít nhất một câu hỏi'),
-            backgroundColor: DesignColors.warning,
-          ),
-        );
+        AppToast.warning(context, 'Vui lòng thêm ít nhất một câu hỏi');
       }
       return false;
     }
@@ -1589,18 +1417,14 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
         final teacherId = ref.read(currentUserIdProvider);
         if (teacherId == null) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Người dùng chưa đăng nhập'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            AppToast.error(context, 'Người dùng chưa đăng nhập');
           }
           return false;
         }
 
         final rpcQuestions = _mapQuestionsToRpcQuestions();
 
+        AppLogger.info('[DOTEST][client] CREATE rpc, ${rpcQuestions.length} questions');
         final newId = await repository.createAssignmentWithQuestions(
           teacherId: teacherId,
           assignment: assignmentData,
@@ -1623,12 +1447,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã lưu bản nháp thành công!'),
-            backgroundColor: DesignColors.success,
-          ),
-        );
+        AppToast.success(context, 'Đã lưu bản nháp thành công!');
       }
 
       AppLogger.info('✅ Đã lưu bản nháp bài tập thành công');
@@ -1644,18 +1463,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
 
       if (mounted) {
         final errorMessage = _getErrorMessage(e);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'Đóng',
-              textColor: Colors.white,
-              onPressed: () {},
-            ),
-          ),
-        );
+        AppToast.error(context, errorMessage);
       }
       return false;
     } finally {
@@ -1674,12 +1482,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
 
     if (_questions.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng thêm ít nhất một câu hỏi'),
-            backgroundColor: DesignColors.warning,
-          ),
-        );
+        AppToast.warning(context, 'Vui lòng thêm ít nhất một câu hỏi');
       }
       return;
     }
@@ -1700,12 +1503,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
       );
       if (dueAt.isBefore(DateTime.now())) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Ngày hết hạn phải là thời điểm trong tương lai'),
-              backgroundColor: DesignColors.warning,
-            ),
-          );
+          AppToast.warning(context, 'Ngày hết hạn phải là thời điểm trong tương lai');
         }
         return;
       }
@@ -1741,6 +1539,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
       assignmentForRpc['is_published'] = true;
 
       // Publish assignment using RPC
+      AppLogger.info('[DOTEST][client] PUBLISH rpc aid=$_assignmentId, ${questions.length} questions');
       await repository.publishAssignment(
         assignment: assignmentForRpc,
         questions: questions,
@@ -1748,12 +1547,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã xuất bản bài tập thành công!'),
-            backgroundColor: DesignColors.success,
-          ),
-        );
+        AppToast.success(context, 'Đã xuất bản bài tập thành công!');
         // Navigate back after successful publish
         context.pop();
       }
@@ -1770,18 +1564,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
 
       if (mounted) {
         final errorMessage = _getErrorMessage(e);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'Đóng',
-              textColor: Colors.white,
-              onPressed: () {},
-            ),
-          ),
-        );
+        AppToast.error(context, errorMessage);
       }
     } finally {
       if (mounted) {
@@ -1975,21 +1758,10 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
       await repo.updateAssignmentQuestionContent(aqId, patch);
       if (!mounted) return;
       if (_assignmentId != null) await _loadAssignment(_assignmentId!);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text(
-            'Câu hỏi đã sửa. Học sinh đã nộp có thể bị ảnh hưởng.'),
-        action: SnackBarAction(
-          label: 'Chấm lại tất cả',
-          onPressed: _batchRegrade,
-        ),
-        duration: const Duration(seconds: 8),
-      ));
+      AppToast.info(context, 'Câu hỏi đã sửa. Học sinh đã nộp có thể bị ảnh hưởng.', actionLabel: 'Chấm lại tất cả', action: _batchRegrade, duration: const Duration(seconds: 8));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Lỗi khi lưu: $e'),
-        backgroundColor: DesignColors.error,
-      ));
+      AppToast.error(context, 'Lỗi khi lưu: $e');
     }
   }
 
@@ -2003,16 +1775,10 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
       final count =
           await repo.batchRegradeAssignment(_assignmentId!, teacherId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Đã chấm lại $count bài nộp.'),
-        backgroundColor: DesignColors.success,
-      ));
+      AppToast.success(context, 'Đã chấm lại $count bài nộp.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Lỗi khi chấm lại: $e'),
-        backgroundColor: DesignColors.error,
-      ));
+      AppToast.error(context, 'Lỗi khi chấm lại: $e');
     } finally {
       if (mounted) setState(() => _isRegrading = false);
     }
@@ -2070,10 +1836,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
     } catch (e) {
       if (!mounted) return;
       AppLogger.error('[CreateAssignment] deepClone error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Lỗi khi nhân bản: $e'),
-        backgroundColor: DesignColors.error,
-      ));
+      AppToast.error(context, 'Lỗi khi nhân bản: $e');
     }
   }
 
@@ -2161,18 +1924,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
         if (pointsMismatch.isNotEmpty) {
           messages.add('${pointsMismatch.length} câu Rubric chưa khớp điểm');
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: DesignColors.error,
-            content: Text(
-              '${messages.join(' • ')}. Vui lòng kiểm tra lại trước khi phát hành.',
-              style: DesignTypography.bodyMedium.copyWith(
-                color: DesignColors.white,
-              ),
-            ),
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        AppToast.error(context, '${messages.join(' • ')}. Vui lòng kiểm tra lại trước khi phát hành.');
       }
       return false;
     }
@@ -2337,6 +2089,8 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
           'explanation': customContent['explanation'] as String?,
           'hints': hints,
           'points': q.points,
+          // row id của assignment_questions — cần cho hotfix (sửa nóng câu đã phát)
+          if (q.id.isNotEmpty) 'id': q.id,
           if (q.questionId != null) 'questionId': q.questionId,
           if (q.rubric != null) 'rubric': q.rubric,
         });
@@ -2368,13 +2122,7 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi tải bài tập: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        AppToast.error(context, 'Lỗi khi tải bài tập: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -2681,14 +2429,61 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                           ValueListenableBuilder<List<Map<String, dynamic>>>(
                             valueListenable: _questionsNotifier,
                             builder: (context, questions, _) {
-                              return Column(
+                              if (questions.isEmpty) {
+                                return Container(
+                                  padding: EdgeInsets.all(DesignSpacing.xxxxxl),
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.post_add,
+                                        size: 48,
+                                        color: isDark
+                                            ? Colors.grey[600]
+                                            : Colors.grey[300],
+                                      ),
+                                      SizedBox(height: DesignSpacing.md),
+                                      Text(
+                                        'Thêm câu hỏi để hoàn thiện cấu trúc bài tập',
+                                        style: DesignTypography.bodySmall
+                                            .copyWith(
+                                              color: isDark
+                                                  ? Colors.grey[400]
+                                                  : Colors.grey[600],
+                                            ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                              // Kéo-thả để sắp xếp lại thứ tự câu hỏi trong bài.
+                              return ReorderableListView(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                buildDefaultDragHandles: true,
+                                onReorder: (oldIndex, newIndex) {
+                                  if (newIndex > oldIndex) newIndex -= 1;
+                                  final next =
+                                      List<Map<String, dynamic>>.from(
+                                        _questions,
+                                      );
+                                  final moved = next.removeAt(oldIndex);
+                                  next.insert(newIndex, moved);
+                                  for (int i = 0; i < next.length; i++) {
+                                    next[i]['number'] = i + 1;
+                                  }
+                                  _setQuestions(next);
+                                  _updateQuestionPoints();
+                                },
                                 children: [
                                   ...questions.asMap().entries.map((entry) {
                                     final index = entry.key;
                                     final q = entry.value;
                                     final questionType =
                                         q['type'] as QuestionType;
-                                    return _buildQuestionCard(
+                                    return KeyedSubtree(
+                                      key: ObjectKey(q),
+                                      child: _buildQuestionCard(
                                       context,
                                       isDark,
                                       questionIndex: index,
@@ -2745,36 +2540,9 @@ Trả về JSON theo định dạng CHÍNH XÁC sau (không có text nào ngoài
                                           _updateQuestionPoints();
                                         }
                                       },
+                                      ),
                                     );
                                   }),
-                                  if (questions.isEmpty)
-                                    Container(
-                                      padding: EdgeInsets.all(
-                                        DesignSpacing.xxxxxl,
-                                      ),
-                                      child: Column(
-                                        children: [
-                                          Icon(
-                                            Icons.post_add,
-                                            size: 48,
-                                            color: isDark
-                                                ? Colors.grey[600]
-                                                : Colors.grey[300],
-                                          ),
-                                          SizedBox(height: DesignSpacing.md),
-                                          Text(
-                                            'Thêm câu hỏi để hoàn thiện cấu trúc bài tập',
-                                            style: DesignTypography.bodySmall
-                                                .copyWith(
-                                                  color: isDark
-                                                      ? Colors.grey[400]
-                                                      : Colors.grey[600],
-                                                ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
                                 ],
                               );
                             },

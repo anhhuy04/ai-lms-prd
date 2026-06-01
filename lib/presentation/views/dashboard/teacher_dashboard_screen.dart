@@ -179,19 +179,32 @@ class _TeacherDashboardScreenState
 
     return Column(
       children: [
-        // Shared top bar — tự handle topPadding bên trong
-        DashboardTopBar(
-          title: _titles[currentIdx],
-          subtitle: _subtitles[currentIdx],
-          profile: widget.userProfile,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.notifications_outlined, size: 22),
-              onPressed: () {},
-              tooltip: 'Thông báo',
-            ),
-          ],
-        ),
+        // Tab Home: header chào mừng (avatar + tên). Tab khác: tiêu đề chuẩn.
+        if (currentIdx == 0)
+          HomeGreetingBar(
+            profile: widget.userProfile,
+            greeting: 'Chào giáo viên,',
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined, size: 22),
+                onPressed: () {},
+                tooltip: 'Thông báo',
+              ),
+            ],
+          )
+        else
+          DashboardTopBar(
+            title: _titles[currentIdx],
+            subtitle: _subtitles[currentIdx],
+            profile: widget.userProfile,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined, size: 22),
+                onPressed: () {},
+                tooltip: 'Thông báo',
+              ),
+            ],
+          ),
         Expanded(child: content),
       ],
     );
@@ -398,8 +411,7 @@ class _WideNavSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = userProfile.fullName ?? 'Giáo viên';
-    final initial =
-        name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final initial = avatarInitialFromName(userProfile.fullName);
 
     return Container(
       width: 220,

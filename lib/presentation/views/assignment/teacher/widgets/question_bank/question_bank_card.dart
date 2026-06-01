@@ -21,6 +21,10 @@ class QuestionBankCard extends ConsumerWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onDuplicate;
 
+  /// Override margin. Default: vertical xs + horizontal md.
+  /// Pass `EdgeInsets.zero` khi bọc trong Slidable + ClipRRect ngoài.
+  final EdgeInsetsGeometry? margin;
+
   const QuestionBankCard({
     super.key,
     required this.vm,
@@ -28,6 +32,7 @@ class QuestionBankCard extends ConsumerWidget {
     this.onEdit,
     this.onDelete,
     this.onDuplicate,
+    this.margin,
   });
 
   @override
@@ -39,10 +44,11 @@ class QuestionBankCard extends ConsumerWidget {
       label:
           'Câu hỏi ${q.type.label}, độ khó ${q.difficulty ?? 0} trên 5',
       child: Card(
-        margin: EdgeInsets.symmetric(
-          vertical: DesignSpacing.xs,
-          horizontal: DesignSpacing.md,
-        ),
+        margin: margin ??
+            EdgeInsets.symmetric(
+              vertical: DesignSpacing.xs,
+              horizontal: DesignSpacing.md,
+            ),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(DesignRadius.md),

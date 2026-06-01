@@ -3,6 +3,7 @@ import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/data/models/teacher_file_model.dart';
 import 'package:ai_mls/presentation/providers/teacher_file_notifier.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -293,13 +294,7 @@ class AiQuestionSettingsScreen extends ConsumerWidget {
 
   void _downloadExcelTemplate(BuildContext context) {
     Clipboard.setData(const ClipboardData(text: _templateUrl));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'URL đã copy vào clipboard. Mở trình duyệt để tải template',
-        ),
-      ),
-    );
+    AppToast.info(context, 'URL đã copy vào clipboard. Mở trình duyệt để tải template');
   }
 }
 

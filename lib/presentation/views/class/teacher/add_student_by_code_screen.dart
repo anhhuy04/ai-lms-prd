@@ -8,6 +8,7 @@ import 'package:ai_mls/presentation/providers/class_notifier.dart';
 import 'package:ai_mls/widgets/dialogs/warning_dialog.dart';
 import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -93,12 +94,7 @@ class _AddStudentByCodeScreenState
       final classItem = classNotifier.selectedClass;
       if (classItem == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Không tìm thấy thông tin lớp học'),
-              backgroundColor: DesignColors.error,
-            ),
-          );
+          AppToast.error(context, 'Không tìm thấy thông tin lớp học');
         }
         return;
       }
@@ -164,12 +160,7 @@ class _AddStudentByCodeScreenState
         stackTrace: stackTrace,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi tải cài đặt: ${e.toString()}'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Lỗi khi tải cài đặt: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -689,13 +680,7 @@ class _AddStudentByCodeScreenState
     if (_classCode == null || _classCode!.isEmpty) return;
 
     Clipboard.setData(ClipboardData(text: _classCode!));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Đã sao chép mã lớp học: $_classCode'),
-        backgroundColor: DesignColors.success,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    AppToast.success(context, 'Đã sao chép mã lớp học: $_classCode');
   }
 
   /// Validate join code format (6 ký tự, A-Z0-9)
@@ -758,13 +743,7 @@ class _AddStudentByCodeScreenState
     // Kiểm tra xem có thay đổi không
     if (!_hasUnsavedChanges()) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không có thay đổi nào để lưu'),
-            backgroundColor: DesignColors.info,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        AppToast.info(context, 'Không có thay đổi nào để lưu');
       }
       return;
     }
@@ -802,12 +781,7 @@ class _AddStudentByCodeScreenState
         stackTrace: stackTrace,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi tạo mã mới: ${e.toString()}'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Lỗi khi tạo mã mới: ${e.toString()}');
       }
     }
   }
@@ -821,13 +795,7 @@ class _AddStudentByCodeScreenState
   //   final shareText = 'Mã tham gia lớp học "${widget.className}": $_classCode';
   //   Clipboard.setData(ClipboardData(text: shareText));
 
-  //   ScaffoldMessenger.of(context).showSnackBar(
-  //     SnackBar(
-  //       content: Text('Đã sao chép thông tin lớp học vào clipboard'),
-  //       backgroundColor: DesignColors.primary,
-  //       duration: const Duration(seconds: 2),
-  //     ),
-  //   );
+  //   AppToast.info(context, 'Đã sao chép thông tin lớp học vào clipboard');
   // }
 
   /// Lưu cài đặt
@@ -924,13 +892,7 @@ class _AddStudentByCodeScreenState
       _originalQrLogoEnabled = _qrLogoEnabled;
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cài đặt đã được lưu thành công'),
-            backgroundColor: DesignColors.success,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        AppToast.success(context, 'Cài đặt đã được lưu thành công');
       }
     } catch (e, stackTrace) {
       AppLogger.error(
@@ -939,13 +901,7 @@ class _AddStudentByCodeScreenState
         stackTrace: stackTrace,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi lưu cài đặt: ${e.toString()}'),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        AppToast.error(context, 'Lỗi khi lưu cài đặt: ${e.toString()}');
       }
     } finally {
       if (mounted) {

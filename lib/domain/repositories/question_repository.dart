@@ -11,6 +11,7 @@ abstract class QuestionRepository {
   Future<Question> updateQuestion(String id, CreateQuestionParams params);
   Future<Question?> getQuestionById(String id);
   Future<List<QuestionChoice>> getChoicesByQuestionId(String id);
+  Future<List<String>> getObjectiveIdsByQuestionId(String id);
 
   // List / search
   Future<List<Question>> getQuestions(QuestionFilter filter);

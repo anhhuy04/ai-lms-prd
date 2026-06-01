@@ -336,6 +336,20 @@ class SubmissionDataSource {
       submission['workSessions'] = Map<String, dynamic>.from(workSessionsRaw);
     }
 
+    // Normalize assignment_distributions → 'assignmentDistributions' key.
+    // Submission.fromJson đọc key camelCase 'assignmentDistributions' (field
+    // không có @JsonKey) nhưng PostgREST trả snake_case 'assignment_distributions'
+    // → nếu không map, submission.assignmentDistributions luôn null → tên bài tập,
+    // lớp, deadline + cờ 'settings' (canRescan) ở card thông tin GV đều mất.
+    final assignmentDistRaw = submission['assignment_distributions'];
+    if (assignmentDistRaw is Map) {
+      submission['assignmentDistributions'] =
+          Map<String, dynamic>.from(assignmentDistRaw);
+    } else if (assignmentDistRaw is List && assignmentDistRaw.isNotEmpty) {
+      submission['assignmentDistributions'] =
+          Map<String, dynamic>.from(assignmentDistRaw.first as Map);
+    }
+
     // Query 2: submission_answers qua work_sessions
     final sessionId = submission['session_id'] as String?;
     if (sessionId != null) {
@@ -578,32 +592,108 @@ class SubmissionDataSource {
   }) async {
     final now = DateTime.now().toUtc().toIso8601String();
 
-    await _client.from('submission_answers').update({
-      'final_score': finalScore,
-      'teacher_feedback': teacherFeedback != null
-          ? {'text': teacherFeedback}
-          : null,
-      'graded_by': teacherId,
-      'graded_at': now,
-      'updated_at': now,
-    }).eq('id', answerId);
+    final row = await _client
+        .from('submission_answers')
+        .update({
+          'final_score': finalScore,
+          'teacher_feedback': teacherFeedback != null
+              ? {'text': teacherFeedback}
+              : null,
+          'graded_by': teacherId,
+          'graded_at': now,
+          'updated_at': now,
+        })
+        .eq('id', answerId)
+        .select('session_id')
+        .single();
+
+    // Phase 3: chấm tay 1 câu cũng phải cập nhật tổng điểm + trạng thái session.
+    final sessionId = row['session_id'] as String?;
+    if (sessionId != null) {
+      await _recomputeAndMaybeGrade(sessionId);
+    }
   }
 
   /// Chấp nhận điểm AI (dùng ai_score làm final_score).
+  /// GV duyệt → final_score=ai_score, graded_by=GV, graded_at=now; sau đó tính lại
+  /// tổng điểm submission (vá lỗ hổng sổ điểm) và cập nhật trạng thái session.
   Future<void> approveAiScore(String answerId) async {
     final now = DateTime.now().toUtc().toIso8601String();
+    final teacherId = _client.auth.currentUser?.id;
 
-    // Lấy ai_score trước
+    // Lấy ai_score + session_id
     final answer = await _client
         .from('submission_answers')
-        .select('ai_score')
+        .select('ai_score, session_id')
         .eq('id', answerId)
         .single();
 
     await _client.from('submission_answers').update({
       'final_score': answer['ai_score'],
+      'graded_by': teacherId,
+      'graded_at': now,
       'updated_at': now,
     }).eq('id', answerId);
+
+    final sessionId = answer['session_id'] as String?;
+    if (sessionId != null) {
+      await _recomputeAndMaybeGrade(sessionId);
+    }
+  }
+
+  /// Helper Phase 3: tính lại submissions.total_score + nâng trạng thái session
+  /// (graded/pending_review) qua RPC dùng chung với edge function — nguồn chân lý duy nhất.
+  Future<void> _recomputeAndMaybeGrade(String sessionId) async {
+    await _client.rpc(
+      'recompute_submission_total',
+      params: {'p_session_id': sessionId},
+    );
+    await _client.rpc(
+      'maybe_mark_session_graded',
+      params: {'p_session_id': sessionId},
+    );
+  }
+
+  /// Phase 3 — Van an toàn: quét/chấm lại AI cho 1 session.
+  /// Reset các item score/feedback đang 'failed' về 'pending' rồi kích hoạt edge function.
+  /// Dùng khi Database Webhook lỡ hoặc AI lỗi — GV chủ động chấm lại.
+  Future<void> rescanAiScoring(String sessionId) async {
+    final answers = await _client
+        .from('submission_answers')
+        .select('id')
+        .eq('session_id', sessionId);
+    final answerIds =
+        (answers as List).map((a) => a['id'] as String).toList();
+
+    // Reset về pending để edge nhặt lại (guard idempotent ai_score IS NULL ở edge đảm bảo
+    // câu đã chấm không bị chấm lại tốn token):
+    //  - 'failed': đã hết retry → cho chạy lại.
+    //  - 'processing' cũ (>2 phút): edge crash/timeout SAU khi claim nhưng trước khi ghi
+    //    completed/failed → dòng kẹt 'processing' mãi (claim chỉ nhặt 'pending'). Van an toàn.
+    if (answerIds.isNotEmpty) {
+      final now = DateTime.now().toUtc().toIso8601String();
+      final staleCutoff = DateTime.now()
+          .toUtc()
+          .subtract(const Duration(minutes: 2))
+          .toIso8601String();
+      await _client
+          .from('ai_queue')
+          .update({'status': 'pending', 'updated_at': now})
+          .inFilter('submission_answer_id', answerIds)
+          .eq('status', 'failed');
+      await _client
+          .from('ai_queue')
+          .update({'status': 'pending', 'updated_at': now})
+          .inFilter('submission_answer_id', answerIds)
+          .eq('status', 'processing')
+          .lt('updated_at', staleCutoff);
+    }
+
+    // Kích hoạt edge function xử lý hàng đợi cho session (functions.invoke tự gắn auth + URL).
+    await _client.functions.invoke(
+      'process-ai-queue',
+      body: {'session_id': sessionId},
+    );
   }
 
   /// Lấy chi tiết distribution để tính max_score.
@@ -644,6 +734,44 @@ class SubmissionDataSource {
         'updated_at': now,
       }).eq('id', submission['session_id']);
     }
+  }
+
+  /// Track 2 — Lấy câu trả lời của TẤT CẢ học sinh cho 1 câu hỏi trong distribution.
+  /// Uỷ thác cho RPC `get_distribution_answers_by_question` (đã tồn tại server-side).
+  /// Mỗi row: answer_id, session_id, student_id, student_name, answer (jsonb),
+  /// ai_score, ai_confidence, final_score, ai_feedback (jsonb), graded_at, attempt.
+  Future<List<Map<String, dynamic>>> getDistributionAnswersByQuestion({
+    required String distributionId,
+    required String assignmentQuestionId,
+  }) async {
+    final res = await _client.rpc(
+      'get_distribution_answers_by_question',
+      params: {
+        'p_distribution_id': distributionId,
+        'p_assignment_question_id': assignmentQuestionId,
+      },
+    );
+    return List<Map<String, dynamic>>.from(res as List);
+  }
+
+  /// Track 2 — Duyệt hàng loạt điểm AI: với mỗi answer set final_score=ai_score,
+  /// graded_by, graded_at. Uỷ thác cho RPC `batch_approve_ai_scores` (đã tồn tại
+  /// server-side) — trả về số dòng được cập nhật.
+  Future<int> batchApproveAiScores({
+    required List<String> answerIds,
+    required String gradedBy,
+  }) async {
+    final res = await _client.rpc(
+      'batch_approve_ai_scores',
+      params: {
+        'p_answer_ids': answerIds,
+        'p_graded_by': gradedBy,
+      },
+    );
+    // RPC trả về integer (count). Supabase có thể trả int hoặc num/String.
+    if (res is int) return res;
+    if (res is num) return res.toInt();
+    return int.tryParse(res.toString()) ?? 0;
   }
 
   /// Publish grades cho toàn bộ distribution.

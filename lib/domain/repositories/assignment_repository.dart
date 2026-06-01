@@ -28,6 +28,14 @@ abstract class AssignmentRepository {
 
   Future<List<AssignmentQuestion>> getAssignmentQuestions(String assignmentId);
 
+  /// Track 2 (Chấm theo câu) — như [getAssignmentQuestions] nhưng đã resolve
+  /// nội dung câu hỏi từ question bank (type/text/choices) vào custom_content,
+  /// để màn chấm theo câu render đúng câu reuse từ kho. KHÔNG dùng cho luồng
+  /// khác (custom_content trả về là dữ liệu đã merge, không phải DB gốc).
+  Future<List<AssignmentQuestion>> getAssignmentQuestionsForGrading(
+    String assignmentId,
+  );
+
   Future<List<AssignmentDistribution>> getDistributions(String assignmentId);
 
   Future<List<AssignmentVariant>> getVariants(String assignmentId);

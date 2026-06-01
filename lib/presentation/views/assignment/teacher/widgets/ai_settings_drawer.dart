@@ -22,7 +22,12 @@ class AiSettingsDrawer extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Drawer(
-      width: MediaQuery.of(context).size.width * 0.8,
+      width: () {
+        final sw = MediaQuery.of(context).size.width;
+        if (sw >= 1200) return 420.0;
+        if (sw >= 600) return 380.0;
+        return sw * 0.8;
+      }(),
       backgroundColor: isDark ? const Color(0xFF1A2632) : DesignColors.white,
       child: SafeArea(
         child: Column(

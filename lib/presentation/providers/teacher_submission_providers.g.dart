@@ -806,6 +806,334 @@ class _TeacherStudentDistributionAttemptsProviderElement
       (origin as TeacherStudentDistributionAttemptsProvider).studentId;
 }
 
+String _$batchGradeAssignmentQuestionsHash() =>
+    r'8b77b472486afac353b39f3763ce85b3d23af67d';
+
+/// Track 2 — Danh sách câu hỏi (assignment_questions) của 1 distribution, dùng cho
+/// màn chấm theo câu. Chain: distributionDetail → assignment_id → câu hỏi (typed).
+///
+/// Copied from [batchGradeAssignmentQuestions].
+@ProviderFor(batchGradeAssignmentQuestions)
+const batchGradeAssignmentQuestionsProvider =
+    BatchGradeAssignmentQuestionsFamily();
+
+/// Track 2 — Danh sách câu hỏi (assignment_questions) của 1 distribution, dùng cho
+/// màn chấm theo câu. Chain: distributionDetail → assignment_id → câu hỏi (typed).
+///
+/// Copied from [batchGradeAssignmentQuestions].
+class BatchGradeAssignmentQuestionsFamily
+    extends Family<AsyncValue<List<AssignmentQuestion>>> {
+  /// Track 2 — Danh sách câu hỏi (assignment_questions) của 1 distribution, dùng cho
+  /// màn chấm theo câu. Chain: distributionDetail → assignment_id → câu hỏi (typed).
+  ///
+  /// Copied from [batchGradeAssignmentQuestions].
+  const BatchGradeAssignmentQuestionsFamily();
+
+  /// Track 2 — Danh sách câu hỏi (assignment_questions) của 1 distribution, dùng cho
+  /// màn chấm theo câu. Chain: distributionDetail → assignment_id → câu hỏi (typed).
+  ///
+  /// Copied from [batchGradeAssignmentQuestions].
+  BatchGradeAssignmentQuestionsProvider call({required String distributionId}) {
+    return BatchGradeAssignmentQuestionsProvider(
+      distributionId: distributionId,
+    );
+  }
+
+  @override
+  BatchGradeAssignmentQuestionsProvider getProviderOverride(
+    covariant BatchGradeAssignmentQuestionsProvider provider,
+  ) {
+    return call(distributionId: provider.distributionId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'batchGradeAssignmentQuestionsProvider';
+}
+
+/// Track 2 — Danh sách câu hỏi (assignment_questions) của 1 distribution, dùng cho
+/// màn chấm theo câu. Chain: distributionDetail → assignment_id → câu hỏi (typed).
+///
+/// Copied from [batchGradeAssignmentQuestions].
+class BatchGradeAssignmentQuestionsProvider
+    extends AutoDisposeFutureProvider<List<AssignmentQuestion>> {
+  /// Track 2 — Danh sách câu hỏi (assignment_questions) của 1 distribution, dùng cho
+  /// màn chấm theo câu. Chain: distributionDetail → assignment_id → câu hỏi (typed).
+  ///
+  /// Copied from [batchGradeAssignmentQuestions].
+  BatchGradeAssignmentQuestionsProvider({required String distributionId})
+    : this._internal(
+        (ref) => batchGradeAssignmentQuestions(
+          ref as BatchGradeAssignmentQuestionsRef,
+          distributionId: distributionId,
+        ),
+        from: batchGradeAssignmentQuestionsProvider,
+        name: r'batchGradeAssignmentQuestionsProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$batchGradeAssignmentQuestionsHash,
+        dependencies: BatchGradeAssignmentQuestionsFamily._dependencies,
+        allTransitiveDependencies:
+            BatchGradeAssignmentQuestionsFamily._allTransitiveDependencies,
+        distributionId: distributionId,
+      );
+
+  BatchGradeAssignmentQuestionsProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.distributionId,
+  }) : super.internal();
+
+  final String distributionId;
+
+  @override
+  Override overrideWith(
+    FutureOr<List<AssignmentQuestion>> Function(
+      BatchGradeAssignmentQuestionsRef provider,
+    )
+    create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: BatchGradeAssignmentQuestionsProvider._internal(
+        (ref) => create(ref as BatchGradeAssignmentQuestionsRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        distributionId: distributionId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<List<AssignmentQuestion>> createElement() {
+    return _BatchGradeAssignmentQuestionsProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is BatchGradeAssignmentQuestionsProvider &&
+        other.distributionId == distributionId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, distributionId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin BatchGradeAssignmentQuestionsRef
+    on AutoDisposeFutureProviderRef<List<AssignmentQuestion>> {
+  /// The parameter `distributionId` of this provider.
+  String get distributionId;
+}
+
+class _BatchGradeAssignmentQuestionsProviderElement
+    extends AutoDisposeFutureProviderElement<List<AssignmentQuestion>>
+    with BatchGradeAssignmentQuestionsRef {
+  _BatchGradeAssignmentQuestionsProviderElement(super.provider);
+
+  @override
+  String get distributionId =>
+      (origin as BatchGradeAssignmentQuestionsProvider).distributionId;
+}
+
+String _$distributionAnswersByQuestionHash() =>
+    r'73816ed7d964cc7d3726bc7050bbb6305c22eee9';
+
+/// Track 2 — Câu trả lời của TẤT CẢ học sinh cho 1 câu hỏi trong distribution.
+/// Trả về list map thô từ RPC (answer_id, student_name, answer, ai_score, ...).
+///
+/// Copied from [distributionAnswersByQuestion].
+@ProviderFor(distributionAnswersByQuestion)
+const distributionAnswersByQuestionProvider =
+    DistributionAnswersByQuestionFamily();
+
+/// Track 2 — Câu trả lời của TẤT CẢ học sinh cho 1 câu hỏi trong distribution.
+/// Trả về list map thô từ RPC (answer_id, student_name, answer, ai_score, ...).
+///
+/// Copied from [distributionAnswersByQuestion].
+class DistributionAnswersByQuestionFamily
+    extends Family<AsyncValue<List<Map<String, dynamic>>>> {
+  /// Track 2 — Câu trả lời của TẤT CẢ học sinh cho 1 câu hỏi trong distribution.
+  /// Trả về list map thô từ RPC (answer_id, student_name, answer, ai_score, ...).
+  ///
+  /// Copied from [distributionAnswersByQuestion].
+  const DistributionAnswersByQuestionFamily();
+
+  /// Track 2 — Câu trả lời của TẤT CẢ học sinh cho 1 câu hỏi trong distribution.
+  /// Trả về list map thô từ RPC (answer_id, student_name, answer, ai_score, ...).
+  ///
+  /// Copied from [distributionAnswersByQuestion].
+  DistributionAnswersByQuestionProvider call({
+    required String distributionId,
+    required String assignmentQuestionId,
+  }) {
+    return DistributionAnswersByQuestionProvider(
+      distributionId: distributionId,
+      assignmentQuestionId: assignmentQuestionId,
+    );
+  }
+
+  @override
+  DistributionAnswersByQuestionProvider getProviderOverride(
+    covariant DistributionAnswersByQuestionProvider provider,
+  ) {
+    return call(
+      distributionId: provider.distributionId,
+      assignmentQuestionId: provider.assignmentQuestionId,
+    );
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'distributionAnswersByQuestionProvider';
+}
+
+/// Track 2 — Câu trả lời của TẤT CẢ học sinh cho 1 câu hỏi trong distribution.
+/// Trả về list map thô từ RPC (answer_id, student_name, answer, ai_score, ...).
+///
+/// Copied from [distributionAnswersByQuestion].
+class DistributionAnswersByQuestionProvider
+    extends AutoDisposeFutureProvider<List<Map<String, dynamic>>> {
+  /// Track 2 — Câu trả lời của TẤT CẢ học sinh cho 1 câu hỏi trong distribution.
+  /// Trả về list map thô từ RPC (answer_id, student_name, answer, ai_score, ...).
+  ///
+  /// Copied from [distributionAnswersByQuestion].
+  DistributionAnswersByQuestionProvider({
+    required String distributionId,
+    required String assignmentQuestionId,
+  }) : this._internal(
+         (ref) => distributionAnswersByQuestion(
+           ref as DistributionAnswersByQuestionRef,
+           distributionId: distributionId,
+           assignmentQuestionId: assignmentQuestionId,
+         ),
+         from: distributionAnswersByQuestionProvider,
+         name: r'distributionAnswersByQuestionProvider',
+         debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+             ? null
+             : _$distributionAnswersByQuestionHash,
+         dependencies: DistributionAnswersByQuestionFamily._dependencies,
+         allTransitiveDependencies:
+             DistributionAnswersByQuestionFamily._allTransitiveDependencies,
+         distributionId: distributionId,
+         assignmentQuestionId: assignmentQuestionId,
+       );
+
+  DistributionAnswersByQuestionProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.distributionId,
+    required this.assignmentQuestionId,
+  }) : super.internal();
+
+  final String distributionId;
+  final String assignmentQuestionId;
+
+  @override
+  Override overrideWith(
+    FutureOr<List<Map<String, dynamic>>> Function(
+      DistributionAnswersByQuestionRef provider,
+    )
+    create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: DistributionAnswersByQuestionProvider._internal(
+        (ref) => create(ref as DistributionAnswersByQuestionRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        distributionId: distributionId,
+        assignmentQuestionId: assignmentQuestionId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<List<Map<String, dynamic>>> createElement() {
+    return _DistributionAnswersByQuestionProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is DistributionAnswersByQuestionProvider &&
+        other.distributionId == distributionId &&
+        other.assignmentQuestionId == assignmentQuestionId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, distributionId.hashCode);
+    hash = _SystemHash.combine(hash, assignmentQuestionId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin DistributionAnswersByQuestionRef
+    on AutoDisposeFutureProviderRef<List<Map<String, dynamic>>> {
+  /// The parameter `distributionId` of this provider.
+  String get distributionId;
+
+  /// The parameter `assignmentQuestionId` of this provider.
+  String get assignmentQuestionId;
+}
+
+class _DistributionAnswersByQuestionProviderElement
+    extends AutoDisposeFutureProviderElement<List<Map<String, dynamic>>>
+    with DistributionAnswersByQuestionRef {
+  _DistributionAnswersByQuestionProviderElement(super.provider);
+
+  @override
+  String get distributionId =>
+      (origin as DistributionAnswersByQuestionProvider).distributionId;
+  @override
+  String get assignmentQuestionId =>
+      (origin as DistributionAnswersByQuestionProvider).assignmentQuestionId;
+}
+
 String _$submissionFilterNotifierHash() =>
     r'8425d25bb792f25b2f8006efa2a70a5a37029e28';
 
@@ -829,7 +1157,7 @@ final submissionFilterNotifierProvider =
 
 typedef _$SubmissionFilterNotifier = AutoDisposeNotifier<SubmissionFilter>;
 String _$submissionGradingNotifierHash() =>
-    r'c36f0e89703e3fe797c705faca916698a0ea09f1';
+    r'5dbf9c7a722e7e7c6d8481de73c357ede820fa50';
 
 /// Provider cập nhật điểm và feedback của submission
 ///

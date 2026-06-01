@@ -102,10 +102,10 @@ class ToolsDrawer extends StatelessWidget {
                   // Create Question Section
                   _buildSectionHeader('TẠO CÂU HỎI MỚI', isDark),
                   const SizedBox(height: 12),
-                  GridView.count(
+                  GridView.extent(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
+                    maxCrossAxisExtent: 240,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
                     childAspectRatio: 1.1,

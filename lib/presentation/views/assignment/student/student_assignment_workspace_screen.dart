@@ -9,6 +9,7 @@ import 'package:ai_mls/widgets/loading/shimmer_loading.dart';
 import 'package:ai_mls/widgets/rubric/read_only_rubric_viewer.dart';
 import 'package:ai_mls/widgets/text/math_text.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -509,7 +510,7 @@ class _StudentAssignmentWorkspaceScreenState
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.amber[50],
+                            color: DesignColors.warning.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -517,14 +518,14 @@ class _StudentAssignmentWorkspaceScreenState
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: Colors.amber[700],
+                              color: DesignColors.warning,
                             ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: DesignSpacing.xs),
-                    Text(
+                    MathText(
                       question.content,
                       style: TextStyle(
                         fontSize: 15,
@@ -640,7 +641,7 @@ class _StudentAssignmentWorkspaceScreenState
                 ),
                 const SizedBox(width: DesignSpacing.md),
                 Expanded(
-                  child: Text(
+                  child: MathText(
                     choice.content,
                     style: TextStyle(
                       fontSize: 14,
@@ -1102,7 +1103,9 @@ class _StudentAssignmentWorkspaceScreenState
   }
 
   /// Matching - dropdown chọn cặp tương ứng cho mỗi mục bên trái.
-  /// Student answer format: `{<qId>_match_<leftIdx>: rightIdx}`
+  /// Student answer format: `{<qId>_match_<leftIdx>: <right_text>}`
+  /// (value là CHUỖI right_text đã chọn, KHÔNG phải index — khớp với logic chấm
+  /// _gradeObjectiveQuestion 'matching' so sánh right_text với pairs[i].right_text).
   Widget _buildMatching(QuestionState question, dynamic answer) {
     final pairs = question.pairs ?? const <Map<String, dynamic>>[];
     if (pairs.isEmpty) {
@@ -1187,10 +1190,7 @@ class _StudentAssignmentWorkspaceScreenState
                               .map(
                                 (opt) => DropdownMenuItem<String>(
                                   value: opt,
-                                  child: Text(
-                                    opt,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                  child: MathText(opt),
                                 ),
                               )
                               .toList(),
@@ -1544,21 +1544,11 @@ class _StudentAssignmentWorkspaceScreenState
       if (url != null) {
         onUrl(url);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tải ảnh lên thất bại. Thử lại?'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Tải ảnh lên thất bại. Thử lại?');
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi: $e'),
-          backgroundColor: DesignColors.error,
-        ),
-      );
+      AppToast.error(context, 'Lỗi: $e');
     }
   }
 
@@ -1713,7 +1703,7 @@ class _StudentAssignmentWorkspaceScreenState
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.timer_off, color: Colors.red.shade700),
+          Icon(Icons.timer_off, color: DesignColors.error),
           const SizedBox(width: 8),
           const Text('Hết giờ!'),
         ]),
@@ -1760,7 +1750,7 @@ class _StudentAssignmentWorkspaceScreenState
               const SizedBox(height: DesignSpacing.sm),
               Text(
                 'Còn $unanswered câu chưa trả lời.',
-                style: TextStyle(color: Colors.orange[700]),
+                style: TextStyle(color: DesignColors.warning),
               ),
             ],
             const SizedBox(height: DesignSpacing.md),
@@ -1769,10 +1759,12 @@ class _StudentAssignmentWorkspaceScreenState
         ),
         actions: [
           TextButton(
+            key: const ValueKey('confirm_submit_cancel'),
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Hủy'),
           ),
           ElevatedButton(
+            key: const ValueKey('confirm_submit_ok'),
             onPressed: () => Navigator.of(context).pop(true),
             style: ElevatedButton.styleFrom(
               backgroundColor: DesignColors.primary,
@@ -1794,12 +1786,7 @@ class _StudentAssignmentWorkspaceScreenState
         // Show success screen
         _showSuccessScreen(context, workspace);
       } else if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Nộp bài thất bại. Vui lòng thử lại.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppToast.error(context, 'Nộp bài thất bại. Vui lòng thử lại.');
       }
     }
   }
@@ -1810,10 +1797,11 @@ class _StudentAssignmentWorkspaceScreenState
     final confirmationNumber =
         'NS${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${submissionId.substring(submissionId.length - 6)}';
 
+    final screenContext = context;
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
+      barrierDismissible: true,
+      builder: (dialogContext) => Dialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(DesignRadius.lg),
         ),
@@ -1827,13 +1815,13 @@ class _StudentAssignmentWorkspaceScreenState
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: Colors.green[50],
+                  color: DesignColors.success.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.check_circle,
                   size: 48,
-                  color: Colors.green[600],
+                  color: DesignColors.success,
                 ),
               ),
 
@@ -1936,8 +1924,11 @@ class _StudentAssignmentWorkspaceScreenState
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Navigate back to previous screen in stack
-                    context.pop();
+                    // Đóng dialog (Navigator) TRƯỚC, rồi mới pop màn về danh sách.
+                    // context.pop() (go_router) KHÔNG đóng dialog do showDialog dùng
+                    // Navigator → dialog kẹt lại trên màn list (không tự tắt được).
+                    Navigator.of(dialogContext).pop();
+                    if (screenContext.mounted) screenContext.pop();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: DesignColors.primary,
@@ -2125,10 +2116,14 @@ class _CountdownTimerWidgetState extends State<_CountdownTimerWidget> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: isWarning ? Colors.red.shade50 : Colors.grey.shade100,
+          color: isWarning
+              ? DesignColors.error.withValues(alpha: 0.1)
+              : DesignColors.moonMedium,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isWarning ? Colors.red.shade300 : Colors.grey.shade300,
+            color: isWarning
+                ? DesignColors.error.withValues(alpha: 0.4)
+                : DesignColors.moonMedium,
           ),
         ),
         child: Row(
@@ -2137,7 +2132,7 @@ class _CountdownTimerWidgetState extends State<_CountdownTimerWidget> {
             Icon(
               Icons.timer_outlined,
               size: 14,
-              color: isWarning ? Colors.red.shade700 : Colors.grey.shade600,
+              color: isWarning ? DesignColors.error : DesignColors.textSecondary,
             ),
             const SizedBox(width: 4),
             Text(
@@ -2145,7 +2140,7 @@ class _CountdownTimerWidgetState extends State<_CountdownTimerWidget> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: isWarning ? Colors.red.shade700 : Colors.grey.shade700,
+                color: isWarning ? DesignColors.error : DesignColors.textSecondary,
               ),
             ),
           ],

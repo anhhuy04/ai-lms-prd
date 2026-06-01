@@ -1,6 +1,5 @@
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shimmer/shimmer.dart';
 
 /// Shimmer loading widget cho danh sách lớp học
@@ -13,13 +12,13 @@ class ShimmerLoading extends StatelessWidget {
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 8.h),
+        padding: EdgeInsets.symmetric(vertical: 8.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: List.generate(
             5,
             (index) => Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12.w),
+              padding: EdgeInsets.symmetric(horizontal: 12.0),
               child: const _ClassItemShimmer(),
             ),
           ),
@@ -40,6 +39,7 @@ class ShimmerListTileLoading extends StatelessWidget {
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
       child: ListView.builder(
+        shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         itemCount: itemCount,
@@ -195,25 +195,25 @@ class _ClassItemShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsets.only(bottom: 12.h),
-      padding: EdgeInsets.all(16.w),
+      margin: EdgeInsets.only(bottom: 12.0),
+      padding: EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(DesignRadius.md.r),
+        borderRadius: BorderRadius.circular(DesignRadius.md),
         border: Border.all(color: Colors.grey[300]!, width: 1),
       ),
       child: Row(
         children: [
           // Icon placeholder
           Container(
-            width: 48.w,
-            height: 48.w,
+            width: 48.0,
+            height: 48.0,
             decoration: BoxDecoration(
               color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(8.r),
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
-          SizedBox(width: 12.w),
+          SizedBox(width: 12.0),
           // Text placeholders
           Expanded(
             child: Column(
@@ -221,28 +221,28 @@ class _ClassItemShimmer extends StatelessWidget {
               children: [
                 Container(
                   width: double.infinity,
-                  height: 16.h,
+                  height: 16.0,
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4.r),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                SizedBox(height: 8.h),
+                SizedBox(height: 8.0),
                 Container(
-                  width: 150.w,
-                  height: 12.h,
+                  width: 150.0,
+                  height: 12.0,
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4.r),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                SizedBox(height: 4.h),
+                SizedBox(height: 4.0),
                 Container(
-                  width: 120.w,
-                  height: 12.h,
+                  width: 120.0,
+                  height: 12.0,
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4.r),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               ],
@@ -799,8 +799,8 @@ class ShimmerStudentAnalyticsLoading extends StatelessWidget {
               ),
             ),
             SizedBox(height: DesignSpacing.sm),
-            GridView.count(
-              crossAxisCount: 2,
+            GridView.extent(
+              maxCrossAxisExtent: 240,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               mainAxisSpacing: DesignSpacing.sm,
@@ -1219,8 +1219,8 @@ class ShimmerAssignmentDetailLoading extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Stat Cards 2x2
-            GridView.count(
-              crossAxisCount: 2,
+            GridView.extent(
+              maxCrossAxisExtent: 240,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               mainAxisSpacing: 12,

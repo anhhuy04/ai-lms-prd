@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:image_picker/image_picker.dart';
 
 /// Widget để chọn và hiển thị multiple images cho câu hỏi
@@ -27,12 +28,7 @@ class _QuestionImagePickerState extends State<QuestionImagePicker> {
   Future<void> _pickImage(ImageSource source) async {
     if (widget.images.length >= widget.maxImages) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Tối đa ${widget.maxImages} hình ảnh'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Tối đa ${widget.maxImages} hình ảnh');
       }
       return;
     }
@@ -53,24 +49,13 @@ class _QuestionImagePickerState extends State<QuestionImagePicker> {
           widget.onImagesChanged(newImages);
         } else {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Không tìm thấy file ảnh'),
-                backgroundColor: DesignColors.error,
-              ),
-            );
+            AppToast.error(context, 'Không tìm thấy file ảnh');
           }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi chọn ảnh: ${e.toString()}'),
-            backgroundColor: DesignColors.error,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        AppToast.error(context, 'Lỗi khi chọn ảnh: ${e.toString()}');
       }
     }
   }

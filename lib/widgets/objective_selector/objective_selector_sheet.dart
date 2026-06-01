@@ -4,6 +4,7 @@ import 'package:ai_mls/presentation/providers/auth_providers.dart';
 import 'package:ai_mls/presentation/providers/learning_objective_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 
 /// Bottom sheet để giáo viên chọn Learning Objectives cho câu hỏi.
 ///
@@ -612,12 +613,7 @@ class _CreateObjectiveDialogState extends ConsumerState<_CreateObjectiveDialog> 
       if (mounted) Navigator.of(context).pop(created);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi: ${e.toString().replaceAll('Exception: ', '')}'),
-            backgroundColor: DesignColors.error,
-          ),
-        );
+        AppToast.error(context, 'Lỗi: ${e.toString().replaceAll('Exception: ', '')}');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

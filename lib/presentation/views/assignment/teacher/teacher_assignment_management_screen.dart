@@ -7,6 +7,7 @@ import 'package:ai_mls/presentation/providers/assignment_providers.dart';
 import 'package:ai_mls/presentation/providers/auth_notifier.dart';
 import 'package:ai_mls/presentation/providers/teacher_assignment_hub_notifier.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -157,10 +158,7 @@ class _TeacherAssignmentManagementScreenState
     } catch (e) {
       if (!mounted) return;
       AppLogger.error('[ManagementScreen] deepCloneAssignment error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Lỗi khi nhân bản: $e'),
-        backgroundColor: DesignColors.error,
-      ));
+      AppToast.error(context, 'Lỗi khi nhân bản: $e');
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:ai_mls/core/constants/design_tokens.dart';
 import 'package:ai_mls/core/routes/route_constants.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
@@ -6,8 +8,62 @@ import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/grade_audit_trail.dart';
 import 'package:ai_mls/presentation/views/assignment/teacher/widgets/submission/grading_action_buttons.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/text/math_text.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+/// Ngưỡng (logical px) để chuyển từ xếp dọc sang bố trí side-by-side hai panel.
+/// Cố ý dùng số 900 (không có token DesignBreakpoints tương ứng); 768 quá hẹp
+/// cho hai cột, 1024 thì bỏ lỡ tablet ngang phổ biến.
+const double kSubmissionDetailSideBySideBreakpoint = 900.0;
+
+/// Bố trí responsive cho phần thân câu hỏi: question panel + grading panel.
+///
+/// - `availableWidth >= 900`: hai panel nằm cạnh nhau trong [Row]
+///   (question trái, grading phải) — Row mang `ValueKey('side_by_side_<index>')`.
+/// - `availableWidth < 900`: xếp dọc EXACTLY như layout cũ
+///   (question panel, SizedBox(height: 16), grading panel).
+///
+/// Hàm top-level + public để widget test gọi trực tiếp với width giả lập, không
+/// cần mock provider. Mỗi panel được bọc [KeyedSubtree] với ValueKey ổn định.
+Widget buildResponsiveQuestionBody({
+  required Widget questionPanel,
+  required Widget gradingPanel,
+  required int index,
+  required double availableWidth,
+}) {
+  final keyedQuestion = KeyedSubtree(
+    key: ValueKey('question_panel_$index'),
+    child: questionPanel,
+  );
+  final keyedGrading = KeyedSubtree(
+    key: ValueKey('grading_panel_$index'),
+    child: gradingPanel,
+  );
+
+  if (availableWidth >= kSubmissionDetailSideBySideBreakpoint) {
+    return Row(
+      key: ValueKey('side_by_side_$index'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 1, child: keyedQuestion),
+        const SizedBox(width: DesignSpacing.lg),
+        Expanded(flex: 1, child: keyedGrading),
+      ],
+    );
+  }
+
+  // Màn hẹp: xếp dọc, giữ nguyên khoảng cách 16px giữa hai panel (như cũ).
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      keyedQuestion,
+      const SizedBox(height: 16),
+      keyedGrading,
+    ],
+  );
+}
 
 /// Teacher Submission Detail Screen - Hiển thị tất cả câu hỏi trong list (giống HTML mẫu)
 class TeacherSubmissionDetailScreen extends ConsumerStatefulWidget {
@@ -37,6 +93,12 @@ class _TeacherSubmissionDetailScreenState
     final detailAsync = ref.watch(teacherSubmissionDetailProvider(
       submissionId: widget.submissionId,
     ));
+
+    // Bug H fix: chỉ cho "Chấm lại bằng AI" khi bài bật AI tự chấm tự luận.
+    // Bài chấm tay (ai_grade_essay != true) không có hàng đợi AI → nút sẽ no-op + toast giả.
+    final canRescan = ((detailAsync.valueOrNull?.assignmentDistributions?['settings'])
+            as Map?)?['ai_grade_essay'] ==
+        true;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -79,15 +141,38 @@ class _TeacherSubmissionDetailScreenState
           error: (_, __) => const Text('Lỗi'),
         ),
         actions: [
+          if (canRescan)
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
               color: DesignColors.dividerLight,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: IconButton(
+            child: PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: DesignColors.textSecondary, size: 20),
-              onPressed: () {},
+              onSelected: (value) {
+                if (value == 'rescan') {
+                  final sessionId =
+                      detailAsync.valueOrNull?.workSessions?['id'] as String?;
+                  if (sessionId != null) {
+                    _rescanAiScoring(sessionId);
+                  } else {
+                    AppToast.error(context, 'Không tìm thấy phiên làm bài');
+                  }
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem<String>(
+                  value: 'rescan',
+                  child: Row(
+                    children: [
+                      Icon(Icons.refresh, size: 18, color: DesignColors.primary),
+                      SizedBox(width: 8),
+                      Text('Chấm lại bằng AI'),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -390,7 +475,7 @@ class _TeacherSubmissionDetailScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Question type + Score
+          // Header: Question type + Score (LUÔN full-width, không tách panel)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,52 +535,99 @@ class _TeacherSubmissionDetailScreenState
           ),
           const SizedBox(height: 16),
 
-          // Question content
-          Text(
-            _getQuestionContent(question),
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: DesignColors.textPrimary,
-              height: 1.5,
+          // Question panel (câu hỏi + bài làm) và grading panel (AI feedback + chấm)
+          // được bố trí side-by-side ở màn rộng (>=900px), xếp dọc ở màn hẹp.
+          LayoutBuilder(
+            builder: (context, constraints) => buildResponsiveQuestionBody(
+              index: index,
+              availableWidth: constraints.maxWidth,
+              questionPanel: _buildQuestionPanel(answer, question, isMultipleChoice),
+              gradingPanel: _buildGradingPanel(
+                answer,
+                index,
+                maxScore,
+                isMultipleChoice,
+                aiScore,
+                aiEnabled: aiEnabled,
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Student Answer Box
-          _buildStudentAnswerBox(answer, question, isMultipleChoice),
-          const SizedBox(height: 16),
-
-          // AI Feedback Box
-          _buildAiFeedbackBox(answer, maxScore, isMultipleChoice, aiEnabled: aiEnabled),
-          const SizedBox(height: 16),
-
-          // AI Confidence Indicator
-          if (aiScore != null)
-            AiConfidenceIndicator(
-              confidence: (answer['ai_confidence'] as num?)?.toDouble(),
-            ),
-          const SizedBox(height: 16),
-
-          // Comment Section
-          _buildCommentSection(answer, index),
-          const SizedBox(height: DesignSpacing.md),
-
-          // Grading Action Buttons - chỉ hiện cho tự luận (essay)
-          // Trắc nghiệm auto-graded, không cần override thủ công
-          if (!isMultipleChoice && (aiScore != null || finalScore != null))
-            GradingActionButtons(
-              answer: answer,
-              onApprove: () => _approveScore(answer['id'] as String),
-              onOverride: (score, reason) => _overrideScore(answer['id'] as String, score, reason),
-            ),
-          const SizedBox(height: DesignSpacing.md),
-
-          // Grade Audit Trail - chỉ hiện cho tự luận
-          if (!isMultipleChoice)
-            _buildGradeAuditTrail(answer['id'] as String),
         ],
       ),
+    );
+  }
+
+  /// Question panel: nội dung câu hỏi + ô bài làm của học sinh.
+  /// Tách ra từ _buildQuestionCard để bố trí responsive — giữ NGUYÊN output.
+  Widget _buildQuestionPanel(
+    Map<String, dynamic> answer,
+    Map<String, dynamic>? question,
+    bool isMultipleChoice,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Question content
+        MathText(
+          _getQuestionContent(question),
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: DesignColors.textPrimary,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Student Answer Box
+        _buildStudentAnswerBox(answer, question, isMultipleChoice),
+      ],
+    );
+  }
+
+  /// Grading panel: AI feedback + độ tin cậy + nhận xét + nút chấm + audit trail.
+  /// Tách ra từ _buildQuestionCard để bố trí responsive — giữ NGUYÊN output.
+  Widget _buildGradingPanel(
+    Map<String, dynamic> answer,
+    int index,
+    int maxScore,
+    bool isMultipleChoice,
+    double? aiScore, {
+    required bool aiEnabled,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // AI Feedback Box
+        _buildAiFeedbackBox(answer, maxScore, isMultipleChoice, aiEnabled: aiEnabled),
+        const SizedBox(height: 16),
+
+        // AI Confidence Indicator
+        if (aiScore != null)
+          AiConfidenceIndicator(
+            confidence: (answer['ai_confidence'] as num?)?.toDouble(),
+          ),
+        const SizedBox(height: 16),
+
+        // Comment Section
+        _buildCommentSection(answer, index),
+        const SizedBox(height: DesignSpacing.md),
+
+        // Grading Action Buttons - hiện cho MỌI câu tự luận (essay/short_answer...).
+        // Trắc nghiệm auto-graded nên không cần. Hiện kể cả khi chưa có ai_score/final_score
+        // để GV CHẤM TAY (chế độ mặc định AI tắt) — nếu không sẽ không có ô nhập điểm.
+        if (!isMultipleChoice)
+          GradingActionButtons(
+            answer: answer,
+            onApprove: () => _approveScore(answer['id'] as String),
+            onOverride: (score, reason) => _overrideScore(answer['id'] as String, score, reason),
+          ),
+        const SizedBox(height: DesignSpacing.md),
+
+        // Grade Audit Trail - chỉ hiện cho tự luận
+        if (!isMultipleChoice)
+          _buildGradeAuditTrail(answer['id'] as String),
+      ],
     );
   }
 
@@ -662,7 +794,7 @@ class _TeacherSubmissionDetailScreenState
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          MathText(
             answerText,
             style: const TextStyle(
               fontSize: 14,
@@ -765,7 +897,7 @@ class _TeacherSubmissionDetailScreenState
               const SizedBox(width: 12),
               // Option text
               Expanded(
-                child: Text(
+                child: MathText(
                   choiceText,
                   style: TextStyle(
                     fontSize: 14,
@@ -1083,6 +1215,48 @@ class _TeacherSubmissionDetailScreenState
                 ),
               ),
             ],
+
+            // Strengths (tự luận) - điểm tốt trong bài làm
+            if ((feedbackMap['strengths'] as String? ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.thumb_up_outlined, size: 13, color: DesignColors.success),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      feedbackMap['strengths'] as String,
+                      style: const TextStyle(fontSize: 12, color: DesignColors.success, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            // Improvements (tự luận) - cần cải thiện
+            if ((feedbackMap['improvements'] as String? ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.trending_up, size: 13, color: DesignColors.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      feedbackMap['improvements'] as String,
+                      style: const TextStyle(fontSize: 12, color: DesignColors.primary, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            // Tiêu chí chấm (rubric) - chỉ hiện khi có danh sách criteria
+            ..._buildCriteriaSection(feedbackMap),
+
+            // Lý do chấm (rationale/reasoning) - chỉ hiện khi có chuỗi
+            ..._buildRationaleSection(feedbackMap),
           ]
 
           // ── Fallback: format cũ (String hoặc Map['text']) ───────────────────
@@ -1107,6 +1281,163 @@ class _TeacherSubmissionDetailScreenState
         ],
       ),
     );
+  }
+
+  /// Phân tích an toàn `criteria` từ ai_feedback.
+  /// Có thể là: List sẵn, chuỗi JSON-encoded, hoặc vắng mặt → trả [] khi không hợp lệ.
+  List<Map<String, dynamic>> _parseCriteria(Map<String, dynamic> feedbackMap) {
+    final raw = feedbackMap['criteria'];
+    dynamic decoded = raw;
+
+    // Trường hợp chuỗi JSON: thử decode, nuốt lỗi.
+    if (raw is String) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) return const [];
+      try {
+        decoded = jsonDecode(trimmed);
+      } catch (_) {
+        return const [];
+      }
+    }
+
+    if (decoded is! List) return const [];
+
+    final result = <Map<String, dynamic>>[];
+    for (final item in decoded) {
+      if (item is Map) {
+        result.add(Map<String, dynamic>.from(item));
+      }
+    }
+    return result;
+  }
+
+  /// Tiêu chí chấm (rubric). Mỗi item dung sai key: name/criterion, score/points,
+  /// comment/note. Ẩn hoàn toàn khi không có tiêu chí hợp lệ.
+  List<Widget> _buildCriteriaSection(Map<String, dynamic> feedbackMap) {
+    final criteria = _parseCriteria(feedbackMap);
+    if (criteria.isEmpty) return const [];
+
+    return [
+      const SizedBox(height: 10),
+      const Row(
+        children: [
+          Icon(Icons.fact_check_outlined, size: 13, color: DesignColors.primary),
+          SizedBox(width: 6),
+          Text(
+            'Tiêu chí chấm',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: DesignColors.primary,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 6),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: DesignColors.primary.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: DesignColors.primary.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < criteria.length; i++) ...[
+              if (i > 0) const Divider(height: 12, color: DesignColors.dividerLight),
+              _buildCriterionRow(criteria[i]),
+            ],
+          ],
+        ),
+      ),
+    ];
+  }
+
+  /// Một dòng tiêu chí: tên + điểm + nhận xét.
+  Widget _buildCriterionRow(Map<String, dynamic> item) {
+    final name = (item['name'] ?? item['criterion'])?.toString() ?? '';
+    final scoreVal = _toDouble(item['score'] ?? item['points']);
+    final comment = (item['comment'] ?? item['note'])?.toString() ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: MathText(
+                name.isNotEmpty ? name : 'Tiêu chí',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: DesignColors.textPrimary,
+                  height: 1.4,
+                ),
+              ),
+            ),
+            if (scoreVal != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                _formatScore(scoreVal),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: DesignColors.primary,
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (comment.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          MathText(
+            comment,
+            style: const TextStyle(
+              fontSize: 11,
+              color: DesignColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Lý do chấm (rationale/reasoning). Dung sai: chuỗi, hoặc vắng → ẩn.
+  List<Widget> _buildRationaleSection(Map<String, dynamic> feedbackMap) {
+    final raw = feedbackMap['rationale'] ?? feedbackMap['reasoning'];
+    final rationale = raw is String ? raw.trim() : (raw?.toString().trim() ?? '');
+    if (rationale.isEmpty) return const [];
+
+    return [
+      const SizedBox(height: 10),
+      const Row(
+        children: [
+          Icon(Icons.notes_outlined, size: 13, color: DesignColors.textSecondary),
+          SizedBox(width: 6),
+          Text(
+            'Lý do chấm',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: DesignColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 4),
+      MathText(
+        rationale,
+        style: const TextStyle(
+          fontSize: 12,
+          color: DesignColors.textPrimary,
+          height: 1.5,
+        ),
+      ),
+    ];
   }
 
   /// MCQ Error Explanation
@@ -1378,15 +1709,37 @@ class _TeacherSubmissionDetailScreenState
           .approveAiScore(answerId);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã duyệt điểm AI')),
-        );
+        AppToast.info(context, 'Đã duyệt điểm AI');
         ref.invalidate(teacherSubmissionDetailProvider(
           submissionId: widget.submissionId,
         ));
       }
     } catch (e) {
       AppLogger.error('Error approving score: $e');
+    }
+  }
+
+  /// Phase 3 — Van an toàn: yêu cầu AI chấm lại session (khi webhook lỡ / AI lỗi).
+  Future<void> _rescanAiScoring(String sessionId) async {
+    try {
+      AppToast.info(context, 'Đang gửi yêu cầu AI chấm lại...');
+      await ref
+          .read(submissionGradingNotifierProvider.notifier)
+          .rescanAiScoring(sessionId, distributionId: widget.distributionId);
+      if (!mounted) return;
+      AppToast.success(
+        context,
+        'Đã kích hoạt AI chấm lại. Làm mới sau giây lát để xem điểm.',
+      );
+      // AI chấm bất đồng bộ → chờ ngắn rồi refresh để thấy điểm mới.
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      ref.invalidate(
+        teacherSubmissionDetailProvider(submissionId: widget.submissionId),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.error(context, 'Chấm lại thất bại: $e');
     }
   }
 
@@ -1400,9 +1753,7 @@ class _TeacherSubmissionDetailScreenState
           );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đã cập nhật điểm: $newScore')),
-        );
+        AppToast.info(context, 'Đã cập nhật điểm: $newScore');
         // Refresh submission detail để cập nhật điểm mới
         ref.invalidate(teacherSubmissionDetailProvider(
           submissionId: widget.submissionId,
@@ -1446,17 +1797,13 @@ class _TeacherSubmissionDetailScreenState
             );
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xuất bản điểm')),
-          );
+          AppToast.info(context, 'Đã xuất bản điểm');
           context.pop();
         }
       } catch (e) {
         AppLogger.error('Error publishing grades: $e');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi xuất bản điểm: $e')),
-          );
+          AppToast.info(context, 'Lỗi xuất bản điểm: $e');
         }
       }
     }
@@ -1471,9 +1818,7 @@ class _TeacherSubmissionDetailScreenState
 
       if (mounted) {
         AppLogger.info('Auto-published grades for 100% objective assignment');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã tự động xuất bản điểm (bài trắc nghiệm)')),
-        );
+        AppToast.info(context, 'Đã tự động xuất bản điểm (bài trắc nghiệm)');
         ref.invalidate(teacherSubmissionDetailProvider(
           submissionId: widget.submissionId,
         ));
@@ -1481,9 +1826,7 @@ class _TeacherSubmissionDetailScreenState
     } catch (e) {
       AppLogger.error('Error auto publishing grades: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi xuất bản: $e')),
-        );
+        AppToast.info(context, 'Lỗi xuất bản: $e');
       }
     }
   }

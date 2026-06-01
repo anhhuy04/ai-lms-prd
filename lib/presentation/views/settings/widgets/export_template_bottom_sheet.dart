@@ -6,6 +6,7 @@ import 'package:ai_mls/core/utils/excel_template_generator.dart';
 import 'package:ai_mls/core/utils/file_exporter.dart';
 import 'package:ai_mls/core/utils/word_template_generator.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_mls/widgets/toast/app_toast.dart';
 
 // ── Format enum ───────────────────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? DesignColors.textPrimary : DesignColors.white;
-    final maxH = MediaQuery.of(context).size.height * 0.9;
+    final maxH = (MediaQuery.of(context).size.height * 0.9).clamp(0.0, 700.0);
 
     return Container(
       constraints: BoxConstraints(maxHeight: maxH),
@@ -305,8 +306,8 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
   }
 
   Widget _buildTypeSelector(bool isDark) {
-    return GridView.count(
-      crossAxisCount: 2,
+    return GridView.extent(
+      maxCrossAxisExtent: 240,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: DesignSpacing.sm,
@@ -601,9 +602,7 @@ class _ExportTemplateBottomSheetState extends State<ExportTemplateBottomSheet> {
     } catch (e, st) {
       AppLogger.error('[ExportTemplate] LỖI', error: e, stackTrace: st);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi tạo file: $e'), backgroundColor: DesignColors.error),
-      );
+      AppToast.error(context, 'Lỗi tạo file: $e');
     } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
