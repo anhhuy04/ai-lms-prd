@@ -564,11 +564,21 @@ async function handleScore(supabase: any, item: AiQueueItem): Promise<string | n
 
   // 6) Teacher API key + cờ ai_require_review
   const cfg = await resolveTeacherAiConfig(supabase, ctx.session_id as string);
+
+  // Model CHẤM ĐIỂM: mặc định nâng lên model mạnh hơn theo provider. Chấm tự luận cần suy luận
+  //   tốt; model nhỏ (vd llama-3.1-8b) nhiễu ở rubric nhiều mức — lúc over- lúc under-credit
+  //   (đã kiểm chứng: 8b cho 2.0 ở bài thiếu ý, 70b cho 1.0 đúng). Feedback MCQ (handleFeedback)
+  //   vẫn dùng model GV chọn. Provider không có trong map → giữ nguyên model GV.
+  const STRONG_GRADING_MODEL: Record<string, string> = {
+    groq: "llama-3.3-70b-versatile",
+  };
+  const gradingModel = STRONG_GRADING_MODEL[cfg.provider] ?? cfg.model;
+
   if (!cfg.apiKey) {
     console.warn(`[AI] No API key for score — session ${ctx.session_id}`);
     await supabase.from("submission_answers").update({
       ai_feedback: {
-        status: "no_api_key", provider: cfg.provider, model: cfg.model,
+        status: "no_api_key", provider: cfg.provider, model: gradingModel,
         summary: "Giáo viên chưa cấu hình API key cho AI chấm điểm.",
         explanation: "", strengths: "", improvements: "",
       },
@@ -579,7 +589,7 @@ async function handleScore(supabase: any, item: AiQueueItem): Promise<string | n
   // 7) Bài làm rỗng → 0 điểm, không cần gọi AI
   if (!studentText) {
     await writeScore(supabase, item.submission_answer_id, ctx.session_id as string, {
-      status: "completed", provider: cfg.provider, model: cfg.model,
+      status: "completed", provider: cfg.provider, model: gradingModel,
       score: 0, confidence: 1,
       summary: "Học sinh không trả lời câu này.",
       explanation: "", strengths: "", improvements: "Cần trả lời câu hỏi.",
@@ -643,8 +653,8 @@ Trả về JSON (không markdown, không chữ thừa):
   "criteria": [ { "name": "Nội dung chung", "score": <0..${maxPoints}>, "max": ${maxPoints}, "comment": "<nhận xét>" } ]
 }`;
 
-  const raw    = await callAiApi(cfg.provider, cfg.model, cfg.apiKey, prompt, true);
-  const parsed = parseAiScoreJson(raw, maxPoints, cfg.provider, cfg.model);
+  const raw    = await callAiApi(cfg.provider, gradingModel, cfg.apiKey, prompt, true);
+  const parsed = parseAiScoreJson(raw, maxPoints, cfg.provider, gradingModel);
   parsed.raw   = raw.slice(0, 500);
 
   await writeScore(supabase, item.submission_answer_id, ctx.session_id as string, parsed, maxPoints, cfg.requireReview);
