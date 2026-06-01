@@ -79,6 +79,9 @@ class WorstOffender with _$WorstOffender {
 class SubjectDistribution with _$SubjectDistribution {
   const factory SubjectDistribution({
     required String subjectName,
+    /// ID đợt giao (distribution) của môn/bài này — dùng để mở bài làm của HS
+    /// khi bấm vào ô heatmap. Mỗi hàng heatmap = 1 distribution.
+    @Default('') @JsonKey(name: 'distribution_id') String distributionId,
     @Default(0) int below50Count,
     @Default(0) int below60Count,
     @Default(0) int below80Count,

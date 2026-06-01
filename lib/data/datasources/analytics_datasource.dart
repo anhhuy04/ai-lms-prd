@@ -767,6 +767,7 @@ class AnalyticsDatasource {
 
       return SubjectDistribution(
         subjectName: info.title,
+        distributionId: entry.key,
         below50Count: buckets['0-4']!,
         below60Count: buckets['4-6']!,
         below80Count: buckets['6-8']!,
@@ -809,6 +810,27 @@ class AnalyticsDatasource {
         .eq('id', studentId)
         .maybeSingle();
     return (result?['full_name'] ?? 'Học sinh') as String;
+  }
+
+  /// Lấy submission_id MỚI NHẤT (không bị void) của 1 HS trong 1 đợt giao —
+  /// để mở màn chấm bài làm khi GV bấm HS trong heatmap phân tích.
+  /// Trả null nếu không tìm thấy. Ưu tiên bản chưa void; nếu chỉ có bản void thì lấy mới nhất.
+  Future<String?> getSubmissionIdForStudent({
+    required String distributionId,
+    required String studentId,
+  }) async {
+    final res = await _client
+        .from('submissions')
+        .select('id, is_voided, created_at')
+        .eq('assignment_distribution_id', distributionId)
+        .eq('student_id', studentId)
+        .order('created_at', ascending: false);
+
+    final rows = List<Map<String, dynamic>>.from(res as List);
+    if (rows.isEmpty) return null;
+    final notVoided = rows.where((r) => r['is_voided'] != true).toList();
+    final pick = notVoided.isNotEmpty ? notVoided.first : rows.first;
+    return pick['id'] as String?;
   }
 
   /// Get class comparison for a student.

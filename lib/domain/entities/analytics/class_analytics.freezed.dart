@@ -1293,6 +1293,11 @@ SubjectDistribution _$SubjectDistributionFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$SubjectDistribution {
   String get subjectName => throw _privateConstructorUsedError;
+
+  /// ID đợt giao (distribution) của môn/bài này — dùng để mở bài làm của HS
+  /// khi bấm vào ô heatmap. Mỗi hàng heatmap = 1 distribution.
+  @JsonKey(name: 'distribution_id')
+  String get distributionId => throw _privateConstructorUsedError;
   int get below50Count => throw _privateConstructorUsedError;
   int get below60Count => throw _privateConstructorUsedError;
   int get below80Count => throw _privateConstructorUsedError;
@@ -1325,6 +1330,7 @@ abstract class $SubjectDistributionCopyWith<$Res> {
   @useResult
   $Res call({
     String subjectName,
+    @JsonKey(name: 'distribution_id') String distributionId,
     int below50Count,
     int below60Count,
     int below80Count,
@@ -1352,6 +1358,7 @@ class _$SubjectDistributionCopyWithImpl<$Res, $Val extends SubjectDistribution>
   @override
   $Res call({
     Object? subjectName = null,
+    Object? distributionId = null,
     Object? below50Count = null,
     Object? below60Count = null,
     Object? below80Count = null,
@@ -1366,6 +1373,10 @@ class _$SubjectDistributionCopyWithImpl<$Res, $Val extends SubjectDistribution>
             subjectName: null == subjectName
                 ? _value.subjectName
                 : subjectName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            distributionId: null == distributionId
+                ? _value.distributionId
+                : distributionId // ignore: cast_nullable_to_non_nullable
                       as String,
             below50Count: null == below50Count
                 ? _value.below50Count
@@ -1416,6 +1427,7 @@ abstract class _$$SubjectDistributionImplCopyWith<$Res>
   @useResult
   $Res call({
     String subjectName,
+    @JsonKey(name: 'distribution_id') String distributionId,
     int below50Count,
     int below60Count,
     int below80Count,
@@ -1442,6 +1454,7 @@ class __$$SubjectDistributionImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? subjectName = null,
+    Object? distributionId = null,
     Object? below50Count = null,
     Object? below60Count = null,
     Object? below80Count = null,
@@ -1456,6 +1469,10 @@ class __$$SubjectDistributionImplCopyWithImpl<$Res>
         subjectName: null == subjectName
             ? _value.subjectName
             : subjectName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        distributionId: null == distributionId
+            ? _value.distributionId
+            : distributionId // ignore: cast_nullable_to_non_nullable
                   as String,
         below50Count: null == below50Count
             ? _value.below50Count
@@ -1499,6 +1516,7 @@ class __$$SubjectDistributionImplCopyWithImpl<$Res>
 class _$SubjectDistributionImpl implements _SubjectDistribution {
   const _$SubjectDistributionImpl({
     required this.subjectName,
+    @JsonKey(name: 'distribution_id') this.distributionId = '',
     this.below50Count = 0,
     this.below60Count = 0,
     this.below80Count = 0,
@@ -1517,6 +1535,12 @@ class _$SubjectDistributionImpl implements _SubjectDistribution {
 
   @override
   final String subjectName;
+
+  /// ID đợt giao (distribution) của môn/bài này — dùng để mở bài làm của HS
+  /// khi bấm vào ô heatmap. Mỗi hàng heatmap = 1 distribution.
+  @override
+  @JsonKey(name: 'distribution_id')
+  final String distributionId;
   @override
   @JsonKey()
   final int below50Count;
@@ -1567,7 +1591,7 @@ class _$SubjectDistributionImpl implements _SubjectDistribution {
 
   @override
   String toString() {
-    return 'SubjectDistribution(subjectName: $subjectName, below50Count: $below50Count, below60Count: $below60Count, below80Count: $below80Count, above80Count: $above80Count, below50Students: $below50Students, below60Students: $below60Students, below80Students: $below80Students, above80Students: $above80Students)';
+    return 'SubjectDistribution(subjectName: $subjectName, distributionId: $distributionId, below50Count: $below50Count, below60Count: $below60Count, below80Count: $below80Count, above80Count: $above80Count, below50Students: $below50Students, below60Students: $below60Students, below80Students: $below80Students, above80Students: $above80Students)';
   }
 
   @override
@@ -1577,6 +1601,8 @@ class _$SubjectDistributionImpl implements _SubjectDistribution {
             other is _$SubjectDistributionImpl &&
             (identical(other.subjectName, subjectName) ||
                 other.subjectName == subjectName) &&
+            (identical(other.distributionId, distributionId) ||
+                other.distributionId == distributionId) &&
             (identical(other.below50Count, below50Count) ||
                 other.below50Count == below50Count) &&
             (identical(other.below60Count, below60Count) ||
@@ -1608,6 +1634,7 @@ class _$SubjectDistributionImpl implements _SubjectDistribution {
   int get hashCode => Object.hash(
     runtimeType,
     subjectName,
+    distributionId,
     below50Count,
     below60Count,
     below80Count,
@@ -1638,6 +1665,7 @@ class _$SubjectDistributionImpl implements _SubjectDistribution {
 abstract class _SubjectDistribution implements SubjectDistribution {
   const factory _SubjectDistribution({
     required final String subjectName,
+    @JsonKey(name: 'distribution_id') final String distributionId,
     final int below50Count,
     final int below60Count,
     final int below80Count,
@@ -1653,6 +1681,12 @@ abstract class _SubjectDistribution implements SubjectDistribution {
 
   @override
   String get subjectName;
+
+  /// ID đợt giao (distribution) của môn/bài này — dùng để mở bài làm của HS
+  /// khi bấm vào ô heatmap. Mỗi hàng heatmap = 1 distribution.
+  @override
+  @JsonKey(name: 'distribution_id')
+  String get distributionId;
   @override
   int get below50Count;
   @override

@@ -121,6 +121,7 @@ _$SubjectDistributionImpl _$$SubjectDistributionImplFromJson(
   Map<String, dynamic> json,
 ) => _$SubjectDistributionImpl(
   subjectName: json['subjectName'] as String,
+  distributionId: json['distribution_id'] as String? ?? '',
   below50Count: (json['below50Count'] as num?)?.toInt() ?? 0,
   below60Count: (json['below60Count'] as num?)?.toInt() ?? 0,
   below80Count: (json['below80Count'] as num?)?.toInt() ?? 0,
@@ -151,6 +152,7 @@ Map<String, dynamic> _$$SubjectDistributionImplToJson(
   _$SubjectDistributionImpl instance,
 ) => <String, dynamic>{
   'subjectName': instance.subjectName,
+  'distribution_id': instance.distributionId,
   'below50Count': instance.below50Count,
   'below60Count': instance.below60Count,
   'below80Count': instance.below80Count,
