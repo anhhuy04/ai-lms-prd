@@ -506,7 +506,7 @@ async function handleScore(supabase: any, item: AiQueueItem): Promise<string | n
     .select(`
       id, answer, ai_score, session_id,
       assignment_questions!inner (
-        points, custom_content, question_id,
+        points, custom_content, question_id, rubric,
         questions!left ( content, answer, type )
       )
     `)
@@ -587,17 +587,37 @@ async function handleScore(supabase: any, item: AiQueueItem): Promise<string | n
     return ctx.session_id as string;
   }
 
-  // 8) Prompt Chain-of-Thought — nhúng maxPoints làm HARD CAP
+  // 8) Prompt chấm công bằng — nạp rubric (tiêu chí GV thiết lập) + đáp án mẫu + từ khoá.
+  //    Hard cap maxPoints vẫn được parseAiScoreJson clamp lại.
   const kwLines = keywords.length
     ? keywords.map((k) => `- "${k.keyword ?? ""}" (trọng số ${k.weight ?? 0})`).join("\n")
     : "(không có từ khoá)";
-  const prompt = `Bạn là giáo viên chấm bài tự luận. Chấm câu trả lời của học sinh theo thang điểm CỨNG và trả về JSON.
 
-THANG ĐIỂM TỐI ĐA: ${maxPoints} điểm. TUYỆT ĐỐI không cho quá ${maxPoints}.
+  // Rubric do GV thiết lập (cột assignment_questions.rubric). Trước đây KHÔNG được tiêu thụ →
+  //   AI mất mốc chuẩn, sinh thói chấm chặt. Nay nhúng đầy đủ tiêu chí + mức điểm vào prompt.
+  type RubricLevel = { points?: number; description?: string };
+  type RubricCriterion = { name?: string; max_points?: number; levels?: RubricLevel[] };
+  const rubric = (aq.rubric as { criteria?: RubricCriterion[] } | null) ?? null;
+  const rubricBlock = (rubric?.criteria?.length ?? 0) > 0
+    ? `TIÊU CHÍ CHẤM (RUBRIC do giáo viên thiết lập — chấm BÁM SÁT theo đây):\n${
+        rubric!.criteria!.map((c) => {
+          const levels = (c.levels ?? [])
+            .map((l) => `    • ${l.points ?? 0}đ: ${l.description ?? ""}`)
+            .join("\n");
+          return `- ${c.name ?? "Tiêu chí"} (tối đa ${c.max_points ?? maxPoints}đ):\n${levels}`;
+        }).join("\n")
+      }`
+    : "TIÊU CHÍ CHẤM: (giáo viên chưa thiết lập rubric — chấm theo đáp án mẫu/độ chính xác và đầy đủ).";
+
+  const prompt = `Bạn là giáo viên chấm bài tự luận CÔNG BẰNG và nhất quán. Chấm câu trả lời của học sinh và trả về JSON.
+
+THANG ĐIỂM: 0..${maxPoints} điểm (không vượt quá ${maxPoints}).
 
 CÂU HỎI: ${questionText}
 
-ĐÁP ÁN MẪU: ${expectedAnswer || "(không có đáp án mẫu — chấm theo độ chính xác và đầy đủ của bài làm)"}
+${rubricBlock}
+
+ĐÁP ÁN MẪU: ${expectedAnswer || "(không có đáp án mẫu cố định — bám theo rubric/độ chính xác và đầy đủ)"}
 
 TỪ KHOÁ TRỌNG TÂM (có trọng số):
 ${kwLines}
@@ -605,15 +625,21 @@ ${kwLines}
 BÀI LÀM CỦA HỌC SINH:
 ${studentText}
 
-Suy nghĩ theo các bước: (1) so khớp bài làm với đáp án mẫu; (2) đối chiếu từng từ khoá trọng tâm; (3) quyết định điểm trong khoảng 0..${maxPoints}.
+NGUYÊN TẮC CHẤM (BẮT BUỘC tuân thủ):
+1. Nếu bài làm ĐÁP ỨNG ĐẦY ĐỦ yêu cầu của rubric/đáp án mẫu thì PHẢI cho điểm TỐI ĐA ${maxPoints}. KHÔNG được trừ điểm chỉ vì "có thể chi tiết/hay hơn".
+2. CHỈ trừ điểm khi chỉ ra được THIẾU SÓT CỤ THỂ: ý sai, hoặc thiếu một ý BẮT BUỘC theo rubric. Mỗi lần trừ điểm phải nêu rõ thiếu ý gì trong "improvements".
+3. Ý mở rộng/nâng cao NẰM NGOÀI rubric thì KHÔNG dùng để trừ điểm (chỉ ghi như gợi ý tùy chọn).
+4. Điểm số PHẢI nhất quán với nhận xét: nếu kết luận "chính xác và đầy đủ" thì điểm = ${maxPoints}; nếu cho điểm < ${maxPoints} thì "improvements" PHẢI nêu được lỗi/ý thiếu cụ thể.
+
+Suy nghĩ theo các bước: (1) đối chiếu bài làm với từng tiêu chí rubric/đáp án mẫu; (2) liệt kê ý ĐẠT và ý BẮT BUỘC còn THIẾU (nếu có); (3) quyết định điểm — đủ ý bắt buộc → ${maxPoints}; chỉ trừ theo ý thiếu cụ thể.
 Trả về JSON (không markdown, không chữ thừa):
 {
   "score": <số điểm 0..${maxPoints}>,
   "confidence": <độ tin cậy 0..1>,
-  "summary": "<1 câu kết luận điểm và lý do cốt lõi>",
-  "explanation": "<2-3 câu giải thích vì sao điểm đó, đối chiếu đáp án mẫu/từ khoá>",
+  "summary": "<1 câu kết luận điểm và lý do cốt lõi, nhất quán với điểm>",
+  "explanation": "<2-3 câu giải thích vì sao điểm đó, đối chiếu rubric/đáp án mẫu>",
   "strengths": "<điểm tốt trong bài làm>",
-  "improvements": "<điều cần cải thiện>",
+  "improvements": "<nếu điểm < tối đa: nêu RÕ ý bắt buộc còn thiếu; nếu đạt tối đa: gợi ý mở rộng tùy chọn hoặc chuỗi rỗng>",
   "criteria": [ { "name": "Nội dung chung", "score": <0..${maxPoints}>, "max": ${maxPoints}, "comment": "<nhận xét>" } ]
 }`;
 
