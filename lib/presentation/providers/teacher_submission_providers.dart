@@ -584,8 +584,10 @@ Future<List<AssignmentQuestion>> batchGradeAssignmentQuestions(
 }) async {
   final repo = ref.watch(assignmentRepositoryProvider);
   final detail = await ref.watch(distributionDetailProvider(distributionId).future);
-  final assignment = detail['assignments'] as Map<String, dynamic>?;
-  final assignmentId = assignment?['id'] as String? ?? detail['assignment_id'] as String?;
+  // getDistributionDetail trả {'assignment': {'id': ...}} (số ít) — KHÔNG phải
+  // 'assignments'/'assignment_id'. Đọc sai key → assignmentId null → màn trống.
+  final assignment = detail['assignment'] as Map<String, dynamic>?;
+  final assignmentId = assignment?['id'] as String?;
   if (assignmentId == null) {
     AppLogger.warning(
       '[BATCH_GRADE_QUESTIONS] Không tìm thấy assignment_id cho distribution=$distributionId',
