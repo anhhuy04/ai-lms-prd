@@ -807,7 +807,7 @@ class _TeacherStudentDistributionAttemptsProviderElement
 }
 
 String _$batchGradeAssignmentQuestionsHash() =>
-    r'eba4d752b6ea444cbebbd01560399f52179b15c7';
+    r'8b77b472486afac353b39f3763ce85b3d23af67d';
 
 /// Track 2 — Danh sách câu hỏi (assignment_questions) của 1 distribution, dùng cho
 /// màn chấm theo câu. Chain: distributionDetail → assignment_id → câu hỏi (typed).

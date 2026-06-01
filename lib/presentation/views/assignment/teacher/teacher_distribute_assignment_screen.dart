@@ -1191,13 +1191,25 @@ class _TeacherDistributeAssignmentScreenState
             isDark: isDark,
           ),
           Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
-          // AI Analysis toggle (7-11b)
+          // AI Analysis toggle (7-11b) — giải thích đáp án trắc nghiệm + phân tích học lực
           _buildToggleRow(
             icon: Icons.auto_awesome,
             title: 'AI Phân tích bài làm',
-            subtitle: 'Sau khi nộp, AI giải thích đáp án và phân tích học lực',
+            subtitle: 'Sau khi nộp, AI giải thích đáp án trắc nghiệm và phân tích học lực',
             value: state.aiEnabled,
             onChanged: (_) => notifier.toggleAiEnabled(),
+            tMain: tMain,
+            tSec: tSec,
+            isDark: isDark,
+          ),
+          Divider(color: isDark ? Colors.white10 : Colors.grey[50]),
+          // Phase 3: Công tắc RIÊNG — AI tự chấm điểm câu tự luận/trả lời ngắn
+          _buildToggleRow(
+            icon: Icons.grading,
+            title: 'AI tự chấm câu tự luận',
+            subtitle: 'AI chấm điểm câu tự luận & trả lời ngắn (tắt = giáo viên tự chấm tay)',
+            value: state.aiGradeEssay,
+            onChanged: (_) => notifier.toggleAiGradeEssay(),
             tMain: tMain,
             tSec: tSec,
             isDark: isDark,
@@ -1205,7 +1217,7 @@ class _TeacherDistributeAssignmentScreenState
           AnimatedSize(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
-            child: state.aiEnabled
+            child: state.aiGradeEssay
                 ? Container(
                     margin: const EdgeInsets.only(left: 44, top: 4, bottom: 4),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1257,8 +1269,8 @@ class _TeacherDistributeAssignmentScreenState
                         const SizedBox(height: 4),
                         Text(
                           state.requireReview
-                              ? 'AI phân tích xong → giáo viên xem xét → công bố điểm'
-                              : 'AI phân tích xong → tự động công bố điểm',
+                              ? 'AI chấm xong → giáo viên xem xét → công bố điểm'
+                              : 'AI chấm xong → tự động công bố (chỉ khi AI đủ tin cậy ≥ 70%)',
                           style: TextStyle(fontSize: 12, color: tSec),
                         ),
                       ],

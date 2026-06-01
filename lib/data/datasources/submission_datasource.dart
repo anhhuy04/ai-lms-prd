@@ -336,6 +336,20 @@ class SubmissionDataSource {
       submission['workSessions'] = Map<String, dynamic>.from(workSessionsRaw);
     }
 
+    // Normalize assignment_distributions → 'assignmentDistributions' key.
+    // Submission.fromJson đọc key camelCase 'assignmentDistributions' (field
+    // không có @JsonKey) nhưng PostgREST trả snake_case 'assignment_distributions'
+    // → nếu không map, submission.assignmentDistributions luôn null → tên bài tập,
+    // lớp, deadline + cờ 'settings' (canRescan) ở card thông tin GV đều mất.
+    final assignmentDistRaw = submission['assignment_distributions'];
+    if (assignmentDistRaw is Map) {
+      submission['assignmentDistributions'] =
+          Map<String, dynamic>.from(assignmentDistRaw);
+    } else if (assignmentDistRaw is List && assignmentDistRaw.isNotEmpty) {
+      submission['assignmentDistributions'] =
+          Map<String, dynamic>.from(assignmentDistRaw.first as Map);
+    }
+
     // Query 2: submission_answers qua work_sessions
     final sessionId = submission['session_id'] as String?;
     if (sessionId != null) {

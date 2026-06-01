@@ -146,7 +146,8 @@ class StudentHomeContentScreen extends ConsumerWidget {
                       dueAtStr != null ? DateTime.tryParse(dueAtStr) : null;
                   final status =
                       a['submission_status'] as String? ?? 'not_submitted';
-                  final distributionId = a['distribution_id'] as String?;
+                  final distributionId =
+                      a['assignment_distribution_id'] as String?;
                   // BẮT BUỘC bọc height cố định: _buildDueCard có Spacer()
                   // (= Expanded) bên trong Column — trong Wrap không giới hạn
                   // chiều cao sẽ gây "RenderBox no size". SizedBox cho Column
@@ -540,7 +541,8 @@ class StudentHomeContentScreen extends ConsumerWidget {
                   dueAtStr != null ? DateTime.tryParse(dueAtStr) : null;
               final status =
                   a['submission_status'] as String? ?? 'not_submitted';
-              final distributionId = a['distribution_id'] as String?;
+              final distributionId =
+                  a['assignment_distribution_id'] as String?;
               return _buildDueCard(
                   context, title, status, dueAt, index, distributionId);
             },

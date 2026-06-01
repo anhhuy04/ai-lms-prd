@@ -7,11 +7,10 @@ part of 'question_bank_summary_provider.dart';
 // **************************************************************************
 
 String _$questionBankSummaryHash() =>
-    r'a7ba8ff847e9786962c77307522a4472602fa4ed';
+    r'9a1c180b23e92ae388c6a40348785a59dad4681e';
 
-/// Aggregated count for hub entry + drawer subtitle.
-/// Single fetch up to 1000 items — adequate for current scale; replace with
-/// dedicated RPC `get_question_bank_summary()` if user count exceeds.
+/// Gọi RPC `get_question_bank_summary()` — SELECT COUNT(*) server-side,
+/// scope theo `auth.uid()`. Thay thế fetch-1000-then-filter (Bug #3).
 ///
 /// Copied from [questionBankSummary].
 @ProviderFor(questionBankSummary)

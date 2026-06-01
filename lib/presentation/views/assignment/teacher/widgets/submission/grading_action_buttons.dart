@@ -51,24 +51,29 @@ class GradingActionButtons extends StatelessWidget {
           ],
           Row(
             children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onApprove,
-                  icon: const Icon(Icons.check),
-                  label: const Text('Duyệt điểm'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: DesignColors.success,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: DesignSpacing.md),
+              // "Duyệt điểm" chỉ có nghĩa khi đã có ai_score để duyệt.
+              // Khi chưa có ai_score (GV chấm tay): ẩn nút duyệt, chỉ còn nút nhập điểm.
+              if (hasAiScore) ...[
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: onApprove,
+                    icon: const Icon(Icons.check),
+                    label: const Text('Duyệt điểm'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: DesignColors.success,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: DesignSpacing.md),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: DesignSpacing.md),
+                const SizedBox(width: DesignSpacing.md),
+              ],
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _showOverrideDialog(context),
                   icon: const Icon(Icons.edit),
-                  label: const Text('Sửa điểm'),
+                  // Có ai_score → "Sửa điểm"; chưa có → "Chấm điểm" (GV nhập từ đầu).
+                  label: Text(hasAiScore ? 'Sửa điểm' : 'Chấm điểm'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: DesignSpacing.md),
                   ),

@@ -41,6 +41,7 @@ class DistributeAssignmentState with _$DistributeAssignmentState {
     @Default('latest') String scoreAggregationRule,
     // --- AI Analysis settings (D-11) ---
     @Default(false) bool aiEnabled, // AI phân tích bài làm (default: tắt)
+    @Default(false) bool aiGradeEssay, // Phase 3: AI tự chấm câu tự luận (default: tắt — GV tự chấm)
     @Default(true) bool requireReview, // Chờ giáo viên duyệt trước khi công bố (default: bật)
     // --- UI State ---
     @Default(false) bool isLoading,
@@ -316,7 +317,8 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
         'show_score_immediately': state.studentReviewMode != 'none',
         'student_review_mode': state.studentReviewMode,
         'ai_feedback_enabled': state.aiEnabled,
-        if (state.aiEnabled) 'ai_require_review': state.requireReview,
+        'ai_grade_essay': state.aiGradeEssay,
+        if (state.aiGradeEssay) 'ai_require_review': state.requireReview,
         'allow_retake': state.allowRetake,
         if (state.maxAttempts != null) 'max_attempts': state.maxAttempts,
         'score_aggregation_rule': state.scoreAggregationRule,
@@ -434,6 +436,7 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
       sendNotification: settings['send_notification'] as bool? ?? true,
       maxAttempts: (settings['max_attempts'] as num?)?.toInt(),
       aiEnabled: settings['ai_feedback_enabled'] as bool? ?? false,
+      aiGradeEssay: settings['ai_grade_essay'] as bool? ?? false,
       requireReview: settings['ai_require_review'] as bool? ?? true,
       allowRetake: settings['allow_retake'] as bool? ?? false,
       scoreAggregationRule:
@@ -463,7 +466,8 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
         'show_score_immediately': state.studentReviewMode != 'none',
         'student_review_mode': state.studentReviewMode,
         'ai_feedback_enabled': state.aiEnabled,
-        if (state.aiEnabled) 'ai_require_review': state.requireReview,
+        'ai_grade_essay': state.aiGradeEssay,
+        if (state.aiGradeEssay) 'ai_require_review': state.requireReview,
         'allow_retake': state.allowRetake,
         if (state.maxAttempts != null) 'max_attempts': state.maxAttempts,
         'score_aggregation_rule': state.scoreAggregationRule,
@@ -503,6 +507,10 @@ class DistributeAssignmentNotifier extends _$DistributeAssignmentNotifier {
 
   void toggleAiEnabled() {
     state = state.copyWith(aiEnabled: !state.aiEnabled);
+  }
+
+  void toggleAiGradeEssay() {
+    state = state.copyWith(aiGradeEssay: !state.aiGradeEssay);
   }
 
   void toggleRequireReview() {
