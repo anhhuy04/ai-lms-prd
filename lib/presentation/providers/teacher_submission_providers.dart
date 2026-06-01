@@ -1,6 +1,7 @@
 import 'package:ai_mls/core/services/supabase_service.dart';
 import 'package:ai_mls/core/utils/app_logger.dart';
 import 'package:ai_mls/data/repositories/submission_repository_impl.dart';
+import 'package:ai_mls/domain/entities/assignment_question.dart';
 import 'package:ai_mls/domain/entities/grade_override.dart';
 import 'package:ai_mls/domain/entities/submission.dart';
 import 'package:ai_mls/domain/entities/submission_answer.dart';
@@ -312,6 +313,76 @@ class SubmissionGradingNotifier extends _$SubmissionGradingNotifier {
     }
   }
 
+  /// Track 2 — Duyệt hàng loạt điểm AI cho nhiều câu trả lời (cùng 1 câu hỏi).
+  /// Resolve graded_by từ auth uid (giống overrideScore), gọi RPC qua datasource,
+  /// rồi invalidate provider câu trả lời theo câu + danh sách bài nộp.
+  Future<int> batchApproveScores(
+    List<String> answerIds, {
+    String? distributionId,
+    String? assignmentQuestionId,
+  }) async {
+    if (_isUpdating) return 0;
+    if (answerIds.isEmpty) return 0;
+    _isUpdating = true;
+
+    final datasource = ref.read(submissionDataSourceProviderProvider);
+
+    try {
+      final currentUser = SupabaseService.client.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final count = await datasource.batchApproveAiScores(
+        answerIds: answerIds,
+        gradedBy: currentUser.id,
+      );
+      AppLogger.info('✅ Batch approved $count AI score(s)');
+
+      // Refresh state — khớp chính xác family key để invalidate đúng provider.
+      if (distributionId != null && assignmentQuestionId != null) {
+        ref.invalidate(distributionAnswersByQuestionProvider(
+          distributionId: distributionId,
+          assignmentQuestionId: assignmentQuestionId,
+        ));
+      }
+      if (distributionId != null) {
+        ref.invalidate(
+            teacherSubmissionListProvider(distributionId: distributionId));
+      }
+      return count;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '🔴 [BATCH_APPROVE_SCORES] Error: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    } finally {
+      _isUpdating = false;
+    }
+  }
+
+  /// Phase 3 — Quét/chấm lại AI cho 1 session (van an toàn khi webhook lỡ hoặc AI lỗi).
+  Future<void> rescanAiScoring(String sessionId, {String? distributionId}) async {
+    if (_isUpdating) return;
+    _isUpdating = true;
+
+    final datasource = ref.read(submissionDataSourceProviderProvider);
+    try {
+      await datasource.rescanAiScoring(sessionId);
+      AppLogger.info('🔄 Rescan AI scoring for session: $sessionId');
+      if (distributionId != null) {
+        ref.invalidate(teacherSubmissionListProvider(distributionId: distributionId));
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error('🔴 [RESCAN_AI] Error: $e', error: e, stackTrace: stackTrace);
+      rethrow;
+    } finally {
+      _isUpdating = false;
+    }
+  }
+
   /// Override điểm - teacher nhập điểm mới
   /// Lưu vào grade_overrides để audit trail
   Future<void> overrideScore({
@@ -495,6 +566,50 @@ Future<List<Map<String, dynamic>>> teacherStudentDistributionAttempts(
 }) async {
   final repo = ref.watch(assignmentRepositoryProvider);
   return repo.getDistributionAttempts(distributionId, studentId);
+}
+
+/// Track 2 — Danh sách câu hỏi (assignment_questions) của 1 distribution, dùng cho
+/// màn chấm theo câu. Chain: distributionDetail → assignment_id → câu hỏi (typed).
+@riverpod
+Future<List<AssignmentQuestion>> batchGradeAssignmentQuestions(
+  Ref ref, {
+  required String distributionId,
+}) async {
+  final repo = ref.watch(assignmentRepositoryProvider);
+  final detail = await ref.watch(distributionDetailProvider(distributionId).future);
+  final assignment = detail['assignments'] as Map<String, dynamic>?;
+  final assignmentId = assignment?['id'] as String? ?? detail['assignment_id'] as String?;
+  if (assignmentId == null) {
+    AppLogger.warning(
+      '[BATCH_GRADE_QUESTIONS] Không tìm thấy assignment_id cho distribution=$distributionId',
+    );
+    return const [];
+  }
+  return repo.getAssignmentQuestions(assignmentId);
+}
+
+/// Track 2 — Câu trả lời của TẤT CẢ học sinh cho 1 câu hỏi trong distribution.
+/// Trả về list map thô từ RPC (answer_id, student_name, answer, ai_score, ...).
+@riverpod
+Future<List<Map<String, dynamic>>> distributionAnswersByQuestion(
+  Ref ref, {
+  required String distributionId,
+  required String assignmentQuestionId,
+}) async {
+  final datasource = ref.watch(submissionDataSourceProviderProvider);
+  try {
+    return await datasource.getDistributionAnswersByQuestion(
+      distributionId: distributionId,
+      assignmentQuestionId: assignmentQuestionId,
+    );
+  } catch (e, stackTrace) {
+    AppLogger.error(
+      '🔴 [DISTRIBUTION_ANSWERS_BY_QUESTION] Error loading answers: $e',
+      error: e,
+      stackTrace: stackTrace,
+    );
+    rethrow;
+  }
 }
 
 /// Parse Supabase numeric an toàn: có thể là num, String "10.00", hoặc null

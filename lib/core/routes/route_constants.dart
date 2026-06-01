@@ -297,6 +297,13 @@ class AppRoute {
   static String teacherGradeSubmissionPath(String submissionId) =>
       '/teacher/submission/$submissionId/grade';
 
+  /// Teacher - Batch grade by question (chấm cùng 1 câu cho tất cả HS).
+  /// Segment phụ '/by-question' để KHÔNG đụng route '/teacher/submissions/:distributionId'.
+  static const String teacherBatchGradeByQuestion =
+      'teacher-batch-grade-by-question';
+  static String teacherBatchGradeByQuestionPath(String distributionId) =>
+      '/teacher/submissions/$distributionId/by-question';
+
   /// Teacher - Assignment Detail (distribution view cho 1 lớp cụ thể)
   static const String teacherAssignmentDetail = 'teacher-assignment-detail';
   static String teacherAssignmentDetailPath(
@@ -463,6 +470,7 @@ class AppRoute {
       teacherGrading,
       teacherSubmissionList,
       teacherGradeSubmission,
+      teacherBatchGradeByQuestion,
       teacherAssignmentDetail,
       teacherClassSubmissionList,
       teacherAnalytics,

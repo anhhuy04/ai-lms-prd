@@ -40,6 +40,25 @@ interface AiScoreResult {
   raw?: string;
 }
 
+/**
+ * Track 3: dựng khối hướng dẫn GIỌNG ĐIỆU phản hồi cho prompt AI.
+ * GV chọn tone, lưu ở profiles.metadata.feedback_tone. Tone CHỈ chi phối cách
+ * VIẾT NHẬN XÉT (wording), KHÔNG đổi điểm số hay JSON schema. Fallback 'encouraging'.
+ */
+function buildToneInstruction(tone: string): string {
+  const t = (tone || "").toLowerCase().trim();
+  const lead =
+    "GIỌNG ĐIỆU PHẢN HỒI (chỉ áp dụng cho cách VIẾT NHẬN XÉT — summary/explanation/strengths/improvements/encouragement; KHÔNG ảnh hưởng điểm số):";
+  if (t === "direct") {
+    return `${lead}\nViết thẳng thắn, ngắn gọn, đi thẳng vào lỗi sai, không vòng vo. Nêu rõ chỗ chưa đạt và cần sửa.`;
+  }
+  if (t === "detailed") {
+    return `${lead}\nViết phân tích chi tiết theo từng bước, giải thích cặn kẽ, mang tính học thuật. Làm rõ vì sao đúng/sai và liên hệ nguyên lý.`;
+  }
+  // 'encouraging' = mặc định + fallback cho mọi giá trị thiếu/không hợp lệ
+  return `${lead}\nViết động viên, ấm áp; nêu điểm tốt trước rồi mới góp ý nhẹ nhàng để học sinh có động lực cải thiện.`;
+}
+
 Deno.serve(async (req: Request) => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,6 +245,9 @@ async function handleFeedback(
   const provider   = analytics?.provider ?? "gemini";
   const model      = analytics?.model    ?? "gemini-2.0-flash";
   const apiKey     = apiKeys?.[provider];
+  // Track 3: tone GV chọn (top-level metadata.feedback_tone). Đã có sẵn trong `meta`
+  //   (cùng query select("metadata")) → không thêm query mới. Thiếu → 'encouraging'.
+  const feedbackTone = (meta?.feedback_tone as string) ?? "encouraging";
 
   if (!apiKey) {
     console.warn(`[AI] No API key for provider "${provider}" — teacher ${teacherId}`);
@@ -285,6 +307,8 @@ async function handleFeedback(
 
   // ─── UPGRADED PROMPT ────────────────────────────────────────────────────────
   const prompt = `Bạn là giáo viên AI đang đánh giá bài làm học sinh. Phân tích câu trả lời này và trả về JSON.
+
+${buildToneInstruction(feedbackTone)}
 
 CÂU HỎI: ${questionText}
 ${tagContext}
@@ -621,6 +645,8 @@ async function handleScore(supabase: any, item: AiQueueItem): Promise<string | n
 
   const prompt = `Bạn là giáo viên chấm bài tự luận CÔNG BẰNG và nhất quán. Chấm câu trả lời của học sinh và trả về JSON.
 
+${buildToneInstruction(cfg.tone)}
+
 THANG ĐIỂM: 0..${maxPoints} điểm (không vượt quá ${maxPoints}).
 
 CÂU HỎI: ${questionText}
@@ -667,7 +693,7 @@ Trả về JSON (không markdown, không chữ thừa):
 async function resolveTeacherAiConfig(
   supabase: any,
   sessionId: string,
-): Promise<{ provider: string; model: string; apiKey?: string; requireReview: boolean }> {
+): Promise<{ provider: string; model: string; apiKey?: string; requireReview: boolean; tone: string }> {
   const { data: session } = await supabase
     .from("work_sessions")
     .select("assignment_distribution_id")
@@ -691,7 +717,10 @@ async function resolveTeacherAiConfig(
   const apiKeys   = meta?.api_keys    as Record<string, string>  | null;
   const provider  = analytics?.provider ?? "gemini";
   const model     = analytics?.model    ?? "gemini-2.0-flash";
-  return { provider, model, apiKey: apiKeys?.[provider], requireReview };
+  // Track 3: tone GV chọn (top-level metadata.feedback_tone, cùng query select("metadata")).
+  //   Thiếu/không hợp lệ → buildToneInstruction fallback 'encouraging'.
+  const tone      = (meta?.feedback_tone as string) ?? "encouraging";
+  return { provider, model, apiKey: apiKeys?.[provider], requireReview, tone };
 }
 
 /** Ghi điểm AI vào submission_answers + ai_evaluations; auto-publish nếu !requireReview */

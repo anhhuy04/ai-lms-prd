@@ -10,6 +10,7 @@ import 'package:ai_mls/presentation/views/grading/widgets/analytics/charts/radar
 import 'package:ai_mls/presentation/views/grading/widgets/analytics/charts/line_trend_chart.dart';
 import 'package:ai_mls/presentation/views/grading/widgets/analytics/cards/metric_card.dart';
 import 'package:ai_mls/presentation/views/grading/widgets/analytics/cards/strength_weakness_card.dart';
+import 'package:ai_mls/presentation/views/grading/widgets/teacher_notes_section.dart';
 import 'package:ai_mls/presentation/views/grading/widgets/analytics/time_range_selector.dart'
     show
         AnalyticsTimeRange,
@@ -155,6 +156,10 @@ class _TeacherStudentAnalyticsScreenState
               LineTrendChart(trends: analytics.gradeTrends)
             else
               _buildLineChartPlaceholder(),
+            SizedBox(height: DesignSpacing.lg),
+
+            // Group 5: Teacher Notes (ghi chú riêng tư của GV về học sinh)
+            TeacherNotesSection(studentId: widget.studentId),
             SizedBox(height: DesignSpacing.xxl),
           ],
         ),
